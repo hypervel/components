@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-use Hypervel\Contracts\Container\Container;
 
 class TranslatorFactory
 {

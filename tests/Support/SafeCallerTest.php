@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 /**

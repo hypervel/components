@@ -8,10 +8,10 @@ use Closure;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Redis\RedisFactory;
-use Hypervel\Filesystem\Filesystem;
-use InvalidArgumentException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Redis\RedisFactory;
+use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
 
 /**

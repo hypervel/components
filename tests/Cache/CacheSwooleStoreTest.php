@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Cache;
 use Carbon\Carbon;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 use Swoole\Table;
 
 /**

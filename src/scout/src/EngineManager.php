@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
@@ -13,7 +14,6 @@ use Hypervel\Scout\Engines\TypesenseEngine;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
-use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use Typesense\Client as TypesenseClient;
 

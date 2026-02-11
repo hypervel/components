@@ -6,8 +6,8 @@ namespace Hypervel\Support;
 
 use Closure;
 use Hypervel\Config\Repository;
-use InvalidArgumentException;
 use Hypervel\Contracts\Container\Container;
+use InvalidArgumentException;
 
 abstract class Manager
 {

@@ -6,9 +6,9 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Command\Command;
 use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class CommandWatcher extends Watcher

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Stubs;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Redis\RedisConnection;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 use Redis;
 use RedisCluster;
 use RedisException;

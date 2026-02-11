@@ -6,9 +6,9 @@ namespace Hypervel\Foundation\Console\Commands;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class ServerReloadCommand extends Command

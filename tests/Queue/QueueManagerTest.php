@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;

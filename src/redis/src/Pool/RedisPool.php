@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Pool;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Redis\Frequency;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Arr;
-use Hypervel\Contracts\Container\Container;
 
 class RedisPool extends Pool
 {

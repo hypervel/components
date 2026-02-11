@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
@@ -11,7 +12,6 @@ use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use PDO;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * Database connection pool.

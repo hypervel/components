@@ -8,6 +8,7 @@ use Closure;
 use Exception;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Log\Events\MessageLogged;
@@ -18,7 +19,6 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
-use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 use function Hypervel\Cache\cache;

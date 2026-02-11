@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hyperf\Contract\SessionInterface;
-use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Session\Session as SessionContract;
 
 class AdapterFactory
 {

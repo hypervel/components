@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hyperf\Dispatcher;
 
 use Hypervel\Context\Context;
-use Hypervel\Dispatcher\Pipeline;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Dispatcher\Pipeline;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 
 class DispatcherFactory
 {

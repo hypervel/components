@@ -6,6 +6,7 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
@@ -13,7 +14,6 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use RuntimeException;
 
 /**

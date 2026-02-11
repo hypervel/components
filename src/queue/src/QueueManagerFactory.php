@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use InvalidArgumentException;
-use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class QueueManagerFactory

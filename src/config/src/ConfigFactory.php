@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hypervel\Support\Arr;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Arr;
 use Symfony\Component\Finder\Finder;
 
 class ConfigFactory

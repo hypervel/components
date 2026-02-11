@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Support\Collection;

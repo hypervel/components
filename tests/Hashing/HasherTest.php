@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Hashing;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;

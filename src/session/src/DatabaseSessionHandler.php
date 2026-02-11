@@ -9,13 +9,13 @@ use Hyperf\HttpServer\Request;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
-use Hypervel\Contracts\Container\Container;
 use SessionHandlerInterface;
 
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface

@@ -6,8 +6,8 @@ namespace Hypervel\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Context\Context as CoroutineContext;
-use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Psr\Log\LoggerInterface;
 
 /**

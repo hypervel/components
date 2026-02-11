@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Aws\Sqs\SqsClient;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Container\Container;
 use stdClass;
 
 /**

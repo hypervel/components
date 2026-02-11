@@ -13,12 +13,12 @@ use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

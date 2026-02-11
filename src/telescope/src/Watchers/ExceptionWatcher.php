@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -11,7 +12,6 @@ use Hypervel\Telescope\ExceptionContext;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 

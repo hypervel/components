@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\JWT;
 
 use Hypervel\Contracts\Cache\Factory as CacheManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Storage\TaggedCache;
-use Hypervel\Contracts\Container\Container;
 
 class BlacklistFactory
 {

@@ -8,8 +8,8 @@ use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionResolverInterface;
 
 /**
  * Clears database connection context when task workers start.

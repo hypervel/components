@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Transport;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\Sentry\HttpClient\HttpClient;
-use Hypervel\Contracts\Container\Container;
 use Sentry\Client as SentryClient;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Options;

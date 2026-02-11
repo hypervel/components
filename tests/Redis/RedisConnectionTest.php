@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Container\Container;
 use Hyperf\Pool\PoolOption;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exception\ConnectionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
@@ -14,7 +15,6 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;

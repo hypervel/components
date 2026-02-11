@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Carbon\Carbon;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

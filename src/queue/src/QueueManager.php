@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
@@ -23,7 +24,6 @@ use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**

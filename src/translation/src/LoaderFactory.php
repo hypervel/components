@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Contracts\Container\Container;
 
 class LoaderFactory
 {

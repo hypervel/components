@@ -6,11 +6,11 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Pool\Exception\ConnectionException;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
-use Hypervel\Contracts\Container\Container;
 use RedisException;
 
 class RedisBroadcaster extends Broadcaster

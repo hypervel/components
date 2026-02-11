@@ -6,10 +6,10 @@ namespace Hypervel\Permission;
 
 use Hypervel\Contracts\Cache\Factory as CacheManager;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use InvalidArgumentException;
-use Hypervel\Contracts\Container\Container;
 
 class PermissionManager implements Contracts\Factory
 {

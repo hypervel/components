@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Console\ClearCommand;
@@ -21,7 +22,6 @@ use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Failed\FailedJobProviderFactory;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Laravel\SerializableClosure\SerializableClosure;
-use Hypervel\Contracts\Container\Container;
 
 class ConfigProvider
 {

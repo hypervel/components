@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Broadcasting;
 use Hyperf\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

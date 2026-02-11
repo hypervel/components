@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Queue\DatabaseQueue;
 
 class DatabaseJob extends Job
 {

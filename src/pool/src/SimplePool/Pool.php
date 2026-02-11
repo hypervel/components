@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool\SimplePool;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool as AbstractPool;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * A simple pool that creates connections via a callback.

@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Event;
 
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

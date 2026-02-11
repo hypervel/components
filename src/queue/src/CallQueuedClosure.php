@@ -8,9 +8,9 @@ use Closure;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Laravel\SerializableClosure\SerializableClosure;
-use Hypervel\Contracts\Container\Container;
 use ReflectionFunction;
 use Throwable;
 

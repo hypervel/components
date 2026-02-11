@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Psr\EventDispatcher\ListenerProviderInterface;
 
 class EventDispatcherFactory

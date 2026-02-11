@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Throwable;
 
 class SafeCaller

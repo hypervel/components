@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Event;
 
 use Error;
 use Exception;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\EventDispatcher;
@@ -13,7 +14,6 @@ use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

@@ -14,10 +14,10 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\JWT\JWTManager;
 use InvalidArgumentException;
-use Hypervel\Contracts\Container\Container;
 
 class AuthManager implements AuthFactoryContract
 {

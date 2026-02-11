@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Event\ReleaseConnection;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 

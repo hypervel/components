@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class BatchWatcher extends Watcher

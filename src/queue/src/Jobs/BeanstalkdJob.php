@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
+use Hypervel\Contracts\Container\Container;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Pheanstalk;
-use Hypervel\Contracts\Container\Container;
 
 class BeanstalkdJob extends Job
 {

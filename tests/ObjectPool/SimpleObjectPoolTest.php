@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 use stdClass;
 
 /**

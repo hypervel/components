@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionResolverInterface;
 
 class DatabaseBatchRepositoryFactory
 {

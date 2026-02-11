@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

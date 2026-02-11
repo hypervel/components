@@ -6,10 +6,10 @@ namespace Hypervel\Sanctum\Http\Middleware;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface as HttpResponse;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Dispatcher\Pipeline;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

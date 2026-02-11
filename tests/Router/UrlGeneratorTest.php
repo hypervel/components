@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hypervel\Contracts\Container\Container;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -14,6 +13,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\UrlGenerator;

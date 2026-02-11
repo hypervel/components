@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
-use Hypervel\Contracts\Container\Container;
 
 class EncryptionFactory
 {

@@ -7,6 +7,7 @@ namespace Hypervel\Bus;
 use Closure;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
@@ -14,7 +15,6 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Pipeline;
-use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher

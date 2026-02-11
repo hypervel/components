@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;

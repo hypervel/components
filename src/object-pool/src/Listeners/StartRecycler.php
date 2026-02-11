@@ -6,8 +6,8 @@ namespace Hypervel\ObjectPool\Listeners;
 
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\AfterWorkerStart;
-use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\ObjectPool\Contracts\Recycler;
 
 class StartRecycler implements ListenerInterface
 {

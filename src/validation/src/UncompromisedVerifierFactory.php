@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\HttpClient\Factory as HttpFactory;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\HttpClient\Factory as HttpFactory;
 
 class UncompromisedVerifierFactory
 {

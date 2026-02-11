@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\ContainerCommandLoader;
-use PHPUnit\Framework\TestCase;
 use Hypervel\Contracts\Container\Container;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 

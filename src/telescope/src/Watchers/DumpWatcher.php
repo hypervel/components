@@ -6,9 +6,9 @@ namespace Hypervel\Telescope\Watchers;
 
 use Exception;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Container\Container;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\HtmlDumper;
 use Symfony\Component\VarDumper\VarDumper;

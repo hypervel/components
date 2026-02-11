@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;

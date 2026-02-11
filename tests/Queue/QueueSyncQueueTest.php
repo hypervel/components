@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;

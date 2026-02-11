@@ -6,10 +6,10 @@ namespace Hypervel\ObjectPool\Strategies;
 
 use Carbon\Carbon;
 use DateTime;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Contracts\TimeStrategy as TimeStrategyContract;
-use Hypervel\Contracts\Container\Container;
 
 class TimeStrategy implements TimeStrategyContract
 {

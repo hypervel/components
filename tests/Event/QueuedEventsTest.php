@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -20,7 +21,6 @@ use Hypervel\Tests\TestCase;
 use Illuminate\Events\CallQueuedListener;
 use Mockery as m;
 use Mockery\MockInterface;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use TypeError;
 
 use function Hypervel\Event\queueable;

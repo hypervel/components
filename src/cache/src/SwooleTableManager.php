@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use InvalidArgumentException;
 use Hypervel\Contracts\Container\Container;
+use InvalidArgumentException;
 use Swoole\Table;
 
 class SwooleTableManager

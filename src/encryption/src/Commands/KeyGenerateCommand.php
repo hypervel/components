@@ -7,8 +7,8 @@ namespace Hypervel\Encryption\Commands;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Concerns\Confirmable as ConfirmableTrait;
 use Hypervel\Config\Repository;
-use Hypervel\Encryption\Encrypter;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Encryption\Encrypter;
 use Symfony\Component\Console\Input\InputOption;
 
 class KeyGenerateCommand extends HyperfCommand

@@ -6,6 +6,7 @@ namespace Hypervel\Redis;
 
 use Generator;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\Exception\ConnectionException;
@@ -16,7 +17,6 @@ use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LogLevel;
 use Redis;

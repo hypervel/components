@@ -6,8 +6,8 @@ namespace Hypervel\Devtool\Commands;
 
 use Closure;
 use Hyperf\Command\Command as HyperfCommand;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableSeparator;

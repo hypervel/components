@@ -6,12 +6,12 @@ namespace Hypervel\Pool;
 
 use Closure;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\Exception\InvalidArgumentException;
 use Hypervel\Pool\Exception\SocketPopException;
-use Hypervel\Contracts\Container\Container;
 use Psr\Log\LoggerInterface;
 use Throwable;
 

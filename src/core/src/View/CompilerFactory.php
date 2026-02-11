@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hyperf\ViewEngine\Blade;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\BladeCompiler;
-use Hypervel\Contracts\Container\Container;
 
 class CompilerFactory
 {

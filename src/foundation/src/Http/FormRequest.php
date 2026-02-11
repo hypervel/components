@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Context\Context;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Contracts\Validation\Validator;
@@ -15,7 +16,6 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use Hypervel\Validation\ValidationException;
-use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 
 class FormRequest extends Request implements ValidatesWhenResolved

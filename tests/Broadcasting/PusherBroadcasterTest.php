@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Broadcasting;
 use Hyperf\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Container\Container;
 use Pusher\Pusher;
 
 /**

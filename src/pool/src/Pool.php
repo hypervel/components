@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
-use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use Throwable;
 

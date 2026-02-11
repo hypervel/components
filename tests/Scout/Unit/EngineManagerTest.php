@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -16,7 +17,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 use Typesense\Client as TypesenseClient;
 
 /**

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Router;
 
-use Hypervel\Contracts\Container\Container;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\DispatcherFactory as BaseDispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\Contracts\Container\Container;
 
 class DispatcherFactory extends BaseDispatcherFactory
 {

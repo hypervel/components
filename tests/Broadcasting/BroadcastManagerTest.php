@@ -14,6 +14,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Support\Facades\Broadcast;
@@ -22,7 +23,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal

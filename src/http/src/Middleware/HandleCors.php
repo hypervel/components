@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Middleware;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Http\Cors;
 use Hypervel\Support\Str;
-use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
