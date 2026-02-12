@@ -332,6 +332,11 @@
             "@test",
             "@analyse",
             "@lint"
+        ],
+        "fix": [
+            "@lint:fix",
+            "@analyse",
+            "@test"
         ]
     },
     "minimum-stability": "dev",
