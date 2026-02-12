@@ -124,7 +124,9 @@ class Container implements ArrayAccess, ContainerContract
      * stored in coroutine-local Context instead of process-global $instances,
      * and by forgetScopedInstances() to know which Context keys to destroy.
      *
-     * @var string[]
+     * Keyed by abstract name for O(1) lookup in isScoped().
+     *
+     * @var array<string, true>
      */
     protected $scopedInstances = [];
 
@@ -330,9 +332,7 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         if ($scopedType === 'scoped') {
-            if (! in_array($abstract, $this->scopedInstances, true)) {
-                $this->scopedInstances[] = $abstract;
-            }
+            $this->scopedInstances[$abstract] = true;
         }
 
         return true;
@@ -343,7 +343,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function isScoped(string $abstract): bool
     {
-        return in_array($abstract, $this->scopedInstances, true);
+        return isset($this->scopedInstances[$abstract]);
     }
 
     /**
@@ -534,10 +534,10 @@ class Container implements ArrayAccess, ContainerContract
         // identifies them and resolve() routes their instances to Context.
         if ($abstract instanceof Closure) {
             foreach ($this->closureReturnTypes($abstract) as $type) {
-                $this->scopedInstances[] = $type;
+                $this->scopedInstances[$type] = true;
             }
         } else {
-            $this->scopedInstances[] = $abstract;
+            $this->scopedInstances[$abstract] = true;
         }
 
         $this->singleton($abstract, $concrete);
@@ -1882,7 +1882,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function forgetScopedInstances(): void
     {
-        foreach ($this->scopedInstances as $scoped) {
+        foreach ($this->scopedInstances as $scoped => $_) {
             Context::destroy(self::SCOPED_CONTEXT_PREFIX . $scoped);
         }
     }
