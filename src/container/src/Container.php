@@ -42,6 +42,17 @@ class Container implements ArrayAccess, ContainerContract
     protected const DEPTH_CONTEXT_KEY = '__container.depth';
 
     /**
+     * Context key for the coroutine-local resolving stack.
+     *
+     * Tracks abstracts currently being resolved, used exclusively for circular
+     * dependency detection. Separate from BUILD_STACK_CONTEXT_KEY (which is
+     * also used by call() for contextual binding lookup) to avoid false
+     * positives when call() pushes a class name that is then re-resolved
+     * inside the method body.
+     */
+    protected const RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
+
+    /**
      * Maximum resolution depth before assuming a circular dependency.
      *
      * Safety net for indirect cycles (e.g., through interfaces) where the
@@ -850,25 +861,6 @@ class Container implements ArrayAccess, ContainerContract
     {
         $abstract = $this->getAlias($abstract);
 
-        // Check for circular dependency — if this abstract is already being
-        // built in the current coroutine's resolution chain, we have a cycle.
-        if (in_array($abstract, $this->getBuildStack(), true)) {
-            $e = new CircularDependencyException();
-            $e->addDefinitionName($abstract);
-
-            throw $e;
-        }
-
-        // Depth guard — catches indirect cycles (e.g., through interfaces) where
-        // the abstract names differ from the concretes pushed by build().
-        $depth = Context::get(self::DEPTH_CONTEXT_KEY, 0);
-
-        if ($depth > static::MAX_RESOLUTION_DEPTH) {
-            throw new CircularDependencyException(
-                'Maximum resolution depth (' . static::MAX_RESOLUTION_DEPTH . ') exceeded — possible circular dependency'
-            );
-        }
-
         // First we'll fire any event handlers which handle the "before" resolving of
         // specific types. This gives some hooks the chance to add various extends
         // calls to change the resolution of objects that they're interested in.
@@ -898,6 +890,37 @@ class Container implements ArrayAccess, ContainerContract
         // Check auto-singleton cache for unbound concrete classes.
         if (isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
             return $this->autoSingletons[$abstract];
+        }
+
+        // Check for circular dependency — if this abstract is already being
+        // resolved in the current coroutine's resolution chain, we have a cycle.
+        // Uses a dedicated resolving stack (not the build stack) so that call()'s
+        // contextual-binding pushes don't trigger false positives.
+        // Skipped for contextual builds because contextual binding closures
+        // legitimately re-resolve the same abstract through the default path
+        // (e.g., when(A)->needs(B)->give(fn($c) => $c->make(B))).
+        $pushedToResolvingStack = false;
+
+        if (! $needsContextualBuild) {
+            if (in_array($abstract, $this->getResolvingStack(), true)) {
+                $e = new CircularDependencyException();
+                $e->addDefinitionName($abstract);
+
+                throw $e;
+            }
+
+            $this->pushResolvingStack($abstract);
+            $pushedToResolvingStack = true;
+        }
+
+        // Depth guard — safety net for indirect cycles (e.g., through interfaces)
+        // where the abstract names differ from the concretes in the resolving stack.
+        $depth = Context::get(self::DEPTH_CONTEXT_KEY, 0);
+
+        if ($depth > static::MAX_RESOLUTION_DEPTH) {
+            throw new CircularDependencyException(
+                'Maximum resolution depth (' . static::MAX_RESOLUTION_DEPTH . ') exceeded — possible circular dependency'
+            );
         }
 
         $this->pushParameterOverrides($parameters);
@@ -968,6 +991,10 @@ class Container implements ArrayAccess, ContainerContract
 
             throw $e;
         } finally {
+            if ($pushedToResolvingStack) {
+                $this->popResolvingStack();
+            }
+
             $this->popParameterOverrides();
             Context::set(self::DEPTH_CONTEXT_KEY, $depth);
         }
@@ -1110,6 +1137,40 @@ class Container implements ArrayAccess, ContainerContract
         $stack = $this->getBuildStack();
         array_pop($stack);
         $this->setBuildStack($stack);
+    }
+
+    /**
+     * Get the resolving stack from coroutine-local context.
+     *
+     * Used exclusively for circular dependency detection. Separate from the
+     * build stack so that call()'s contextual-binding pushes don't trigger
+     * false positives.
+     *
+     * @return string[]
+     */
+    protected function getResolvingStack(): array
+    {
+        return Context::get(self::RESOLVING_STACK_CONTEXT_KEY, []);
+    }
+
+    /**
+     * Push an abstract onto the coroutine-local resolving stack.
+     */
+    protected function pushResolvingStack(string $abstract): void
+    {
+        $stack = $this->getResolvingStack();
+        $stack[] = $abstract;
+        Context::set(self::RESOLVING_STACK_CONTEXT_KEY, $stack);
+    }
+
+    /**
+     * Pop the last entry from the coroutine-local resolving stack.
+     */
+    protected function popResolvingStack(): void
+    {
+        $stack = $this->getResolvingStack();
+        array_pop($stack);
+        Context::set(self::RESOLVING_STACK_CONTEXT_KEY, $stack);
     }
 
     /**

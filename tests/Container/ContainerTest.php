@@ -1047,15 +1047,39 @@ class ContainerTest extends TestCase
         }
     }
 
-    public function testGetRethrowsCircularDependencyException()
+    public function testCallDoesNotFalsePositiveCircularDependency()
+    {
+        $container = new Container();
+
+        // Use a non-shared binding so the class is NOT cached — this covers
+        // the case where cache early-returns can't save us.
+        $container->bind(CallMakesServiceStub::class);
+
+        $result = $container->call([new CallMakesServiceStub($container), 'handle']);
+
+        // call() pushes CallMakesServiceStub to the build stack for contextual
+        // binding lookup. handle() then resolves the same class via make().
+        // If cycle detection incorrectly checked the build stack instead of the
+        // dedicated resolving stack, this would throw CircularDependencyException.
+        $this->assertInstanceOf(CallMakesServiceStub::class, $result);
+    }
+
+    public function testCircularDependencyThroughContextualBindingIsDetected()
     {
         $this->expectException(CircularDependencyException::class);
 
         $container = new Container();
-        $container->get(CircularAStub::class);
 
-        // CircularDependencyException must NOT be wrapped in EntryNotFoundException.
-        // get() checks `$e instanceof CircularDependencyException` and rethrows directly.
+        // ContextualCircularA needs ContextualCircularInterface.
+        // Contextual binding gives ContextualCircularC (which depends on A).
+        // Cycle: A → Interface(contextual→C) → A
+        // The contextual resolution skips the resolving stack push, but the
+        // non-contextual re-entry to A must still be caught.
+        $container->when(ContextualCircularA::class)
+            ->needs(ContextualCircularInterface::class)
+            ->give(ContextualCircularC::class);
+
+        $container->make(ContextualCircularA::class);
     }
 }
 
@@ -1347,5 +1371,42 @@ class RequestDtoDependency implements RequestDtoDependencyContract
     public function __construct()
     {
         $this->userId = $_SERVER['__withFactory.userId'];
+    }
+}
+
+class CallMakesServiceStub
+{
+    public function __construct(
+        private Container $container,
+    ) {
+    }
+
+    /**
+     * Resolves the same class that call() pushes to the build stack.
+     * This must NOT trigger a false-positive circular dependency.
+     */
+    public function handle(): static
+    {
+        return $this->container->make(static::class);
+    }
+}
+
+interface ContextualCircularInterface
+{
+}
+
+class ContextualCircularA
+{
+    public function __construct(
+        public readonly ContextualCircularInterface $dependency,
+    ) {
+    }
+}
+
+class ContextualCircularC implements ContextualCircularInterface
+{
+    public function __construct(
+        public readonly ContextualCircularA $a,
+    ) {
     }
 }
