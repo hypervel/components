@@ -92,12 +92,12 @@ class SessionGuard implements StatefulGuard
 
     public function getContextKey(): string
     {
-        return "auth.guards.{$this->name}.result:" . $this->session->getId();
+        return "__auth.guards.{$this->name}.result." . $this->session->getId();
     }
 
     protected function getUnstartedContextKey(): string
     {
-        return "auth.guards.{$this->name}.unstarted";
+        return "__auth.guards.{$this->name}.unstarted";
     }
 
     public function user(): ?Authenticatable

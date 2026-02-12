@@ -370,7 +370,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function getConnectionContextKey(string $name): string
     {
-        return sprintf('database.connection.%s', $name);
+        return sprintf('__database.connection.%s', $name);
     }
 
     /**

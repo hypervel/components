@@ -70,7 +70,7 @@ class JwtGuard implements Guard
     public function login(Authenticatable $user): string
     {
         $now = Carbon::now();
-        $claims = Context::get("auth.guards.{$this->name}.claims", []);
+        $claims = Context::get("__auth.guards.{$this->name}.claims", []);
         $token = $this->jwtManager->encode(array_merge([
             'sub' => $user->getAuthIdentifier(),
             'iat' => $now->copy()->timestamp,
@@ -89,10 +89,10 @@ class JwtGuard implements Guard
     public function getContextKey(?string $token = null): string
     {
         if (! $token) {
-            return "auth.guards.{$this->name}.result.default";
+            return "__auth.guards.{$this->name}.result.default";
         }
 
-        return "auth.guards.{$this->name}.result:" . md5($token);
+        return "__auth.guards.{$this->name}.result." . md5($token);
     }
 
     public function user(): ?Authenticatable
@@ -128,7 +128,7 @@ class JwtGuard implements Guard
      */
     public function claims(array $claims): static
     {
-        $contextKey = "auth.guards.{$this->name}.claims";
+        $contextKey = "__auth.guards.{$this->name}.claims";
         if ($contextClaims = Context::get($contextKey)) {
             $claims = array_merge($contextClaims, $claims);
         }

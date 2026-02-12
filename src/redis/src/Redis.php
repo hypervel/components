@@ -212,7 +212,7 @@ class Redis
      */
     protected function getContextKey(): string
     {
-        return sprintf('redis.connection.%s', $this->poolName);
+        return sprintf('__redis.connection.%s', $this->poolName);
     }
 
     /**

@@ -84,7 +84,7 @@ class LinkedInProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.providers.' . LinkedInProvider::class . '.httpClient',
+            '__socialite.providers.' . LinkedInProvider::class . '.httpClient',
             $guzzle
         );
 

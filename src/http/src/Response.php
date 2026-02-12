@@ -154,7 +154,7 @@ class Response extends HyperfResponse implements ResponseContract
     /**
      * The context key for range headers.
      */
-    public const RANGE_HEADERS_CONTEXT = '_response.withRangeHeaders';
+    public const RANGE_HEADERS_CONTEXT_KEY = '__http.response.range_headers';
 
     /**
      * Create a new response instance.
@@ -347,7 +347,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function withRangeHeaders(?int $fileSize = null): static
     {
-        Context::set(static::RANGE_HEADERS_CONTEXT, [
+        Context::set(static::RANGE_HEADERS_CONTEXT_KEY, [
             'fileSize' => $fileSize,
         ]);
 
@@ -359,7 +359,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function withoutRangeHeaders(): static
     {
-        Context::destroy(static::RANGE_HEADERS_CONTEXT);
+        Context::destroy(static::RANGE_HEADERS_CONTEXT_KEY);
 
         return $this;
     }
@@ -369,7 +369,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function shouldAppendRangeHeaders(): bool
     {
-        return Context::has(static::RANGE_HEADERS_CONTEXT);
+        return Context::has(static::RANGE_HEADERS_CONTEXT_KEY);
     }
 
     /**
@@ -377,7 +377,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     protected function pullRangeHeaders(): ?array
     {
-        $context = Context::get(static::RANGE_HEADERS_CONTEXT, null);
+        $context = Context::get(static::RANGE_HEADERS_CONTEXT_KEY, null);
 
         $this->withoutRangeHeaders();
 

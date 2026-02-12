@@ -26,7 +26,7 @@ class MultiExecTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
+        Context::destroy('__redis.connection.default');
     }
 
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
@@ -124,7 +124,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the pipeline call
-        Context::set('redis.connection.default', $connection);
+        Context::set('__redis.connection.default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -170,7 +170,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the transaction call
-        Context::set('redis.connection.default', $connection);
+        Context::set('__redis.connection.default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -230,7 +230,7 @@ class MultiExecTest extends TestCase
 
         // After pipeline callback completes, connection was released.
         // The connection should no longer be in context.
-        $this->assertNull(Context::get('redis.connection.default'));
+        $this->assertNull(Context::get('__redis.connection.default'));
     }
 
     /**

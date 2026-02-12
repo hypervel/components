@@ -70,6 +70,6 @@ class RequestGuard implements Guard
 
     protected function getContextKey(): string
     {
-        return 'auth.guards.request';
+        return '__auth.guards.request';
     }
 }

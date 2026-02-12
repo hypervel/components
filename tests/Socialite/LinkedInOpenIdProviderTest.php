@@ -129,7 +129,7 @@ class LinkedInOpenIdProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.providers.' . LinkedInOpenIdProvider::class . '.httpClient',
+            '__socialite.providers.' . LinkedInOpenIdProvider::class . '.httpClient',
             $guzzle
         );
 

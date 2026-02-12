@@ -21,7 +21,7 @@ use Override;
 
 class RedisQueue extends BaseQueue
 {
-    public const LAST_PUSHED_CONTEXT_KEY = 'horizon.queue.last_pushed';
+    public const LAST_PUSHED_CONTEXT_KEY = '__horizon.queue.last_pushed';
 
     /**
      * Get the number of queue jobs that are ready to process.

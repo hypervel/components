@@ -33,7 +33,7 @@ class ResponseTest extends TestCase
     protected function tearDown(): void
     {
         Context::destroy(ResponseInterface::class);
-        Context::destroy(Response::RANGE_HEADERS_CONTEXT);
+        Context::destroy(Response::RANGE_HEADERS_CONTEXT_KEY);
         Context::destroy(ServerRequestInterface::class);
     }
 

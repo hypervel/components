@@ -18,7 +18,7 @@ use stdClass;
 
 class Tags
 {
-    protected const CONTEXT_KEY = 'horizon.tags';
+    protected const CONTEXT_KEY = '__horizon.tags';
 
     /**
      * Determine the tags for the given job.

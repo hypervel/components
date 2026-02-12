@@ -114,6 +114,6 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     protected function getContextKey(string $name): string
     {
-        return sprintf('database.connection.%s', $name);
+        return sprintf('__database.connection.%s', $name);
     }
 }

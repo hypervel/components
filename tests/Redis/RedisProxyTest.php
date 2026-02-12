@@ -30,8 +30,8 @@ class RedisProxyTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
-        Context::destroy('redis.connection.cache');
+        Context::destroy('__redis.connection.default');
+        Context::destroy('__redis.connection.cache');
     }
 
     public function testProxyUsesSpecifiedPoolName(): void
@@ -72,8 +72,8 @@ class RedisProxyTest extends TestCase
         $proxy->pipeline();
 
         // Context key should use the pool name
-        $this->assertTrue(Context::has('redis.connection.cache'));
-        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.cache'));
+        $this->assertFalse(Context::has('__redis.connection.default'));
     }
 
     /**

@@ -99,7 +99,7 @@ class SanctumGuard implements GuardContract
     {
         $token = $this->getTokenFromRequest();
         $suffix = $token ? md5($token) : 'default';
-        return "auth.guards.{$this->name}.result:{$suffix}";
+        return "__auth.guards.{$this->name}.result.{$suffix}";
     }
 
     /**

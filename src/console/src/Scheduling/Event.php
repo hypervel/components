@@ -190,7 +190,7 @@ class Event
             $container->basePath()
         );
 
-        Context::set("scheduling_process:{$this->mutexName()}", $process);
+        Context::set("__console.scheduling_process.{$this->mutexName()}", $process);
 
         return $process->run();
     }
@@ -200,7 +200,7 @@ class Event
      */
     protected function getProcessOutput(): ?string
     {
-        if (! $process = Context::get("scheduling_process:{$this->mutexName()}")) {
+        if (! $process = Context::get("__console.scheduling_process.{$this->mutexName()}")) {
             return null;
         }
 

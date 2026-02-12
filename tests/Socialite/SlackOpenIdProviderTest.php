@@ -120,7 +120,7 @@ class SlackOpenIdProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
+            '__socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
             $guzzle
         );
 

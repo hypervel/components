@@ -325,7 +325,7 @@ class PoolConnectionManagementTest extends TestCase
             $manager = $this->app->get(DatabaseManager::class);
 
             // Clear any existing connection from context
-            $contextKey = 'database.connection.pool_test';
+            $contextKey = '__database.connection.pool_test';
             Context::destroy($contextKey);
 
             // This should not throw
@@ -368,7 +368,7 @@ class PoolConnectionManagementTest extends TestCase
             $manager = $this->app->get(DatabaseManager::class);
 
             // Clear any existing connection from context
-            $contextKey = 'database.connection.pool_test';
+            $contextKey = '__database.connection.pool_test';
             Context::destroy($contextKey);
 
             // Reconnect should get a fresh connection
