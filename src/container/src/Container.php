@@ -24,7 +24,6 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
-use ReflectionParameter;
 use TypeError;
 
 class Container implements ArrayAccess, ContainerContract
@@ -249,6 +248,17 @@ class Container implements ArrayAccess, ContainerContract
     protected $environmentResolver;
 
     /**
+     * Cache of computed build recipes.
+     *
+     * Stores the result of constructor analysis per class, keyed by class name.
+     * Persists for the worker lifetime (static), avoiding repeated reflection.
+     * Cleared in flush() for test isolation.
+     *
+     * @var array<string, BuildRecipe>
+     */
+    protected static array $buildRecipes = [];
+
+    /**
      * Define a contextual binding.
      */
     public function when(string|array $concrete): ContextualBindingBuilderContract
@@ -315,7 +325,7 @@ class Container implements ArrayAccess, ContainerContract
             return false;
         }
 
-        if (($scopedType = $this->getScopedTyped($abstract)) === null) {
+        if (($scopedType = $this->getScopedType($abstract)) === null) {
             return false;
         }
 
@@ -342,7 +352,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param ReflectionClass<object>|string $reflection
      * @return null|"scoped"|"singleton"
      */
-    protected function getScopedTyped(ReflectionClass|string $reflection): ?string
+    protected function getScopedType(ReflectionClass|string $reflection): ?string
     {
         $className = $reflection instanceof ReflectionClass
             ? $reflection->getName()
@@ -355,7 +365,7 @@ class Container implements ArrayAccess, ContainerContract
         try {
             $reflection = $reflection instanceof ReflectionClass
                 ? $reflection
-                : new ReflectionClass($reflection);
+                : ReflectionManager::reflectClass($reflection);
         } catch (ReflectionException) {
             return $this->checkedForSingletonOrScopedAttributes[$className] = null;
         }
@@ -868,7 +878,11 @@ class Container implements ArrayAccess, ContainerContract
             $this->fireBeforeResolvingCallbacks($abstract, $parameters);
         }
 
-        $concrete = $this->getContextualConcrete($abstract);
+        $concrete = null;
+
+        if (! empty($this->contextual)) {
+            $concrete = $this->getContextualConcrete($abstract);
+        }
 
         $needsContextualBuild = ! empty($parameters) || ! is_null($concrete);
 
@@ -944,8 +958,10 @@ class Container implements ArrayAccess, ContainerContract
             // If we defined any extenders for this type, we'll need to spin through them
             // and apply them to the object being built. This allows for the extension
             // of services, such as changing configuration or decorating the object.
-            foreach ($this->getExtenders($abstract) as $extender) {
-                $object = $extender($object, $this);
+            if (! empty($this->extenders)) {
+                foreach ($this->getExtenders($abstract) as $extender) {
+                    $object = $extender($object, $this);
+                }
             }
 
             // If the requested type is registered as a singleton we'll want to cache off
@@ -1028,7 +1044,7 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForAttributeBindings[$abstract] = true;
 
         try {
-            $reflected = new ReflectionClass($abstract);
+            $reflected = ReflectionManager::reflectClass($abstract);
         } catch (ReflectionException) { // @phpstan-ignore catch.neverThrown
             return $abstract;
         }
@@ -1065,7 +1081,7 @@ class Container implements ArrayAccess, ContainerContract
             return $abstract;
         }
 
-        match ($this->getScopedTyped($reflected)) {
+        match ($this->getScopedType($reflected)) {
             'scoped' => $this->scoped($abstract, $concrete),
             'singleton' => $this->singleton($abstract, $concrete),
             null => $this->bind($abstract, $concrete),
@@ -1231,6 +1247,85 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
+     * Get the cached build recipe for the given concrete class.
+     */
+    protected function getBuildRecipe(string $concrete): BuildRecipe
+    {
+        return static::$buildRecipes[$concrete] ??= $this->computeBuildRecipe($concrete);
+    }
+
+    /**
+     * Compute the build recipe for the given concrete class.
+     *
+     * Analyzes the class via reflection and caches the result as a BuildRecipe.
+     * This happens once per class per worker lifetime, avoiding repeated
+     * reflection on every build() call.
+     */
+    protected function computeBuildRecipe(string $concrete): BuildRecipe
+    {
+        // Include trait_exists() — traits are valid for ReflectionClass but not
+        // instantiable. Without this, traits would incorrectly get "does not exist"
+        // error instead of "not instantiable" error.
+        $classExists = class_exists($concrete) || interface_exists($concrete) || trait_exists($concrete);
+
+        if (! $classExists) {
+            return new BuildRecipe(
+                className: $concrete,
+                classExists: false,
+                isInstantiable: false,
+                hasConstructor: false,
+                classAttributes: [],
+                parameters: [],
+            );
+        }
+
+        $reflector = ReflectionManager::reflectClass($concrete);
+        $constructor = $reflector->getConstructor();
+        $classAttributes = $reflector->getAttributes();
+
+        if ($constructor === null) {
+            return new BuildRecipe(
+                className: $concrete,
+                classExists: true,
+                isInstantiable: $reflector->isInstantiable(),
+                hasConstructor: false,
+                classAttributes: $classAttributes,
+                parameters: [],
+            );
+        }
+
+        $parameters = [];
+
+        foreach ($constructor->getParameters() as $index => $param) {
+            $parameters[$index] = new ParameterRecipe(
+                name: $param->getName(),
+                position: $index,
+                // Use getDeclaringClass() for accurate error messages with inherited constructors.
+                // If class B extends A and A declares the constructor, this returns A's name.
+                declaringClassName: $param->getDeclaringClass()?->getName() ?? $concrete,
+                className: Util::getParameterClassName($param),
+                hasType: $param->hasType(),
+                hasDefault: $param->isDefaultValueAvailable(),
+                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
+                isVariadic: $param->isVariadic(),
+                isOptional: $param->isOptional(),
+                allowsNull: $param->allowsNull(),
+                attributes: $param->getAttributes(),
+                contextualAttribute: Util::getContextualAttributeFromDependency($param),
+            );
+        }
+
+        return new BuildRecipe(
+            className: $concrete,
+            classExists: true,
+            isInstantiable: $reflector->isInstantiable(),
+            hasConstructor: true,
+            classAttributes: $classAttributes,
+            parameters: $parameters,
+        );
+    }
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * @template TClass of object
@@ -1256,55 +1351,51 @@ class Container implements ArrayAccess, ContainerContract
             }
         }
 
-        try {
-            $reflector = new ReflectionClass($concrete);
-        } catch (ReflectionException $e) { // @phpstan-ignore catch.neverThrown
-            throw new BindingResolutionException("Target class [{$concrete}] does not exist.", 0, $e);
+        $recipe = $this->getBuildRecipe($concrete);
+
+        if (! $recipe->classExists) {
+            throw new BindingResolutionException("Target class [{$concrete}] does not exist.");
         }
 
         // If the type is not instantiable, the developer is attempting to resolve
         // an abstract type such as an Interface or Abstract Class and there is
         // no binding registered for the abstractions so we need to bail out.
-        if (! $reflector->isInstantiable()) {
+        if (! $recipe->isInstantiable) {
             return $this->notInstantiable($concrete);
         }
 
         if (is_a($concrete, SelfBuilding::class, true)
             && ! in_array($concrete, $this->getBuildStack(), true)) {
-            return $this->buildSelfBuildingInstance($concrete, $reflector);
+            return $this->buildSelfBuildingInstance($concrete, $recipe);
         }
 
         $this->pushBuildStack($concrete);
 
         try {
-            $constructor = $reflector->getConstructor();
-
             // If there are no constructors, that means there are no dependencies then
             // we can just resolve the instances of the objects right away, without
             // resolving any other types or dependencies out of these containers.
-            if (is_null($constructor)) {
+            if (! $recipe->hasConstructor) {
                 $instance = new $concrete();
 
                 $this->fireAfterResolvingAttributeCallbacks(
-                    $reflector->getAttributes(),
+                    $recipe->classAttributes,
                     $instance
                 );
 
                 return $instance;
             }
 
-            $dependencies = $constructor->getParameters();
-
             // Once we have all the constructor's parameters we can create each of the
-            // dependency instances and then use the reflection instances to make a
-            // new instance of this class, injecting the created dependencies in.
-            $instances = $this->resolveDependencies($dependencies);
+            // dependency instances and then use them to make a new instance of this
+            // class, injecting the created dependencies in.
+            $instances = $this->resolveRecipeParameters($recipe);
         } finally {
             $this->popBuildStack();
         }
 
         $this->fireAfterResolvingAttributeCallbacks(
-            $reflector->getAttributes(),
+            $recipe->classAttributes,
             $instance = new $concrete(...$instances)
         );
 
@@ -1318,7 +1409,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function buildSelfBuildingInstance(string $concrete, ReflectionClass $reflector): mixed
+    protected function buildSelfBuildingInstance(string $concrete, BuildRecipe $recipe): mixed
     {
         if (! method_exists($concrete, 'newInstance')) {
             throw new BindingResolutionException("No newInstance method exists for [{$concrete}].");
@@ -1333,7 +1424,7 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         $this->fireAfterResolvingAttributeCallbacks(
-            $reflector->getAttributes(),
+            $recipe->classAttributes,
             $instance
         );
 
@@ -1341,43 +1432,43 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
-     * Resolve all of the dependencies from the ReflectionParameters.
-     *
-     * @param ReflectionParameter[] $dependencies
+     * Resolve all constructor parameters using cached recipe metadata.
      *
      * @throws BindingResolutionException
      */
-    protected function resolveDependencies(array $dependencies): array
+    protected function resolveRecipeParameters(BuildRecipe $recipe): array
     {
         $results = [];
 
-        foreach ($dependencies as $dependency) {
+        foreach ($recipe->parameters as $paramRecipe) {
             // If the dependency has an override for this particular build we will use
             // that instead as the value. Otherwise, we will continue with this run
-            // of resolutions and let reflection attempt to determine the result.
-            if ($this->hasParameterOverride($dependency)) {
-                $results[] = $this->getParameterOverride($dependency);
+            // of resolutions and let the cached recipe metadata determine the result.
+            if ($this->hasParameterOverride($paramRecipe)) {
+                $results[] = $this->getParameterOverride($paramRecipe);
 
                 continue;
             }
 
             $result = null;
 
-            if (! is_null($attribute = Util::getContextualAttributeFromDependency($dependency))) {
-                $result = $this->resolveFromAttribute($attribute);
+            // Contextual attributes are checked BEFORE class/primitive resolution.
+            // This is critical for #[Config], #[Give], etc. to work correctly.
+            if ($paramRecipe->contextualAttribute !== null) {
+                $result = $this->resolveFromAttribute($paramRecipe->contextualAttribute);
             }
 
             // If the class is null, it means the dependency is a string or some other
             // primitive type which we can not resolve since it is not a class and
             // we will just bomb out with an error since we have no-where to go.
-            $result ??= is_null(Util::getParameterClassName($dependency))
-                ? $this->resolvePrimitive($dependency)
-                : $this->resolveClass($dependency);
+            $result ??= ($paramRecipe->className === null)
+                ? $this->resolvePrimitive($paramRecipe)
+                : $this->resolveClass($paramRecipe);
 
-            $this->fireAfterResolvingAttributeCallbacks($dependency->getAttributes(), $result);
+            $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $result);
 
-            if ($dependency->isVariadic()) {
-                $results = array_merge($results, $result);
+            if ($paramRecipe->isVariadic) {
+                $results = array_merge($results, (array) $result);
             } else {
                 $results[] = $result;
             }
@@ -1389,10 +1480,10 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Determine if the given dependency has a parameter override.
      */
-    protected function hasParameterOverride(ReflectionParameter $dependency): bool
+    protected function hasParameterOverride(ParameterRecipe $param): bool
     {
         return array_key_exists(
-            $dependency->name,
+            $param->name,
             $this->getLastParameterOverride()
         );
     }
@@ -1400,9 +1491,9 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Get a parameter override for a dependency.
      */
-    protected function getParameterOverride(ReflectionParameter $dependency): mixed
+    protected function getParameterOverride(ParameterRecipe $param): mixed
     {
-        return $this->getLastParameterOverride()[$dependency->name];
+        return $this->getLastParameterOverride()[$param->name];
     }
 
     /**
@@ -1410,25 +1501,25 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function resolvePrimitive(ReflectionParameter $parameter): mixed
+    protected function resolvePrimitive(ParameterRecipe $param): mixed
     {
-        if (! is_null($concrete = $this->getContextualConcrete('$' . $parameter->getName()))) {
+        if (! is_null($concrete = $this->getContextualConcrete('$' . $param->name))) {
             return Util::unwrapIfClosure($concrete, $this);
         }
 
-        if ($parameter->isDefaultValueAvailable()) {
-            return $parameter->getDefaultValue();
+        if ($param->hasDefault) {
+            return $param->default;
         }
 
-        if ($parameter->isVariadic()) {
+        if ($param->isVariadic) {
             return [];
         }
 
-        if ($parameter->hasType() && $parameter->allowsNull()) {
+        if ($param->hasType && $param->allowsNull) {
             return null;
         }
 
-        $this->unresolvablePrimitive($parameter);
+        $this->unresolvablePrimitive($param);
     }
 
     /**
@@ -1436,22 +1527,22 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function resolveClass(ReflectionParameter $parameter): mixed
+    protected function resolveClass(ParameterRecipe $param): mixed
     {
-        $className = Util::getParameterClassName($parameter);
+        $className = $param->className;
 
         // First we will check if a default value has been defined for the parameter.
         // If it has, and no explicit binding exists, we should return it to avoid
         // overriding any of the developer specified defaults for the parameters.
-        if ($parameter->isDefaultValueAvailable()
+        if ($param->hasDefault
             && ! $this->bound($className)
             && $this->findInContextualBindings($className) === null) {
-            return $parameter->getDefaultValue();
+            return $param->default;
         }
 
         try {
-            return $parameter->isVariadic()
-                ? $this->resolveVariadicClass($parameter)
+            return $param->isVariadic
+                ? $this->resolveVariadicClass($param)
                 : $this->make($className);
         }
 
@@ -1459,7 +1550,7 @@ class Container implements ArrayAccess, ContainerContract
         // is variadic. If it is, we will return an empty array as the value of the
         // dependency similarly to how we handle scalar values in this situation.
         catch (BindingResolutionException $e) {
-            if ($parameter->isVariadic()) { // @phpstan-ignore if.alwaysFalse
+            if ($param->isVariadic) { // @phpstan-ignore if.alwaysFalse
                 return [];
             }
 
@@ -1470,9 +1561,9 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Resolve a class based variadic dependency from the container.
      */
-    protected function resolveVariadicClass(ReflectionParameter $parameter): mixed
+    protected function resolveVariadicClass(ParameterRecipe $param): mixed
     {
-        $className = Util::getParameterClassName($parameter);
+        $className = $param->className;
 
         $abstract = $this->getAlias($className);
 
@@ -1528,9 +1619,9 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function unresolvablePrimitive(ReflectionParameter $parameter): never
+    protected function unresolvablePrimitive(ParameterRecipe $param): never
     {
-        $message = "Unresolvable dependency resolving [{$parameter}] in class {$parameter->getDeclaringClass()->getName()}";
+        $message = "Unresolvable dependency resolving [\${$param->name}] in class {$param->declaringClassName}";
 
         throw new BindingResolutionException($message);
     }
@@ -1596,6 +1687,10 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function fireBeforeResolvingCallbacks(string $abstract, array $parameters = []): void
     {
+        if (empty($this->globalBeforeResolvingCallbacks) && empty($this->beforeResolvingCallbacks)) {
+            return;
+        }
+
         $this->fireBeforeCallbackArray($abstract, $parameters, $this->globalBeforeResolvingCallbacks);
 
         foreach ($this->beforeResolvingCallbacks as $type => $callbacks) {
@@ -1620,6 +1715,13 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function fireResolvingCallbacks(string $abstract, mixed $object): void
     {
+        if (empty($this->globalResolvingCallbacks)
+            && empty($this->resolvingCallbacks)
+            && empty($this->globalAfterResolvingCallbacks)
+            && empty($this->afterResolvingCallbacks)) {
+            return;
+        }
+
         $this->fireCallbackArray($object, $this->globalResolvingCallbacks);
 
         $this->fireCallbackArray(
@@ -1825,6 +1927,10 @@ class Container implements ArrayAccess, ContainerContract
         $this->scopedInstances = [];
         $this->checkedForAttributeBindings = [];
         $this->checkedForSingletonOrScopedAttributes = [];
+
+        // Clear static caches (worker-lifetime, but must reset on flush for tests)
+        static::$buildRecipes = [];
+        ReflectionManager::clear();
     }
 
     /**
