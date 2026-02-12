@@ -219,6 +219,58 @@ class ContainerExtendTest extends TestCase
         self::assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
     }
 
+    public function testExtendOnResolvedScopedInstanceAppliesImmediately()
+    {
+        $container = new Container();
+        $container->scoped('foo', function () {
+            $obj = new stdClass();
+            $obj->extended = false;
+
+            return $obj;
+        });
+
+        // Resolve to cache in Context
+        $first = $container->make('foo');
+        $this->assertFalse($first->extended);
+
+        // Extend the already-resolved scoped binding
+        $container->extend('foo', function ($obj) {
+            $obj->extended = true;
+
+            return $obj;
+        });
+
+        // The cached scoped instance should now have the extender applied
+        $second = $container->make('foo');
+        $this->assertTrue($second->extended);
+    }
+
+    public function testExtendOnResolvedScopedInstanceAppliesAfterScopedReset()
+    {
+        $container = new Container();
+        $container->scoped('foo', function () {
+            $obj = new stdClass();
+            $obj->extended = false;
+
+            return $obj;
+        });
+
+        // Resolve to cache, then extend
+        $container->make('foo');
+        $container->extend('foo', function ($obj) {
+            $obj->extended = true;
+
+            return $obj;
+        });
+
+        // Reset scoped instances (simulates next request)
+        $container->forgetScopedInstances();
+
+        // The fresh instance should also have the extender applied
+        $fresh = $container->make('foo');
+        $this->assertTrue($fresh->extended);
+    }
+
     // https://github.com/laravel/framework/issues/53501
     public function testExtendContextualBindingAfterResolution()
     {

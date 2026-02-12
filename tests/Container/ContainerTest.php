@@ -592,6 +592,20 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStubTwo::class, $second);
     }
 
+    public function testOffsetUnsetClearsScopedInstance()
+    {
+        $container = new Container();
+        $container->scoped(ContainerConcreteStub::class);
+
+        $first = $container->make(ContainerConcreteStub::class);
+
+        unset($container[ContainerConcreteStub::class]);
+
+        $second = $container->make(ContainerConcreteStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
     public function testResolvedResolvesAliasToBindingNameBeforeChecking()
     {
         $container = new Container();
