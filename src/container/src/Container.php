@@ -474,7 +474,17 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
-        $this->scopedInstances[] = $abstract;
+        // When $abstract is a closure, singleton() delegates to bindBasedOnClosureReturnTypes()
+        // which registers each return type as a separate binding. We must store those return
+        // type class names in $scopedInstances (not the Closure) so that isScoped() correctly
+        // identifies them and resolve() routes their instances to Context.
+        if ($abstract instanceof Closure) {
+            foreach ($this->closureReturnTypes($abstract) as $type) {
+                $this->scopedInstances[] = $type;
+            }
+        } else {
+            $this->scopedInstances[] = $abstract;
+        }
 
         $this->singleton($abstract, $concrete);
     }
@@ -697,13 +707,13 @@ class Container implements ArrayAccess, ContainerContract
             $pushedToBuildStack = true;
         }
 
-        $result = BoundMethod::call($this, $callback, $parameters, $defaultMethod);
-
-        if ($pushedToBuildStack) {
-            $this->popBuildStack();
+        try {
+            return BoundMethod::call($this, $callback, $parameters, $defaultMethod);
+        } finally {
+            if ($pushedToBuildStack) {
+                $this->popBuildStack();
+            }
         }
-
-        return $result;
     }
 
     /**
@@ -1606,6 +1616,8 @@ class Container implements ArrayAccess, ContainerContract
     protected function dropStaleInstances(string $abstract): void
     {
         unset($this->instances[$abstract], $this->aliases[$abstract], $this->autoSingletons[$abstract]);
+
+        Context::destroy('container.scoped.' . $abstract);
     }
 
     /**
@@ -1614,6 +1626,8 @@ class Container implements ArrayAccess, ContainerContract
     public function forgetInstance(string $abstract): void
     {
         unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
+
+        Context::destroy('container.scoped.' . $abstract);
     }
 
     /**
@@ -1623,6 +1637,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         $this->instances = [];
         $this->autoSingletons = [];
+        $this->forgetScopedInstances();
     }
 
     /**
@@ -1631,13 +1646,7 @@ class Container implements ArrayAccess, ContainerContract
     public function forgetScopedInstances(): void
     {
         foreach ($this->scopedInstances as $scoped) {
-            if ($scoped instanceof Closure) {
-                foreach ($this->closureReturnTypes($scoped) as $type) {
-                    Context::destroy('container.scoped.' . $type);
-                }
-            } else {
-                Context::destroy('container.scoped.' . $scoped);
-            }
+            Context::destroy('container.scoped.' . $scoped);
         }
     }
 
@@ -1668,6 +1677,8 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function flush(): void
     {
+        $this->forgetScopedInstances();
+
         $this->aliases = [];
         $this->resolved = [];
         $this->bindings = [];
