@@ -79,9 +79,13 @@ class Container implements ArrayAccess, ContainerContract
     protected $autoSingletons = [];
 
     /**
-     * The container's scoped instances.
+     * The abstract names registered as scoped bindings.
      *
-     * @var array
+     * Used by isScoped() to determine whether a resolved instance should be
+     * stored in coroutine-local Context instead of process-global $instances,
+     * and by forgetScopedInstances() to know which Context keys to destroy.
+     *
+     * @var string[]
      */
     protected $scopedInstances = [];
 
@@ -526,6 +530,17 @@ class Container implements ArrayAccess, ContainerContract
             $this->instances[$abstract] = $closure($this->instances[$abstract], $this);
 
             $this->rebound($abstract);
+        } elseif ($this->isScoped($abstract) && Context::has('container.scoped.' . $abstract)) {
+            // Apply the extender to the current cached scoped instance immediately.
+            // Also queue it in $this->extenders for future resolutions — unlike singletons
+            // (which persist for the worker lifetime), scoped instances are destroyed each
+            // request by forgetScopedInstances() and must re-apply extenders on rebuild.
+            $contextKey = 'container.scoped.' . $abstract;
+            Context::set($contextKey, $closure(Context::get($contextKey), $this));
+
+            $this->extenders[$abstract][] = $closure;
+
+            $this->rebound($abstract);
         } else {
             $this->extenders[$abstract][] = $closure;
 
@@ -839,6 +854,9 @@ class Container implements ArrayAccess, ContainerContract
 
         $this->pushParameterOverrides($parameters);
 
+        // try/finally ensures Context cleanup even when resolution throws — in Swoole's
+        // long-running model, exceptions don't terminate the worker, so leaked overrides
+        // would corrupt subsequent resolutions in the same coroutine.
         try {
             if (is_null($concrete)) {
                 $concrete = $this->getConcrete($abstract);
@@ -1677,6 +1695,8 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function flush(): void
     {
+        // Must clear scoped Context entries before clearing $scopedInstances,
+        // since forgetScopedInstances() iterates $scopedInstances to know which keys to destroy.
         $this->forgetScopedInstances();
 
         $this->aliases = [];
@@ -1745,6 +1765,8 @@ class Container implements ArrayAccess, ContainerContract
     public function offsetUnset($key): void
     {
         unset($this->bindings[$key], $this->instances[$key], $this->resolved[$key]);
+
+        Context::destroy('container.scoped.' . $key);
     }
 
     /**
