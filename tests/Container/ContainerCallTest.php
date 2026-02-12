@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 use stdClass;
 
 /**
@@ -272,7 +273,7 @@ class ContainerCallTest extends TestCase
         // cleaned up. Without try/finally, the stale entry leaks into Context.
         try {
             $container->call([new ContainerCallThrowingStub(), 'throwingMethod']);
-        } catch (\RuntimeException) {
+        } catch (RuntimeException) {
             // Expected
         }
 
@@ -347,6 +348,6 @@ class ContainerCallThrowingStub
 {
     public function throwingMethod(): never
     {
-        throw new \RuntimeException('Intentional failure');
+        throw new RuntimeException('Intentional failure');
     }
 }

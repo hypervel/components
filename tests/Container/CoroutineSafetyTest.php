@@ -9,6 +9,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -224,12 +225,12 @@ class CoroutineSafetyTest extends TestCase
         $container = new Container();
 
         $container->bind('failing-service', function () {
-            throw new \RuntimeException('Service creation failed');
+            throw new RuntimeException('Service creation failed');
         });
 
         try {
             $container->make('failing-service', ['param' => 'value']);
-        } catch (\RuntimeException) {
+        } catch (RuntimeException) {
             // Expected
         }
 
@@ -262,7 +263,7 @@ class CoroutineSafetyTest extends TestCase
                 $e->getMessage()
             );
             $this->assertSame(
-                "Target [Hypervel\\Tests\\Container\\CoroutineDependencyInterface] is not instantiable.",
+                'Target [Hypervel\\Tests\\Container\\CoroutineDependencyInterface] is not instantiable.',
                 $e->getMessage()
             );
         }
@@ -291,18 +292,25 @@ class CoroutineRequestState
     public ?string $value = null;
 }
 
-interface CoroutineDependencyInterface {}
+interface CoroutineDependencyInterface
+{
+}
 
-class CoroutineImplementationA implements CoroutineDependencyInterface {}
+class CoroutineImplementationA implements CoroutineDependencyInterface
+{
+}
 
-class CoroutineImplementationB implements CoroutineDependencyInterface {}
+class CoroutineImplementationB implements CoroutineDependencyInterface
+{
+}
 
 class CoroutineConsumerA
 {
     public function __construct(
         public readonly CoroutineSlowService $slowService,
         public readonly CoroutineDependencyInterface $dependency,
-    ) {}
+    ) {
+    }
 }
 
 class CoroutineConsumerB
@@ -310,36 +318,46 @@ class CoroutineConsumerB
     public function __construct(
         public readonly CoroutineSlowService $slowService,
         public readonly CoroutineDependencyInterface $dependency,
-    ) {}
+    ) {
+    }
 }
 
-class CoroutineSlowDependency {}
+class CoroutineSlowDependency
+{
+}
 
 class CoroutineConfigurableService
 {
     public function __construct(
         public readonly CoroutineSlowDependency $slowDependency,
         public readonly string $config,
-    ) {}
+    ) {
+    }
 }
 
-class CoroutineFastDependency {}
+class CoroutineFastDependency
+{
+}
 
 class CoroutineSlowService
 {
     public function __construct(
         public readonly ?CoroutineFastDependency $dependency = null,
-    ) {}
+    ) {
+    }
 }
 
 class CoroutineFastService
 {
     public function __construct(
         public readonly CoroutineFastDependency $dependency,
-    ) {}
+    ) {
+    }
 }
 
 class CoroutineUnresolvableDependencyStub
 {
-    public function __construct(string $unresolvable) {}
+    public function __construct(string $unresolvable)
+    {
+    }
 }
