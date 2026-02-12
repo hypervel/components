@@ -161,12 +161,22 @@ class CoroutineSafetyTest extends TestCase
     {
         $container = new Container();
 
+        // Bind CoroutineSlowDependency with a factory that yields.
+        // CoroutineConfigurableService takes (CoroutineSlowDependency, string $config).
+        // The slow dependency is resolved FIRST, yielding before the $config
+        // parameter override is read from Context. If the override stack were
+        // shared, co2's overrides would corrupt co1's $config lookup.
+        $container->bind(CoroutineSlowDependency::class, function () {
+            usleep(100);
+
+            return new CoroutineSlowDependency();
+        });
+
         $container->bind(CoroutineConfigurableService::class);
 
         $results = parallel([
             'co1' => function () use ($container) {
                 $service = $container->make(CoroutineConfigurableService::class, ['config' => 'value-a']);
-                usleep(50);
 
                 return $service->config;
             },
@@ -290,6 +300,7 @@ class CoroutineImplementationB implements CoroutineDependencyInterface {}
 class CoroutineConsumerA
 {
     public function __construct(
+        public readonly CoroutineSlowService $slowService,
         public readonly CoroutineDependencyInterface $dependency,
     ) {}
 }
@@ -297,13 +308,17 @@ class CoroutineConsumerA
 class CoroutineConsumerB
 {
     public function __construct(
+        public readonly CoroutineSlowService $slowService,
         public readonly CoroutineDependencyInterface $dependency,
     ) {}
 }
 
+class CoroutineSlowDependency {}
+
 class CoroutineConfigurableService
 {
     public function __construct(
+        public readonly CoroutineSlowDependency $slowDependency,
         public readonly string $config,
     ) {}
 }

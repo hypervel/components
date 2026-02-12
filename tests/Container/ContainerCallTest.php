@@ -262,6 +262,24 @@ class ContainerCallTest extends TestCase
 
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result);
     }
+
+    public function testExceptionInCallDoesNotCorruptBuildStack()
+    {
+        $container = new Container();
+
+        // call() pushes the callable's class onto the build stack.
+        // If BoundMethod::call() throws, the build stack entry must still be
+        // cleaned up. Without try/finally, the stale entry leaks into Context.
+        try {
+            $container->call([new ContainerCallThrowingStub(), 'throwingMethod']);
+        } catch (\RuntimeException) {
+            // Expected
+        }
+
+        // If the build stack was corrupted, currentlyResolving() would return
+        // the stale class name instead of null
+        $this->assertNull($container->currentlyResolving());
+    }
 }
 
 class ContainerTestCallStub
@@ -322,5 +340,13 @@ class ContainerCallCallableClassStringStub
     public function __invoke(ContainerTestCallStub $dependency)
     {
         return [$this->stub, $this->default, $dependency];
+    }
+}
+
+class ContainerCallThrowingStub
+{
+    public function throwingMethod(): never
+    {
+        throw new \RuntimeException('Intentional failure');
     }
 }

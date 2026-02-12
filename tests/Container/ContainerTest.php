@@ -158,6 +158,22 @@ class ContainerTest extends TestCase
         $container->forgetScopedInstances();
     }
 
+    public function testScopedClosureReturnTypeInstanceIsScopedCorrectly()
+    {
+        $container = new Container();
+        $container->scoped(fn (): stdClass => new stdClass());
+
+        // Should behave as a scoped singleton — same instance within a request
+        $first = $container->make(stdClass::class);
+        $second = $container->make(stdClass::class);
+        $this->assertSame($first, $second);
+
+        // After forgetScopedInstances, should get a fresh instance
+        $container->forgetScopedInstances();
+        $third = $container->make(stdClass::class);
+        $this->assertNotSame($first, $third);
+    }
+
     public function testScopedIf()
     {
         $container = new Container();
@@ -484,6 +500,18 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isShared(ContainerConcreteStub::class));
     }
 
+    public function testForgetInstanceForgetsScopedInstance()
+    {
+        $container = new Container();
+        $container->scoped(ContainerConcreteStub::class);
+
+        $first = $container->make(ContainerConcreteStub::class);
+        $container->forgetInstance(ContainerConcreteStub::class);
+        $second = $container->make(ContainerConcreteStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
     public function testForgetInstancesForgetsAllInstances()
     {
         $container = new Container();
@@ -500,6 +528,18 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isShared('Instance1'));
         $this->assertFalse($container->isShared('Instance2'));
         $this->assertFalse($container->isShared('Instance3'));
+    }
+
+    public function testForgetInstancesClearsScopedInstances()
+    {
+        $container = new Container();
+        $container->scoped(ContainerConcreteStub::class);
+
+        $first = $container->make(ContainerConcreteStub::class);
+        $container->forgetInstances();
+        $second = $container->make(ContainerConcreteStub::class);
+
+        $this->assertNotSame($first, $second);
     }
 
     public function testContainerFlushFlushesAllBindingsAliasesAndResolvedInstances()
@@ -519,6 +559,37 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isAlias('ContainerConcreteStub'));
         $this->assertEmpty($container->getBindings());
         $this->assertFalse($container->isShared('ConcreteStub'));
+    }
+
+    public function testFlushClearsScopedInstances()
+    {
+        $container = new Container();
+        $container->scoped(ContainerConcreteStub::class);
+
+        $first = $container->make(ContainerConcreteStub::class);
+
+        $container->flush();
+
+        // Re-register after flush (flush clears all bindings)
+        $container->scoped(ContainerConcreteStub::class);
+        $second = $container->make(ContainerConcreteStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testRebindingScopedBindingClearsStaleContextInstance()
+    {
+        $container = new Container();
+        $container->scoped(IContainerContractStub::class, ContainerImplementationStub::class);
+
+        $first = $container->make(IContainerContractStub::class);
+        $this->assertInstanceOf(ContainerImplementationStub::class, $first);
+
+        // Rebind to a different concrete — dropStaleInstances should clear the scoped Context entry
+        $container->bind(IContainerContractStub::class, ContainerImplementationStubTwo::class);
+
+        $second = $container->make(IContainerContractStub::class);
+        $this->assertInstanceOf(ContainerImplementationStubTwo::class, $second);
     }
 
     public function testResolvedResolvesAliasToBindingNameBeforeChecking()
