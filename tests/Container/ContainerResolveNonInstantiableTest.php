@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -44,6 +45,16 @@ class ContainerResolveNonInstantiableTest extends TestCase
         $parent = $container->make(VariadicPrimitive::class);
 
         $this->assertSame($parent->params, []);
+    }
+
+    public function testTraitResolutionGivesNotInstantiableError(): void
+    {
+        $container = new Container();
+
+        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionMessage('Target [' . NonInstantiableTrait::class . '] is not instantiable.');
+
+        $container->build(NonInstantiableTrait::class);
     }
 }
 
@@ -107,4 +118,8 @@ class VariadicPrimitive
     {
         $this->params = $params;
     }
+}
+
+trait NonInstantiableTrait
+{
 }
