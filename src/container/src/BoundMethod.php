@@ -10,7 +10,6 @@ use InvalidArgumentException;
 use ReflectionException;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
-use ReflectionMethod;
 use ReflectionParameter;
 
 class BoundMethod
@@ -123,9 +122,13 @@ class BoundMethod
             $callback = [$callback, '__invoke'];
         }
 
-        return is_array($callback)
-            ? new ReflectionMethod($callback[0], $callback[1])
-            : new ReflectionFunction($callback);
+        if (is_array($callback)) {
+            $className = is_string($callback[0]) ? $callback[0] : $callback[0]::class;
+
+            return ReflectionManager::reflectMethod($className, $callback[1]);
+        }
+
+        return new ReflectionFunction($callback);
     }
 
     /**
