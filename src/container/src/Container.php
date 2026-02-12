@@ -1931,6 +1931,7 @@ class Container implements ArrayAccess, ContainerContract
         // Clear static caches (worker-lifetime, but must reset on flush for tests)
         static::$buildRecipes = [];
         ReflectionManager::clear();
+        BoundMethod::clearMethodRecipeCache();
     }
 
     /**

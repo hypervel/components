@@ -32,6 +32,7 @@ readonly class ParameterRecipe
         public bool $allowsNull,
         public array $attributes,
         public ?ReflectionAttribute $contextualAttribute,
+        public string $reflectionString = '',
     ) {
     }
 }

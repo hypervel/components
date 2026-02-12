@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Container;
 
+use Attribute;
 use Closure;
 use Error;
+use Hypervel\Container\Attributes\Give;
+use Hypervel\Container\BoundMethod;
 use Hypervel\Container\Container;
+use Hypervel\Container\ParameterRecipe;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 
@@ -19,8 +24,16 @@ use stdClass;
  */
 class ContainerCallTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        BoundMethod::clearMethodRecipeCache();
+    }
+
     protected function tearDown(): void
     {
+        BoundMethod::clearMethodRecipeCache();
         Context::destroyAll();
 
         parent::tearDown();
@@ -281,6 +294,124 @@ class ContainerCallTest extends TestCase
         // the stale class name instead of null
         $this->assertNull($container->currentlyResolving());
     }
+
+    public function testMethodRecipeCacheIsPopulatedForArrayCallables()
+    {
+        $container = new Container();
+        $container->call([new ContainerTestCallStub(), 'inject']);
+
+        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $key = ContainerTestCallStub::class . '::inject';
+
+        $this->assertArrayHasKey($key, $cache);
+        $this->assertCount(2, $cache[$key]);
+        $this->assertInstanceOf(ParameterRecipe::class, $cache[$key][0]);
+    }
+
+    public function testMethodRecipeCacheIsClearedOnFlush()
+    {
+        $container = new Container();
+        $container->call([new ContainerTestCallStub(), 'inject']);
+
+        $property = new ReflectionProperty(BoundMethod::class, 'methodRecipes');
+        $this->assertNotEmpty($property->getValue());
+
+        $container->flush();
+
+        $this->assertEmpty($property->getValue());
+
+        // Verify it still works after flush (re-computes recipe)
+        $result = $container->call([new ContainerTestCallStub(), 'inject']);
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
+        $this->assertSame('taylor', $result[1]);
+    }
+
+    public function testClosuresDoNotPopulateMethodRecipeCache()
+    {
+        $container = new Container();
+        $container->call(function (ContainerCallConcreteStub $stub) {
+            return $stub;
+        });
+
+        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $this->assertEmpty($cache);
+    }
+
+    public function testGlobalFunctionStringsDoNotPopulateMethodRecipeCache()
+    {
+        $container = new Container();
+        $container->call('Hypervel\Tests\Container\containerTestInject');
+
+        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $this->assertEmpty($cache);
+    }
+
+    public function testMethodRecipeCacheIsPopulatedForStaticMethodStrings()
+    {
+        $container = new Container();
+        $result = $container->call(ContainerStaticMethodStub::class . '::inject');
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
+        $this->assertSame('taylor', $result[1]);
+
+        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $key = ContainerStaticMethodStub::class . '::inject';
+        $this->assertArrayHasKey($key, $cache);
+    }
+
+    public function testMethodRecipeCacheIsPopulatedForInvocableObjects()
+    {
+        $container = new Container();
+        $result = $container->call(new ContainerCallCallableStub());
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
+        $this->assertSame('jeffrey', $result[1]);
+
+        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $key = ContainerCallCallableStub::class . '::__invoke';
+        $this->assertArrayHasKey($key, $cache);
+    }
+
+    public function testContextualAttributeResolvesOnCachedPath()
+    {
+        $container = new Container();
+
+        // Array callable — exercises $recipe->contextualAttribute in resolveMethodRecipeParameters
+        $result = $container->call([new ContainerCallWithGiveAttributeStub(), 'handle']);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result);
+    }
+
+    public function testAfterResolvingAttributeCallbacksFireOnCachedPath()
+    {
+        $container = new Container();
+
+        $container->afterResolvingAttribute(ContainerCallTestLabel::class, function (ContainerCallTestLabel $attribute, ContainerCallTestLabelledService $service) {
+            $service->label = $attribute->name;
+        });
+
+        // Array callable — exercises fireAfterResolvingAttributeCallbacks in resolveMethodRecipeParameters
+        $result = $container->call([new ContainerCallWithLabelAttributeStub(), 'handle']);
+
+        $this->assertInstanceOf(ContainerCallTestLabelledService::class, $result);
+        $this->assertSame('test-label', $result->label);
+    }
+
+    public function testRepeatedCallsUseSameCachedRecipes()
+    {
+        $container = new Container();
+
+        $container->call([new ContainerTestCallStub(), 'inject']);
+        $property = new ReflectionProperty(BoundMethod::class, 'methodRecipes');
+        $cacheAfterFirst = $property->getValue();
+
+        $container->call([new ContainerTestCallStub(), 'inject']);
+        $cacheAfterSecond = $property->getValue();
+
+        // Same array reference — no recomputation
+        $key = ContainerTestCallStub::class . '::inject';
+        $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
+    }
 }
 
 class ContainerTestCallStub
@@ -350,4 +481,34 @@ class ContainerCallThrowingStub
     {
         throw new RuntimeException('Intentional failure');
     }
+}
+
+class ContainerCallWithGiveAttributeStub
+{
+    public function handle(#[Give(ContainerCallConcreteStub::class)] mixed $dependency): mixed
+    {
+        return $dependency;
+    }
+}
+
+class ContainerCallWithLabelAttributeStub
+{
+    public function handle(#[ContainerCallTestLabel('test-label')] ContainerCallTestLabelledService $service): ContainerCallTestLabelledService
+    {
+        return $service;
+    }
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContainerCallTestLabel
+{
+    public function __construct(
+        public readonly string $name,
+    ) {
+    }
+}
+
+class ContainerCallTestLabelledService
+{
+    public ?string $label = null;
 }

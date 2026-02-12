@@ -9,11 +9,25 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use ReflectionException;
 use ReflectionFunction;
-use ReflectionFunctionAbstract;
 use ReflectionParameter;
 
 class BoundMethod
 {
+    /**
+     * Cache of method parameter recipes, keyed by "ClassName::methodName".
+     *
+     * Stores pre-computed ParameterRecipe arrays for deterministic callables
+     * (array callables, Class@method strings, Class::method strings, invocable
+     * objects). Closures and global function strings are not cached since they
+     * lack a deterministic ClassName::methodName key.
+     *
+     * Persists for the worker lifetime. Cleared via clearMethodRecipeCache()
+     * which Container::flush() calls for test isolation.
+     *
+     * @var array<string, ParameterRecipe[]>
+     */
+    protected static array $methodRecipes = [];
+
     /**
      * Call the given Closure / class@method and inject its dependencies.
      *
@@ -94,41 +108,151 @@ class BoundMethod
     }
 
     /**
-     * Get all dependencies for a given method.
+     * Get cached parameter recipes for a method, computing on first access.
      *
-     * @throws ReflectionException
+     * @return ParameterRecipe[]
      */
-    protected static function getMethodDependencies(Container $container, callable|string $callback, array $parameters = []): array
+    protected static function getMethodRecipe(string $className, string $methodName): array
+    {
+        $key = $className . '::' . $methodName;
+
+        return static::$methodRecipes[$key] ??= static::computeMethodRecipe($className, $methodName);
+    }
+
+    /**
+     * Compute parameter recipes for a method via reflection.
+     *
+     * @return ParameterRecipe[]
+     */
+    protected static function computeMethodRecipe(string $className, string $methodName): array
+    {
+        $reflector = ReflectionManager::reflectMethod($className, $methodName);
+        $recipes = [];
+
+        foreach ($reflector->getParameters() as $index => $param) {
+            $recipes[$index] = new ParameterRecipe(
+                name: $param->getName(),
+                position: $index,
+                declaringClassName: $param->getDeclaringClass()?->getName() ?? $className,
+                className: Util::getParameterClassName($param),
+                hasType: $param->hasType(),
+                hasDefault: $param->isDefaultValueAvailable(),
+                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
+                isVariadic: $param->isVariadic(),
+                isOptional: $param->isOptional(),
+                allowsNull: $param->allowsNull(),
+                attributes: $param->getAttributes(),
+                contextualAttribute: Util::getContextualAttributeFromDependency($param),
+                reflectionString: (string) $param,
+            );
+        }
+
+        return $recipes;
+    }
+
+    /**
+     * Clear the method recipe cache.
+     */
+    public static function clearMethodRecipeCache(): void
+    {
+        static::$methodRecipes = [];
+    }
+
+    /**
+     * Resolve method parameters using cached recipe metadata.
+     *
+     * @param ParameterRecipe[] $recipes
+     *
+     * @throws BindingResolutionException
+     */
+    protected static function resolveMethodRecipeParameters(Container $container, array $recipes, array &$parameters): array
     {
         $dependencies = [];
 
-        foreach (static::getCallReflector($callback)->getParameters() as $parameter) {
-            static::addDependencyForCallParameter($container, $parameter, $parameters, $dependencies);
+        foreach ($recipes as $recipe) {
+            $pendingDependencies = [];
+
+            if (array_key_exists($recipe->name, $parameters)) {
+                $pendingDependencies[] = $parameters[$recipe->name];
+                unset($parameters[$recipe->name]);
+            } elseif ($recipe->contextualAttribute !== null) {
+                $pendingDependencies[] = $container->resolveFromAttribute($recipe->contextualAttribute);
+            } elseif ($recipe->className !== null) {
+                if (array_key_exists($recipe->className, $parameters)) {
+                    $pendingDependencies[] = $parameters[$recipe->className];
+                    unset($parameters[$recipe->className]);
+                } elseif ($recipe->isVariadic) {
+                    $variadicDependencies = $container->make($recipe->className);
+                    $pendingDependencies = array_merge($pendingDependencies, is_array($variadicDependencies)
+                        ? $variadicDependencies
+                        : [$variadicDependencies]);
+                } elseif ($recipe->hasDefault && ! $container->bound($recipe->className)) {
+                    $pendingDependencies[] = $recipe->default;
+                } else {
+                    $pendingDependencies[] = $container->make($recipe->className);
+                }
+            } elseif ($recipe->hasDefault) {
+                $pendingDependencies[] = $recipe->default;
+            } elseif (! $recipe->isOptional && ! array_key_exists($recipe->name, $parameters)) {
+                $message = "Unable to resolve dependency [{$recipe->reflectionString}] in class {$recipe->declaringClassName}";
+                throw new BindingResolutionException($message);
+            }
+
+            foreach ($pendingDependencies as $dependency) {
+                $container->fireAfterResolvingAttributeCallbacks($recipe->attributes, $dependency);
+            }
+
+            $dependencies = array_merge($dependencies, $pendingDependencies);
         }
 
         return array_merge($dependencies, array_values($parameters));
     }
 
     /**
-     * Get the proper reflection instance for the given callback.
+     * Get all dependencies for a given method.
+     *
+     * For deterministic callables (array callables, Class::method strings,
+     * invocable objects), uses cached ParameterRecipe metadata. For closures
+     * and global function strings (which lack a deterministic key), falls
+     * back to per-call reflection.
      *
      * @throws ReflectionException
      */
-    protected static function getCallReflector(callable|string $callback): ReflectionFunctionAbstract
+    protected static function getMethodDependencies(Container $container, callable|string $callback, array $parameters = []): array
     {
-        if (is_string($callback) && str_contains($callback, '::')) {
-            $callback = explode('::', $callback);
-        } elseif (is_object($callback) && ! $callback instanceof Closure) {
-            $callback = [$callback, '__invoke'];
-        }
-
+        // Array callables — use cached parameter recipes
         if (is_array($callback)) {
             $className = is_string($callback[0]) ? $callback[0] : $callback[0]::class;
+            $recipes = static::getMethodRecipe($className, $callback[1]);
 
-            return ReflectionManager::reflectMethod($className, $callback[1]);
+            return static::resolveMethodRecipeParameters($container, $recipes, $parameters);
         }
 
-        return new ReflectionFunction($callback);
+        // Invocable objects (not closures) — use cached recipes
+        if (is_object($callback) && ! $callback instanceof Closure) {
+            $recipes = static::getMethodRecipe($callback::class, '__invoke');
+
+            return static::resolveMethodRecipeParameters($container, $recipes, $parameters);
+        }
+
+        // String callbacks with :: — use cached recipes
+        if (is_string($callback) && str_contains($callback, '::')) {
+            [$className, $methodName] = explode('::', $callback);
+            $recipes = static::getMethodRecipe($className, $methodName);
+
+            return static::resolveMethodRecipeParameters($container, $recipes, $parameters);
+        }
+
+        // Uncacheable callables: closures and global function strings.
+        // These lack a deterministic ClassName::methodName key, so we fall
+        // back to per-call reflection via addDependencyForCallParameter.
+        $dependencies = [];
+
+        foreach ((new ReflectionFunction($callback))->getParameters() as $parameter) {
+            static::addDependencyForCallParameter($container, $parameter, $parameters, $dependencies);
+        }
+
+        return array_merge($dependencies, array_values($parameters));
     }
 
     /**
