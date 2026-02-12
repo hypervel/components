@@ -12,6 +12,7 @@ use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Tests\TestCase;
@@ -1016,13 +1017,46 @@ class ContainerTest extends TestCase
         $this->assertEquals('taylor@laravel.com', $r->email);
     }
 
-    // public function testContainerCanCatchCircularDependency()
-    // {
-    //     $this->expectException(CircularDependencyException::class);
+    public function testContainerCanCatchCircularDependency()
+    {
+        $this->expectException(CircularDependencyException::class);
 
-    //     $container = new Container;
-    //     $container->get(CircularAStub::class);
-    // }
+        $container = new Container();
+        $container->get(CircularAStub::class);
+    }
+
+    public function testCircularDependencyExceptionContainsFullChain()
+    {
+        $container = new Container();
+
+        try {
+            $container->make(CircularAStub::class);
+            $this->fail('Expected CircularDependencyException was not thrown.');
+        } catch (CircularDependencyException $e) {
+            $this->assertSame([
+                CircularAStub::class,
+                CircularBStub::class,
+                CircularCStub::class,
+                CircularAStub::class,
+            ], $e->getDependencyChain());
+
+            $this->assertStringContainsString('Circular dependency detected:', $e->getMessage());
+            $this->assertStringContainsString(CircularAStub::class, $e->getMessage());
+            $this->assertStringContainsString(CircularBStub::class, $e->getMessage());
+            $this->assertStringContainsString(CircularCStub::class, $e->getMessage());
+        }
+    }
+
+    public function testGetRethrowsCircularDependencyException()
+    {
+        $this->expectException(CircularDependencyException::class);
+
+        $container = new Container();
+        $container->get(CircularAStub::class);
+
+        // CircularDependencyException must NOT be wrapped in EntryNotFoundException.
+        // get() checks `$e instanceof CircularDependencyException` and rethrows directly.
+    }
 }
 
 class CircularAStub

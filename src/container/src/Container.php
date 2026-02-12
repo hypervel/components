@@ -37,6 +37,20 @@ class Container implements ArrayAccess, ContainerContract
     protected const BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
 
     /**
+     * Context key for the coroutine-local resolution depth counter.
+     */
+    protected const DEPTH_CONTEXT_KEY = '__container.depth';
+
+    /**
+     * Maximum resolution depth before assuming a circular dependency.
+     *
+     * Safety net for indirect cycles (e.g., through interfaces) where the
+     * abstract names differ from the concretes pushed by build(), making
+     * the direct in_array check insufficient.
+     */
+    protected const MAX_RESOLUTION_DEPTH = 500;
+
+    /**
      * Context key for the coroutine-local parameter override stack.
      */
     protected const PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
@@ -836,6 +850,25 @@ class Container implements ArrayAccess, ContainerContract
     {
         $abstract = $this->getAlias($abstract);
 
+        // Check for circular dependency — if this abstract is already being
+        // built in the current coroutine's resolution chain, we have a cycle.
+        if (in_array($abstract, $this->getBuildStack(), true)) {
+            $e = new CircularDependencyException();
+            $e->addDefinitionName($abstract);
+
+            throw $e;
+        }
+
+        // Depth guard — catches indirect cycles (e.g., through interfaces) where
+        // the abstract names differ from the concretes pushed by build().
+        $depth = Context::get(self::DEPTH_CONTEXT_KEY, 0);
+
+        if ($depth > static::MAX_RESOLUTION_DEPTH) {
+            throw new CircularDependencyException(
+                'Maximum resolution depth (' . static::MAX_RESOLUTION_DEPTH . ') exceeded — possible circular dependency'
+            );
+        }
+
         // First we'll fire any event handlers which handle the "before" resolving of
         // specific types. This gives some hooks the chance to add various extends
         // calls to change the resolution of objects that they're interested in.
@@ -868,6 +901,7 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         $this->pushParameterOverrides($parameters);
+        Context::set(self::DEPTH_CONTEXT_KEY, $depth + 1);
 
         // try/finally ensures Context cleanup even when resolution throws — in Swoole's
         // long-running model, exceptions don't terminate the worker, so leaked overrides
@@ -927,8 +961,15 @@ class Container implements ArrayAccess, ContainerContract
             }
 
             return $object;
+        } catch (CircularDependencyException $e) {
+            // Enrich the exception with this level's abstract name as it bubbles up,
+            // building the full dependency chain (e.g., A -> B -> C -> A).
+            $e->addDefinitionName($abstract);
+
+            throw $e;
         } finally {
             $this->popParameterOverrides();
+            Context::set(self::DEPTH_CONTEXT_KEY, $depth);
         }
     }
 
