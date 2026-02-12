@@ -263,7 +263,7 @@ class CoroutineSafetyTest extends TestCase
                 $e->getMessage()
             );
             $this->assertSame(
-                'Target [Hypervel\\Tests\\Container\\CoroutineDependencyInterface] is not instantiable.',
+                'Target [Hypervel\Tests\Container\CoroutineDependencyInterface] is not instantiable.',
                 $e->getMessage()
             );
         }
