@@ -10,6 +10,7 @@ use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
+use Hypervel\Container\ReflectionManager;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
@@ -458,10 +459,25 @@ class ContainerTest extends TestCase
     public function testInternalClassWithDefaultParameters()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unresolvable dependency resolving [Parameter #0 [ <required> $first ]] in class Hypervel\Tests\Container\ContainerTest\ContainerMixedPrimitiveStub');
+        $this->expectExceptionMessage('Unresolvable dependency resolving [$first] in class Hypervel\Tests\Container\ContainerTest\ContainerMixedPrimitiveStub');
 
         $container = new Container();
         $container->make(ContainerMixedPrimitiveStub::class, []);
+    }
+
+    public function testUnresolvablePrimitiveErrorReferencesDeclaringClass(): void
+    {
+        // When class B extends A and A declares the constructor with an
+        // unresolvable param, the error message should reference A (the
+        // declaring class), not B (the class being built).
+        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionMessage(
+            'Unresolvable dependency resolving [$value] in class '
+            . ContainerInheritedConstructorParentStub::class
+        );
+
+        $container = new Container();
+        $container->make(ContainerInheritedConstructorChildStub::class);
     }
 
     public function testBindingResolutionExceptionMessage()
@@ -560,6 +576,20 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isAlias('ContainerConcreteStub'));
         $this->assertEmpty($container->getBindings());
         $this->assertFalse($container->isShared('ConcreteStub'));
+    }
+
+    public function testFlushClearsReflectionCache(): void
+    {
+        $container = new Container();
+        $container->make(ContainerConcreteStub::class);
+
+        $before = ReflectionManager::reflectClass(ContainerConcreteStub::class);
+
+        $container->flush();
+
+        $after = ReflectionManager::reflectClass(ContainerConcreteStub::class);
+
+        $this->assertNotSame($before, $after);
     }
 
     public function testFlushClearsScopedInstances()
@@ -1409,4 +1439,16 @@ class ContextualCircularC implements ContextualCircularInterface
         public readonly ContextualCircularA $a,
     ) {
     }
+}
+
+class ContainerInheritedConstructorParentStub
+{
+    public function __construct(
+        public readonly string $value,
+    ) {
+    }
+}
+
+class ContainerInheritedConstructorChildStub extends ContainerInheritedConstructorParentStub
+{
 }
