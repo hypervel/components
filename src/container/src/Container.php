@@ -32,6 +32,21 @@ class Container implements ArrayAccess, ContainerContract
     use ReflectsClosures;
 
     /**
+     * Context key for the coroutine-local build stack.
+     */
+    protected const BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
+
+    /**
+     * Context key for the coroutine-local parameter override stack.
+     */
+    protected const PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
+
+    /**
+     * Context key prefix for coroutine-local scoped instances.
+     */
+    protected const SCOPED_CONTEXT_PREFIX = '__container.scoped.';
+
+    /**
      * The current globally available container (if any).
      *
      * @var null|static
@@ -530,12 +545,12 @@ class Container implements ArrayAccess, ContainerContract
             $this->instances[$abstract] = $closure($this->instances[$abstract], $this);
 
             $this->rebound($abstract);
-        } elseif ($this->isScoped($abstract) && Context::has('container.scoped.' . $abstract)) {
+        } elseif ($this->isScoped($abstract) && Context::has(self::SCOPED_CONTEXT_PREFIX . $abstract)) {
             // Apply the extender to the current cached scoped instance immediately.
             // Also queue it in $this->extenders for future resolutions — unlike singletons
             // (which persist for the worker lifetime), scoped instances are destroyed each
             // request by forgetScopedInstances() and must re-apply extenders on rebuild.
-            $contextKey = 'container.scoped.' . $abstract;
+            $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
             Context::set($contextKey, $closure(Context::get($contextKey), $this));
 
             $this->extenders[$abstract][] = $closure;
@@ -834,7 +849,7 @@ class Container implements ArrayAccess, ContainerContract
 
         // For scoped bindings, check coroutine-local Context instead of process-global $instances.
         if ($this->isScoped($abstract) && ! $needsContextualBuild) {
-            $contextKey = 'container.scoped.' . $abstract;
+            $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
             if (Context::has($contextKey)) {
                 return Context::get($contextKey);
             }
@@ -882,7 +897,7 @@ class Container implements ArrayAccess, ContainerContract
             if (! $needsContextualBuild) {
                 if ($this->isShared($abstract)) {
                     if ($this->isScoped($abstract)) {
-                        Context::set('container.scoped.' . $abstract, $object);
+                        Context::set(self::SCOPED_CONTEXT_PREFIX . $abstract, $object);
                     } else {
                         $this->instances[$abstract] = $object;
                     }
@@ -1023,7 +1038,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function getBuildStack(): array
     {
-        return Context::get('container.buildStack', []);
+        return Context::get(self::BUILD_STACK_CONTEXT_KEY, []);
     }
 
     /**
@@ -1033,7 +1048,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function setBuildStack(array $stack): void
     {
-        Context::set('container.buildStack', $stack);
+        Context::set(self::BUILD_STACK_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -1063,7 +1078,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function getParameterOverrideStack(): array
     {
-        return Context::get('container.with', []);
+        return Context::get(self::PARAMETER_OVERRIDES_CONTEXT_KEY, []);
     }
 
     /**
@@ -1073,7 +1088,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         $stack = $this->getParameterOverrideStack();
         $stack[] = $parameters;
-        Context::set('container.with', $stack);
+        Context::set(self::PARAMETER_OVERRIDES_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -1083,7 +1098,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         $stack = $this->getParameterOverrideStack();
         array_pop($stack);
-        Context::set('container.with', $stack);
+        Context::set(self::PARAMETER_OVERRIDES_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -1635,7 +1650,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->instances[$abstract], $this->aliases[$abstract], $this->autoSingletons[$abstract]);
 
-        Context::destroy('container.scoped.' . $abstract);
+        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $abstract);
     }
 
     /**
@@ -1645,7 +1660,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
 
-        Context::destroy('container.scoped.' . $abstract);
+        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $abstract);
     }
 
     /**
@@ -1664,7 +1679,7 @@ class Container implements ArrayAccess, ContainerContract
     public function forgetScopedInstances(): void
     {
         foreach ($this->scopedInstances as $scoped) {
-            Context::destroy('container.scoped.' . $scoped);
+            Context::destroy(self::SCOPED_CONTEXT_PREFIX . $scoped);
         }
     }
 
@@ -1766,7 +1781,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->bindings[$key], $this->instances[$key], $this->resolved[$key]);
 
-        Context::destroy('container.scoped.' . $key);
+        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $key);
     }
 
     /**
