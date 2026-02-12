@@ -10,6 +10,7 @@ use Exception;
 use Hypervel\Container\Attributes\Bind;
 use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -111,20 +112,6 @@ class Container implements ArrayAccess, ContainerContract
      * @var array[]
      */
     protected $tags = [];
-
-    /**
-     * The stack of concretions currently being built.
-     *
-     * @var string[]
-     */
-    protected $buildStack = [];
-
-    /**
-     * The parameter override stack.
-     *
-     * @var array[]
-     */
-    protected $with = [];
 
     /**
      * The contextual binding map.
@@ -295,6 +282,14 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         return true;
+    }
+
+    /**
+     * Determine if a given abstract is a scoped binding.
+     */
+    public function isScoped(string $abstract): bool
+    {
+        return in_array($abstract, $this->scopedInstances, true);
     }
 
     /**
@@ -695,12 +690,9 @@ class Container implements ArrayAccess, ContainerContract
     {
         $pushedToBuildStack = false;
 
-        if (($className = $this->getClassForCallable($callback)) && ! in_array(
-            $className,
-            $this->buildStack,
-            true
-        )) {
-            $this->buildStack[] = $className;
+        if (($className = $this->getClassForCallable($callback))
+            && ! in_array($className, $this->getBuildStack(), true)) {
+            $this->pushBuildStack($className);
 
             $pushedToBuildStack = true;
         }
@@ -708,7 +700,7 @@ class Container implements ArrayAccess, ContainerContract
         $result = BoundMethod::call($this, $callback, $parameters, $defaultMethod);
 
         if ($pushedToBuildStack) {
-            array_pop($this->buildStack);
+            $this->popBuildStack();
         }
 
         return $result;
@@ -815,6 +807,14 @@ class Container implements ArrayAccess, ContainerContract
 
         $needsContextualBuild = ! empty($parameters) || ! is_null($concrete);
 
+        // For scoped bindings, check coroutine-local Context instead of process-global $instances.
+        if ($this->isScoped($abstract) && ! $needsContextualBuild) {
+            $contextKey = 'container.scoped.' . $abstract;
+            if (Context::has($contextKey)) {
+                return Context::get($contextKey);
+            }
+        }
+
         // If an instance of the type is currently being managed as a singleton we'll
         // just return an existing instance instead of instantiating new instances
         // so the developer can keep using the same objects instance every time.
@@ -827,60 +827,66 @@ class Container implements ArrayAccess, ContainerContract
             return $this->autoSingletons[$abstract];
         }
 
-        $this->with[] = $parameters;
+        $this->pushParameterOverrides($parameters);
 
-        if (is_null($concrete)) {
-            $concrete = $this->getConcrete($abstract);
-        }
-
-        // We're ready to instantiate an instance of the concrete type registered for
-        // the binding. This will instantiate the types, as well as resolve any of
-        // its "nested" dependencies recursively until all have gotten resolved.
-        $object = $this->isBuildable($concrete, $abstract)
-            ? $this->build($concrete)
-            : $this->make($concrete);
-
-        // If we defined any extenders for this type, we'll need to spin through them
-        // and apply them to the object being built. This allows for the extension
-        // of services, such as changing configuration or decorating the object.
-        foreach ($this->getExtenders($abstract) as $extender) {
-            $object = $extender($object, $this);
-        }
-
-        // If the requested type is registered as a singleton we'll want to cache off
-        // the instances in "memory" so we can return it later without creating an
-        // entirely new instance of an object on each subsequent request for it.
-        if (! $needsContextualBuild) {
-            if ($this->isShared($abstract)) {
-                $this->instances[$abstract] = $object;
-            } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)) {
-                // Auto-singleton: unbound concrete classes are cached for Swoole performance.
-                // In Swoole's long-running process model, services are stateless singletons
-                // by design. Re-creating them on every resolution wastes CPU and memory.
-                // Explicit bind() overrides this — bound classes follow their binding type.
-                // Skipped when raiseEvents is false (internal binding resolution via getClosure)
-                // so that concretes resolved as part of scoped/singleton bindings don't get
-                // independently cached, which would break forgetScopedInstances().
-                // Stored in $autoSingletons (not $instances) so bound() doesn't report
-                // these as explicitly registered, preserving resolveClass() default values.
-                $this->autoSingletons[$abstract] = $object;
+        try {
+            if (is_null($concrete)) {
+                $concrete = $this->getConcrete($abstract);
             }
+
+            // We're ready to instantiate an instance of the concrete type registered for
+            // the binding. This will instantiate the types, as well as resolve any of
+            // its "nested" dependencies recursively until all have gotten resolved.
+            $object = $this->isBuildable($concrete, $abstract)
+                ? $this->build($concrete)
+                : $this->make($concrete);
+
+            // If we defined any extenders for this type, we'll need to spin through them
+            // and apply them to the object being built. This allows for the extension
+            // of services, such as changing configuration or decorating the object.
+            foreach ($this->getExtenders($abstract) as $extender) {
+                $object = $extender($object, $this);
+            }
+
+            // If the requested type is registered as a singleton we'll want to cache off
+            // the instances in "memory" so we can return it later without creating an
+            // entirely new instance of an object on each subsequent request for it.
+            if (! $needsContextualBuild) {
+                if ($this->isShared($abstract)) {
+                    if ($this->isScoped($abstract)) {
+                        Context::set('container.scoped.' . $abstract, $object);
+                    } else {
+                        $this->instances[$abstract] = $object;
+                    }
+                } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)) {
+                    // Auto-singleton: unbound concrete classes are cached for Swoole performance.
+                    // In Swoole's long-running process model, services are stateless singletons
+                    // by design. Re-creating them on every resolution wastes CPU and memory.
+                    // Explicit bind() overrides this — bound classes follow their binding type.
+                    // Skipped when raiseEvents is false (internal binding resolution via getClosure)
+                    // so that concretes resolved as part of scoped/singleton bindings don't get
+                    // independently cached, which would break forgetScopedInstances().
+                    // Stored in $autoSingletons (not $instances) so bound() doesn't report
+                    // these as explicitly registered, preserving resolveClass() default values.
+                    $this->autoSingletons[$abstract] = $object;
+                }
+            }
+
+            if ($raiseEvents) {
+                $this->fireResolvingCallbacks($abstract, $object);
+            }
+
+            // Before returning, we will also set the resolved flag to "true" and pop off
+            // the parameter overrides for this build. After those two things are done
+            // we will be ready to return back the fully constructed class instance.
+            if (! $needsContextualBuild) {
+                $this->resolved[$abstract] = true;
+            }
+
+            return $object;
+        } finally {
+            $this->popParameterOverrides();
         }
-
-        if ($raiseEvents) {
-            $this->fireResolvingCallbacks($abstract, $object);
-        }
-
-        // Before returning, we will also set the resolved flag to "true" and pop off
-        // the parameter overrides for this build. After those two things are done
-        // we will be ready to return back the fully constructed class instance.
-        if (! $needsContextualBuild) {
-            $this->resolved[$abstract] = true;
-        }
-
-        array_pop($this->with);
-
-        return $object;
     }
 
     /**
@@ -983,11 +989,92 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
+     * Get the current build stack from coroutine-local context.
+     *
+     * @return string[]
+     */
+    protected function getBuildStack(): array
+    {
+        return Context::get('container.buildStack', []);
+    }
+
+    /**
+     * Set the build stack in coroutine-local context.
+     *
+     * @param string[] $stack
+     */
+    protected function setBuildStack(array $stack): void
+    {
+        Context::set('container.buildStack', $stack);
+    }
+
+    /**
+     * Push an abstract onto the coroutine-local build stack.
+     */
+    protected function pushBuildStack(string $abstract): void
+    {
+        $stack = $this->getBuildStack();
+        $stack[] = $abstract;
+        $this->setBuildStack($stack);
+    }
+
+    /**
+     * Pop the last entry from the coroutine-local build stack.
+     */
+    protected function popBuildStack(): void
+    {
+        $stack = $this->getBuildStack();
+        array_pop($stack);
+        $this->setBuildStack($stack);
+    }
+
+    /**
+     * Get the parameter override stack from coroutine-local context.
+     *
+     * @return array[]
+     */
+    protected function getParameterOverrideStack(): array
+    {
+        return Context::get('container.with', []);
+    }
+
+    /**
+     * Push parameter overrides onto the coroutine-local stack.
+     */
+    protected function pushParameterOverrides(array $parameters): void
+    {
+        $stack = $this->getParameterOverrideStack();
+        $stack[] = $parameters;
+        Context::set('container.with', $stack);
+    }
+
+    /**
+     * Pop the last parameter overrides from the coroutine-local stack.
+     */
+    protected function popParameterOverrides(): void
+    {
+        $stack = $this->getParameterOverrideStack();
+        array_pop($stack);
+        Context::set('container.with', $stack);
+    }
+
+    /**
+     * Get the last parameter override from the coroutine-local stack.
+     */
+    protected function getLastParameterOverride(): array
+    {
+        $stack = $this->getParameterOverrideStack();
+        return end($stack) ?: [];
+    }
+
+    /**
      * Find the concrete binding for the given abstract in the contextual binding array.
      */
     protected function findInContextualBindings(string $abstract): mixed
     {
-        return $this->contextual[end($this->buildStack)][$abstract] ?? null;
+        $buildStack = $this->getBuildStack();
+
+        return $this->contextual[end($buildStack)][$abstract] ?? null;
     }
 
     /**
@@ -1015,12 +1102,12 @@ class Container implements ArrayAccess, ContainerContract
         // hand back the results of the functions, which allows functions to be
         // used as resolvers for more fine-tuned resolution of these objects.
         if ($concrete instanceof Closure) {
-            $this->buildStack[] = spl_object_hash($concrete);
+            $this->pushBuildStack(spl_object_hash($concrete));
 
             try {
                 return $concrete($this, $this->getLastParameterOverride());
             } finally {
-                array_pop($this->buildStack);
+                $this->popBuildStack();
             }
         }
 
@@ -1038,37 +1125,37 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         if (is_a($concrete, SelfBuilding::class, true)
-            && ! in_array($concrete, $this->buildStack, true)) {
+            && ! in_array($concrete, $this->getBuildStack(), true)) {
             return $this->buildSelfBuildingInstance($concrete, $reflector);
         }
 
-        $this->buildStack[] = $concrete;
+        $this->pushBuildStack($concrete);
 
-        $constructor = $reflector->getConstructor();
-
-        // If there are no constructors, that means there are no dependencies then
-        // we can just resolve the instances of the objects right away, without
-        // resolving any other types or dependencies out of these containers.
-        if (is_null($constructor)) {
-            array_pop($this->buildStack);
-
-            $this->fireAfterResolvingAttributeCallbacks(
-                $reflector->getAttributes(),
-                $instance = new $concrete()
-            );
-
-            return $instance;
-        }
-
-        $dependencies = $constructor->getParameters();
-
-        // Once we have all the constructor's parameters we can create each of the
-        // dependency instances and then use the reflection instances to make a
-        // new instance of this class, injecting the created dependencies in.
         try {
+            $constructor = $reflector->getConstructor();
+
+            // If there are no constructors, that means there are no dependencies then
+            // we can just resolve the instances of the objects right away, without
+            // resolving any other types or dependencies out of these containers.
+            if (is_null($constructor)) {
+                $instance = new $concrete();
+
+                $this->fireAfterResolvingAttributeCallbacks(
+                    $reflector->getAttributes(),
+                    $instance
+                );
+
+                return $instance;
+            }
+
+            $dependencies = $constructor->getParameters();
+
+            // Once we have all the constructor's parameters we can create each of the
+            // dependency instances and then use the reflection instances to make a
+            // new instance of this class, injecting the created dependencies in.
             $instances = $this->resolveDependencies($dependencies);
         } finally {
-            array_pop($this->buildStack);
+            $this->popBuildStack();
         }
 
         $this->fireAfterResolvingAttributeCallbacks(
@@ -1092,11 +1179,13 @@ class Container implements ArrayAccess, ContainerContract
             throw new BindingResolutionException("No newInstance method exists for [{$concrete}].");
         }
 
-        $this->buildStack[] = $concrete;
+        $this->pushBuildStack($concrete);
 
-        $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type
-
-        array_pop($this->buildStack);
+        try {
+            $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type
+        } finally {
+            $this->popBuildStack();
+        }
 
         $this->fireAfterResolvingAttributeCallbacks(
             $reflector->getAttributes(),
@@ -1172,14 +1261,6 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
-     * Get the last parameter override.
-     */
-    protected function getLastParameterOverride(): array
-    {
-        return count($this->with) ? array_last($this->with) : [];
-    }
-
-    /**
      * Resolve a non-class hinted primitive dependency.
      *
      * @throws BindingResolutionException
@@ -1234,8 +1315,6 @@ class Container implements ArrayAccess, ContainerContract
         // dependency similarly to how we handle scalar values in this situation.
         catch (BindingResolutionException $e) {
             if ($parameter->isVariadic()) { // @phpstan-ignore if.alwaysFalse
-                array_pop($this->with);
-
                 return [];
             }
 
@@ -1286,8 +1365,10 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function notInstantiable(string $concrete): never
     {
-        if (! empty($this->buildStack)) {
-            $previous = implode(', ', $this->buildStack);
+        $buildStack = $this->getBuildStack();
+
+        if (! empty($buildStack)) {
+            $previous = implode(', ', $buildStack);
 
             $message = "Target [{$concrete}] is not instantiable while building [{$previous}].";
         } else {
@@ -1480,7 +1561,9 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function currentlyResolving(): ?string
     {
-        return array_last($this->buildStack) ?: null;
+        $buildStack = $this->getBuildStack();
+
+        return end($buildStack) ?: null;
     }
 
     /**
@@ -1550,10 +1633,10 @@ class Container implements ArrayAccess, ContainerContract
         foreach ($this->scopedInstances as $scoped) {
             if ($scoped instanceof Closure) {
                 foreach ($this->closureReturnTypes($scoped) as $type) {
-                    unset($this->instances[$type]);
+                    Context::destroy('container.scoped.' . $type);
                 }
             } else {
-                unset($this->instances[$scoped]);
+                Context::destroy('container.scoped.' . $scoped);
             }
         }
     }
