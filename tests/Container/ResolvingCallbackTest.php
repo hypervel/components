@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
@@ -14,6 +15,13 @@ use stdClass;
  */
 class ResolvingCallbackTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Context::destroyAll();
+
+        parent::tearDown();
+    }
+
     public function testResolvingCallbacksAreCalledForSpecificAbstracts()
     {
         $container = new Container();

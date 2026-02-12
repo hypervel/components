@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Container\ContextualBindingTest;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -14,6 +15,13 @@ use Hypervel\Tests\TestCase;
  */
 class ContextualBindingTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Context::destroyAll();
+
+        parent::tearDown();
+    }
+
     public function testContainerCanInjectDifferentImplementationsDependingOnContext()
     {
         $container = new Container();

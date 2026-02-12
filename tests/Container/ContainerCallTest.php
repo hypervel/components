@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Container;
 use Closure;
 use Error;
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 use stdClass;
@@ -17,6 +18,13 @@ use stdClass;
  */
 class ContainerCallTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Context::destroyAll();
+
+        parent::tearDown();
+    }
+
     public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException()
     {
         $this->expectException(Error::class);

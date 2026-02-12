@@ -10,6 +10,7 @@ use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
@@ -28,6 +29,7 @@ class ContainerTest extends TestCase
     protected function tearDown(): void
     {
         Container::setInstance(null);
+        Context::destroyAll();
 
         parent::tearDown();
     }
