@@ -35,13 +35,13 @@ class RegisterConnectionResolverListener implements ListenerInterface
     {
         if ($this->container->has(ConnectionResolverInterface::class)) {
             Model::setConnectionResolver(
-                $this->container->get(ConnectionResolverInterface::class)
+                $this->container->make(ConnectionResolverInterface::class)
             );
         }
 
         if ($this->container->has(Dispatcher::class)) {
             Model::setEventDispatcher(
-                $this->container->get(Dispatcher::class)
+                $this->container->make(Dispatcher::class)
             );
         }
     }

@@ -76,7 +76,7 @@ abstract class SqliteTestCase extends DatabaseTestCase
      */
     protected function deleteSqliteDatabaseFile(?string $path = null): void
     {
-        $path ??= $this->app->get('config')->get('database.connections.sqlite.database');
+        $path ??= $this->app->make('config')->get('database.connections.sqlite.database');
 
         if ($path === ':memory:' || str_contains($path, 'mode=memory')) {
             return;

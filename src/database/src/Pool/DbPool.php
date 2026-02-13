@@ -37,7 +37,7 @@ class DbPool extends Pool
         Container $container,
         protected string $name
     ) {
-        $configService = $container->get('config');
+        $configService = $container->make('config');
         $key = sprintf('database.connections.%s', $this->name);
 
         if (! $configService->has($key)) {
@@ -95,7 +95,7 @@ class DbPool extends Pool
      */
     protected function createSharedInMemorySqlitePdo(): PDO
     {
-        $factory = $this->container->get(ConnectionFactory::class);
+        $factory = $this->container->make(ConnectionFactory::class);
         $connection = $factory->make($this->config, $this->name);
 
         return $connection->getPdo();

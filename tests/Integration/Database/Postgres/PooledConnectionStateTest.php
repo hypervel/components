@@ -27,7 +27,7 @@ class PooledConnectionStateTest extends PostgresTestCase
      */
     protected function getPooledConnection(): PooledConnection
     {
-        $factory = $this->app->get(PoolFactory::class);
+        $factory = $this->app->make(PoolFactory::class);
         $pool = $factory->getPool($this->driver);
 
         return $pool->get();

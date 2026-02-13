@@ -37,13 +37,13 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $this->configureInMemoryDatabase();
 
         // Suppress expected log output from reconnect tests
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set(StdoutLoggerInterface::class . '.log_level', []);
     }
 
     protected function configureInMemoryDatabase(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $this->app->instance('db.connector.sqlite', new SQLiteConnector());
 
@@ -66,7 +66,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     protected function getPoolFactory(): PoolFactory
     {
-        return $this->app->get(PoolFactory::class);
+        return $this->app->make(PoolFactory::class);
     }
 
     // =========================================================================
@@ -78,7 +78,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
      */
     public function testIsInMemorySqliteDetection(string $database, bool $expected): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $connectionConfig = [
             'driver' => 'sqlite',
@@ -122,7 +122,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testNonSqliteDriverIsNotInMemorySqlite(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $connectionConfig = [
             'driver' => 'mysql',
@@ -163,7 +163,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testFileSqlitePoolDoesNotHaveSharedPdo(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $tempFile = sys_get_temp_dir() . '/test_no_shared_pdo.db';
         @touch($tempFile);
@@ -265,7 +265,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testMakeSqliteFromSharedPdoCreatesConnectionWithProvidedPdo(): void
     {
-        $factory = $this->app->get(ConnectionFactory::class);
+        $factory = $this->app->make(ConnectionFactory::class);
 
         // Create a PDO manually
         $pdo = new PDO('sqlite::memory:');
@@ -286,7 +286,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testMakeSqliteFromSharedPdoUsesWriteConfigWhenReadWritePresent(): void
     {
-        $factory = $this->app->get(ConnectionFactory::class);
+        $factory = $this->app->make(ConnectionFactory::class);
 
         $pdo = new PDO('sqlite::memory:');
 

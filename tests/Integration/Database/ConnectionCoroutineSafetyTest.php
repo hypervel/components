@@ -127,7 +127,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionChangesDefaultWithinCallback(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
 
         $testConnection = 'sqlite';
@@ -142,7 +142,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionRestoresStateAfterException(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = 'sqlite';
 
@@ -161,7 +161,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionIsCoroutineIsolated(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = 'sqlite';
 
@@ -199,7 +199,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionAffectsDbConnection(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
 
         $connectionBefore = DB::connection();
@@ -223,7 +223,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionAffectsSchemaConnection(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
 
         $testConnection = 'sqlite';
@@ -243,10 +243,10 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUsingConnectionAffectsConnectionResolver(): void
     {
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
 
         /** @var ConnectionResolverInterface $resolver */
-        $resolver = $this->app->get(ConnectionResolverInterface::class);
+        $resolver = $this->app->make(ConnectionResolverInterface::class);
 
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = 'sqlite';

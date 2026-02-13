@@ -144,7 +144,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $connector = m::mock(\Hypervel\Database\Connectors\ConnectorInterface::class);
         $factory = new ConnectionFactory($container = m::mock(Container::class));
         $container->shouldReceive('bound')->once()->with('db.connector.foo')->andReturn(true);
-        $container->shouldReceive('get')->once()->with('db.connector.foo')->andReturn($connector);
+        $container->shouldReceive('make')->once()->with('db.connector.foo')->andReturn($connector);
 
         $this->assertSame($connector, $factory->createConnector(['driver' => 'foo']));
     }

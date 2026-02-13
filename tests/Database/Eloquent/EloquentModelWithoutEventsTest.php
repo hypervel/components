@@ -139,7 +139,7 @@ class EloquentModelWithoutEventsTest extends TestCase
 
     public function testGetEventDispatcherReturnsNullDispatcherWhenEventsDisabled(): void
     {
-        $realDispatcher = $this->app->get(Dispatcher::class);
+        $realDispatcher = $this->app->make(Dispatcher::class);
         TestModel::setEventDispatcher($realDispatcher);
 
         // Outside withoutEvents, should return the real dispatcher
@@ -162,7 +162,7 @@ class EloquentModelWithoutEventsTest extends TestCase
 
     public function testManualDispatchViaNullDispatcherIsSuppressed(): void
     {
-        $realDispatcher = $this->app->get(Dispatcher::class);
+        $realDispatcher = $this->app->make(Dispatcher::class);
         TestModel::setEventDispatcher($realDispatcher);
 
         $eventFired = false;

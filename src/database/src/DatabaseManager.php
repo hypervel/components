@@ -84,7 +84,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        return $this->app->get(ConnectionResolverInterface::class)
+        return $this->app->make(ConnectionResolverInterface::class)
             ->connection(enum_value($name) ?? $this->getDefaultConnection());
     }
 
@@ -200,7 +200,7 @@ class DatabaseManager implements ConnectionResolverInterface
         }
 
         if ($this->app->bound('db.transactions')) {
-            $connection->setTransactionManager($this->app->get('db.transactions'));
+            $connection->setTransactionManager($this->app->make('db.transactions'));
         }
 
         // Set a reconnector callback to reconnect from this manager with the name of
@@ -251,14 +251,14 @@ class DatabaseManager implements ConnectionResolverInterface
         unset($this->connections[$name]);
 
         // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
-        $resolver = $this->app->get(ConnectionResolverInterface::class);
+        $resolver = $this->app->make(ConnectionResolverInterface::class);
         if ($resolver instanceof FlushableConnectionResolver) {
             $resolver->flush($name);
         }
 
         // Flush the pool to honor config changes
         if ($this->app->has(PoolFactory::class)) {
-            $this->app->get(PoolFactory::class)->flushPool($name);
+            $this->app->make(PoolFactory::class)->flushPool($name);
         }
     }
 

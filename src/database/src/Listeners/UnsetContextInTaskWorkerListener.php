@@ -39,7 +39,7 @@ class UnsetContextInTaskWorkerListener implements ListenerInterface
             return;
         }
 
-        $connectionResolver = $this->container->get(ConnectionResolverInterface::class);
+        $connectionResolver = $this->container->make(ConnectionResolverInterface::class);
         $connections = (array) $this->config->get('database.connections', []);
 
         foreach (array_keys($connections) as $name) {

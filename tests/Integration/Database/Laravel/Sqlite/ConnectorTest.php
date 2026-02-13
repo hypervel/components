@@ -19,7 +19,7 @@ class ConnectorTest extends SqliteTestCase
      */
     protected function useCustomSqliteConnection(Application $app): void
     {
-        $app->get('config')->set('database.connections.custom_sqlite', [
+        $app->make('config')->set('database.connections.custom_sqlite', [
             'driver' => 'sqlite',
             'database' => database_path('custom.sqlite'),
             'foreign_key_constraints' => true,
@@ -37,7 +37,7 @@ class ConnectorTest extends SqliteTestCase
      */
     protected function useWritableSqliteConnection(Application $app): void
     {
-        $app->get('config')->set('database.connections.writable_sqlite', [
+        $app->make('config')->set('database.connections.writable_sqlite', [
             'driver' => 'sqlite',
             'database' => database_path('custom.sqlite'),
             'foreign_key_constraints' => true,

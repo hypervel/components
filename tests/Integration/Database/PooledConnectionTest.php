@@ -28,7 +28,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
-        $app->get('config')->set('database.connections.pool_test', [
+        $app->make('config')->set('database.connections.pool_test', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
@@ -60,7 +60,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testConnectionEstablishedEventFiredOnConstruction(): void
     {
         $fired = false;
-        $this->app->get(Dispatcher::class)->listen(
+        $this->app->make(Dispatcher::class)->listen(
             ConnectionEstablished::class,
             function (ConnectionEstablished $event) use (&$fired) {
                 $fired = true;
@@ -101,7 +101,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $pooledConnection = $this->createPooledConnection($pool);
 
         $count = 0;
-        $this->app->get(Dispatcher::class)->listen(
+        $this->app->make(Dispatcher::class)->listen(
             ConnectionEstablished::class,
             function () use (&$count) {
                 ++$count;
@@ -238,14 +238,14 @@ class PooledConnectionTest extends DatabaseTestCase
 
     public function testReleaseDispatchesReleaseEventWhenConfigured(): void
     {
-        $this->app->get('config')->set('database.connections.pool_test.pool.events', [
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
             ReleaseConnection::class,
         ]);
 
         $pool = new DbPool($this->app, 'pool_test');
 
         $fired = false;
-        $this->app->get(Dispatcher::class)->listen(
+        $this->app->make(Dispatcher::class)->listen(
             ReleaseConnection::class,
             function () use (&$fired) {
                 $fired = true;
@@ -324,7 +324,7 @@ class PooledConnectionTest extends DatabaseTestCase
      */
     private function createPooledConnection(DbPool $pool): PooledConnection
     {
-        $config = $this->app->get('config')->get('database.connections.pool_test');
+        $config = $this->app->make('config')->get('database.connections.pool_test');
         $config['name'] = 'pool_test';
 
         return new PooledConnection($this->app, $pool, $config);

@@ -41,8 +41,8 @@ class ConnectionResolver implements ConnectionResolverInterface
     public function __construct(
         protected Container $container
     ) {
-        $this->factory = $container->get(PoolFactory::class);
-        $this->default = $container->get('config')->get('database.default', 'default');
+        $this->factory = $container->make(PoolFactory::class);
+        $this->default = $container->make('config')->get('database.default', 'default');
     }
 
     /**

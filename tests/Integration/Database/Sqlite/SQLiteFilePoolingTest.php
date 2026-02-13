@@ -62,7 +62,7 @@ class SQLiteFilePoolingTest extends TestCase
 
     protected function configureDatabase(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $this->app->instance('db.connector.sqlite', new SQLiteConnector());
 
@@ -96,7 +96,7 @@ class SQLiteFilePoolingTest extends TestCase
 
     protected function getPooledConnection(): PooledConnection
     {
-        $factory = $this->app->get(PoolFactory::class);
+        $factory = $this->app->make(PoolFactory::class);
         $pool = $factory->getPool('sqlite_file');
 
         return $pool->get();

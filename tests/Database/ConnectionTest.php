@@ -23,7 +23,7 @@ class ConnectionTest extends TestCase
     protected function defineEnvironment(Application $app): void
     {
         // Suppress "Database connection refreshing" warnings during disconnect tests
-        $app->get('config')->set(StdoutLoggerInterface::class . '.log_level', []);
+        $app->make('config')->set(StdoutLoggerInterface::class . '.log_level', []);
     }
 
     /**

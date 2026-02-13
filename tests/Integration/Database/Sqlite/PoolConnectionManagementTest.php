@@ -64,13 +64,13 @@ class PoolConnectionManagementTest extends TestCase
         $this->createTestTable();
 
         // Suppress expected error logs from transaction rollback tests
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set('Hyperf\Contract\StdoutLoggerInterface.log_level', []);
     }
 
     protected function configureDatabase(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $this->app->instance('db.connector.sqlite', new SQLiteConnector());
 
@@ -103,7 +103,7 @@ class PoolConnectionManagementTest extends TestCase
 
     protected function getPoolFactory(): PoolFactory
     {
-        return $this->app->get(PoolFactory::class);
+        return $this->app->make(PoolFactory::class);
     }
 
     protected function getPooledConnection(): PooledConnection
@@ -296,7 +296,7 @@ class PoolConnectionManagementTest extends TestCase
     {
         run(function () {
             /** @var DatabaseManager $manager */
-            $manager = $this->app->get(DatabaseManager::class);
+            $manager = $this->app->make(DatabaseManager::class);
 
             // Get a connection (puts it in context)
             $connection = $manager->connection('pool_test');
@@ -322,7 +322,7 @@ class PoolConnectionManagementTest extends TestCase
     {
         run(function () {
             /** @var DatabaseManager $manager */
-            $manager = $this->app->get(DatabaseManager::class);
+            $manager = $this->app->make(DatabaseManager::class);
 
             // Clear any existing connection from context
             $contextKey = '__database.connection.pool_test';
@@ -342,7 +342,7 @@ class PoolConnectionManagementTest extends TestCase
     {
         run(function () {
             /** @var DatabaseManager $manager */
-            $manager = $this->app->get(DatabaseManager::class);
+            $manager = $this->app->make(DatabaseManager::class);
 
             // Get initial connection
             $connection1 = $manager->connection('pool_test');
@@ -365,7 +365,7 @@ class PoolConnectionManagementTest extends TestCase
     {
         run(function () {
             /** @var DatabaseManager $manager */
-            $manager = $this->app->get(DatabaseManager::class);
+            $manager = $this->app->make(DatabaseManager::class);
 
             // Clear any existing connection from context
             $contextKey = '__database.connection.pool_test';
@@ -405,7 +405,7 @@ class PoolConnectionManagementTest extends TestCase
 
         // Purge
         /** @var DatabaseManager $manager */
-        $manager = $this->app->get(DatabaseManager::class);
+        $manager = $this->app->make(DatabaseManager::class);
         $manager->purge('pool_test');
 
         // Pool should be flushed (getting pool again gives fresh one with no connections)
@@ -427,7 +427,7 @@ class PoolConnectionManagementTest extends TestCase
 
         // Get listener provider and register a listener
         /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->get(ListenerProviderContract::class);
+        $listenerProvider = $this->app->make(ListenerProviderContract::class);
 
         $listenerProvider->on(
             ConnectionEstablished::class,
@@ -460,7 +460,7 @@ class PoolConnectionManagementTest extends TestCase
         $capturedConnectionName = null;
 
         /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->get(ListenerProviderContract::class);
+        $listenerProvider = $this->app->make(ListenerProviderContract::class);
 
         $listenerProvider->on(
             ConnectionEstablished::class,

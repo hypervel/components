@@ -46,11 +46,11 @@ class PooledConnection implements PoolConnectionInterface
         protected DbPool $pool,
         protected array $config
     ) {
-        $this->factory = $container->get(ConnectionFactory::class);
-        $this->logger = $container->get(StdoutLoggerInterface::class);
+        $this->factory = $container->make(ConnectionFactory::class);
+        $this->logger = $container->make(StdoutLoggerInterface::class);
 
         if ($container->has(Dispatcher::class)) {
-            $this->dispatcher = $container->get(Dispatcher::class);
+            $this->dispatcher = $container->make(Dispatcher::class);
         }
 
         $this->reconnect();
@@ -108,12 +108,12 @@ class PooledConnection implements PoolConnectionInterface
 
         // Configure event dispatcher for query events
         if ($this->container->has(Dispatcher::class)) {
-            $this->connection->setEventDispatcher($this->container->get(Dispatcher::class));
+            $this->connection->setEventDispatcher($this->container->make(Dispatcher::class));
         }
 
         // Configure transaction manager for after-commit callbacks
         if ($this->container->has('db.transactions')) {
-            $this->connection->setTransactionManager($this->container->get('db.transactions'));
+            $this->connection->setTransactionManager($this->container->make('db.transactions'));
         }
 
         // Set up reconnector for the connection
@@ -124,7 +124,7 @@ class PooledConnection implements PoolConnectionInterface
 
         // Dispatch connection established event
         if ($this->container->has(Dispatcher::class)) {
-            $this->container->get(Dispatcher::class)->dispatch(
+            $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($this->connection)
             );
         }
@@ -253,7 +253,7 @@ class PooledConnection implements PoolConnectionInterface
 
         // Dispatch connection established event (fetching from container to respect fakes)
         if ($this->container->has(Dispatcher::class)) {
-            $this->container->get(Dispatcher::class)->dispatch(
+            $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($connection)
             );
         }

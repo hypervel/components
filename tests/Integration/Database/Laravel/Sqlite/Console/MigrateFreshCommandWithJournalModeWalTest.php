@@ -34,7 +34,7 @@ class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase
         // Set WAL journal mode before any database connections are established.
         // This must be in defineEnvironment(), not WithConfig attribute, because
         // RequiresDatabase processes before WithConfig and establishes the connection.
-        $app->get('config')->set('database.connections.sqlite.journal_mode', 'wal');
+        $app->make('config')->set('database.connections.sqlite.journal_mode', 'wal');
     }
 
     #[Override]

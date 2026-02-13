@@ -11,7 +11,7 @@ class DatabaseMigrationRepositoryFactory
 {
     public function __invoke(Container $container): DatabaseMigrationRepository
     {
-        $config = $container->get('config');
+        $config = $container->make('config');
 
         $migrations = $config->get('database.migrations', 'migrations');
 
@@ -20,7 +20,7 @@ class DatabaseMigrationRepositoryFactory
             : $migrations;
 
         return new DatabaseMigrationRepository(
-            $container->get(ConnectionResolverInterface::class),
+            $container->make(ConnectionResolverInterface::class),
             $table
         );
     }

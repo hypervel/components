@@ -34,7 +34,7 @@ abstract class DatabaseTestCase extends TestCase
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
-            $db = $this->app->get(DatabaseManager::class);
+            $db = $this->app->make(DatabaseManager::class);
             foreach (array_keys($db->getConnections()) as $name) {
                 $db->purge($name);
             }
@@ -47,7 +47,7 @@ abstract class DatabaseTestCase extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $config = $app->get('config');
+        $config = $app->make('config');
         $connection = $config->get('database.default');
 
         $this->driver = $config->get("database.connections.{$connection}.driver", 'sqlite');

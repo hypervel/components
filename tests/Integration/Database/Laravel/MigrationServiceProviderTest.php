@@ -22,8 +22,8 @@ class MigrationServiceProviderTest extends DatabaseTestCase
      */
     public function testContainerCanBuildMigrator(): void
     {
-        $fromString = $this->app->get('migrator');
-        $fromClass = $this->app->get(Migrator::class);
+        $fromString = $this->app->make('migrator');
+        $fromClass = $this->app->make(Migrator::class);
 
         $this->assertSame($fromString, $fromClass);
     }

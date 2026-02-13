@@ -25,7 +25,7 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
-            $database = $this->app->get(DatabaseManager::class);
+            $database = $this->app->make(DatabaseManager::class);
             foreach (array_keys($database->getConnections()) as $name) {
                 $database->purge($name);
             }
@@ -43,7 +43,7 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
     {
         parent::defineEnvironment($app);
 
-        $config = $app->get('config');
+        $config = $app->make('config');
         $connection = $config->get('database.default');
 
         $this->driver = $config->get("database.connections.{$connection}.driver");

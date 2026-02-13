@@ -83,7 +83,7 @@ class SeedCommand extends Command
             $class = 'DatabaseSeeder';
         }
 
-        return $this->app->get($class)
+        return $this->app->make($class)
             ->setContainer($this->app)
             ->setCommand($this);
     }
@@ -96,7 +96,7 @@ class SeedCommand extends Command
         $database = $this->input->getOption('database');
 
         return $database
-            ?: $this->app->get('config')
+            ?: $this->app->make('config')
                 ->get('database.default');
     }
 
