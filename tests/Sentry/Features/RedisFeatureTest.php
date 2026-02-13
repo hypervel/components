@@ -36,7 +36,7 @@ class RedisFeatureTest extends SentryTestCase
 
     public function testFeatureIsApplicableWhenRedisCommandsTracingIsEnabled(): void
     {
-        $feature = $this->app->get(RedisFeature::class);
+        $feature = $this->app->make(RedisFeature::class);
 
         $this->assertTrue($feature->isApplicable());
     }
@@ -47,7 +47,7 @@ class RedisFeatureTest extends SentryTestCase
             'sentry.tracing.redis_commands' => false,
         ]);
 
-        $feature = $this->app->get(RedisFeature::class);
+        $feature = $this->app->make(RedisFeature::class);
 
         $this->assertFalse($feature->isApplicable());
     }
@@ -58,7 +58,7 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
 
@@ -82,10 +82,10 @@ class RedisFeatureTest extends SentryTestCase
     {
         $this->setupMocks();
         $this->startSession();
-        $this->app->get(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', [$sessionId], 0.005, $connection, 'default', 'value', null);
 
@@ -102,7 +102,7 @@ class RedisFeatureTest extends SentryTestCase
     {
         $this->setupMocks();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
 
@@ -119,7 +119,7 @@ class RedisFeatureTest extends SentryTestCase
         $transaction = $this->startTransaction();
         $transaction->setSampled(false);
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
 
@@ -135,7 +135,7 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('SET', ["multi\nline\nkey", 'value'], 0.005, $connection, 'default', 'OK', null);
 
@@ -154,7 +154,7 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('DEL', [123], 0.005, $connection, 'default', 1, null);
 
@@ -173,7 +173,7 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
 
@@ -196,7 +196,7 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('cache');
         $event = new CommandExecuted('SET', ['cache-key', 'value'], 0.010, $connection, 'cache', 'OK', null);
 
@@ -221,14 +221,14 @@ class RedisFeatureTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
         $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
 
         $dispatcher->dispatch($event);
 
         $this->assertNotSame($staleHub, SentrySdk::getCurrentHub());
-        $this->assertSame($this->app->get(HubInterface::class), SentrySdk::getCurrentHub());
+        $this->assertSame($this->app->make(HubInterface::class), SentrySdk::getCurrentHub());
 
         $spans = $transaction->getSpanRecorder()->getSpans();
         $this->assertCount(2, $spans);
@@ -252,7 +252,7 @@ class RedisFeatureTest extends SentryTestCase
         $this->app->instance(PoolFactory::class, $poolFactory);
 
         // Mock Redis config
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set("database.redis.{$connectionName}", [
             'host' => '127.0.0.1',
             'port' => 6379,

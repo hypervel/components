@@ -31,7 +31,7 @@ class ClientBuilderFactory
 
     public function __invoke(Application $container)
     {
-        $userConfig = $container->get('config')->get('sentry', []);
+        $userConfig = $container->make('config')->get('sentry', []);
         $userConfig['enable_tracing'] ??= true;
 
         foreach (static::SPECIFIC_OPTIONS as $specificOptionName) {
@@ -42,7 +42,7 @@ class ClientBuilderFactory
 
         if (isset($userConfig['logger'])) {
             if (is_string($userConfig['logger']) && $container->has($userConfig['logger'])) {
-                $userConfig['logger'] = $container->get($userConfig['logger']);
+                $userConfig['logger'] = $container->make($userConfig['logger']);
             }
             if (! $userConfig['logger'] instanceof LoggerInterface) {
                 unset($userConfig['logger']);
@@ -66,7 +66,7 @@ class ClientBuilderFactory
             ! ($options['http_client'] ?? null) instanceof HttpClientInterface
             && $container->has(HttpClientInterface::class)
         ) {
-            $options['http_client'] = $container->get(HttpClientInterface::class);
+            $options['http_client'] = $container->make(HttpClientInterface::class);
         }
 
         return tap(
@@ -82,7 +82,7 @@ class ClientBuilderFactory
     protected function resolveIntegrations(Application $container, ClientBuilder $clientBuilder): void
     {
         $options = $clientBuilder->getOptions();
-        $userConfig = (array) $container->get('config')->get('sentry', []);
+        $userConfig = (array) $container->make('config')->get('sentry', []);
 
         /** @var array<array-key, class-string>|callable $userIntegrationOption */
         $userIntegrationOption = $userConfig['integrations'] ?? [];
@@ -129,7 +129,7 @@ class ClientBuilderFactory
                         }
                     );
 
-                    $requestFetcher = $container->get(RequestFetcher::class);
+                    $requestFetcher = $container->make(RequestFetcher::class);
                     $integrations[] = new SdkIntegration\RequestIntegration($requestFetcher);
                 }
 

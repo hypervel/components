@@ -29,7 +29,7 @@ class NotificationsFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
         if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
         }

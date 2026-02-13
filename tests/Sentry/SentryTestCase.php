@@ -41,7 +41,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        $app->get('config')
+        $app->make('config')
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -52,7 +52,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        tap($app->get('config'), function (Repository $config) {
+        tap($app->make('config'), function (Repository $config) {
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
@@ -90,7 +90,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
 
     protected function getSentryHubFromContainer(): HubInterface
     {
-        return $this->app->get(HubInterface::class);
+        return $this->app->make(HubInterface::class);
     }
 
     protected function getSentryClientFromContainer(): ClientInterface

@@ -109,7 +109,7 @@ class QueueFeatureTest extends SentryTestCase
 
     public function testQueueJobCreatesTransactionByDefault(): void
     {
-        $this->app->get('config')->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();
@@ -129,8 +129,8 @@ class QueueFeatureTest extends SentryTestCase
      */
     public function testQueueJobDoesntCreateTransaction(): void
     {
-        $this->app->get('config')->set('sentry.traces_sample_rate', 1.0);
-        $this->app->get('config')->set('sentry.tracing.queue_job_transactions', false);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.tracing.queue_job_transactions', false);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();

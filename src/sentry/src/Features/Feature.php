@@ -78,7 +78,7 @@ abstract class Feature
      */
     protected function getUserConfig(): array
     {
-        $config = $this->container->get('config')->get('sentry', []);
+        $config = $this->container->make('config')->get('sentry', []);
 
         return empty($config) ? [] : $config;
     }

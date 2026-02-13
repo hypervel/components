@@ -74,7 +74,7 @@ class CacheFeatureTest extends SentryTestCase
     {
         // Start a session properly in the test environment
         $this->startSession();
-        $this->app->get(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
         // Use the session ID as a cache key
         Cache::put($sessionId, 'session-data');
@@ -197,7 +197,7 @@ class CacheFeatureTest extends SentryTestCase
         $this->markSkippedIfTracingEventsNotAvailable();
 
         $this->startSession();
-        $this->app->get(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get($sessionId);
@@ -214,7 +214,7 @@ class CacheFeatureTest extends SentryTestCase
 
         // Start a session properly in the test environment
         $this->startSession();
-        $this->app->get(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get([$sessionId, 'regular-key', $sessionId . '_another']);

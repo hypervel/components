@@ -47,7 +47,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_queries' => true,
         ]);
 
-        $feature = $this->app->get(DbQueryFeature::class);
+        $feature = $this->app->make(DbQueryFeature::class);
 
         $this->assertTrue($feature->isApplicable());
     }
@@ -59,7 +59,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_transaction' => true,
         ]);
 
-        $feature = $this->app->get(DbQueryFeature::class);
+        $feature = $this->app->make(DbQueryFeature::class);
 
         $this->assertTrue($feature->isApplicable());
     }
@@ -71,7 +71,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_transaction' => false,
         ]);
 
-        $feature = $this->app->get(DbQueryFeature::class);
+        $feature = $this->app->make(DbQueryFeature::class);
 
         $this->assertFalse($feature->isApplicable());
     }
@@ -81,7 +81,7 @@ class DbQueryFeatureTest extends SentryTestCase
      */
     public function testQueryExecutedEventCreatesCorrectBreadcrumb(): void
     {
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new QueryExecuted(
             'SELECT * FROM users WHERE id = ?',
@@ -115,7 +115,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_bindings' => false,
         ]);
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new QueryExecuted(
             'SELECT * FROM users WHERE id = ?',
@@ -141,7 +141,7 @@ class DbQueryFeatureTest extends SentryTestCase
      */
     public function testTransactionBeginningEventCreatesCorrectBreadcrumb(): void
     {
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new TransactionBeginning($this->createTestConnection());
 
@@ -162,7 +162,7 @@ class DbQueryFeatureTest extends SentryTestCase
      */
     public function testTransactionCommittedEventCreatesCorrectBreadcrumb(): void
     {
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new TransactionCommitted($this->createTestConnection());
 
@@ -183,7 +183,7 @@ class DbQueryFeatureTest extends SentryTestCase
      */
     public function testTransactionRolledBackEventCreatesCorrectBreadcrumb(): void
     {
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new TransactionRolledBack($this->createTestConnection());
 
@@ -208,7 +208,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_queries' => false,
         ]);
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new QueryExecuted(
             'SELECT * FROM users WHERE id = ?',
@@ -232,7 +232,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'sentry.breadcrumbs.sql_transaction' => false,
         ]);
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
 
         $event = new TransactionBeginning($this->createTestConnection());
 

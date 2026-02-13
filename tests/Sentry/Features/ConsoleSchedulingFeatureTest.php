@@ -156,7 +156,7 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
 
     protected function getScheduler(): Schedule
     {
-        return $this->app->get(Schedule::class);
+        return $this->app->make(Schedule::class);
     }
 }
 

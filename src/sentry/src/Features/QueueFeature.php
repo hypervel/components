@@ -65,7 +65,7 @@ class QueueFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
         $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
         $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
 

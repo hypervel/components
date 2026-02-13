@@ -27,14 +27,14 @@ class RedisFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->get('config');
-        $redisConfig = $this->container->get(RedisConfig::class);
+        $config = $this->container->make('config');
+        $redisConfig = $this->container->make(RedisConfig::class);
 
         foreach ($redisConfig->connectionNames() as $connection) {
             $config->set("database.redis.{$connection}.event.enable", true);
         }
 
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
     }
 
@@ -47,8 +47,8 @@ class RedisFeature extends Feature
             return;
         }
 
-        $pool = $this->container->get(PoolFactory::class)->getPool($event->connectionName);
-        $redisConfig = $this->container->get(RedisConfig::class);
+        $pool = $this->container->make(PoolFactory::class)->getPool($event->connectionName);
+        $redisConfig = $this->container->make(RedisConfig::class);
         $config = $redisConfig->connectionConfig($event->connectionName);
 
         $keyForDescription = '';
@@ -108,7 +108,7 @@ class RedisFeature extends Feature
     private function getSessionKey(): ?string
     {
         try {
-            $sessionStore = $this->container->get(Session::class);
+            $sessionStore = $this->container->make(Session::class);
 
             // It is safe for us to get the session ID here without checking if the session is started
             // because getting the session ID does not start the session. In addition we need the ID before

@@ -28,7 +28,7 @@ class SentryServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Keep Sentry's global singleton hub aligned with the current application container.
-        SentrySdk::setCurrentHub($this->app->get(HubInterface::class));
+        SentrySdk::setCurrentHub($this->app->make(HubInterface::class));
 
         $this->bootFeatures();
         $this->registerPublishing();
@@ -69,7 +69,7 @@ class SentryServiceProvider extends ServiceProvider
                 new Pool(
                     $builder->getOptions(),
                     $this->app,
-                    $this->app->get('config')->get('pools.sentry', [])
+                    $this->app->make('config')->get('pools.sentry', [])
                 )
             );
 
@@ -78,7 +78,7 @@ class SentryServiceProvider extends ServiceProvider
 
         $this->app->singleton(ClientInterface::class, function () {
             return $this->app
-                ->get(ClientBuilder::class)
+                ->make(ClientBuilder::class)
                 ->getClient();
         });
 
@@ -114,7 +114,7 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function registerFeatures(): void
     {
-        $features = $this->app->get('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->get('sentry.features', []);
         foreach ($features as $feature) {
             $this->app->singleton($feature, $feature);
         }
@@ -122,7 +122,7 @@ class SentryServiceProvider extends ServiceProvider
         foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */
-                $featureInstance = $this->app->get($feature);
+                $featureInstance = $this->app->make($feature);
 
                 $featureInstance->register();
             } catch (Throwable $e) {
@@ -133,11 +133,11 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function bootFeatures(): void
     {
-        $features = $this->app->get('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->get('sentry.features', []);
         foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */
-                $featureInstance = $this->app->get($feature);
+                $featureInstance = $this->app->make($feature);
 
                 $featureInstance->boot();
             } catch (Throwable $e) {

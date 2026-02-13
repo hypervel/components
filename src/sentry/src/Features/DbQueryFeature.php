@@ -29,7 +29,7 @@ class DbQueryFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
 
         $dispatcher->listen(QueryExecuted::class, [$this, 'handleQueryExecutedEvent']);
         $dispatcher->listen(TransactionBeginning::class, [$this, 'handleTransactionEvent']);

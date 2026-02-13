@@ -44,13 +44,13 @@ class CacheFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->get('config');
+        $config = $this->container->make('config');
         $stores = array_keys($config->get('cache.stores', []));
         foreach ($stores as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }
         /** @var Dispatcher $dispatcher */
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
         if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
@@ -227,7 +227,7 @@ class CacheFeature extends Feature
     {
         try {
             /** @var Session $sessionStore */
-            $sessionStore = $this->container->get(Session::class);
+            $sessionStore = $this->container->make(Session::class);
 
             // It is safe for us to get the session ID here without checking if the session is started
             // because getting the session ID does not start the session. In addition we need the ID before

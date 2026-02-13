@@ -31,7 +31,7 @@ class LogFeatureTest extends SentryTestCase
     {
         parent::defineEnvironment($app);
 
-        tap($app->get('config'), static function (Repository $config) {
+        tap($app->make('config'), static function (Repository $config) {
             $config->set('logging.channels.sentry', [
                 'driver' => 'sentry',
             ]);
@@ -51,7 +51,7 @@ class LogFeatureTest extends SentryTestCase
 
     public function testLogChannelGeneratesEvents(): void
     {
-        $logger = $this->app->get(LoggerInterface::class)->channel('sentry');
+        $logger = $this->app->make(LoggerInterface::class)->channel('sentry');
 
         $logger->info('Sentry Laravel info log message');
 
@@ -65,7 +65,7 @@ class LogFeatureTest extends SentryTestCase
 
     public function testLogChannelGeneratesEventsOnlyForConfiguredLevel(): void
     {
-        $logger = $this->app->get(LoggerInterface::class)->channel('sentry_error_level');
+        $logger = $this->app->make(LoggerInterface::class)->channel('sentry_error_level');
 
         $logger->info('Sentry Laravel info log message');
         $logger->warning('Sentry Laravel warning log message');

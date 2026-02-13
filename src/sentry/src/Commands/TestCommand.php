@@ -28,7 +28,7 @@ class TestCommand extends Command
     public function handle(): void
     {
         try {
-            $hub = $this->container->get(HubInterface::class);
+            $hub = $this->container->make(HubInterface::class);
 
             if ($this->option('dsn')) {
                 $hub = new Hub(ClientBuilder::create(['dsn' => $this->option('dsn')])->getClient());
