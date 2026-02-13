@@ -7,9 +7,8 @@ namespace Hypervel\Tests\Http;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\View\RenderInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Filesystem\Filesystem;
@@ -39,8 +38,8 @@ class ResponseTest extends TestCase
 
     public function testMake()
     {
-        $container = m::mock(Container::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
@@ -86,8 +85,8 @@ class ResponseTest extends TestCase
 
     public function testNoContent()
     {
-        $container = m::mock(Container::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
@@ -106,15 +105,15 @@ class ResponseTest extends TestCase
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $container = m::mock(Container::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         $renderer = m::mock(RenderInterface::class);
         $renderer->shouldReceive('render')->with('test-view', ['data' => 'value'])->andReturn(
             (new HyperfResponse())->withAddedHeader('content-type', 'text/html')->withBody(new SwooleStream('<h1>Test</h1>'))
         );
 
-        $container->shouldReceive('get')->with(RenderInterface::class)->andReturn($renderer);
+        $container->instance(RenderInterface::class, $renderer);
 
         $response = new Response();
         $result = $response->view('test-view', ['data' => 'value'], 200, ['X-View' => 'Rendered']);
@@ -142,13 +141,9 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn(false);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(Filesystem::class)
-            ->once()
-            ->andReturn($filesystem);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Filesystem::class, $filesystem);
+        Container::setInstance($container);
 
         $this->expectException(FileNotFoundException::class);
 
@@ -169,13 +164,9 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn($fileContent = 'file_content');
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(Filesystem::class)
-            ->once()
-            ->andReturn($filesystem);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Filesystem::class, $filesystem);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         $response = (new Response($psrResponse))

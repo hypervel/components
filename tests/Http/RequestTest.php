@@ -9,9 +9,8 @@ use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
@@ -748,12 +747,9 @@ class RequestTest extends TestCase
 
     public function testHasSession()
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')
-            ->with(SessionContract::class)
-            ->andReturn(true);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(SessionContract::class, m::mock(SessionContract::class));
+        Container::setInstance($container);
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -763,12 +759,9 @@ class RequestTest extends TestCase
 
     public function testSession()
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(SessionContract::class)
-            ->andReturn($session = m::mock(SessionContract::class));
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(SessionContract::class, $session = m::mock(SessionContract::class));
+        Container::setInstance($container);
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -805,11 +798,9 @@ class RequestTest extends TestCase
             )
             ->andReturn(['name' => 'John Doe']);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(ValidatorFactoryContract::class)
-            ->andReturn($validatorFactory);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(ValidatorFactoryContract::class, $validatorFactory);
+        Container::setInstance($container);
 
         $result = $request->validate(
             ['name' => 'required|string|max:255']
@@ -838,12 +829,9 @@ class RequestTest extends TestCase
             ->with($request, true)
             ->andReturn(true);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(UrlGeneratorContract::class)
-            ->once()
-            ->andReturn($urlGenerator);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(UrlGeneratorContract::class, $urlGenerator);
+        Container::setInstance($container);
 
         $this->assertTrue($request->hasValidSignature());
     }
@@ -858,12 +846,9 @@ class RequestTest extends TestCase
             ->with($request, false)
             ->andReturn(true);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(UrlGeneratorContract::class)
-            ->once()
-            ->andReturn($urlGenerator);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(UrlGeneratorContract::class, $urlGenerator);
+        Container::setInstance($container);
 
         $this->assertTrue($request->hasValidRelativeSignature());
     }
@@ -878,12 +863,9 @@ class RequestTest extends TestCase
             ->with($request, true, [])
             ->andReturn(true);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(UrlGeneratorContract::class)
-            ->once()
-            ->andReturn($urlGenerator);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(UrlGeneratorContract::class, $urlGenerator);
+        Container::setInstance($container);
 
         $this->assertTrue($request->hasValidSignatureWhileIgnoring());
     }
@@ -898,12 +880,9 @@ class RequestTest extends TestCase
             ->with($request, false, [])
             ->andReturn(true);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(UrlGeneratorContract::class)
-            ->once()
-            ->andReturn($urlGenerator);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(UrlGeneratorContract::class, $urlGenerator);
+        Container::setInstance($container);
 
         $this->assertTrue($request->hasValidRelativeSignatureWhileIgnoring());
     }

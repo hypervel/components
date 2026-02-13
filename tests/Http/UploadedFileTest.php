@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
 use Hypervel\Http\Exceptions\ExtensionFileException;
 use Hypervel\Http\Exceptions\FileException;
@@ -28,7 +27,7 @@ class UploadedFileTest extends TestCase
     {
         $container = new Container();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
     }
 
     public function testUploadedFileCanRetrieveContentsFromTextFile()

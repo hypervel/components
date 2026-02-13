@@ -9,7 +9,7 @@ use Carbon\Exceptions\InvalidFormatException;
 use Closure;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Request as RequestContract;
@@ -866,7 +866,7 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function hasSession(): bool
     {
-        return ApplicationContext::getContainer()
+        return Container::getInstance()
             ->has(SessionContract::class);
     }
 
@@ -875,8 +875,8 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function session(): SessionContract
     {
-        return ApplicationContext::getContainer()
-            ->get(SessionContract::class);
+        return Container::getInstance()
+            ->make(SessionContract::class);
     }
 
     /**
@@ -887,8 +887,8 @@ class Request extends HyperfRequest implements RequestContract
     public function validate(array $rules, array $messages = [], array $customAttributes = []): array
     {
         /** @var \Hypervel\Validation\Factory $factory */
-        $factory = ApplicationContext::getContainer()
-            ->get(ValidatorFactoryContract::class);
+        $factory = Container::getInstance()
+            ->make(ValidatorFactoryContract::class);
 
         return $factory->validate($this->all(), $rules, $messages, $customAttributes);
     }
@@ -925,8 +925,8 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function hasValidSignature(bool $absolute = true): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
+        return Container::getInstance()
+            ->make(UrlGeneratorContract::class)
             ->hasValidSignature($this, $absolute);
     }
 
@@ -935,8 +935,8 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function hasValidRelativeSignature(): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
+        return Container::getInstance()
+            ->make(UrlGeneratorContract::class)
             ->hasValidSignature($this, false);
     }
 
@@ -945,8 +945,8 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function hasValidSignatureWhileIgnoring(array $ignoreQuery = [], bool $absolute = true): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
+        return Container::getInstance()
+            ->make(UrlGeneratorContract::class)
             ->hasValidSignature($this, $absolute, $ignoreQuery);
     }
 
@@ -955,8 +955,8 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function hasValidRelativeSignatureWhileIgnoring(array $ignoreQuery = []): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
+        return Container::getInstance()
+            ->make(UrlGeneratorContract::class)
             ->hasValidSignature($this, false, $ignoreQuery);
     }
 

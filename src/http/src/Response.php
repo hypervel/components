@@ -9,7 +9,7 @@ use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\View\RenderInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Response as ResponseContract;
@@ -205,8 +205,8 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function view(string $view, array $data = [], int $status = 200, array $headers = []): ResponseInterface
     {
-        $response = ApplicationContext::getContainer()
-            ->get(RenderInterface::class)
+        $response = Container::getInstance()
+            ->make(RenderInterface::class)
             ->render($view, $data);
 
         foreach ($headers as $name => $value) {
@@ -236,8 +236,8 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function file(string $path, array $headers = []): ResponseInterface
     {
-        $filesystem = ApplicationContext::getContainer()
-            ->get(Filesystem::class);
+        $filesystem = Container::getInstance()
+            ->make(Filesystem::class);
         if (! $filesystem->isFile($path)) {
             throw new FileNotFoundException($path);
         }
@@ -247,8 +247,8 @@ class Response extends HyperfResponse implements ResponseContract
                 return strtolower($key) === 'content-type';
             })->first();
         if (! $mime) {
-            $mime = ApplicationContext::getContainer()
-                ->get(MimeTypeExtensionGuesser::class)
+            $mime = Container::getInstance()
+                ->make(MimeTypeExtensionGuesser::class)
                 ->guessMimeType(
                     pathinfo($path, PATHINFO_EXTENSION)
                 ) ?: 'application/octet-stream';
