@@ -16,11 +16,6 @@ use RuntimeException;
  */
 class FileLoaderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testLoadMethodLoadsTranslationsFromAddedPath()
     {
         $files = m::mock(Filesystem::class);

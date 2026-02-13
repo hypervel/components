@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Hypervel\Cache\RateLimiter;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Throwable;
 
 class ThrottlesExceptions
@@ -66,8 +66,8 @@ class ThrottlesExceptions
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
 
         if ($this->limiter->tooManyAttempts($jobKey = $this->getKey($job), $this->maxAttempts)) {
             return $job->release($this->getTimeUntilNextRetry($jobKey));

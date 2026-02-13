@@ -27,8 +27,10 @@ class FlushFailedCommand extends Command
      */
     public function handle()
     {
-        $this->app->get(FailedJobProviderInterface::class)
-            ->flush($this->option('hours'));
+        $hours = $this->option('hours');
+
+        $this->app->make(FailedJobProviderInterface::class)
+            ->flush($hours ? (int) $hours : null);
 
         if ($this->option('hours')) {
             $this->info("All jobs that failed more than {$this->option('hours')} hours ago have been deleted successfully.");

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
 use Hyperf\Command\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListFailedCommand extends Command
@@ -48,7 +48,7 @@ class ListFailedCommand extends Command
      */
     protected function getFailedJobs(): array
     {
-        $failed = $this->app->get(FailedJobProviderInterface::class)->all();
+        $failed = $this->app->make(FailedJobProviderInterface::class)->all();
 
         return Collection::make($failed)->map(function ($failed) {
             return $this->parseFailedJob((array) $failed);

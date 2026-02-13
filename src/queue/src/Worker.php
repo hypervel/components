@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hyperf\Coordinator\Timer;
-use Hyperf\Coroutine\Concurrent;
-use Hyperf\Database\DetectsLostConnections;
-use Hyperf\Stringable\Str;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Factory as QueueManager;
+use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Queue\Contracts\Factory as QueueManager;
-use Hypervel\Queue\Contracts\Job as JobContract;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
@@ -27,7 +27,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\Carbon;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\Str;
 use Throwable;
 
 class Worker
@@ -112,14 +112,14 @@ class Worker
      * Create a new queue worker.
      *
      * @param QueueManager $manager the queue manager instance
-     * @param EventDispatcherInterface $events the event dispatcher instance
+     * @param Dispatcher $events the event dispatcher instance
      * @param ExceptionHandlerContract $exceptions the exception handler instance
      * @param callable $isDownForMaintenance the callback used to determine if the application is in maintenance mode
      * @param int $monitorInterval the monitor interval
      */
     public function __construct(
         protected QueueManager $manager,
-        protected EventDispatcherInterface $events,
+        protected Dispatcher $events,
         protected ExceptionHandlerContract $exceptions,
         callable $isDownForMaintenance,
         ?callable $monitorTimeoutJobs = null,
@@ -202,6 +202,11 @@ class Worker
             );
 
             if (! is_null($status)) {
+                // Ensure in-flight job coroutines finish before daemon() reports completion.
+                while (! $concurrent->isEmpty()) {
+                    usleep(1000);
+                }
+
                 return $this->stop($status, $options);
             }
         }
@@ -312,7 +317,7 @@ class Worker
     {
         return ! ((($this->isDownForMaintenance)() && ! $options->force)
             || $this->paused
-            || ! tap($this->events->dispatch(new Looping($connectionName, $queue)), fn ($event) => $event->shouldRun()));
+            || $this->events->until(new Looping($connectionName, $queue)) === false);
     }
 
     /**

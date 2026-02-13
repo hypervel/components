@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Casts;
 
 use BackedEnum;
-use Hyperf\Collection\Collection;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
+use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
 

@@ -115,7 +115,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
 
         $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')->with('X-Socket-ID')->andReturn('12345');
-        $this->app->set(RequestInterface::class, $request);
+        $this->app->instance(RequestInterface::class, $request);
 
         Broadcast::on('test-channel')->send();
 

@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;
-use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Mockery as m;
@@ -25,15 +23,10 @@ use PHPUnit\Framework\TestCase;
  */
 class QueueManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testDefaultConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
@@ -54,7 +47,7 @@ class QueueManagerTest extends TestCase
     public function testOtherConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
@@ -75,7 +68,7 @@ class QueueManagerTest extends TestCase
     public function testNullConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->make('config');
         $config->set('queue.default', 'null');
 
         $manager = new QueueManager($container);
@@ -95,7 +88,7 @@ class QueueManagerTest extends TestCase
     public function testAddPoolableConnector()
     {
         $container = $this->getContainer();
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
@@ -111,15 +104,13 @@ class QueueManagerTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
-                Encrypter::class => fn () => m::mock(Encrypter::class),
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance(ContainerContract::class, $container);
+        $container->instance('config', new ConfigRepository([]));
+        $container->instance(Encrypter::class, m::mock(Encrypter::class));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

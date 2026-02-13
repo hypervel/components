@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Queue\Queueable;
 use Hypervel\Scout\Contracts\SearchableInterface;
 

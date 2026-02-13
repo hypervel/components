@@ -4,24 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
 use Illuminate\Events\CallQueuedListener;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\Container\ContainerInterface;
 use TypeError;
 
 use function Hypervel\Event\queueable;
@@ -51,21 +49,21 @@ enum QueuedEventsTestQueueUnitEnum
 class QueuedEventsTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var ContainerContract|MockInterface
      */
-    private ContainerInterface $container;
+    private ContainerContract $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(ContainerContract::class);
     }
 
     public function testQueuedEventHandlersAreQueued()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
             ->andReturn(new TestDispatcherQueuedHandler());
@@ -86,7 +84,7 @@ class QueuedEventsTest extends TestCase
     public function testCallableHandlersAreQueued()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
             ->andReturn(new TestDispatcherQueuedHandler());
@@ -108,7 +106,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueIsSetByGetConnection()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnection::class)
             ->andReturn(new TestDispatcherGetConnection());
@@ -129,7 +127,7 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelay()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelay::class)
             ->andReturn(new TestDispatcherGetConnection());
@@ -150,7 +148,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueIsSetByGetConnectionDynamically()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnectionDynamically::class)
             ->andReturn(new TestDispatcherGetConnectionDynamically());
@@ -174,7 +172,7 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelayDynamically()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelayDynamically::class)
             ->andReturn(new TestDispatcherGetDelayDynamically());
@@ -218,7 +216,7 @@ class QueuedEventsTest extends TestCase
         $dispatcher->shouldReceive('dispatch');
 
         $this->container = $this->getContainer();
-        $this->container->set(Dispatcher::class, $dispatcher);
+        $this->container->instance(Dispatcher::class, $dispatcher);
 
         $d = $this->getEventDispatcher();
 
@@ -256,7 +254,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsStringBackedEnumViaProperty(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueProperty::class)
             ->andReturn(new TestDispatcherStringEnumQueueProperty());
@@ -278,7 +276,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsUnitEnumViaProperty(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherUnitEnumQueueProperty::class)
             ->andReturn(new TestDispatcherUnitEnumQueueProperty());
@@ -300,7 +298,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueWithIntBackedEnumViaPropertyThrowsTypeError(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherIntEnumQueueProperty::class)
             ->andReturn(new TestDispatcherIntEnumQueueProperty());
@@ -323,7 +321,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsStringBackedEnumViaMethod(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueMethod::class)
             ->andReturn(new TestDispatcherStringEnumQueueMethod());
@@ -344,13 +342,12 @@ class QueuedEventsTest extends TestCase
 
     private function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
-            ])
-        );
+        $config = new Repository([]);
+        $container = new Container();
+        $container->instance('config', $config);
+        $container->instance(ConfigContract::class, $config);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

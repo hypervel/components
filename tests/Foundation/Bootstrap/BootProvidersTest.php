@@ -28,7 +28,7 @@ class BootProvidersTest extends TestCase
 
         (new BootProviders())->bootstrap($app);
 
-        $this->assertSame('bar', $app->get('foo'));
+        $this->assertSame('bar', $app->make('foo'));
     }
 }
 
@@ -36,6 +36,6 @@ class ApplicationBasicServiceProviderStub extends ServiceProvider
 {
     public function boot()
     {
-        $this->app->bind('foo', fn () => 'bar');
+        $this->app->singleton('foo', fn () => 'bar');
     }
 }

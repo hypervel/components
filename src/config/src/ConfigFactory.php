@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Collection\Arr;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Arr;
 use Symfony\Component\Finder\Finder;
 
 class ConfigFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         $configPath = BASE_PATH . '/config';
         $loadPaths = [$configPath];

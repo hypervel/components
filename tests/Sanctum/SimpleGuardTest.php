@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -29,7 +28,7 @@ class SimpleGuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -37,11 +36,10 @@ class SimpleGuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
             ]);
 
         // Create users table
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();

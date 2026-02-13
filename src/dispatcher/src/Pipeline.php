@@ -6,7 +6,7 @@ namespace Hypervel\Dispatcher;
 
 use Closure;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
-use Hyperf\Pipeline\Pipeline as BasePipeline;
+use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Psr\Http\Server\MiddlewareInterface;
 
 class Pipeline extends BasePipeline
@@ -71,7 +71,7 @@ class Pipeline extends BasePipeline
 
     protected function getPipeInstance(string $name): object
     {
-        $pipe = $this->container->get($name);
+        $pipe = $this->container->make($name);
 
         if ($pipe instanceof MiddlewareInterface) {
             // cache the adapted middleware instance

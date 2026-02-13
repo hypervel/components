@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Socialite;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Socialite\Two\LinkedInProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\TestCase;
@@ -84,7 +84,7 @@ class LinkedInProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.providers.' . LinkedInProvider::class . '.httpClient',
+            '__socialite.providers.' . LinkedInProvider::class . '.httpClient',
             $guzzle
         );
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
@@ -30,11 +30,11 @@ use function sprintf;
 
 class Hub implements HubInterface
 {
-    public const CONTEXT_STACK_KEY = 'sentry.stack';
+    public const CONTEXT_STACK_KEY = '__sentry.stack';
 
-    public const CONTEXT_LAST_EVENT_ID_KEY = 'sentry.last_event_id';
+    public const CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
 
-    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = 'sentry.coroutine_id';
+    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = '__sentry.coroutine_id';
 
     public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
     {
@@ -42,7 +42,7 @@ class Hub implements HubInterface
 
     public function getClient(): ?ClientInterface
     {
-        return $this->client ?? ApplicationContext::getContainer()->get(ClientInterface::class);
+        return $this->client ?? Container::getInstance()->make(ClientInterface::class);
     }
 
     public function bindClient(ClientInterface $client): void

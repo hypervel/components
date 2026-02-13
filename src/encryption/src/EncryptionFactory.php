@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Exceptions\MissingAppKeyException;
+use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
-
-use function Hyperf\Tappable\tap;
 
 class EncryptionFactory
 {
-    public function __invoke(ContainerInterface $container): Encrypter
+    public function __invoke(Container $container): Encrypter
     {
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->make('config');
         // Fallback to the encryption config if key is not set in app config.
         $config = ($config->has('app.cipher') && $config->has('app.key'))
             ? $config->get('app')

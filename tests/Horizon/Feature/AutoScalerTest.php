@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\AutoScaler;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -135,7 +135,7 @@ class AutoScalerTest extends IntegrationTestCase
 
     public function testScalerWillNotScaleBelowMinimumWorkerThreshold()
     {
-        $external = Mockery::mock(SystemProcessCounter::class);
+        $external = m::mock(SystemProcessCounter::class);
         $external->shouldReceive('get')->with('name')->andReturn(5);
         $this->app->instance(SystemProcessCounter::class, $external);
 
@@ -162,8 +162,8 @@ class AutoScalerTest extends IntegrationTestCase
     protected function with_scaling_scenario($maxProcesses, array $pools, array $extraOptions = [])
     {
         // Mock dependencies...
-        $queueFactory = Mockery::mock(QueueFactory::class);
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $queueFactory = m::mock(QueueFactory::class);
+        $metrics = m::mock(MetricsRepository::class);
 
         // Create scaler...
         $scaler = new AutoScaler($queueFactory, $metrics);
@@ -183,7 +183,7 @@ class AutoScalerTest extends IntegrationTestCase
         });
 
         // Set stats per pool...
-        $queue = Mockery::mock(RedisQueue::class);
+        $queue = m::mock(RedisQueue::class);
         collect($pools)->each(function ($pool, $name) use ($queue, $metrics) {
             $queue->shouldReceive('readyNow')->with($name)->andReturn($pool['size']);
             $metrics->shouldReceive('runtimeForQueue')->with($name)->andReturn($pool['runtime']);
@@ -232,7 +232,7 @@ class AutoScalerTest extends IntegrationTestCase
 
     public function testScalerDoesNotPermitGoingToZeroProcessesDespiteExceedingMaxProcesses()
     {
-        $external = Mockery::mock(SystemProcessCounter::class);
+        $external = m::mock(SystemProcessCounter::class);
         $external->shouldReceive('get')->with('name')->andReturn(5);
         $this->app->instance(SystemProcessCounter::class, $external);
 

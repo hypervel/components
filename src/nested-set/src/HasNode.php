@@ -6,10 +6,10 @@ namespace Hypervel\NestedSet;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\BelongsTo;
-use Hyperf\Database\Model\Relations\HasMany;
-use Hyperf\Database\Query\Builder as HyperfQueryBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Query\Builder as HyperfQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;
@@ -41,32 +41,27 @@ trait HasNode
     protected static ?bool $hasSoftDelete = null;
 
     /**
+     * Create a new Eloquent query builder for the model.
+     */
+    public function newEloquentBuilder(HyperfQueryBuilder $query): QueryBuilder
+    {
+        return new QueryBuilder($query);
+    }
+
+    /**
      * Bootstrap node events.
      */
     public static function bootHasNode(): void
     {
-        static::registerCallback(
-            'saving',
-            fn ($model) => $model->callPendingActions()
-        );
+        static::saving(fn ($model) => $model->callPendingActions());
 
-        static::registerCallback(
-            'deleting',
-            fn ($model) => $model->refreshNode()
-        );
+        static::deleting(fn ($model) => $model->refreshNode());
 
-        static::registerCallback(
-            'deleted',
-            fn ($model) => $model->deleteDescendants()
-        );
+        static::deleted(fn ($model) => $model->deleteDescendants());
 
         if (static::usesSoftDelete()) {
-            static::registerCallback(
-                'restoring',
-                fn ($model) => NodeContext::keepDeletedAt($model)
-            );
-            static::registerCallback(
-                'restored',
+            static::restoring(fn ($model) => NodeContext::keepDeletedAt($model));
+            static::restored(
                 fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
             );
         }
@@ -973,7 +968,7 @@ trait HasNode
         return true;
     }
 
-    public function replicate(?array $except = null): Model
+    public function replicate(?array $except = null): static
     {
         $defaults = [
             $this->getParentIdName(),

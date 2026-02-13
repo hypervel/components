@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 
 trait HasLaravelStyleCommand
 {
-    protected ContainerInterface $app;
+    protected ContainerContract $app;
 
     public function __construct(?string $name = null)
     {
         parent::__construct($name);
 
-        $this->app = ApplicationContext::getContainer();
+        $this->app = Container::getInstance();
     }
 
     /**
@@ -25,7 +25,7 @@ trait HasLaravelStyleCommand
     public function callSilent(string $command, array $arguments = []): int
     {
         return $this->app
-            ->get(KernelContract::class)
+            ->make(KernelContract::class)
             ->call($command, $arguments);
     }
 }

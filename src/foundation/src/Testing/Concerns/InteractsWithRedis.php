@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -98,7 +98,7 @@ trait InteractsWithRedis
      *
      * Call from defineEnvironment() to set up Redis config.
      */
-    protected function configureRedisForTesting(ConfigInterface $config): void
+    protected function configureRedisForTesting(Repository $config): void
     {
         $this->computeRedisTestPrefix();
 
@@ -120,11 +120,7 @@ trait InteractsWithRedis
             ],
         ];
 
-        // Set both locations - database.redis.* (source) and redis.* (runtime)
-        // FoundationServiceProvider copies database.redis.* to redis.* at boot,
-        // but tests run AFTER boot, so we must set redis.* directly
         $config->set('database.redis.default', $connectionConfig);
-        $config->set('redis.default', $connectionConfig);
     }
 
     /**
@@ -218,10 +214,10 @@ trait InteractsWithRedis
     {
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
 
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
 
         // Check if already exists
-        if ($config->get("redis.{$connectionName}") !== null) {
+        if ($config->get("database.redis.{$connectionName}") !== null) {
             return $connectionName;
         }
 
@@ -243,7 +239,10 @@ trait InteractsWithRedis
             ],
         ];
 
-        $config->set("redis.{$connectionName}", $connectionConfig);
+        $config->set("database.redis.{$connectionName}", $connectionConfig);
+
+        // RedisFactory snapshots configured pools in __construct, so reset it after adding runtime test pools.
+        $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
 
         return $connectionName;
     }

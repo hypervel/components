@@ -11,13 +11,11 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Stringable\Str;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\HttpClient\ConnectionException;
 use Hypervel\HttpClient\Events\RequestSending;
@@ -35,12 +33,13 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Sleep;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use JsonSerializable;
 use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
@@ -69,7 +68,8 @@ class HttpClientTest extends TestCase
 
     protected function tearDown(): void
     {
-        m::close();
+        Sleep::fake(false);
+
         parent::tearDown();
     }
 
@@ -1760,7 +1760,7 @@ class HttpClientTest extends TestCase
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent()
     {
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
@@ -1777,7 +1777,7 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredForEveryRetry()
     {
         Sleep::fake();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->times(2)->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->times(2)->with(m::type(ResponseReceived::class));
 
@@ -1815,7 +1815,7 @@ class HttpClientTest extends TestCase
 
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject()
     {
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(ResponseReceived::class));
 
@@ -3212,7 +3212,7 @@ class HttpClientTest extends TestCase
     {
         $container = $this->getContainer();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->factory->registerConnection('vapor');
         $client = $this->factory->getClient('vapor', (new PendingRequest($this->factory))->buildHandlerStack());
@@ -3235,16 +3235,14 @@ class HttpClientTest extends TestCase
         $this->assertEquals([], $factory->getConnectionConfig('connection2'));
     }
 
-    protected function getContainer(array $config = []): ContainerInterface
+    protected function getContainer(array $config = []): ContainerContract
     {
-        $config = new Config(['http_client' => $config]);
+        $container = new \Hypervel\Container\Container();
+        $container->instance(ContainerContract::class, $container);
+        $container->instance('config', new ConfigRepository(['http_client' => $config]));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
-        return new \Hyperf\Di\Container(
-            new \Hyperf\Di\Definition\DefinitionSource([
-                ConfigInterface::class => fn () => $config,
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        return $container;
     }
 }
 

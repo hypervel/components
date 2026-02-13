@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeZone;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Str;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -51,15 +50,12 @@ class EventTest extends TestCase
     {
         parent::setUp();
 
-        ApplicationContext::setContainer(
-            $this->container = $this->getApplication()
-        );
+        $this->container = $this->getApplication();
+        Container::setInstance($this->container);
     }
 
     protected function tearDown(): void
     {
-        m::close();
-
         parent::tearDown();
     }
 
@@ -74,7 +70,7 @@ class EventTest extends TestCase
             ->with($output)
             ->andReturn(false);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
         $event->writeOutput($this->container);
     }
 
@@ -98,8 +94,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }
@@ -115,14 +111,14 @@ class EventTest extends TestCase
         $process->shouldReceive('getOutput')
             ->once()
             ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
-        Context::set($key = "scheduling_process:{$event->mutexName()}", $process);
+        Context::set($key = "__console.scheduling_process.{$event->mutexName()}", $process);
 
         $filesystem = m::mock(Filesystem::class);
         $filesystem->shouldReceive('put')
             ->once()
             ->with($output, $result);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
 
@@ -149,8 +145,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }

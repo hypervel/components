@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middlewares;
 
-use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middlewares\RoleMiddleware;
@@ -32,7 +32,7 @@ class RoleMiddlewareTest extends PermissionTestCase
 
     protected ResponseInterface $response;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected AuthManager $authManager;
 
@@ -40,9 +40,9 @@ class RoleMiddlewareTest extends PermissionTestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $this->authManager = m::mock(AuthManager::class);
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($this->authManager);
 
@@ -54,7 +54,6 @@ class RoleMiddlewareTest extends PermissionTestCase
 
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 

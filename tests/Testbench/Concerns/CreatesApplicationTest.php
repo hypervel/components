@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -56,7 +56,7 @@ class CreatesApplicationTest extends TestCase
 
     public function testRegisterPackageAliasesAddsToConfig(): void
     {
-        $aliases = $this->app->get('config')->get('app.aliases', []);
+        $aliases = $this->app->make('config')->get('app.aliases', []);
 
         $this->assertArrayHasKey('TestAlias', $aliases);
         $this->assertSame(TestFacade::class, $aliases['TestAlias']);
@@ -70,7 +70,7 @@ class TestServiceProvider extends \Hypervel\Support\ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('test.service', fn () => 'test_value');
+        $this->app->singleton('test.service', fn () => 'test_value');
     }
 }
 

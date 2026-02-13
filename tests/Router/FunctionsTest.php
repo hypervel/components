@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ContainerInterface;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 use function Hypervel\Router\route;
@@ -64,15 +63,11 @@ class FunctionsTest extends TestCase
      */
     private function mockUrlGenerator(): UrlGeneratorContract
     {
-        /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
-        $urlGenerator = Mockery::mock(UrlGeneratorContract::class);
+        $urlGenerator = m::mock(UrlGeneratorContract::class);
 
-        $container->shouldReceive('get')
-            ->with(UrlGeneratorContract::class)
-            ->andReturn($urlGenerator);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(UrlGeneratorContract::class, $urlGenerator);
+        Container::setInstance($container);
 
         return $urlGenerator;
     }

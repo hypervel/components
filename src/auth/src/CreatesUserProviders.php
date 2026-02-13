@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Auth\Providers\EloquentUserProvider;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
+use Hypervel\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 
 trait CreatesUserProviders

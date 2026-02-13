@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Router\Router;
@@ -44,7 +44,7 @@ class AuthenticateRequestsTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app->get('config')->set([
+        $app->make('config')->set([
             'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
@@ -59,29 +59,6 @@ class AuthenticateRequestsTest extends TestCase
             'sanctum.stateful' => ['localhost', '127.0.0.1'],
             'sanctum.guard' => ['web'],
         ]);
-    }
-
-    protected function defineRoutes(Router $router): void
-    {
-        $router->get('/sanctum/api/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
-        });
-
-        $router->get('/sanctum/web/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
-        });
     }
 
     protected function tearDown(): void
@@ -109,12 +86,35 @@ class AuthenticateRequestsTest extends TestCase
      */
     protected function createUsersTable(): void
     {
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
             $table->timestamps();
+        });
+    }
+
+    protected function defineRoutes(Router $router): void
+    {
+        $router->get('/sanctum/api/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
+        });
+
+        $router->get('/sanctum/web/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
         });
     }
 

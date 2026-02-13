@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Factory as CacheManager;
-use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Contracts\Cache\Factory as CacheManager;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 
 class PermissionManager implements Contracts\Factory
 {
@@ -29,7 +28,7 @@ class PermissionManager implements Contracts\Factory
     protected ?string $ownerPermissionsCacheKeyPrefix = null;
 
     public function __construct(
-        protected ContainerInterface $app,
+        protected Container $app,
         protected CacheManager $cacheManager
     ) {
         $this->roleClass = $this->getConfig('models.role') ?: Role::class;
@@ -87,7 +86,7 @@ class PermissionManager implements Contracts\Factory
 
     protected function getConfig(string $name): mixed
     {
-        return $this->app->get(ConfigInterface::class)->get("permission.{$name}");
+        return $this->app->make('config')->get("permission.{$name}");
     }
 
     public function getCache(): Repository

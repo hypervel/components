@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Config\Contracts\Repository as ConfigContract;
-
 /**
  * @method static bool has(string $key)
  * @method static mixed get(array|string $key, mixed $default = null)
@@ -28,8 +26,8 @@ use Hypervel\Config\Contracts\Repository as ConfigContract;
  */
 class Config extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return ConfigContract::class;
+        return 'config';
     }
 }

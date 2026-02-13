@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Commands;
 
-use Hyperf\Collection\Collection;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
@@ -14,13 +12,15 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
 class ScheduleRunCommand extends Command
@@ -63,7 +63,7 @@ class ScheduleRunCommand extends Command
      */
     public function __construct(
         protected Schedule $schedule,
-        protected EventDispatcherInterface $dispatcher,
+        protected Dispatcher $dispatcher,
         protected CacheFactory $cache,
         protected ExceptionHandler $handler,
     ) {

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Config\Repository;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListenCommand extends Command
@@ -40,7 +40,7 @@ class ListenCommand extends Command
      * Create a new queue listen command.
      */
     public function __construct(
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Listener $listener
     ) {
         parent::__construct();

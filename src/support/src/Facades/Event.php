@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Database\Model\Register;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -30,7 +30,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @method static void assertDispatchedTimes(string $event, int $times = 1)
  * @method static void assertNotDispatched(\Closure|string $event, callable|null $callback = null)
  * @method static void assertNothingDispatched()
- * @method static \Hyperf\Collection\Collection dispatched(string $event, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection dispatched(string $event, callable|null $callback = null)
  * @method static bool hasDispatched(string $event)
  * @method static array dispatchedEvents()
  *
@@ -46,7 +46,7 @@ class Event extends Facade
     {
         static::swap($fake = new EventFake(static::getFacadeRoot(), $eventsToFake));
 
-        Register::setEventDispatcher($fake);
+        Model::setEventDispatcher($fake);
         Cache::refreshEventDispatcher();
 
         return $fake;
@@ -76,7 +76,7 @@ class Event extends Facade
         return tap($callable(), function () use ($originalDispatcher) {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
         });
     }
@@ -93,13 +93,17 @@ class Event extends Facade
         return tap($callable(), function () use ($originalDispatcher) {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
         });
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
+        // Must use the canonical binding key (registered by ConfigProvider), not an alias.
+        // Facade::swap() calls instance() with this key, and rebinding callbacks are
+        // stored under the alias-resolved key. Using an alias here causes a mismatch.
+        // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
         return EventDispatcherInterface::class;
     }
 }

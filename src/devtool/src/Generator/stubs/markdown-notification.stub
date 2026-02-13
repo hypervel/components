@@ -7,7 +7,7 @@ namespace %NAMESPACE%;
 use Hypervel\Bus\Queueable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class %CLASS% extends Notification
 {

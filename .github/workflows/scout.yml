@@ -1,0 +1,98 @@
+name: scout
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  meilisearch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      meilisearch:
+        image: getmeili/meilisearch:latest
+        env:
+          MEILI_MASTER_KEY: secret
+          MEILI_NO_ANALYTICS: true
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "curl -f http://localhost:7700/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    container:
+      image: phpswoole/swoole:6.1.4-php8.4
+
+    strategy:
+      fail-fast: true
+
+    name: Meilisearch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Execute integration tests
+        env:
+          RUN_MEILISEARCH_INTEGRATION_TESTS: true
+          MEILISEARCH_HOST: meilisearch
+          MEILISEARCH_PORT: 7700
+          MEILISEARCH_KEY: secret
+        run: vendor/bin/phpunit tests/Integration/Scout/Meilisearch
+
+  typesense:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      typesense:
+        image: typesense/typesense:27.1
+        env:
+          TYPESENSE_API_KEY: secret
+          TYPESENSE_DATA_DIR: /tmp
+        ports:
+          - 8108:8108
+
+    container:
+      image: phpswoole/swoole:6.1.4-php8.4
+
+    strategy:
+      fail-fast: true
+
+    name: Typesense
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Execute integration tests
+        env:
+          RUN_TYPESENSE_INTEGRATION_TESTS: true
+          TYPESENSE_HOST: typesense
+          TYPESENSE_PORT: 8108
+          TYPESENSE_API_KEY: secret
+          TYPESENSE_PROTOCOL: http
+        run: vendor/bin/phpunit tests/Integration/Scout/Typesense

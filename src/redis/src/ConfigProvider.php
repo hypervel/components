@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hyperf\Redis\Pool\RedisPool as HyperfRedisPool;
-
 class ConfigProvider
 {
+    /**
+     * Get the Redis package configuration.
+     */
     public function __invoke(): array
     {
         return [
             'dependencies' => [
-                HyperfRedisPool::class => RedisPool::class,
+                \Redis::class => Redis::class,
             ],
         ];
     }

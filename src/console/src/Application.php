@@ -6,12 +6,12 @@ namespace Hypervel\Console;
 
 use Closure;
 use Hyperf\Command\Command;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
-use Hypervel\Container\Contracts\Container as ContainerContract;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\ProcessUtils;
 use Override;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
@@ -48,7 +48,7 @@ class Application extends SymfonyApplication implements ApplicationContract
 
     public function __construct(
         protected ContainerContract $container,
-        protected EventDispatcherInterface $dispatcher,
+        protected Dispatcher $dispatcher,
         string $version
     ) {
         parent::__construct('Hypervel Framework', $version);
@@ -145,7 +145,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         if (is_subclass_of($command, SymfonyCommand::class)) {
             $callingClass = true;
 
-            $command = $this->container->get($command)->getName();
+            $command = $this->container->make($command)->getName();
         }
 
         if (! isset($callingClass) && empty($parameters)) {
@@ -189,7 +189,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         }
 
         return $this->add(
-            $this->container->get($command)
+            $this->container->make($command)
         );
     }
 

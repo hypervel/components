@@ -4,26 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Context\RequestContext;
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
+use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
 use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
-use Hyperf\Support\SafeCaller;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function Hypervel\Coroutine\defer;
 
 class Kernel extends HyperfServer implements MiddlewareContract
 {
@@ -36,6 +37,20 @@ class Kernel extends HyperfServer implements MiddlewareContract
 
         $this->initExceptionHandlers();
         $this->initOption();
+    }
+
+    /**
+     * Create the core middleware instance.
+     *
+     * Overrides parent to use named parameters, since the Laravel container
+     * does not support positional parameter arrays.
+     */
+    protected function createCoreMiddleware(): CoreMiddlewareInterface
+    {
+        return $this->container->make(\Hypervel\Http\CoreMiddleware::class, [
+            'container' => $this->container,
+            'serverName' => $this->serverName,
+        ]);
     }
 
     protected function initExceptionHandlers(): void
@@ -154,9 +169,9 @@ class Kernel extends HyperfServer implements MiddlewareContract
         ));
     }
 
-    protected function getResponseForException(Throwable $throwable): Response
+    protected function getResponseForException(Throwable $throwable): ResponseInterface
     {
-        return $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+        return $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
             return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
         }, static function () {
             return (new Response())->withStatus(400);

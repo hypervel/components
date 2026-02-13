@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
+use Hypervel\Container\Container;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Router\Router;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -38,7 +36,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
 
         $getContainer = $this->getContainer([
             HyperfRouteCollector::class => fn () => $routeCollector,
@@ -57,7 +55,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
         $routeCollector->shouldReceive('get')->with('/foo', 'Handler::Foo')->once();
         $routeCollector->shouldReceive('get')->with('/bar', 'Handler::Bar')->once();
 
@@ -70,7 +68,7 @@ class DispatcherFactoryTest extends TestCase
         ]);
 
         $dispatcherFactory = new DispatcherFactory($container);
-        $container->define(Router::class, fn () => new Router($dispatcherFactory));
+        $container->singleton(Router::class, fn () => new Router($dispatcherFactory));
 
         $dispatcherFactory->initRoutes('http');
     }
@@ -90,7 +88,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
 
         // Initial route from foo.php
         $routeCollector->shouldReceive('get')->with('/foo', 'Handler::Foo')->once();
@@ -110,7 +108,7 @@ class DispatcherFactoryTest extends TestCase
 
         // Create DispatcherFactory - this captures route files in constructor
         $dispatcherFactory = new DispatcherFactory($container);
-        $container->define(Router::class, fn () => new Router($dispatcherFactory));
+        $container->singleton(Router::class, fn () => new Router($dispatcherFactory));
 
         // Simulate service provider adding routes AFTER DispatcherFactory construction
         // This is what loadRoutesFrom() does
@@ -122,11 +120,13 @@ class DispatcherFactoryTest extends TestCase
 
     private function getContainer(array $bindings = []): Container
     {
-        $container = new Container(
-            new DefinitionSource($bindings)
-        );
+        $container = new Container();
 
-        ApplicationContext::setContainer($container);
+        foreach ($bindings as $abstract => $concrete) {
+            $container->singleton($abstract, $concrete);
+        }
+
+        Container::setInstance($container);
 
         return $container;
     }

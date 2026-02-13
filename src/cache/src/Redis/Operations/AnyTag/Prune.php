@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -167,11 +168,7 @@ class Prune
         $checked = 0;
         $removed = 0;
 
-        // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
-        $iterator = match (true) {
-            version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,
-            default => 0,
-        };
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // HSCAN returns [field => value, ...] array
@@ -231,11 +228,7 @@ class Prune
         $checked = 0;
         $removed = 0;
 
-        // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
-        $iterator = match (true) {
-            version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,
-            default => 0,
-        };
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // HSCAN returns [field => value, ...] array

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Scout\Console\ImportCommand;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Tests\TestCase;

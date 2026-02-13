@@ -4,24 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
-use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\RangeNotSatisfiableHttpException;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
-use Stringable;
 use Swow\Psr7\Message\ResponsePlusInterface;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
@@ -33,16 +31,15 @@ class ResponseTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
         Context::destroy(ResponseInterface::class);
-        Context::destroy(Response::RANGE_HEADERS_CONTEXT);
+        Context::destroy(Response::RANGE_HEADERS_CONTEXT_KEY);
         Context::destroy(ServerRequestInterface::class);
     }
 
     public function testMake()
     {
-        $container = Mockery::mock(ContainerInterface::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
@@ -75,8 +72,8 @@ class ResponseTest extends TestCase
         $this->assertEquals('application/json', $result->getHeaderLine('content-type'));
 
         // Test with Jsonable content
-        $jsonable = new class implements Stringable, Jsonable {
-            public function __toString(): string
+        $jsonable = new class implements Jsonable {
+            public function toJson(int $options = 0): string
             {
                 return '{"baz":"qux"}';
             }
@@ -88,8 +85,8 @@ class ResponseTest extends TestCase
 
     public function testNoContent()
     {
-        $container = Mockery::mock(ContainerInterface::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
@@ -108,15 +105,15 @@ class ResponseTest extends TestCase
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $container = Mockery::mock(ContainerInterface::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
-        $renderer = Mockery::mock(RenderInterface::class);
+        $renderer = m::mock(RenderInterface::class);
         $renderer->shouldReceive('render')->with('test-view', ['data' => 'value'])->andReturn(
             (new HyperfResponse())->withAddedHeader('content-type', 'text/html')->withBody(new SwooleStream('<h1>Test</h1>'))
         );
 
-        $container->shouldReceive('get')->with(RenderInterface::class)->andReturn($renderer);
+        $container->instance(RenderInterface::class, $renderer);
 
         $response = new Response();
         $result = $response->view('test-view', ['data' => 'value'], 200, ['X-View' => 'Rendered']);
@@ -138,19 +135,15 @@ class ResponseTest extends TestCase
 
     public function testFileWithFileNotFoundException()
     {
-        $filesystem = Mockery::mock(Filesystem::class);
+        $filesystem = m::mock(Filesystem::class);
         $filesystem->shouldReceive('isFile')
             ->with('file_path')
             ->once()
             ->andReturn(false);
 
-        $container = Mockery::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(Filesystem::class)
-            ->once()
-            ->andReturn($filesystem);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Filesystem::class, $filesystem);
+        Container::setInstance($container);
 
         $this->expectException(FileNotFoundException::class);
 
@@ -161,7 +154,7 @@ class ResponseTest extends TestCase
 
     public function testFile()
     {
-        $filesystem = Mockery::mock(Filesystem::class);
+        $filesystem = m::mock(Filesystem::class);
         $filesystem->shouldReceive('isFile')
             ->with($filePath = 'file_path')
             ->once()
@@ -171,13 +164,9 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn($fileContent = 'file_content');
 
-        $container = Mockery::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(Filesystem::class)
-            ->once()
-            ->andReturn($filesystem);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Filesystem::class, $filesystem);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         $response = (new Response($psrResponse))
@@ -189,7 +178,7 @@ class ResponseTest extends TestCase
 
     public function testStream()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'Streaming content')
             ->once()
@@ -212,7 +201,7 @@ class ResponseTest extends TestCase
 
     public function testStreamWithStringResult()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'Streaming content')
             ->once()
@@ -234,7 +223,7 @@ class ResponseTest extends TestCase
 
     public function testStreamWithNonChunkable()
     {
-        $psrResponse = Mockery::mock(ResponsePlusInterface::class);
+        $psrResponse = m::mock(ResponsePlusInterface::class);
         Context::set(ResponseInterface::class, $psrResponse);
 
         $this->expectException(RuntimeException::class);
@@ -246,7 +235,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownload()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -273,7 +262,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithRangeHeader()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -309,7 +298,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithRangeHeaderAndWithoutContentLength()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -344,7 +333,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithInvalidRangeHeader()
     {
-        $psrResponse = Mockery::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldNotReceive('write');
         Context::set(ResponseInterface::class, $psrResponse);
 
@@ -367,7 +356,7 @@ class ResponseTest extends TestCase
 
     protected function mockRequest(array $headers = [], string $method = 'GET'): ServerRequestPlusInterface
     {
-        $request = Mockery::mock(ServerRequestPlusInterface::class);
+        $request = m::mock(ServerRequestPlusInterface::class);
         $request->shouldReceive('getMethod')->andReturn($method);
 
         foreach ($headers as $key => $value) {

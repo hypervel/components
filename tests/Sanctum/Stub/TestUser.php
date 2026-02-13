@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum\Stub;
 
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\HasApiTokens;
 

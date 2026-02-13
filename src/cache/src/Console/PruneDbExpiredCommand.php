@@ -30,7 +30,7 @@ class PruneDbExpiredCommand extends Command
     public function handle(): ?int
     {
         $store = $this->argument('store');
-        $cache = $this->app->get(CacheManager::class)->store($store);
+        $cache = $this->app->make(CacheManager::class)->store($store);
 
         if (! $cache->getStore() instanceof DatabaseStore) {
             if (is_null($store)) {

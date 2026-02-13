@@ -7,10 +7,10 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
 use UnitEnum;
 
@@ -133,8 +133,8 @@ class PendingChain
         $firstJob->chain($this->chain);
         $firstJob->chainCatchCallbacks = $this->catchCallbacks();
 
-        return ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        return Container::getInstance()
+            ->make(Dispatcher::class)
             ->dispatch($firstJob);
     }
 

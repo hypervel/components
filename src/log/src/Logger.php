@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;
@@ -21,7 +21,7 @@ class Logger implements LoggerInterface
      */
     public function __construct(
         protected LoggerInterface $logger,
-        protected ?EventDispatcherInterface $dispatcher = null
+        protected ?Dispatcher $dispatcher = null
     ) {
     }
 
@@ -190,11 +190,6 @@ class Logger implements LoggerInterface
             throw new RuntimeException('Events dispatcher has not been set.');
         }
 
-        if (! method_exists($this->dispatcher, 'listen')) {
-            throw new RuntimeException('Events dispatcher does not implement the listen method.');
-        }
-
-        /* @phpstan-ignore-next-line */
         $this->dispatcher->listen(MessageLogged::class, $callback);
     }
 
@@ -221,7 +216,7 @@ class Logger implements LoggerInterface
             return var_export($message, true);
         }
         if ($message instanceof Jsonable) {
-            return (string) $message;
+            return $message->toJson();
         }
         if ($message instanceof Arrayable) {
             return var_export($message->toArray(), true);
@@ -241,7 +236,7 @@ class Logger implements LoggerInterface
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): EventDispatcherInterface
+    public function getEventDispatcher(): Dispatcher
     {
         return $this->dispatcher;
     }
@@ -251,7 +246,7 @@ class Logger implements LoggerInterface
      *
      * @return $this
      */
-    public function setEventDispatcher(EventDispatcherInterface $dispatcher): self
+    public function setEventDispatcher(Dispatcher $dispatcher): self
     {
         $this->dispatcher = $dispatcher;
 

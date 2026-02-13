@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
+use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Http\RouteDependency;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Validation\Contracts\ValidatesWhenResolved;
 
 class FormRequestServiceProvider extends ServiceProvider
 {
@@ -15,7 +15,7 @@ class FormRequestServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->app->get(RouteDependency::class)
+        $this->app->make(RouteDependency::class)
             ->afterResolving(ValidatesWhenResolved::class, function (ValidatesWhenResolved $request) {
                 $request->validateResolved();
             });

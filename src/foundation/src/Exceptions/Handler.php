@@ -6,35 +6,35 @@ namespace Hypervel\Foundation\Exceptions;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\ExceptionHandler\ExceptionHandler;
 use Hyperf\HttpMessage\Base\Response as BaseResponse;
 use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Foundation\Contracts\Application as Container;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionRenderer;
-use Hypervel\Foundation\Exceptions\Contracts\ShouldntReport;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ShouldntReport;
+use Hypervel\Contracts\Foundation\Application as Container;
+use Hypervel\Contracts\Foundation\ExceptionRenderer;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Http\Request;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Session\TokenMismatchException;
-use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\MessageBag;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Validation\ValidationException;
@@ -568,7 +568,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     {
         $this->withErrors($request, $exception->errors(), $exception->errorBag);
 
-        $urlGenerator = $this->container->get(UrlGeneratorContract::class);
+        $urlGenerator = $this->container->make(UrlGeneratorContract::class);
         $redirectUrl = $exception->redirectTo
             ? $urlGenerator->to($exception->redirectTo)
             : $urlGenerator->previous();
@@ -586,7 +586,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         }
 
         $value = $this->getMessageBag($provider);
-        $session = $this->container->get(SessionContract::class);
+        /** @var \Hypervel\Session\Store $session */
+        $session = $this->container->make(SessionContract::class);
         $errors = $session->get('errors', new ViewErrorBag());
 
         if (! $errors instanceof ViewErrorBag) {
@@ -707,7 +708,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         $debug = config('app.debug');
         try {
             if ($debug && $this->container->bound(ExceptionRenderer::class)) {
-                return $this->container->get(ExceptionRenderer::class)->render($e);
+                return $this->container->make(ExceptionRenderer::class)->render($e);
             }
 
             return $this->renderExceptionToHtml($e, $debug);
@@ -721,7 +722,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function renderExceptionToHtml(Throwable $e, bool $debug): string
     {
-        return $this->container->get(HtmlErrorRenderer::class)
+        return $this->container->make(HtmlErrorRenderer::class)
             ->render($e, $debug);
     }
 
@@ -860,7 +861,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function getLogger(): LoggerInterface
     {
-        return $this->container->get(LoggerInterface::class);
+        return $this->container->make(LoggerInterface::class);
     }
 
     public function handle(Throwable $throwable, ResponseInterface $response): ResponseInterface
@@ -868,7 +869,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         $this->report($throwable);
 
         return $this->render(
-            $this->container->get(Request::class),
+            $this->container->make(Request::class),
             $throwable
         );
     }

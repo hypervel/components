@@ -10,7 +10,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Horizon\ControllerTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -21,7 +21,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
     public function testAllStatsAreCorrectlyReturned()
     {
         // Setup supervisor data...
-        $supervisors = Mockery::mock(SupervisorRepository::class);
+        $supervisors = m::mock(SupervisorRepository::class);
         $supervisors->shouldReceive('all')->andReturn([
             (object) [
                 'processes' => [
@@ -38,19 +38,19 @@ class DashboardStatsControllerTest extends ControllerTestCase
         $this->app->instance(SupervisorRepository::class, $supervisors);
 
         // Setup metrics data...
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
         $metrics->shouldReceive('jobsProcessedPerMinute')->andReturn(1);
         $metrics->shouldReceive('queueWithMaximumRuntime')->andReturn('default');
         $metrics->shouldReceive('queueWithMaximumThroughput')->andReturn('default');
         $this->app->instance(MetricsRepository::class, $metrics);
 
-        $jobs = Mockery::mock(JobRepository::class);
+        $jobs = m::mock(JobRepository::class);
         $jobs->shouldReceive('countRecentlyFailed')->andReturn(1);
         $jobs->shouldReceive('countRecent')->andReturn(1);
         $this->app->instance(JobRepository::class, $jobs);
 
         // Setup wait time data...
-        $wait = Mockery::mock(WaitTimeCalculator::class);
+        $wait = m::mock(WaitTimeCalculator::class);
         $wait->shouldReceive('calculate')->andReturn([
             'first' => 20,
             'second' => 10,
@@ -81,7 +81,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
     public function testPausedStatusIsReflectedIfAllMasterSupervisorsArePaused()
     {
-        $masters = Mockery::mock(MasterSupervisorRepository::class);
+        $masters = m::mock(MasterSupervisorRepository::class);
         $masters->shouldReceive('all')->andReturn([
             (object) [
                 'status' => 'paused',
@@ -102,7 +102,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
     public function testPausedStatusIsntReflectedIfNotAllMasterSupervisorsArePaused()
     {
-        $masters = Mockery::mock(MasterSupervisorRepository::class);
+        $masters = m::mock(MasterSupervisorRepository::class);
         $masters->shouldReceive('all')->andReturn([
             (object) [
                 'status' => 'running',

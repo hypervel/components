@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -17,9 +14,8 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -27,18 +23,10 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class MailMailerTest extends TestCase
 {
-    protected ?Container $app = null;
-
-    protected function setUp(): void
-    {
-        $this->app = $this->mockContainer();
-    }
-
     protected function tearDown(): void
     {
         unset($_SERVER['__mailer.test']);
-
-        m::close();
+        parent::tearDown();
     }
 
     public function testMailerSendSendsMessageWithProperViewContent()
@@ -303,7 +291,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
 
@@ -328,19 +316,9 @@ class MailMailerTest extends TestCase
         );
     }
 
-    protected function mockContainer(): Container
+    protected function mockContainer(): void
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
-                ViewFactory::class => ViewFactory::class,
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
     }
 
     protected function mockView()

@@ -6,15 +6,15 @@ namespace Hypervel\View;
 
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\ViewEngine\Blade;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\View\Compilers\BladeCompiler;
-use Psr\Container\ContainerInterface;
 
 class CompilerFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         $blade = new BladeCompiler(
-            $container->get(Filesystem::class),
+            $container->make(Filesystem::class),
             Blade::config('config.cache_path')
         );
 

@@ -74,8 +74,8 @@ namespace Hypervel\Support\Facades;
  * @method static void forgetInstance(string $abstract)
  * @method static void forgetInstances()
  * @method static void flush()
- * @method static \Hypervel\Container\Contracts\Container getInstance()
- * @method static \Hypervel\Container\Contracts\Container setInstance(\Hypervel\Container\Contracts\Container $container)
+ * @method static \Hypervel\Contracts\Container\Container getInstance()
+ * @method static \Hypervel\Contracts\Container\Container setInstance(\Hypervel\Contracts\Container\Container $container)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
@@ -84,7 +84,7 @@ namespace Hypervel\Support\Facades;
  */
 class App extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return 'app';
     }

@@ -7,11 +7,11 @@ namespace Hypervel\Support\Facades;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 
 /**
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface file(string $path, array|\Hyperf\Contract\Arrayable $data = [], array $mergeData = [])
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface make(string $view, array|\Hyperf\Contract\Arrayable $data = [], array $mergeData = [])
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface first(array $views, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderWhen(bool $condition, string $view, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderUnless(bool $condition, string $view, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface file(string $path, array|\Hypervel\Contracts\Support\Arrayable $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface make(string $view, array|\Hypervel\Contracts\Support\Arrayable $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface first(array $views, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderWhen(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderUnless(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderEach(string $view, array $data, string $iterator, string $empty = 'raw|')
  * @method static bool exists(string $view)
  * @method static \Hyperf\ViewEngine\Contract\EngineInterface getEngineFromPath(string $path)
@@ -33,10 +33,10 @@ use Hyperf\ViewEngine\Contract\FactoryInterface;
  * @method static \Hyperf\ViewEngine\Contract\FinderInterface getFinder()
  * @method static void setFinder(\Hyperf\ViewEngine\Contract\FinderInterface $finder)
  * @method static void flushFinderCache()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface getDispatcher()
- * @method static void setDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $events)
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static void setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Event\Dispatcher getDispatcher()
+ * @method static void setDispatcher(\Hypervel\Contracts\Event\Dispatcher $events)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static void setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static mixed shared(string $key, mixed $default = null)
  * @method static array getShared()
  * @method static void macro(string $name, callable|object $macro)
@@ -82,7 +82,7 @@ use Hyperf\ViewEngine\Contract\FactoryInterface;
  */
 class View extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return FactoryInterface::class;
     }

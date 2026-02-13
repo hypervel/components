@@ -33,7 +33,7 @@ class SearchableModelTest extends ScoutTestCase
     public function testSearchableAsReturnsTableNameWithPrefix()
     {
         // Set a prefix in the config
-        $this->app->get(\Hyperf\Contract\ConfigInterface::class)
+        $this->app->make('config')
             ->set('scout.prefix', 'test_');
 
         $model = new SearchableModel();
@@ -163,7 +163,7 @@ class SearchableModelTest extends ScoutTestCase
     public function testSoftDeletedModelsAreExcludedByDefault()
     {
         // Set soft delete config
-        $this->app->get(\Hyperf\Contract\ConfigInterface::class)
+        $this->app->make('config')
             ->set('scout.soft_delete', true);
 
         $model = SoftDeletableSearchableModel::create([
@@ -183,7 +183,7 @@ class SearchableModelTest extends ScoutTestCase
     public function testSoftDeletedModelsCanBeIncludedWithWithTrashed()
     {
         // Set soft delete config
-        $this->app->get(\Hyperf\Contract\ConfigInterface::class)
+        $this->app->make('config')
             ->set('scout.soft_delete', true);
 
         $model = SoftDeletableSearchableModel::create([

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class RetryBatchCommand extends Command
@@ -35,7 +35,7 @@ class RetryBatchCommand extends Command
         }
 
         foreach ($ids as $batchId) {
-            $batch = $this->app->get(BatchRepository::class)->find($batchId);
+            $batch = $this->app->make(BatchRepository::class)->find($batchId);
 
             if (! $batch) {
                 $this->error("Unable to find a batch with ID [{$batchId}].");

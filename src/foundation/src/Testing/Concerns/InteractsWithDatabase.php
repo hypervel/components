@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Database\Events\QueryExecuted;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\SoftDeletes;
-use Hypervel\Foundation\Testing\Constraints\CountInDatabase;
-use Hypervel\Foundation\Testing\Constraints\HasInDatabase;
-use Hypervel\Foundation\Testing\Constraints\NotSoftDeletedInDatabase;
-use Hypervel\Foundation\Testing\Constraints\SoftDeletedInDatabase;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testing\Constraints\CountInDatabase;
+use Hypervel\Testing\Constraints\HasInDatabase;
+use Hypervel\Testing\Constraints\NotSoftDeletedInDatabase;
+use Hypervel\Testing\Constraints\SoftDeletedInDatabase;
 use PHPUnit\Framework\Constraint\LogicalNot as ReverseConstraint;
 
 trait InteractsWithDatabase
@@ -21,7 +21,7 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition exists in the database.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -38,7 +38,7 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition does not exist in the database.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -56,7 +56,7 @@ trait InteractsWithDatabase
     /**
      * Assert the count of table entries.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -73,7 +73,7 @@ trait InteractsWithDatabase
     /**
      * Assert that the given table has no entries.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -90,7 +90,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has been "soft deleted".
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @param null|string $deletedAtColumn
      * @return $this
@@ -121,7 +121,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has not been "soft deleted".
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @param null|string $deletedAtColumn
      * @return $this
@@ -152,7 +152,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model exists in the database.
      *
-     * @param \Hyperf\Database\Model\Model $model
+     * @param \Hypervel\Database\Eloquent\Model $model
      * @return $this
      */
     protected function assertModelExists($model)
@@ -167,7 +167,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model does not exist in the database.
      *
-     * @param \Hyperf\Database\Model\Model $model
+     * @param \Hypervel\Database\Eloquent\Model $model
      * @return $this
      */
     protected function assertModelMissing($model)
@@ -225,7 +225,7 @@ trait InteractsWithDatabase
      * Cast a JSON string to a database compatible type.
      *
      * @param array|object|string $value
-     * @return \Hyperf\Database\Query\Expression
+     * @return \Hypervel\Database\Query\Expression
      */
     public function castAsJson($value)
     {
@@ -247,7 +247,7 @@ trait InteractsWithDatabase
      *
      * @param null|string $connection
      * @param null|string $table
-     * @return \Hyperf\DbConnection\Connection
+     * @return \Hypervel\Database\Connection
      */
     protected function getConnection($connection = null, $table = null)
     {
@@ -257,7 +257,7 @@ trait InteractsWithDatabase
     /**
      * Get the table name from the given model or string.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @return string
      */
     protected function getTable($table)
@@ -268,7 +268,7 @@ trait InteractsWithDatabase
     /**
      * Get the table connection specified in the given model.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @return null|string
      */
     protected function getTableConnection($table)
@@ -291,8 +291,8 @@ trait InteractsWithDatabase
     /**
      * Get the model entity from the given model or string.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
-     * @return null|\Hyperf\Database\Model\Model
+     * @param \Hypervel\Database\Eloquent\Model|string $table
+     * @return null|\Hypervel\Database\Eloquent\Model
      */
     protected function newModelFor($table)
     {

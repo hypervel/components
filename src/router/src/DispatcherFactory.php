@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Router;
 
-use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\DispatcherFactory as BaseDispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\Contracts\Container\Container;
 
 class DispatcherFactory extends BaseDispatcherFactory
 {
     protected bool $initialized = false;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         $this->initAnnotationRoute(AnnotationCollector::list());
     }
@@ -27,7 +27,7 @@ class DispatcherFactory extends BaseDispatcherFactory
 
         // Fetch route files at initialization time
         // Ensures routes added via loadRoutesFrom() in service providers are included
-        $routes = $this->container->get(RouteFileCollector::class)->getRouteFiles();
+        $routes = $this->container->make(RouteFileCollector::class)->getRouteFiles();
 
         foreach ($routes as $route) {
             if (file_exists($route)) {

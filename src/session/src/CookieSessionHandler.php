@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hyperf\HttpServer\Request;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
 
 class CookieSessionHandler implements SessionHandlerInterface

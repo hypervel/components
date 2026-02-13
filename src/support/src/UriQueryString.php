@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Traits\InteractsWithData;
 use League\Uri\QueryString;
 use Stringable;

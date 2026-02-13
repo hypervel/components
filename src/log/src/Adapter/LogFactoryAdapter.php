@@ -12,12 +12,12 @@ class LogFactoryAdapter extends LoggerFactory
     // name and group parameters are not applicable here
     public function make($name = 'hyperf', $group = 'default'): LoggerInterface
     {
-        return $this->container->get(LoggerInterface::class)->channel();
+        return $this->container->make(LoggerInterface::class)->channel();
     }
 
     // name and group parameters are not applicable here
     public function get($name = 'hyperf', $group = 'default'): LoggerInterface
     {
-        return $this->container->get(LoggerInterface::class)->channel();
+        return $this->container->make(LoggerInterface::class)->channel();
     }
 }

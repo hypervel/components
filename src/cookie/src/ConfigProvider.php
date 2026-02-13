@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 
 class ConfigProvider
 {

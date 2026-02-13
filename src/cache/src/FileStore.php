@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Exception;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\LockProvider;
-use Hypervel\Cache\Contracts\Store;
-use Hypervel\Cache\Exceptions\LockTimeoutException;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
+use Hypervel\Support\InteractsWithTime;
 
 class FileStore implements Store, LockProvider
 {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Context\Context;
+use Hypervel\Support\Traits\Macroable;
 use NumberFormatter;
 use RuntimeException;
 
@@ -30,7 +30,7 @@ class Number
     {
         static::ensureIntlExtensionIsInstalled();
 
-        $formatter = new NumberFormatter($locale ?? static::$locale, NumberFormatter::DECIMAL);
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::DECIMAL);
 
         if (! is_null($maxPrecision)) {
             $formatter->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, $maxPrecision);
@@ -39,6 +39,34 @@ class Number
         }
 
         return $formatter->format($number);
+    }
+
+    /**
+     * Parse the given string according to the specified format type.
+     */
+    public static function parse(string $string, ?int $type = NumberFormatter::TYPE_DOUBLE, ?string $locale = null): int|float|false
+    {
+        static::ensureIntlExtensionIsInstalled();
+
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::DECIMAL);
+
+        return $formatter->parse($string, $type);
+    }
+
+    /**
+     * Parse a string into an integer according to the specified locale.
+     */
+    public static function parseInt(string $string, ?string $locale = null): int|false
+    {
+        return self::parse($string, NumberFormatter::TYPE_INT32, $locale);
+    }
+
+    /**
+     * Parse a string into a float according to the specified locale.
+     */
+    public static function parseFloat(string $string, ?string $locale = null): float|false
+    {
+        return self::parse($string, NumberFormatter::TYPE_DOUBLE, $locale);
     }
 
     /**
@@ -56,7 +84,21 @@ class Number
             return static::format($number, locale: $locale);
         }
 
-        $formatter = new NumberFormatter($locale ?? static::$locale, NumberFormatter::SPELLOUT);
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::SPELLOUT);
+
+        return $formatter->format($number);
+    }
+
+    /**
+     * Spell out the given number in the given locale in ordinal form.
+     */
+    public static function spellOrdinal(float|int $number, ?string $locale = null): string
+    {
+        static::ensureIntlExtensionIsInstalled();
+
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::SPELLOUT);
+
+        $formatter->setTextAttribute(NumberFormatter::DEFAULT_RULESET, '%spellout-ordinal');
 
         return $formatter->format($number);
     }
@@ -68,7 +110,7 @@ class Number
     {
         static::ensureIntlExtensionIsInstalled();
 
-        $formatter = new NumberFormatter($locale ?? static::$locale, NumberFormatter::ORDINAL);
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::ORDINAL);
 
         return $formatter->format($number);
     }
@@ -80,7 +122,7 @@ class Number
     {
         static::ensureIntlExtensionIsInstalled();
 
-        $formatter = new NumberFormatter($locale ?? static::$locale, NumberFormatter::PERCENT);
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::PERCENT);
 
         if (! is_null($maxPrecision)) {
             $formatter->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, $maxPrecision);
@@ -94,13 +136,17 @@ class Number
     /**
      * Convert the given number to its currency equivalent.
      */
-    public static function currency(float|int $number, string $in = '', ?string $locale = null): false|string
+    public static function currency(float|int $number, string $in = '', ?string $locale = null, ?int $precision = null): false|string
     {
         static::ensureIntlExtensionIsInstalled();
 
-        $formatter = new NumberFormatter($locale ?? static::$locale, NumberFormatter::CURRENCY);
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::CURRENCY);
 
-        return $formatter->formatCurrency($number, ! empty($in) ? $in : static::$currency);
+        if (! is_null($precision)) {
+            $formatter->setAttribute(NumberFormatter::FRACTION_DIGITS, $precision);
+        }
+
+        return $formatter->formatCurrency($number, ! empty($in) ? $in : static::defaultCurrency());
     }
 
     /**
@@ -169,11 +215,11 @@ class Number
                 return sprintf('%s' . end($units), static::summarize($number / 1e15, $precision, $maxPrecision, $units));
         }
 
-        $numberExponent = floor(log10($number));
+        $numberExponent = (int) floor(log10($number));
         $displayExponent = $numberExponent - ($numberExponent % 3);
-        $number /= pow(10, $displayExponent);
+        $number /= 10 ** $displayExponent;
 
-        return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[(string) $displayExponent] ?? ''));
+        return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[$displayExponent] ?? ''));
     }
 
     /**
@@ -187,18 +233,18 @@ class Number
     /**
      * Split the given number into pairs of min/max values.
      */
-    public static function pairs(float|int $to, float|int $by, float|int $offset = 1): array
+    public static function pairs(float|int $to, float|int $by, float|int $start = 0, float|int $offset = 1): array
     {
         $output = [];
 
-        for ($lower = 0; $lower < $to; $lower += $by) {
-            $upper = $lower + $by;
+        for ($lower = $start; $lower < $to; $lower += $by) {
+            $upper = $lower + $by - $offset;
 
             if ($upper > $to) {
                 $upper = $to;
             }
 
-            $output[] = [$lower + $offset, $upper];
+            $output[] = [$lower, $upper];
         }
 
         return $output;
@@ -217,11 +263,15 @@ class Number
      */
     public static function withLocale(string $locale, callable $callback): mixed
     {
-        $previousLocale = static::$locale;
+        $previousLocale = static::defaultLocale();
 
         static::useLocale($locale);
 
-        return tap($callback(), fn () => static::useLocale($previousLocale));
+        try {
+            return $callback();
+        } finally {
+            static::useLocale($previousLocale);
+        }
     }
 
     /**
@@ -229,11 +279,15 @@ class Number
      */
     public static function withCurrency(string $currency, callable $callback): mixed
     {
-        $previousCurrency = static::$currency;
+        $previousCurrency = static::defaultCurrency();
 
         static::useCurrency($currency);
 
-        return tap($callback(), fn () => static::useCurrency($previousCurrency));
+        try {
+            return $callback();
+        } finally {
+            static::useCurrency($previousCurrency);
+        }
     }
 
     /**
@@ -249,7 +303,7 @@ class Number
      */
     public static function useCurrency(string $currency): void
     {
-        Context::get('__support.number.currency', $currency);
+        Context::set('__support.number.currency', $currency);
     }
 
     /**

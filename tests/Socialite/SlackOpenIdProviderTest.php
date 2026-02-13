@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Socialite;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Two\SlackOpenIdProvider;
 use Hypervel\Socialite\Two\User;
@@ -120,7 +120,7 @@ class SlackOpenIdProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
+            '__socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
             $guzzle
         );
 

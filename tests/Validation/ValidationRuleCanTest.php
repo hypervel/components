@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Validator;
@@ -31,13 +31,13 @@ class ValidationRuleCanTest extends TestCase
 
         $this->user = m::mock(Authenticatable::class);
 
-        $this->app->bind(GateContract::class, function () {
+        $this->app->singleton(GateContract::class, function () {
             return new Gate($this->app, function () {
                 return $this->user;
             });
         });
 
-        $this->app->bind(
+        $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
                 new ArrayLoader(),
@@ -87,6 +87,6 @@ class ValidationRuleCanTest extends TestCase
      */
     protected function gate()
     {
-        return $this->app->get(GateContract::class);
+        return $this->app->make(GateContract::class);
     }
 }

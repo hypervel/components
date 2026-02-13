@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
@@ -14,9 +15,7 @@ use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
 
 /**
@@ -40,7 +39,7 @@ class FoundationApplicationTest extends TestCase
 
         $app = $this->getApplication([
             TranslatorContract::class => fn () => $trans,
-            EventDispatcherInterface::class => fn () => $events,
+            'events' => fn () => $events,
         ]);
 
         $app->setLocale('foo');
@@ -165,10 +164,7 @@ class FoundationApplicationTest extends TestCase
             null,
             $app = $this->getApplication()
         );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
@@ -182,10 +178,7 @@ class FoundationApplicationTest extends TestCase
             null,
             $app = $this->getApplication()
         );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
@@ -194,11 +187,11 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetNamespace()
     {
-        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf1'));
-        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf2'));
+        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project1'));
+        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project2'));
 
-        $this->assertSame('Hyperf\One\\', $app1->getNamespace());
-        $this->assertSame('Hyperf\Two\\', $app2->getNamespace());
+        $this->assertSame('App\One\\', $app1->getNamespace());
+        $this->assertSame('App\Two\\', $app2->getNamespace());
     }
 
     public function testMacroable()

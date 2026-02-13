@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hypervel\Translation\Contracts\Translator;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Translation\Translator;
+use Hypervel\Database\ConnectionResolverInterface;
 
 class ValidatorFactory
 {
-    public function __invoke(ContainerInterface $container): Factory
+    public function __invoke(Container $container): Factory
     {
         $validator = new Factory(
-            $container->get(Translator::class),
+            $container->make(Translator::class),
             $container
         );
 
@@ -21,7 +21,7 @@ class ValidatorFactory
         // values in a given data collection which is typically a relational database or
         // other persistent data stores. It is used to check for "uniqueness" as well.
         if ($container->has(ConnectionResolverInterface::class) && $container->has(DatabasePresenceVerifierInterface::class)) {
-            $presenceVerifier = $container->get(DatabasePresenceVerifierInterface::class);
+            $presenceVerifier = $container->make(DatabasePresenceVerifierInterface::class);
             $validator->setPresenceVerifier($presenceVerifier);
         }
 

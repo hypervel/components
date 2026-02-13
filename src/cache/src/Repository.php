@@ -10,10 +10,6 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Repository as CacheContract;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
@@ -28,13 +24,17 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Traits\Macroable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Cache\Contracts\Store
+ * @mixin \Hypervel\Contracts\Cache\Store
  */
 class Repository implements ArrayAccess, CacheContract
 {
@@ -51,7 +51,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * The event dispatcher implementation.
      */
-    protected ?EventDispatcherInterface $events = null;
+    protected ?Dispatcher $events = null;
 
     /**
      * The default number of seconds to store items.
@@ -541,7 +541,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): ?EventDispatcherInterface
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->events;
     }
@@ -549,7 +549,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Set the event dispatcher instance.
      */
-    public function setEventDispatcher(EventDispatcherInterface $events): void
+    public function setEventDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
     }

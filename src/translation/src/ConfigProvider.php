@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
-use Hypervel\Translation\Contracts\Loader as LoaderContract;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Loader as LoaderContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 
 class ConfigProvider
 {

@@ -4,31 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Context\Context;
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
-use Hyperf\Engine\Constant;
-use Hyperf\Engine\WebSocket\WebSocket;
 use Hyperf\HttpMessage\Base\Response;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
-use Hyperf\Support\SafeCaller;
 use Hyperf\WebSocketServer\Collector\FdCollector;
 use Hyperf\WebSocketServer\Context as WsContext;
 use Hyperf\WebSocketServer\CoreMiddleware;
 use Hyperf\WebSocketServer\Exception\WebSocketHandShakeException;
 use Hyperf\WebSocketServer\Security;
 use Hyperf\WebSocketServer\Server as WebSocketServer;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Engine\Constant;
+use Hypervel\Engine\WebSocket\WebSocket;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
+use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swow\Psr7\Server\ServerConnection as SwowServerConnection;
 use Throwable;
-
-use function Hyperf\Support\make;
 
 class WebsocketKernel extends WebSocketServer implements MiddlewareContract
 {
@@ -37,7 +35,10 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
     public function initCoreMiddleware(string $serverName): void
     {
         $this->serverName = $serverName;
-        $this->coreMiddleware = make(CoreMiddleware::class, [$this->container, $serverName]);
+        $this->coreMiddleware = $this->container->make(CoreMiddleware::class, [
+            'container' => $this->container,
+            'serverName' => $serverName,
+        ]);
 
         $this->initExceptionHandlers();
     }
@@ -60,7 +61,7 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
             Context::set(WsContext::FD, $fd);
-            $security = $this->container->get(Security::class);
+            $security = $this->container->make(Security::class);
 
             $psr7Response = $this->initResponse();
             $psr7Request = $this->initRequest($request);
@@ -102,7 +103,7 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
             }
         } catch (Throwable $throwable) {
             // Delegate the exception to exception handler.
-            $psr7Response = $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+            $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
                 return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
             }, static function () {
                 return (new Psr7Response())->withStatus(400);

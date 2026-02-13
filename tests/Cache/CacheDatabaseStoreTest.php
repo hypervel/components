@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Collection;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
 use Hypervel\Cache\DatabaseStore;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

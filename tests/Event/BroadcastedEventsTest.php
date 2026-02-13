@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 
 /**
  * @internal
@@ -18,11 +18,6 @@ use Psr\Container\ContainerInterface;
  */
 class BroadcastedEventsTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testShouldBroadcastSuccess()
     {
         $d = m::mock(EventDispatcher::class);
@@ -43,8 +38,8 @@ class BroadcastedEventsTest extends TestCase
         unset($_SERVER['__event.test']);
         $broadcast = m::mock(BroadcastFactory::class);
         $broadcast->shouldReceive('queue')->once();
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->once()->with(BroadcastFactory::class)->andReturn($broadcast);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with(BroadcastFactory::class)->andReturn($broadcast);
         $d = new EventDispatcher(new ListenerProvider(), null, $container);
 
         $d->listen(AlwaysBroadcastEvent::class, function ($payload) {

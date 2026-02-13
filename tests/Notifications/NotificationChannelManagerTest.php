@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Events\NotificationSending;
@@ -21,10 +20,8 @@ use Hypervel\Notifications\NotificationPoolProxy;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -32,15 +29,10 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NotificationChannelManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testGetDefaultChannel()
     {
         $container = $this->getContainer();
-        $container->set(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, m::mock(MailChannel::class));
 
         $manager = new ChannelManager($container);
 
@@ -50,7 +42,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetCustomChannelWithPool()
     {
         $container = $this->getContainer();
-        $container->set(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, m::mock(MailChannel::class));
 
         $manager = new ChannelManager($container);
         $manager->extend('test', function () {
@@ -64,7 +56,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->make(Dispatcher::class);
 
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
@@ -79,7 +71,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -93,7 +85,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldNotReceive('driver');
@@ -106,7 +98,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -119,7 +111,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testNotificationCanBeQueued()
     {
         $container = $this->getContainer();
-        $container->get(BusDispatcherContract::class)
+        $container->make(BusDispatcherContract::class)
             ->shouldReceive('dispatch')
             ->with(m::type(SendQueuedNotifications::class));
 
@@ -130,16 +122,14 @@ class NotificationChannelManagerTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
-                BusDispatcherContract::class => fn () => m::mock(BusDispatcherContract::class),
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance(\Hypervel\Contracts\Container\Container::class, $container);
+        $container->instance('config', new ConfigRepository([]));
+        $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
+        $container->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

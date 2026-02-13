@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Queue\Contracts\QueueableEntity;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\DeferQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 /**
  * @internal
@@ -53,9 +52,9 @@ class QueueDeferQueueTest extends TestCase
         });
         $defer->setConnectionName('defer');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(Dispatcher::class, $events);
         $defer->setContainer($container);
 
         run(function () use ($defer) {
@@ -69,10 +68,11 @@ class QueueDeferQueueTest extends TestCase
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
         $defer = new DeferQueue();
+        $defer->setConnectionName('defer');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitJob()));
@@ -81,10 +81,11 @@ class QueueDeferQueueTest extends TestCase
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
         $defer = new DeferQueue();
+        $defer->setConnectionName('defer');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitInterfaceJob()));
@@ -92,9 +93,7 @@ class QueueDeferQueueTest extends TestCase
 
     protected function getContainer(): Container
     {
-        return new Container(
-            new DefinitionSource([])
-        );
+        return new Container();
     }
 }
 

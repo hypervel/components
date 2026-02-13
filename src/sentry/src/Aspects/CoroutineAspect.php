@@ -6,8 +6,8 @@ namespace Hypervel\Sentry\Aspects;
 
 use Hyperf\Di\Aop\AbstractAspect;
 use Hyperf\Di\Aop\ProceedingJoinPoint;
-use Hyperf\Engine\Coroutine;
 use Hypervel\Coroutine\Coroutine as HypervelCoroutine;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Sentry\Switcher;
 use Sentry\SentrySdk;
 use Throwable;
@@ -15,7 +15,7 @@ use Throwable;
 class CoroutineAspect extends AbstractAspect
 {
     public array $classes = [
-        'Hyperf\Coroutine\Coroutine::create',
+        'Hypervel\Coroutine\Coroutine::create',
     ];
 
     protected array $keys = [

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Facades\Event;
@@ -25,7 +24,7 @@ class SearchableScopeTest extends ScoutTestCase
         parent::setUp();
 
         // Use collection driver to avoid external service calls
-        $this->app->get(ConfigInterface::class)->set('scout.driver', 'collection');
+        $this->app->make('config')->set('scout.driver', 'collection');
     }
 
     public function testSearchableMacroDispatchesModelsImportedEvent(): void

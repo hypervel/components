@@ -17,7 +17,7 @@ class RouteServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFiles($this->routes);
     }
 }

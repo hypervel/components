@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Dispatcher;
 
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Dispatcher\HttpDispatcher as HyperfHttpDispatcher;
+use Hypervel\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 
 class HttpDispatcher extends HyperfHttpDispatcher
@@ -15,9 +15,9 @@ class HttpDispatcher extends HyperfHttpDispatcher
         [$request, $middlewares, $coreHandler] = $params;
 
         // remove middleware if disabled in testing
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         if ($container->has('middleware.disable')
-            && $container->get('middleware.disable')) {
+            && $container->make('middleware.disable')) {
             $middlewares = [];
         }
 

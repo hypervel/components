@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\TranslatorLoaderInterface;
-use Hyperf\Database\Migrations\Migrator;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
 
@@ -96,7 +95,7 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $config->set($key, array_merge(
             require $path,
             $config->get($key, [])
@@ -108,7 +107,7 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile($path);
     }
 
@@ -118,7 +117,7 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            $viewPath = $this->app->get(ConfigInterface::class)
+            $viewPath = $this->app->make('config')
                 ->get('view.config.view_path', null);
 
             if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
@@ -181,7 +180,7 @@ abstract class ServiceProvider
         $this->app->afterResolving($name, $callback);
 
         if ($this->app->resolved($name)) {
-            $callback($this->app->get($name), $this->app);
+            $callback($this->app->make($name), $this->app);
         }
     }
 

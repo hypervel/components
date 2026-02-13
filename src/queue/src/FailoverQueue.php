@@ -6,10 +6,10 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Queue\Contracts\Job as JobContract;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Events\QueueFailedOver;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use Throwable;
 
@@ -20,7 +20,7 @@ class FailoverQueue extends Queue implements QueueContract
      */
     public function __construct(
         public QueueManager $manager,
-        public EventDispatcherInterface $events,
+        public Dispatcher $events,
         public array $connections
     ) {
     }

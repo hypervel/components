@@ -6,28 +6,24 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
 use Hyperf\Command\Annotation\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hyperf\Framework\Event\BootApplication;
-use Hyperf\Stringable\Str;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
 use Hypervel\Console\HasPendingCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ContainerContract;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-
-use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class Kernel implements KernelContract
 {
@@ -76,7 +72,7 @@ class Kernel implements KernelContract
 
     public function __construct(
         protected ContainerContract $app,
-        protected EventDispatcherInterface $events
+        protected Dispatcher $events
     ) {
         if (! defined('ARTISAN_BINARY')) {
             define('ARTISAN_BINARY', 'artisan');
@@ -157,7 +153,7 @@ class Kernel implements KernelContract
         // Load commands from Hyperf config for compatibility.
         $configReflections = array_map(function (string $class) {
             return ReflectionManager::reflectClass($class);
-        }, $this->app->get(ConfigInterface::class)->get('commands', []));
+        }, $this->app->make('config')->get('commands', []));
 
         // Load commands that defined by annotation.
         $annotationReflections = [];
@@ -182,7 +178,7 @@ class Kernel implements KernelContract
         // Load commands from registered closures
         foreach ($this->closureCommands as $command) {
             $closureId = spl_object_hash($command);
-            $this->app->set($commandId = "commands.{$closureId}", $command);
+            $this->app->instance($commandId = "commands.{$closureId}", $command);
             $commands[] = $commandId;
         }
 
@@ -218,7 +214,7 @@ class Kernel implements KernelContract
      */
     public function registerCommand(string $command): void
     {
-        if (! $command = $this->pendingCommand($this->app->get($command))) {
+        if (! $command = $this->pendingCommand($this->app->make($command))) {
             return;
         }
 
@@ -273,7 +269,7 @@ class Kernel implements KernelContract
      */
     protected function defineConsoleSchedule(): void
     {
-        $this->app->bind(Schedule::class, function ($app) {
+        $this->app->singleton(Schedule::class, function ($app) {
             return tap(new Schedule($this->scheduleTimezone()), function ($schedule) {
                 $this->schedule($schedule->useCache($this->scheduleCache()));
             });
@@ -317,7 +313,7 @@ class Kernel implements KernelContract
         // to this registration by storing the commands closures.
         if ($this->commandsLoaded) {
             $closureId = spl_object_hash($command);
-            $this->app->set($commandId = "commands.{$closureId}", $command);
+            $this->app->instance($commandId = "commands.{$closureId}", $command);
             $this->registerCommand($commandId);
         } else {
             $this->closureCommands[] = $command;
