@@ -72,7 +72,7 @@ class AttributesTest extends TestCase
 
         $attribute($this->app);
 
-        $this->assertSame('test_value', $this->app->get('config')->get('testing.attributes.key'));
+        $this->assertSame('test_value', $this->app->make('config')->get('testing.attributes.key'));
     }
 
     public function testDefineRouteImplementsActionable(): void

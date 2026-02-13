@@ -39,17 +39,17 @@ class TestClient extends HttpKernel
 
     public function __construct(Container $container, $server = 'http')
     {
-        $this->enableEvents = $container->get('config')
+        $this->enableEvents = $container->make('config')
             ->get("server.servers.{$server}.options.enable_request_lifecycle", false);
         if ($this->enableEvents) {
-            $this->event = $container->get(EventDispatcherInterface::class);
+            $this->event = $container->make(EventDispatcherInterface::class);
         }
 
         parent::__construct(
             $container,
-            $container->get(HttpDispatcher::class),
-            $container->get(ExceptionHandlerDispatcher::class),
-            $container->get(ResponseEmitter::class)
+            $container->make(HttpDispatcher::class),
+            $container->make(ExceptionHandlerDispatcher::class),
+            $container->make(ResponseEmitter::class)
         );
 
         $this->initCoreMiddleware($server);
@@ -250,13 +250,13 @@ class TestClient extends HttpKernel
 
     protected function loadKernelMiddleware(string $server): void
     {
-        $kernelClass = $this->container->get('config')
+        $kernelClass = $this->container->make('config')
             ->get("server.kernels.{$server}");
         if (! $kernelClass || ! class_exists($kernelClass)) {
             return;
         }
 
-        $kernel = $this->container->get($kernelClass);
+        $kernel = $this->container->make($kernelClass);
 
         $this->setGlobalMiddleware($kernel->getGlobalMiddleware());
         $this->setMiddlewareGroups($kernel->getMiddlewareGroups());
@@ -273,7 +273,7 @@ class TestClient extends HttpKernel
     protected function initBaseUri(string $server): void
     {
         if ($this->container->has('config')) {
-            $config = $this->container->get('config');
+            $config = $this->container->make('config');
             $servers = $config->get('server.servers', []);
             foreach ($servers as $item) {
                 if ($item['name'] == $server) {
@@ -287,7 +287,7 @@ class TestClient extends HttpKernel
     protected function normalizeFiles(array $multipart): array
     {
         $files = [];
-        $fileSystem = $this->container->get(Filesystem::class);
+        $fileSystem = $this->container->make(Filesystem::class);
 
         foreach ($multipart as $name => $item) {
             if ($item instanceof UploadedFileInterface) {

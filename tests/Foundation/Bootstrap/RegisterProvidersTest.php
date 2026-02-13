@@ -57,8 +57,8 @@ class RegisterProvidersTest extends TestCase
 
         (new RegisterProviders())->bootstrap($app);
 
-        $this->assertSame('foo', $app->get('foo'));
-        $this->assertSame('bar', $app->get('bar'));
+        $this->assertSame('foo', $app->make('foo'));
+        $this->assertSame('bar', $app->make('bar'));
 
         // should not register TestThreeServiceProvider because of `dont-discover`
         $this->assertFalse($app->bound('baz'));

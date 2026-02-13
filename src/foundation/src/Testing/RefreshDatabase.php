@@ -56,13 +56,13 @@ trait RefreshDatabase
      */
     protected function restoreInMemoryDatabase(): void
     {
-        $database = $this->app->get(DatabaseManager::class);
+        $database = $this->app->make(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
                 $database->connection($name)
                     ->setPdo(RefreshDatabaseState::$inMemoryConnections[$name])
-                    ->setEventDispatcher($this->app->get(Dispatcher::class));
+                    ->setEventDispatcher($this->app->make(Dispatcher::class));
             }
         }
     }
@@ -72,7 +72,7 @@ trait RefreshDatabase
      */
     protected function usingInMemoryDatabase(): bool
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         return $config->get("database.connections.{$this->getRefreshConnection()}.database") === ':memory:';
     }
@@ -148,7 +148,7 @@ trait RefreshDatabase
      */
     protected function beginDatabaseTransactionWork(): void
     {
-        $database = $this->app->get(DatabaseManager::class);
+        $database = $this->app->make(DatabaseManager::class);
         $connections = $this->connectionsToTransact();
 
         // Create a testing-aware transaction manager that properly handles afterCommit callbacks
@@ -183,7 +183,7 @@ trait RefreshDatabase
      */
     protected function rollbackDatabaseTransactionWork(): void
     {
-        $database = $this->app->get(DatabaseManager::class);
+        $database = $this->app->make(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);
@@ -212,7 +212,7 @@ trait RefreshDatabase
      */
     protected function withoutModelEvents(callable $callback, ?string $connection = null): void
     {
-        $connection = $this->app->get(DatabaseManager::class)
+        $connection = $this->app->make(DatabaseManager::class)
             ->connection($connection);
         $dispatcher = $connection->getEventDispatcher();
 

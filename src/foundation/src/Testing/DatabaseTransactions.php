@@ -61,7 +61,7 @@ trait DatabaseTransactions
      */
     protected function beginDatabaseTransactionWork(): void
     {
-        $database = $this->app->get(DatabaseManager::class);
+        $database = $this->app->make(DatabaseManager::class);
         $connections = $this->connectionsToTransact();
 
         // Create a testing-aware transaction manager that properly handles afterCommit callbacks
@@ -92,7 +92,7 @@ trait DatabaseTransactions
      */
     protected function rollbackDatabaseTransactionWork(): void
     {
-        $database = $this->app->get(DatabaseManager::class);
+        $database = $this->app->make(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);

@@ -568,7 +568,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     {
         $this->withErrors($request, $exception->errors(), $exception->errorBag);
 
-        $urlGenerator = $this->container->get(UrlGeneratorContract::class);
+        $urlGenerator = $this->container->make(UrlGeneratorContract::class);
         $redirectUrl = $exception->redirectTo
             ? $urlGenerator->to($exception->redirectTo)
             : $urlGenerator->previous();
@@ -587,7 +587,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
         $value = $this->getMessageBag($provider);
         /** @var \Hypervel\Session\Store $session */
-        $session = $this->container->get(SessionContract::class);
+        $session = $this->container->make(SessionContract::class);
         $errors = $session->get('errors', new ViewErrorBag());
 
         if (! $errors instanceof ViewErrorBag) {
@@ -708,7 +708,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         $debug = config('app.debug');
         try {
             if ($debug && $this->container->bound(ExceptionRenderer::class)) {
-                return $this->container->get(ExceptionRenderer::class)->render($e);
+                return $this->container->make(ExceptionRenderer::class)->render($e);
             }
 
             return $this->renderExceptionToHtml($e, $debug);
@@ -722,7 +722,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function renderExceptionToHtml(Throwable $e, bool $debug): string
     {
-        return $this->container->get(HtmlErrorRenderer::class)
+        return $this->container->make(HtmlErrorRenderer::class)
             ->render($e, $debug);
     }
 
@@ -861,7 +861,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function getLogger(): LoggerInterface
     {
-        return $this->container->get(LoggerInterface::class);
+        return $this->container->make(LoggerInterface::class);
     }
 
     public function handle(Throwable $throwable, ResponseInterface $response): ResponseInterface
@@ -869,7 +869,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         $this->report($throwable);
 
         return $this->render(
-            $this->container->get(Request::class),
+            $this->container->make(Request::class),
             $throwable
         );
     }

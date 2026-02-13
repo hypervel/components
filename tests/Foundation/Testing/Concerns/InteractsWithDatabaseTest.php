@@ -77,7 +77,7 @@ class InteractsWithDatabaseTest extends TestCase
     public function testFactoryUsesConfiguredFakerLocale()
     {
         $locale = 'fr_FR';
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('app.faker_locale', $locale);
 
         $factory = User::factory();

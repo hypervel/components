@@ -67,7 +67,7 @@ class MakesHttpRequestsTest extends TestCase
 
         $this->withoutMiddleware();
         $this->assertTrue($this->app->has('middleware.disable'));
-        $this->assertTrue($this->app->get('middleware.disable'));
+        $this->assertTrue($this->app->make('middleware.disable'));
 
         $this->withMiddleware();
         $this->assertFalse($this->app->has('middleware.disable'));
@@ -82,18 +82,18 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertFalse($this->app->bound(MyMiddleware::class));
         $this->assertSame(
             'fooWithMiddleware',
-            $this->app->get(MyMiddleware::class)->handle('foo', $next)
+            $this->app->make(MyMiddleware::class)->handle('foo', $next)
         );
 
         $this->withoutMiddleware(MyMiddleware::class);
         $this->assertTrue($this->app->bound(MyMiddleware::class));
-        $this->assertInstanceOf(FakeMiddleware::class, $this->app->get(MyMiddleware::class));
+        $this->assertInstanceOf(FakeMiddleware::class, $this->app->make(MyMiddleware::class));
 
         $this->withMiddleware(MyMiddleware::class);
         $this->assertFalse($this->app->bound(MyMiddleware::class));
         $this->assertSame(
             'fooWithMiddleware',
-            $this->app->get(MyMiddleware::class)->handle('foo', $next)
+            $this->app->make(MyMiddleware::class)->handle('foo', $next)
         );
     }
 
@@ -120,7 +120,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testFollowingRedirects()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $response = (new ServerResponse())
@@ -140,7 +140,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetFoundRoute()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/foo')
@@ -150,7 +150,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetFoundRouteWithTrailingSlash()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/foo/')
@@ -160,7 +160,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetServerParams()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/server-params?foo=bar')
@@ -174,7 +174,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetStreamedContent()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/stream')
@@ -184,7 +184,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testWithHeaders()
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->withHeaders([

@@ -18,7 +18,7 @@ class HandlesAttributesTest extends TestCase
 {
     protected function defineConfigEnv($app): void
     {
-        $app->get('config')->set('testing.method_env', 'method_value');
+        $app->make('config')->set('testing.method_env', 'method_value');
     }
 
     public function testParseTestMethodAttributesReturnsCollection(): void
@@ -35,7 +35,7 @@ class HandlesAttributesTest extends TestCase
         $this->parseTestMethodAttributes($this->app, WithConfig::class);
 
         // The attribute should have set the config value
-        $this->assertSame('test_value', $this->app->get('config')->get('testing.method_attribute'));
+        $this->assertSame('test_value', $this->app->make('config')->get('testing.method_attribute'));
     }
 
     #[DefineEnvironment('defineConfigEnv')]
@@ -45,7 +45,7 @@ class HandlesAttributesTest extends TestCase
         $this->parseTestMethodAttributes($this->app, DefineEnvironment::class);
 
         // The attribute should have called the method which set the config value
-        $this->assertSame('method_value', $this->app->get('config')->get('testing.method_env'));
+        $this->assertSame('method_value', $this->app->make('config')->get('testing.method_env'));
     }
 
     public function testParseTestMethodAttributesReturnsEmptyCollectionForNoMatch(): void
@@ -62,7 +62,7 @@ class HandlesAttributesTest extends TestCase
     {
         $this->parseTestMethodAttributes($this->app, WithConfig::class);
 
-        $this->assertSame('one', $this->app->get('config')->get('testing.multi_one'));
-        $this->assertSame('two', $this->app->get('config')->get('testing.multi_two'));
+        $this->assertSame('one', $this->app->make('config')->get('testing.multi_one'));
+        $this->assertSame('two', $this->app->make('config')->get('testing.multi_two'));
     }
 }

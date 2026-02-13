@@ -63,7 +63,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function setConfigCallback(): void
     {
-        $this->container->get('config')
+        $this->container->make('config')
             ->afterSettingCallback(function (array $values) {
                 static::$modifiedItems = array_replace(
                     static::$modifiedItems,

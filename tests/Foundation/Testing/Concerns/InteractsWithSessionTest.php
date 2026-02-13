@@ -17,7 +17,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->withSession(['foo' => 'bar', 'baz' => 'qux']);
 
-        $session = $this->app->get(Session::class);
+        $session = $this->app->make(Session::class);
 
         $this->assertTrue($session->has('foo'));
         $this->assertSame('bar', $session->get('foo'));
@@ -29,11 +29,11 @@ class InteractsWithSessionTest extends TestCase
     {
         // Use cache driver which has strict type hints on sessionId
         // This tests that startSession() properly initializes a session ID
-        $this->app->get('config')->set('session.driver', 'redis');
+        $this->app->make('config')->set('session.driver', 'redis');
 
         $this->withSession(['cache_test' => 'value']);
 
-        $session = $this->app->get(Session::class);
+        $session = $this->app->make(Session::class);
 
         $this->assertTrue($session->has('cache_test'));
         $this->assertSame('value', $session->get('cache_test'));
@@ -43,7 +43,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->session(['key' => 'value']);
 
-        $session = $this->app->get(Session::class);
+        $session = $this->app->make(Session::class);
 
         $this->assertTrue($session->has('key'));
         $this->assertSame('value', $session->get('key'));
@@ -53,7 +53,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->withSession(['foo' => 'bar', 'baz' => 'qux']);
 
-        $session = $this->app->get(Session::class);
+        $session = $this->app->make(Session::class);
         $this->assertTrue($session->has('foo'));
 
         $this->flushSession();

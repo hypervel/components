@@ -61,7 +61,7 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
             Context::set(WsContext::FD, $fd);
-            $security = $this->container->get(Security::class);
+            $security = $this->container->make(Security::class);
 
             $psr7Response = $this->initResponse();
             $psr7Request = $this->initRequest($request);
@@ -103,7 +103,7 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
             }
         } catch (Throwable $throwable) {
             // Delegate the exception to exception handler.
-            $psr7Response = $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+            $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
                 return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
             }, static function () {
                 return (new Psr7Response())->withStatus(400);

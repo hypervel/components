@@ -63,7 +63,7 @@ class InteractsWithTestCaseTest extends TestCase
     public function testClassLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at class level should be applied
-        $this->assertSame('class_value', $this->app->get('config')->get('testing.class_level'));
+        $this->assertSame('class_value', $this->app->make('config')->get('testing.class_level'));
     }
 
     public function testUsesTestingFeatureAddsAttribute(): void
@@ -103,13 +103,13 @@ class InteractsWithTestCaseTest extends TestCase
         // resolved to DefineEnvironment and executed during setUp, calling our method
         $this->assertSame(
             'define_env_executed',
-            $this->app->get('config')->get('testing.define_meta_attribute')
+            $this->app->make('config')->get('testing.define_meta_attribute')
         );
     }
 
     protected function setupDefineEnvForExecution($app): void
     {
-        $app->get('config')->set('testing.define_meta_attribute', 'define_env_executed');
+        $app->make('config')->set('testing.define_meta_attribute', 'define_env_executed');
     }
 
     public function testResolvePhpUnitAttributesReturnsCollectionOfCollections(): void

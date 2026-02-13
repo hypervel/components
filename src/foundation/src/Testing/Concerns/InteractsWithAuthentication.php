@@ -26,11 +26,11 @@ trait InteractsWithAuthentication
             $user->wasRecentlyCreated = false;
         }
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->guard($guard)
             ->setUser($user);
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->shouldUse($guard);
 
         return $this;

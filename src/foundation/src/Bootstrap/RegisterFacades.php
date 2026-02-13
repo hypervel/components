@@ -26,7 +26,7 @@ class RegisterFacades
             // do nothing
         }
 
-        $configAliases = $app->get('config')
+        $configAliases = $app->make('config')
             ->get('app.aliases', []);
         $aliases = array_merge($composerAliases, $configAliases);
 

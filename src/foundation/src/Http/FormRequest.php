@@ -108,7 +108,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected function getValidatorInstance(): Validator
     {
         return Context::getOrSet($this->getContextValidatorKey(Validator::class), function () {
-            $factory = $this->container->get(ValidationFactory::class);
+            $factory = $this->container->make(ValidationFactory::class);
 
             if (method_exists($this, 'validator')) {
                 $validator = call_user_func_array([$this, 'validator'], compact('factory'));

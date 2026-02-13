@@ -37,7 +37,7 @@ class FoundationServiceProvider extends ServiceProvider
 
     public function __construct(protected ApplicationContract $app)
     {
-        $this->config = $app->get('config');
+        $this->config = $app->make('config');
         $this->output = new ConsoleOutput();
 
         if ($app->hasDebugModeEnabled()) {
@@ -75,11 +75,11 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function listenCommandException(): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
                     /** @var \Hypervel\Console\Application $artisan */
-                    $artisan = $this->app->get(ConsoleKernel::class)->getArtisan();
+                    $artisan = $this->app->make(ConsoleKernel::class)->getArtisan();
                     $artisan->renderThrowable($throwable, $this->output);
                 }
             });
@@ -100,7 +100,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setDatabaseConnection(): void
     {
         $connection = $this->config->get('database.default', 'mysql');
-        $this->app->get(ConnectionResolverInterface::class)
+        $this->app->make(ConnectionResolverInterface::class)
             ->setDefaultConnection($connection);
     }
 
@@ -134,7 +134,7 @@ class FoundationServiceProvider extends ServiceProvider
                 continue;
             }
             $middleware[$server] = array_merge(
-                $this->app->get($kernel)->getGlobalMiddleware(),
+                $this->app->make($kernel)->getGlobalMiddleware(),
                 $middleware[$server] ?? [],
             );
         }
@@ -145,7 +145,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function registerUriUrlGeneration(): void
     {
         Uri::setUrlGeneratorResolver(
-            fn () => $this->app->get(UrlGeneratorContract::class)
+            fn () => $this->app->make(UrlGeneratorContract::class)
         );
     }
 

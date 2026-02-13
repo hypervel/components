@@ -214,7 +214,7 @@ trait InteractsWithRedis
     {
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
 
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         // Check if already exists
         if ($config->get("database.redis.{$connectionName}") !== null) {

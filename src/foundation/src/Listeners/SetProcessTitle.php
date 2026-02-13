@@ -11,7 +11,7 @@ class SetProcessTitle extends InitProcessTitleListener
 {
     public function __construct(ApplicationContract $container)
     {
-        $this->name = $container->get('config')
+        $this->name = $container->make('config')
             ->get('app.name');
     }
 }

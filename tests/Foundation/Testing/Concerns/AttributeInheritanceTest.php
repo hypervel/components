@@ -44,7 +44,7 @@ class AttributeInheritanceTest extends AbstractParentTestCase
         // The parent's #[WithConfig('testing.parent_class', 'parent_value')] should be applied
         $this->assertSame(
             'parent_value',
-            $this->app->get('config')->get('testing.parent_class')
+            $this->app->make('config')->get('testing.parent_class')
         );
     }
 
@@ -53,7 +53,7 @@ class AttributeInheritanceTest extends AbstractParentTestCase
         // The child's #[WithConfig('testing.child_class', 'child_value')] should be applied
         $this->assertSame(
             'child_value',
-            $this->app->get('config')->get('testing.child_class')
+            $this->app->make('config')->get('testing.child_class')
         );
     }
 

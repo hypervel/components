@@ -103,7 +103,7 @@ class VerifyCsrfToken implements MiddlewareInterface
     protected function tokensMatch(): bool
     {
         $token = $this->getTokenFromRequest();
-        $sessionToken = $this->app->get(SessionContract::class)->token();
+        $sessionToken = $this->app->make(SessionContract::class)->token();
 
         return is_string($sessionToken)
             && is_string($token)
@@ -147,7 +147,7 @@ class VerifyCsrfToken implements MiddlewareInterface
     {
         return new Cookie(
             'XSRF-TOKEN',
-            $this->app->get(SessionContract::class)->token(),
+            $this->app->make(SessionContract::class)->token(),
             $this->availableAt(60 * $config['lifetime']),
             $config['path'] ?? '/',
             $config['domain'] ?? '',

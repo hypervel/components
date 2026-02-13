@@ -15,7 +15,7 @@ class FormRequestServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->app->get(RouteDependency::class)
+        $this->app->make(RouteDependency::class)
             ->afterResolving(ValidatesWhenResolved::class, function (ValidatesWhenResolved $request) {
                 $request->validateResolved();
             });

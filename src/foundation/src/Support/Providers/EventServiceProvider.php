@@ -22,15 +22,15 @@ class EventServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $provider = $this->app->get(ListenerProvider::class);
+        $provider = $this->app->make(ListenerProvider::class);
         foreach ($this->listen as $event => $listeners) {
             foreach ($listeners as $listener) {
-                $instance = $this->app->get($listener);
+                $instance = $this->app->make($listener);
                 $provider->on($event, [$instance, 'handle']);
             }
         }
 
-        $dispatcher = $this->app->get(Dispatcher::class);
+        $dispatcher = $this->app->make(Dispatcher::class);
         foreach ($this->subscribe as $subscriber) {
             $dispatcher->subscribe($subscriber);
         }

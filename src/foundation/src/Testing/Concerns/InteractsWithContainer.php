@@ -93,7 +93,7 @@ trait InteractsWithContainer
 
         $this->defineEnvironment($this->app);
 
-        $this->app->get(ApplicationInterface::class);
+        $this->app->make(ApplicationInterface::class);
     }
 
     /**

@@ -28,7 +28,7 @@ class BootProvidersTest extends TestCase
 
         (new BootProviders())->bootstrap($app);
 
-        $this->assertSame('bar', $app->get('foo'));
+        $this->assertSame('bar', $app->make('foo'));
     }
 }
 

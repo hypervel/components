@@ -34,9 +34,9 @@ class InteractsWithAuthenticationTest extends TestCase
             ->twice()
             ->andReturn(false);
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
@@ -64,9 +64,9 @@ class InteractsWithAuthenticationTest extends TestCase
             ->twice()
             ->andReturn('id');
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',

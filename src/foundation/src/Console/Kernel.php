@@ -153,7 +153,7 @@ class Kernel implements KernelContract
         // Load commands from Hyperf config for compatibility.
         $configReflections = array_map(function (string $class) {
             return ReflectionManager::reflectClass($class);
-        }, $this->app->get('config')->get('commands', []));
+        }, $this->app->make('config')->get('commands', []));
 
         // Load commands that defined by annotation.
         $annotationReflections = [];
@@ -214,7 +214,7 @@ class Kernel implements KernelContract
      */
     public function registerCommand(string $command): void
     {
-        if (! $command = $this->pendingCommand($this->app->get($command))) {
+        if (! $command = $this->pendingCommand($this->app->make($command))) {
             return;
         }
 
