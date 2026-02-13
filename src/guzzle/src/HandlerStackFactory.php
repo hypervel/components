@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Guzzle;
 
 use GuzzleHttp\HandlerStack;
-use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Pool\SimplePool\PoolFactory;
 
 use function app;
 
@@ -30,21 +27,6 @@ class HandlerStackFactory
     protected array $middlewares = [
         'retry' => [RetryMiddleware::class, [1, 10]],
     ];
-
-    /**
-     * Whether to use the pool handler.
-     */
-    protected bool $usePoolHandler = false;
-
-    /**
-     * Create a new handler stack factory instance.
-     */
-    public function __construct()
-    {
-        if (class_exists(ApplicationContext::class)) {
-            $this->usePoolHandler = class_exists(PoolFactory::class) && ApplicationContext::getContainer() instanceof Container;
-        }
-    }
 
     /**
      * Create a new handler stack.
@@ -78,18 +60,10 @@ class HandlerStackFactory
     /**
      * Get the appropriate handler based on the environment.
      */
-    protected function getHandler(array $option): CoroutineHandler
+    protected function getHandler(array $option): PoolHandler
     {
-        if ($this->usePoolHandler) {
-            return app(PoolHandler::class, [
-                'option' => $option,
-            ]);
-        }
-
-        if (class_exists(ApplicationContext::class)) {
-            return app(CoroutineHandler::class);
-        }
-
-        return new CoroutineHandler();
+        return app(PoolHandler::class, [
+            'option' => $option,
+        ]);
     }
 }

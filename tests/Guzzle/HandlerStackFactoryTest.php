@@ -8,16 +8,12 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\HandlerStack;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Guzzle\CoroutineHandler;
 use Hypervel\Guzzle\HandlerStackFactory;
 use Hypervel\Guzzle\PoolHandler;
 use Hypervel\Guzzle\RetryMiddleware;
 use Hypervel\Pool\SimplePool\PoolFactory;
 use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
-use Hypervel\Tests\Guzzle\Stub\HandlerStackFactoryStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -32,59 +28,7 @@ class HandlerStackFactoryTest extends TestCase
     use RunTestsInCoroutine;
 
     /**
-     * Test that factory creates a CoroutineHandler when pool is not available.
-     */
-    public function testCreateCoroutineHandler()
-    {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(CoroutineHandler::class)->andReturnFalse();
-        $container->shouldReceive('make')->with(CoroutineHandler::class, m::any())->andReturn(new CoroutineHandler());
-        ApplicationContext::setContainer($container);
-
-        $factory = new HandlerStackFactory();
-        $stack = $factory->create();
-        $this->assertInstanceOf(HandlerStack::class, $stack);
-        $this->assertTrue($stack->hasHandler());
-
-        $reflection = new ReflectionClass($stack);
-
-        $handler = $reflection->getProperty('handler');
-        $this->assertInstanceOf(CoroutineHandler::class, $handler->getValue($stack));
-
-        $property = $reflection->getProperty('stack');
-        foreach ($property->getValue($stack) as $stackItem) {
-            $this->assertTrue(in_array($stackItem[1], ['http_errors', 'allow_redirects', 'cookies', 'prepare_body', 'retry']));
-        }
-    }
-
-    /**
-     * Test that factory uses container to make CoroutineHandler when available.
-     */
-    public function testMakeCoroutineHandler()
-    {
-        $container = m::mock(Container::class);
-        ApplicationContext::setContainer($container);
-        $container->shouldReceive('has')->with(CoroutineHandler::class)->andReturnFalse();
-        $container->shouldReceive('make')->with(CoroutineHandler::class, m::any())->andReturn(new CoroutineHandler());
-
-        $factory = new HandlerStackFactoryStub();
-        $stack = $factory->create();
-        $this->assertInstanceOf(HandlerStack::class, $stack);
-        $this->assertTrue($stack->hasHandler());
-
-        $reflection = new ReflectionClass($stack);
-
-        $handler = $reflection->getProperty('handler');
-        $this->assertInstanceOf(CoroutineHandler::class, $handler->getValue($stack));
-
-        $property = $reflection->getProperty('stack');
-        foreach ($property->getValue($stack) as $stackItem) {
-            $this->assertTrue(in_array($stackItem[1], ['http_errors', 'allow_redirects', 'cookies', 'prepare_body', 'retry']));
-        }
-    }
-
-    /**
-     * Test that factory creates a PoolHandler when pool factory is available.
+     * Test that factory creates a PoolHandler.
      */
     public function testCreatePoolHandler()
     {
@@ -184,7 +128,7 @@ class HandlerStackFactoryTest extends TestCase
     /**
      * Set up a mock container with pool factory for testing.
      */
-    protected function setContainer()
+    protected function setContainer(): void
     {
         $container = m::mock(Container::class);
         $factory = new PoolFactory($container);
@@ -192,6 +136,6 @@ class HandlerStackFactoryTest extends TestCase
             return new PoolHandler($factory, $args['option']);
         });
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
     }
 }

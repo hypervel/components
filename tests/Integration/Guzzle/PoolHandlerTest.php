@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Guzzle;
 use GuzzleHttp\Client;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Pool\Channel;
 use Hypervel\Pool\PoolOption;
@@ -51,7 +50,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
     {
         $container = $this->getContainer();
         $client = new Client([
-            'handler' => $handler = new PoolHandlerStub($container->get(PoolFactory::class), []),
+            'handler' => $handler = new PoolHandlerStub($container->make(PoolFactory::class), []),
             'base_uri' => sprintf('http://%s:%d', $this->getServerHost(), $this->getServerPort()),
         ]);
 
@@ -87,7 +86,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
         $container->shouldReceive('make')->with(Pool::class, m::andAnyOtherArgs())->andReturnUsing(function ($_, $args) use ($container) {
             return new Pool($container, $args['callback'], $args['option']);
         });
-        $container->shouldReceive('get')->with(PoolFactory::class)->andReturnUsing(function () use ($container) {
+        $container->shouldReceive('make')->with(PoolFactory::class)->andReturnUsing(function () use ($container) {
             return new PoolFactory($container);
         });
         $container->shouldReceive('make')->with(Channel::class, m::any())->andReturnUsing(function ($_, $args) {
@@ -99,7 +98,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturnFalse();
         $container->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }
