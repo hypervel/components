@@ -86,7 +86,7 @@ class PermissionManager implements Contracts\Factory
 
     protected function getConfig(string $name): mixed
     {
-        return $this->app->get('config')->get("permission.{$name}");
+        return $this->app->make('config')->get("permission.{$name}");
     }
 
     public function getCache(): Repository

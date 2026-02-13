@@ -30,7 +30,7 @@ class PermissionMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler,
         string ...$permissions
     ): ResponseInterface {
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
         $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(

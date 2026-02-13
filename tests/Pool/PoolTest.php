@@ -25,7 +25,7 @@ class PoolTest extends TestCase
     {
         $container = $this->getContainer();
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn((function () {
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn((function () {
             $logger = m::mock(StdoutLoggerInterface::class);
             $logger->shouldReceive('error')->withAnyArgs()->times(4)->andReturn(true);
             return $logger;
@@ -50,7 +50,7 @@ class PoolTest extends TestCase
     {
         $container = $this->getContainer();
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn((function () {
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn((function () {
             $logger = m::mock(StdoutLoggerInterface::class);
             $logger->shouldReceive('error')->withAnyArgs()->times(3)->andReturn(true);
             return $logger;
@@ -87,7 +87,7 @@ class PoolTest extends TestCase
     {
         $container = $this->getContainer();
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn((function () {
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn((function () {
             $logger = m::mock(StdoutLoggerInterface::class);
             $logger->shouldReceive('error')->withAnyArgs()->times(5)->andReturn(true);
             return $logger;
@@ -120,7 +120,7 @@ class PoolTest extends TestCase
         $logger->shouldReceive('error')->with(m::any())->once()->andReturnUsing(function ($args) {
             $this->assertStringContainsString('Hit Failed', $args);
         });
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn($logger);
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
 
         $pool = new class($container, []) extends Pool {
             public function __construct(ContainerContract $container, array $config = [])

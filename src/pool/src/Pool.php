@@ -206,6 +206,6 @@ abstract class Pool implements PoolInterface
             return null;
         }
 
-        return $this->container->get(StdoutLoggerInterface::class);
+        return $this->container->make(StdoutLoggerInterface::class);
     }
 }

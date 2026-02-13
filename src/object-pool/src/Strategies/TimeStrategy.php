@@ -24,7 +24,7 @@ class TimeStrategy implements TimeStrategyContract
     public function __construct(
         protected Container $container
     ) {
-        $this->recycleInterval = $container->get(Recycler::class)->getInterval();
+        $this->recycleInterval = $container->make(Recycler::class)->getInterval();
     }
 
     /**

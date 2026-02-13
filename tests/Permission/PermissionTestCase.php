@@ -24,7 +24,7 @@ class PermissionTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -35,7 +35,7 @@ class PermissionTestCase extends TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('permission', [
                 'models' => [
                     'role' => \Hypervel\Permission\Models\Role::class,

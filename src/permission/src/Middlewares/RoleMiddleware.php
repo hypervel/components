@@ -30,7 +30,7 @@ class RoleMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler,
         string ...$roles
     ): ResponseInterface {
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
         $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(

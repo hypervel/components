@@ -33,11 +33,11 @@ abstract class Connection implements ConnectionInterface
         protected PoolInterface $pool
     ) {
         if ($this->container->has(Dispatcher::class)) {
-            $this->dispatcher = $this->container->get(Dispatcher::class);
+            $this->dispatcher = $this->container->make(Dispatcher::class);
         }
 
         if ($this->container->has(StdoutLoggerInterface::class)) {
-            $this->logger = $this->container->get(StdoutLoggerInterface::class);
+            $this->logger = $this->container->make(StdoutLoggerInterface::class);
         }
     }
 

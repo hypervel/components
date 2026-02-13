@@ -42,7 +42,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
         $this->container = m::mock(Container::class);
         $this->authManager = m::mock(AuthManager::class);
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($this->authManager);
 

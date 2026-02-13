@@ -21,7 +21,7 @@ class Context
         protected Container $container,
         protected string $name
     ) {
-        $this->logger = $container->get(StdoutLoggerInterface::class);
+        $this->logger = $container->make(StdoutLoggerInterface::class);
     }
 
     /**

@@ -223,7 +223,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
     protected function getLogger(): ?LoggerInterface
     {
         if ($this->container->has(StdoutLoggerInterface::class)) {
-            return $this->container->get(StdoutLoggerInterface::class);
+            return $this->container->make(StdoutLoggerInterface::class);
         }
 
         return null;

@@ -228,7 +228,7 @@ abstract class ObjectPool implements ObjectPoolContract
             return null;
         }
 
-        return $this->container->get(StdoutLoggerInterface::class);
+        return $this->container->make(StdoutLoggerInterface::class);
     }
 
     /**

@@ -93,7 +93,7 @@ class TimeStrategyTest extends TestCase
             ->andReturn($interval);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(Recycler::class)
             ->andReturn($recycler);
 

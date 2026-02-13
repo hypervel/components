@@ -42,7 +42,7 @@ class HeartbeatConnectionTest extends TestCase
     public function testConnectionConstruct()
     {
         $container = $this->getContainer();
-        $pool = $container->get(HeartbeatPoolStub::class);
+        $pool = $container->make(HeartbeatPoolStub::class);
         $connection = $pool->get();
 
         $this->assertInstanceOf(KeepaliveConnectionStub::class, $connection);
@@ -64,7 +64,7 @@ class HeartbeatConnectionTest extends TestCase
     public function testConnectionCall()
     {
         $container = $this->getContainer();
-        $pool = $container->get(HeartbeatPoolStub::class);
+        $pool = $container->make(HeartbeatPoolStub::class);
         /** @var KeepaliveConnectionStub $connection */
         $connection = $pool->get();
         $connection->setActiveConnection($conn = new class {
@@ -84,7 +84,7 @@ class HeartbeatConnectionTest extends TestCase
     public function testConnectionHeartbeat()
     {
         $container = $this->getContainer();
-        $pool = $container->get(HeartbeatPoolStub::class);
+        $pool = $container->make(HeartbeatPoolStub::class);
         /** @var KeepaliveConnectionStub $connection */
         $connection = $pool->get();
         $connection->reconnect();
@@ -100,7 +100,7 @@ class HeartbeatConnectionTest extends TestCase
     public function testConnectionDestruct()
     {
         $container = $this->getContainer();
-        $pool = $container->get(HeartbeatPoolStub::class);
+        $pool = $container->make(HeartbeatPoolStub::class);
         /** @var KeepaliveConnectionStub $connection */
         $connection = $pool->get();
         $connection->reconnect();
@@ -120,7 +120,7 @@ class HeartbeatConnectionTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $container->shouldReceive('get')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container) {
+        $container->shouldReceive('make')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container) {
             return new HeartbeatPoolStub($container, []);
         });
 

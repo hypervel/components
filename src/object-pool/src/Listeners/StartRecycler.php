@@ -25,7 +25,7 @@ class StartRecycler implements ListenerInterface
 
     public function process(object $event): void
     {
-        $this->container->get(Recycler::class)
+        $this->container->make(Recycler::class)
             ->start();
     }
 }

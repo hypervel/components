@@ -26,7 +26,7 @@ class ConnectionTest extends TestCase
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('warning')->withAnyArgs()->once()->andReturnTrue();
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
         $container->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
         $connection = new ActiveConnectionStub($container, m::mock(Pool::class));
@@ -39,7 +39,7 @@ class ConnectionTest extends TestCase
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
         $container->shouldReceive('has')->with(Dispatcher::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(Dispatcher::class)->andReturn($dispatcher = m::mock(Dispatcher::class));
+        $container->shouldReceive('make')->with(Dispatcher::class)->andReturn($dispatcher = m::mock(Dispatcher::class));
         $dispatcher->shouldReceive('dispatch')->once()->with(ReleaseConnection::class)->andReturnUsing(function (ReleaseConnection $event) use (&$assert) {
             $assert = $event->connection->getLastReleaseTime();
         });
@@ -57,7 +57,7 @@ class ConnectionTest extends TestCase
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
         $container->shouldReceive('has')->with(Dispatcher::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(Dispatcher::class)->andReturn($dispatcher = m::mock(Dispatcher::class));
+        $container->shouldReceive('make')->with(Dispatcher::class)->andReturn($dispatcher = m::mock(Dispatcher::class));
         $dispatcher->shouldReceive('dispatch')->never()->with(ReleaseConnection::class)->andReturnNull();
 
         $connection = new ActiveConnectionStub($container, $pool = m::mock(Pool::class));

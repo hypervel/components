@@ -31,7 +31,7 @@ class PermissionManagerTest extends PermissionTestCase
     {
         parent::setUp();
 
-        $this->manager = $this->app->get(PermissionManager::class);
+        $this->manager = $this->app->make(PermissionManager::class);
 
         // Create test user
         $this->user = User::create([
