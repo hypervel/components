@@ -36,7 +36,7 @@ class SafeCallerTest extends TestCase
 
         $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(fn () => throw $exception);
@@ -51,7 +51,7 @@ class SafeCallerTest extends TestCase
 
         $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(
@@ -80,7 +80,7 @@ class SafeCallerTest extends TestCase
 
         $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(

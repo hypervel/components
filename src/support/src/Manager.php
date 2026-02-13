@@ -32,7 +32,7 @@ abstract class Manager
     public function __construct(
         protected Container $container
     ) {
-        $this->config = $container->get('config');
+        $this->config = $container->make('config');
     }
 
     /**

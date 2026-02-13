@@ -236,7 +236,7 @@ class JWTManagerTest extends TestCase
     {
         $this->config = m::mock(Repository::class);
 
-        $this->container->shouldReceive('get')->with('config')->andReturn($this->config);
+        $this->container->shouldReceive('make')->with('config')->andReturn($this->config);
     }
 
     private function mockProvider()

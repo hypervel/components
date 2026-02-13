@@ -95,7 +95,7 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
      */
     protected function configureMeilisearch(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $host = env('MEILISEARCH_HOST', '127.0.0.1');
         $port = env('MEILISEARCH_PORT', '7700');

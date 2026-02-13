@@ -31,7 +31,7 @@ class SafeCaller
             return $closure();
         } catch (Throwable $exception) {
             if ($this->container->has(ExceptionHandlerContract::class)) {
-                $this->container->get(ExceptionHandlerContract::class)->report($exception);
+                $this->container->make(ExceptionHandlerContract::class)->report($exception);
             }
         }
 

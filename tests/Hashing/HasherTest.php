@@ -129,7 +129,7 @@ class HasherTest extends TestCase
     protected function getContainer()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('config')
             ->andReturn($config = new ConfigRepository([
                 'hashing' => [

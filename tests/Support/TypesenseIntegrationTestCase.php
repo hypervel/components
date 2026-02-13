@@ -95,7 +95,7 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      */
     protected function configureTypesense(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $host = env('TYPESENSE_HOST', '127.0.0.1');
         $port = env('TYPESENSE_PORT', '8108');

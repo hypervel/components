@@ -65,7 +65,7 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     protected function configureDatabase(): void
     {
         $driver = $this->getDatabaseDriver();
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $this->registerConnectors($driver);
 

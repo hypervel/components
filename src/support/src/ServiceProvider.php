@@ -95,7 +95,7 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set($key, array_merge(
             require $path,
             $config->get($key, [])
@@ -107,7 +107,7 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile($path);
     }
 
@@ -117,7 +117,7 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            $viewPath = $this->app->get('config')
+            $viewPath = $this->app->make('config')
                 ->get('view.config.view_path', null);
 
             if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
@@ -180,7 +180,7 @@ abstract class ServiceProvider
         $this->app->afterResolving($name, $callback);
 
         if ($this->app->resolved($name)) {
-            $callback($this->app->get($name), $this->app);
+            $callback($this->app->make($name), $this->app);
         }
     }
 
