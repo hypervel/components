@@ -62,6 +62,6 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
      */
     public function giveConfig(string $key, mixed $default = null): static
     {
-        return $this->give(fn ($container) => $container->get('config')->get($key, $default));
+        return $this->give(fn ($container) => $container->make('config')->get($key, $default));
     }
 }
