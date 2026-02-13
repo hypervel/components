@@ -15,7 +15,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 DispatcherContract::class => DispatcherFactory::class,
-                BatchRepository::class => fn (Container $container) => $container->get(DatabaseBatchRepository::class),
+                BatchRepository::class => fn (Container $container) => $container->make(DatabaseBatchRepository::class),
                 DatabaseBatchRepository::class => DatabaseBatchRepositoryFactory::class,
             ],
         ];

@@ -155,7 +155,7 @@ class Dispatcher implements QueueingDispatcher
     public function getCommandHandler(mixed $command): mixed
     {
         if ($this->hasCommandHandler($command)) {
-            return $this->container->get($this->handlers[get_class($command)]);
+            return $this->container->make($this->handlers[get_class($command)]);
         }
 
         return false;

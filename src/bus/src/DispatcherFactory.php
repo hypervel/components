@@ -13,7 +13,7 @@ class DispatcherFactory
     {
         return new Dispatcher(
             $container,
-            fn (?string $connection = null) => $container->get(QueueFactoryContract::class)->connection($connection)
+            fn (?string $connection = null) => $container->make(QueueFactoryContract::class)->connection($connection)
         );
     }
 }

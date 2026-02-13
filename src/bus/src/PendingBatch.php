@@ -244,7 +244,7 @@ class PendingBatch
      */
     public function dispatch(): Batch
     {
-        $repository = $this->container->get(BatchRepository::class);
+        $repository = $this->container->make(BatchRepository::class);
 
         try {
             $batch = $this->store($repository);
@@ -258,7 +258,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(Dispatcher::class)
+        $this->container->make(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );
@@ -271,7 +271,7 @@ class PendingBatch
      */
     public function dispatchAfterResponse(): Batch
     {
-        $repository = $this->container->get(BatchRepository::class);
+        $repository = $this->container->make(BatchRepository::class);
 
         $batch = $this->store($repository);
 
@@ -295,7 +295,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(Dispatcher::class)
+        $this->container->make(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );

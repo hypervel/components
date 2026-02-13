@@ -75,7 +75,7 @@ class BusDispatcherTest extends TestCase
     public function testDispatcherCanDispatchStandAloneHandler()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(StandAloneHandler::class)
             ->once()
             ->andReturn(new StandAloneHandler());

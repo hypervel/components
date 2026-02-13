@@ -454,7 +454,7 @@ class BusBatchTest extends TestCase
     {
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
-            $this->app->get(ConnectionResolverInterface::class),
+            $this->app->make(ConnectionResolverInterface::class),
             'job_batches'
         );
 

@@ -11,11 +11,11 @@ class DatabaseBatchRepositoryFactory
 {
     public function __invoke(Container $container): DatabaseBatchRepository
     {
-        $config = $container->get('config');
+        $config = $container->make('config');
 
         return new DatabaseBatchRepository(
-            $container->get(BatchFactory::class),
-            $container->get(ConnectionResolverInterface::class),
+            $container->make(BatchFactory::class),
+            $container->make(ConnectionResolverInterface::class),
             $config->get('queue.batching.table', 'job_batches'),
             $config->get('queue.batching.database')
         );
