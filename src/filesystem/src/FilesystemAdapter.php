@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
@@ -241,9 +241,9 @@ class FilesystemAdapter implements CloudFilesystemContract
      */
     public function response(string $path, ?string $name = null, array $headers = [], ?string $disposition = 'inline'): ResponseInterface
     {
-        $container = ApplicationContext::getContainer();
-        $request = $container->get(RequestContract::class);
-        $response = $container->get(ResponseContract::class);
+        $container = Container::getInstance();
+        $request = $container->make(RequestContract::class);
+        $response = $container->make(ResponseContract::class);
 
         $headers['Content-Type'] ??= $this->mimeType($path);
         $fileSize = $this->size($path);

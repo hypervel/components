@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Filesystem;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
@@ -201,7 +200,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = (new FilesystemManager($container))
             ->addPoolable('local');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
     }
