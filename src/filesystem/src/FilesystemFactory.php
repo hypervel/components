@@ -12,7 +12,7 @@ class FilesystemFactory
 {
     public function __invoke(Container $container): FilesystemContract
     {
-        return $container->get(FactoryContract::class)
+        return $container->make(FactoryContract::class)
             ->disk();
     }
 }
