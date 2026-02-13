@@ -20,7 +20,7 @@ class DatabaseEngineTest extends ScoutTestCase
         parent::setUp();
 
         // Set driver to database for these tests
-        $this->app->get('config')->set('scout.driver', 'database');
+        $this->app->make('config')->set('scout.driver', 'database');
     }
 
     public function testSearchReturnsMatchingModels(): void

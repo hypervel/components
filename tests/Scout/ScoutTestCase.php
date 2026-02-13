@@ -28,7 +28,7 @@ class ScoutTestCase extends TestCase
 
         $this->app->register(ScoutServiceProvider::class);
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('scout', [
                 'driver' => 'collection',
                 'prefix' => '',

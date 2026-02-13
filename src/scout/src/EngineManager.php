@@ -93,7 +93,7 @@ class EngineManager
         $this->ensureMeilisearchClientIsInstalled();
 
         return new MeilisearchEngine(
-            $this->container->get(MeilisearchClient::class),
+            $this->container->make(MeilisearchClient::class),
             $this->getConfig('soft_delete', false)
         );
     }
@@ -124,7 +124,7 @@ class EngineManager
         $this->ensureTypesenseClientIsInstalled();
 
         return new TypesenseEngine(
-            $this->container->get(TypesenseClient::class),
+            $this->container->make(TypesenseClient::class),
             (int) $this->getConfig('typesense.max_total_results', 1000)
         );
     }
@@ -216,6 +216,6 @@ class EngineManager
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return $this->container->get('config')->get("scout.{$key}", $default);
+        return $this->container->make('config')->get("scout.{$key}", $default);
     }
 }

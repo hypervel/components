@@ -61,7 +61,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
@@ -79,7 +79,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
@@ -107,7 +107,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $typesenseClient = m::mock(TypesenseClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(TypesenseClient::class)
             ->andReturn($typesenseClient);
 
@@ -286,7 +286,7 @@ class EngineManagerTest extends TestCase
             ->with('scout.soft_delete', m::any())
             ->andReturn($config['soft_delete'] ?? false);
 
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('config')
             ->andReturn($configService);
 
@@ -308,7 +308,7 @@ class EngineManagerTest extends TestCase
             ->with('scout.typesense.max_total_results', m::any())
             ->andReturn($config['max_total_results'] ?? 1000);
 
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('config')
             ->andReturn($configService);
 

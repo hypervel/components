@@ -22,7 +22,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema via config
-        $this->app->get('config')->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->make('config')->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -36,7 +36,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Clear cached engines to pick up new config
-        $this->app->get(EngineManager::class)->forgetEngines();
+        $this->app->make(EngineManager::class)->forgetEngines();
 
         // Create a model - this should use the config-based schema
         $model = ConfigBasedTypesenseModel::create(['title' => 'Test Title', 'body' => 'Test Body']);
@@ -56,7 +56,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure with specific query_by that only searches title
-        $this->app->get('config')->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->make('config')->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -70,7 +70,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Clear cached engines
-        $this->app->get(EngineManager::class)->forgetEngines();
+        $this->app->make(EngineManager::class)->forgetEngines();
 
         // Create models
         $model1 = ConfigBasedTypesenseModel::create(['title' => 'Unique Word', 'body' => 'Common']);
@@ -91,7 +91,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema
-        $this->app->get('config')->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->make('config')->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -105,11 +105,11 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Set max_total_results to a low value
-        $this->app->get('config')->set('scout.typesense.max_total_results', 3);
+        $this->app->make('config')->set('scout.typesense.max_total_results', 3);
 
         // Clear cached engines to pick up new config
-        $this->app->get(EngineManager::class)->forgetEngines();
-        $this->engine = $this->app->get(EngineManager::class)->engine('typesense');
+        $this->app->make(EngineManager::class)->forgetEngines();
+        $this->engine = $this->app->make(EngineManager::class)->engine('typesense');
 
         // Create 5 models
         for ($i = 1; $i <= 5; ++$i) {
@@ -143,7 +143,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema
-        $this->app->get('config')->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->make('config')->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -157,10 +157,10 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Set import_action to 'upsert' (default) - allows insert and update
-        $this->app->get('config')->set('scout.typesense.import_action', 'upsert');
+        $this->app->make('config')->set('scout.typesense.import_action', 'upsert');
 
         // Clear cached engines
-        $this->app->get(EngineManager::class)->forgetEngines();
+        $this->app->make(EngineManager::class)->forgetEngines();
 
         // Create and index a model
         $model = ConfigBasedTypesenseModel::create(['title' => 'Original Title', 'body' => 'Content']);

@@ -44,13 +44,13 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
         $this->registerScoutCommands();
 
         // Clear cached engines so they're recreated with our test config
-        $this->app->get(EngineManager::class)->forgetEngines();
+        $this->app->make(EngineManager::class)->forgetEngines();
     }
 
     protected function setUpInCoroutine(): void
     {
         $this->initializeMeilisearch();
-        $this->engine = $this->app->get(EngineManager::class)->engine('meilisearch');
+        $this->engine = $this->app->make(EngineManager::class)->engine('meilisearch');
     }
 
     protected function tearDownInCoroutine(): void

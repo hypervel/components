@@ -36,7 +36,7 @@ class ConfigTest extends ScoutTestCase
         $this->resetScoutRunner();
 
         // Set a specific concurrency value
-        $this->app->get('config')->set('scout.command_concurrency', 25);
+        $this->app->make('config')->set('scout.command_concurrency', 25);
 
         // Define SCOUT_COMMAND to trigger the command path
         if (! defined('SCOUT_COMMAND')) {
@@ -69,7 +69,7 @@ class ConfigTest extends ScoutTestCase
     public function testChunkSearchableConfigAffectsImportEvents(): void
     {
         // Set a small chunk size to verify multiple events are fired
-        $this->app->get('config')->set('scout.chunk.searchable', 2);
+        $this->app->make('config')->set('scout.chunk.searchable', 2);
 
         // Create 5 models
         for ($i = 1; $i <= 5; ++$i) {
@@ -94,7 +94,7 @@ class ConfigTest extends ScoutTestCase
     public function testChunkUnsearchableConfigAffectsFlushEvents(): void
     {
         // Set a small chunk size
-        $this->app->get('config')->set('scout.chunk.unsearchable', 2);
+        $this->app->make('config')->set('scout.chunk.unsearchable', 2);
 
         // Create 5 models
         for ($i = 1; $i <= 5; ++$i) {

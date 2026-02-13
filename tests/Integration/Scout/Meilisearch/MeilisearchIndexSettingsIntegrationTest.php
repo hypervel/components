@@ -23,7 +23,7 @@ class MeilisearchIndexSettingsIntegrationTest extends MeilisearchScoutIntegratio
         $this->meilisearch->waitForTask($task['taskUid']);
 
         // Configure index settings via Scout config
-        $this->app->get('config')->set('scout.meilisearch.index-settings', [
+        $this->app->make('config')->set('scout.meilisearch.index-settings', [
             SearchableModel::class => [
                 'filterableAttributes' => ['title', 'body'],
                 'sortableAttributes' => ['id', 'title'],
@@ -58,7 +58,7 @@ class MeilisearchIndexSettingsIntegrationTest extends MeilisearchScoutIntegratio
         $this->meilisearch->waitForTask($task['taskUid']);
 
         // Configure index settings using plain index name (with prefix)
-        $this->app->get('config')->set('scout.meilisearch.index-settings', [
+        $this->app->make('config')->set('scout.meilisearch.index-settings', [
             $indexName => [
                 'filterableAttributes' => ['status'],
                 'sortableAttributes' => ['created_at'],
@@ -82,7 +82,7 @@ class MeilisearchIndexSettingsIntegrationTest extends MeilisearchScoutIntegratio
     public function testSyncIndexSettingsCommandReportsNoSettingsWhenEmpty(): void
     {
         // Ensure no index settings are configured
-        $this->app->get('config')->set('scout.meilisearch.index-settings', []);
+        $this->app->make('config')->set('scout.meilisearch.index-settings', []);
 
         // Run the sync command
         $this->artisan('scout:sync-index-settings')

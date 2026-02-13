@@ -20,7 +20,7 @@ class TypesenseSoftDeleteIntegrationTest extends TypesenseScoutIntegrationTestCa
         parent::setUp();
 
         // Enable soft delete support in Scout
-        $this->app->get('config')->set('scout.soft_delete', true);
+        $this->app->make('config')->set('scout.soft_delete', true);
     }
 
     public function testDefaultSearchExcludesSoftDeletedModels(): void

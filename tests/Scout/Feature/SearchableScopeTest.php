@@ -24,7 +24,7 @@ class SearchableScopeTest extends ScoutTestCase
         parent::setUp();
 
         // Use collection driver to avoid external service calls
-        $this->app->get('config')->set('scout.driver', 'collection');
+        $this->app->make('config')->set('scout.driver', 'collection');
     }
 
     public function testSearchableMacroDispatchesModelsImportedEvent(): void

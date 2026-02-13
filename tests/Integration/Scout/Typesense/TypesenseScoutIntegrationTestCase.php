@@ -43,13 +43,13 @@ abstract class TypesenseScoutIntegrationTestCase extends TypesenseIntegrationTes
         $this->registerScoutCommands();
 
         // Clear cached engines so they're recreated with our test config
-        $this->app->get(EngineManager::class)->forgetEngines();
+        $this->app->make(EngineManager::class)->forgetEngines();
     }
 
     protected function setUpInCoroutine(): void
     {
         $this->initializeTypesense();
-        $this->engine = $this->app->get(EngineManager::class)->engine('typesense');
+        $this->engine = $this->app->make(EngineManager::class)->engine('typesense');
     }
 
     protected function tearDownInCoroutine(): void
