@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
@@ -274,8 +274,8 @@ class Redis
      */
     public function connection(UnitEnum|string $name = 'default'): RedisProxy
     {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
+        return Container::getInstance()
+            ->make(RedisFactory::class)
             ->get(enum_value($name));
     }
 

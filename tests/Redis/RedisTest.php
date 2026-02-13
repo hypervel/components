@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Exception;
 use Hyperf\Pool\PoolOption;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Engine\Channel;
@@ -609,13 +609,9 @@ class RedisTest extends TestCase
             ->with('cache')
             ->andReturn($proxy);
 
-        $container = m::mock(\Hypervel\Contracts\Container\Container::class);
-        $container->shouldReceive('get')
-            ->with(RedisFactory::class)
-            ->once()
-            ->andReturn($factory);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(RedisFactory::class, $factory);
+        Container::setInstance($container);
 
         $redis = $this->createRedis($this->mockConnection());
 
