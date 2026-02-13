@@ -178,7 +178,7 @@ abstract class RedisCacheTestCase extends TestCase
      * Register a RedisFactory mock in the container.
      *
      * This sets up the mock that StoreContext::withConnection() uses to get
-     * connections via ApplicationContext::getContainer().
+     * connections via Container::getInstance().
      */
     protected function registerRedisFactoryMock(
         RedisConnection $connection,
