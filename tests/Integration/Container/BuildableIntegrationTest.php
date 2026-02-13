@@ -40,6 +40,7 @@ class BuildableIntegrationTest extends TestCase
 
         try {
             $this->app->make(AolInstantMessengerConfig::class);
+            $this->fail('Expected ValidationException to be thrown');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('away_message.duration', $exception->errors());
             $this->assertStringContainsString('60', $exception->errors()['away_message.duration'][0]);

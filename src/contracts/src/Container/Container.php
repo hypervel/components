@@ -131,6 +131,16 @@ interface Container extends ContainerInterface
     public function make(string $abstract, array $parameters = []): mixed;
 
     /**
+     * Instantiate a concrete instance of the given type.
+     *
+     * Unlike make(), this always creates a fresh instance — it bypasses
+     * bindings, aliases, and singleton/auto-singleton caching.
+     *
+     * @throws BindingResolutionException
+     */
+    public function build(Closure|string $concrete): mixed;
+
+    /**
      * Call the given Closure / class@method and inject its dependencies.
      */
     public function call(callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed;

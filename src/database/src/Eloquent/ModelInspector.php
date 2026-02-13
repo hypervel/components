@@ -57,8 +57,10 @@ class ModelInspector
     {
         $class = $this->qualifyModel($model);
 
+        // build() instead of make() — this is a throwaway instance for inspection,
+        // and setConnection() below mutates it, which would pollute a shared singleton.
         /** @var \Hypervel\Database\Eloquent\Model $model */
-        $model = $this->app->make($class);
+        $model = $this->app->build($class);
 
         if ($connection !== null) {
             $model->setConnection($connection);

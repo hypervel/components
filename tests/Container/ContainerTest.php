@@ -1111,6 +1111,108 @@ class ContainerTest extends TestCase
 
         $container->make(ContextualCircularA::class);
     }
+
+    // --- Auto-singleton behavior tests ---
+
+    public function testAutoSingletonCachesUnboundConcreteClass()
+    {
+        $container = new Container();
+
+        $first = $container->make(AutoSingletonStub::class);
+        $second = $container->make(AutoSingletonStub::class);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testAutoSingletonSkippedWhenParametersProvided()
+    {
+        $container = new Container();
+
+        $first = $container->make(AutoSingletonWithParamStub::class, ['value' => 'a']);
+        $second = $container->make(AutoSingletonWithParamStub::class, ['value' => 'b']);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame('a', $first->value);
+        $this->assertSame('b', $second->value);
+    }
+
+    public function testAutoSingletonSkippedWhenExplicitlyBound()
+    {
+        $container = new Container();
+        $container->bind(AutoSingletonStub::class);
+
+        $first = $container->make(AutoSingletonStub::class);
+        $second = $container->make(AutoSingletonStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testForgetInstanceClearsAutoSingleton()
+    {
+        $container = new Container();
+
+        $first = $container->make(AutoSingletonStub::class);
+        $container->forgetInstance(AutoSingletonStub::class);
+        $second = $container->make(AutoSingletonStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testForgetInstancesClearsAutoSingletons()
+    {
+        $container = new Container();
+
+        $first = $container->make(AutoSingletonStub::class);
+        $container->forgetInstances();
+        $second = $container->make(AutoSingletonStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testFlushClearsAutoSingletons()
+    {
+        $container = new Container();
+
+        $first = $container->make(AutoSingletonStub::class);
+        $container->flush();
+        $second = $container->make(AutoSingletonStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testSelfBuildingClassIsNotAutoSingletoned()
+    {
+        $container = new Container();
+        $_SERVER['__selfBuilding.counter'] = 1;
+
+        $first = $container->make(SelfBuildingCounterStub::class);
+        $this->assertSame(1, $first->value);
+
+        $_SERVER['__selfBuilding.counter'] = 2;
+
+        $second = $container->make(SelfBuildingCounterStub::class);
+        $this->assertSame(2, $second->value);
+        $this->assertNotSame($first, $second);
+
+        unset($_SERVER['__selfBuilding.counter']);
+    }
+
+    public function testSelfBuildingClassCanBeExplicitlySingletoned()
+    {
+        $container = new Container();
+        $_SERVER['__selfBuilding.counter'] = 1;
+
+        $container->singleton(SelfBuildingCounterStub::class);
+
+        $first = $container->make(SelfBuildingCounterStub::class);
+        $_SERVER['__selfBuilding.counter'] = 2;
+        $second = $container->make(SelfBuildingCounterStub::class);
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, $second->value);
+
+        unset($_SERVER['__selfBuilding.counter']);
+    }
 }
 
 class CircularAStub
@@ -1451,4 +1553,29 @@ class ContainerInheritedConstructorParentStub
 
 class ContainerInheritedConstructorChildStub extends ContainerInheritedConstructorParentStub
 {
+}
+
+class AutoSingletonStub
+{
+}
+
+class AutoSingletonWithParamStub
+{
+    public function __construct(
+        public readonly string $value,
+    ) {
+    }
+}
+
+class SelfBuildingCounterStub implements SelfBuilding
+{
+    public function __construct(
+        public readonly int $value,
+    ) {
+    }
+
+    public static function newInstance(): self
+    {
+        return new self($_SERVER['__selfBuilding.counter']);
+    }
 }

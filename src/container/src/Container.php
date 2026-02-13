@@ -974,14 +974,22 @@ class Container implements ArrayAccess, ContainerContract
                     } else {
                         $this->instances[$abstract] = $object;
                     }
-                } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)) {
+                } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
+                    && ! is_a($concrete, SelfBuilding::class, true)
+                ) {
                     // Auto-singleton: unbound concrete classes are cached for Swoole performance.
                     // In Swoole's long-running process model, services are stateless singletons
                     // by design. Re-creating them on every resolution wastes CPU and memory.
+                    //
                     // Explicit bind() overrides this — bound classes follow their binding type.
+                    // SelfBuilding classes are excluded — they control their own construction
+                    // via newInstance() and typically read runtime state (config, request data)
+                    // that may change between resolutions. Use explicit singleton() to opt in.
+                    //
                     // Skipped when raiseEvents is false (internal binding resolution via getClosure)
                     // so that concretes resolved as part of scoped/singleton bindings don't get
                     // independently cached, which would break forgetScopedInstances().
+                    //
                     // Stored in $autoSingletons (not $instances) so bound() doesn't report
                     // these as explicitly registered, preserving resolveClass() default values.
                     $this->autoSingletons[$abstract] = $object;

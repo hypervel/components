@@ -114,7 +114,9 @@ abstract class Seeder
     protected function resolve(string $class): Seeder
     {
         if (isset($this->container)) {
-            $instance = $this->container->make($class);
+            // build() instead of make() — seeders must be fresh instances,
+            // not auto-singletoned, since they carry mutable per-run state.
+            $instance = $this->container->build($class);
 
             $instance->setContainer($this->container);
         } else {
