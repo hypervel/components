@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
@@ -288,7 +288,7 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
             return $this->fail($validator->messages()->all());
         }
 
-        if ($this->uncompromised && ! ApplicationContext::getContainer()->get(UncompromisedVerifier::class)->verify([
+        if ($this->uncompromised && ! Container::getInstance()->make(UncompromisedVerifier::class)->verify([
             'value' => $value,
             'threshold' => $this->compromisedThreshold,
         ])) {

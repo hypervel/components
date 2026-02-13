@@ -11,7 +11,6 @@ use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -9736,7 +9735,7 @@ class ValidationValidatorTest extends TestCase
     {
         $container = new Container();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

@@ -18,7 +18,7 @@ use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
@@ -796,7 +796,7 @@ trait ValidatesAttributes
             ->values()
             ->all() ?: [new RFCValidation()];
 
-        $emailValidator = ApplicationContext::getContainer()->get(EmailValidator::class);
+        $emailValidator = Container::getInstance()->make(EmailValidator::class);
 
         return $emailValidator->isValid((string) $value, new MultipleValidationWithAnd($validations));
     }
