@@ -6,7 +6,7 @@ namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
 use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -99,8 +99,8 @@ class QueueFailedTableCommand extends GeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get('queue.failed.table', 'failed_jobs');
     }
 }
