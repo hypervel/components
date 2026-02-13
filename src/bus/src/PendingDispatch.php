@@ -6,7 +6,7 @@ namespace Hypervel\Bus;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -136,8 +136,8 @@ class PendingDispatch
             return true;
         }
 
-        $cache = ApplicationContext::getContainer()
-            ->get(CacheFactory::class);
+        $cache = Container::getInstance()
+            ->make(CacheFactory::class);
 
         return (new UniqueLock($cache))
             ->acquire($this->job);
@@ -162,12 +162,12 @@ class PendingDispatch
             return;
         }
         if ($this->afterResponse) {
-            ApplicationContext::getContainer()
-                ->get(Dispatcher::class)
+            Container::getInstance()
+                ->make(Dispatcher::class)
                 ->dispatchAfterResponse($this->job);
         } else {
-            ApplicationContext::getContainer()
-                ->get(Dispatcher::class)
+            Container::getInstance()
+                ->make(Dispatcher::class)
                 ->dispatch($this->job);
         }
     }

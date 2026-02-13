@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Queue\CallQueuedClosure;
 
 trait DispatchesJobs
@@ -27,8 +27,8 @@ trait DispatchesJobs
      */
     public function dispatchSync(mixed $job): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        return Container::getInstance()
+            ->make(Dispatcher::class)
             ->dispatchSync($job);
     }
 }

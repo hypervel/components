@@ -7,7 +7,7 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Traits\Conditionable;
@@ -133,8 +133,8 @@ class PendingChain
         $firstJob->chain($this->chain);
         $firstJob->chainCatchCallbacks = $this->catchCallbacks();
 
-        return ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        return Container::getInstance()
+            ->make(Dispatcher::class)
             ->dispatch($firstJob);
     }
 

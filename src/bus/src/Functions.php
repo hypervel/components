@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 
@@ -29,7 +29,7 @@ function dispatch($job): PendingClosureDispatch|PendingDispatch
  */
 function dispatch_sync(mixed $job, mixed $handler = null): mixed
 {
-    return ApplicationContext::getContainer()
-        ->get(Dispatcher::class)
+    return Container::getInstance()
+        ->make(Dispatcher::class)
         ->dispatchSync($job, $handler);
 }

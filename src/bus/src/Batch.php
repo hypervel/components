@@ -6,7 +6,7 @@ namespace Hypervel\Bus;
 
 use Carbon\CarbonInterface;
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
@@ -317,11 +317,11 @@ class Batch implements Arrayable, JsonSerializable
         try {
             $handler($batch, $e);
         } catch (Throwable $e) {
-            $container = ApplicationContext::getContainer();
+            $container = Container::getInstance();
             if (! $container->has(ExceptionHandlerContract::class)) {
                 return;
             }
-            $container->get(ExceptionHandlerContract::class)->report($e);
+            $container->make(ExceptionHandlerContract::class)->report($e);
         }
     }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +32,7 @@ class BusBatchableTest extends TestCase
 
         $container = new Container();
         $container->instance(BatchRepository::class, $repository);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->assertSame($batch, $class->batch());
     }
