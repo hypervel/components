@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
@@ -57,7 +57,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      */
     public static function resetCachedConnections(): void
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         $currentContainerId = spl_object_id($container);
 
         // If container changed, flush all cached connections since they hold
@@ -85,7 +85,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      * When Event::fake() swaps the dispatcher, this callback updates all
      * cached connections to use the new (fake) dispatcher.
      */
-    protected static function registerDispatcherRebinding(Container $container): void
+    protected static function registerDispatcherRebinding(ContainerContract $container): void
     {
         if (static::$rebindingRegistered) {
             return;

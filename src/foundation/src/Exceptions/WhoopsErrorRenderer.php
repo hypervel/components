@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Session\Session as SessionContract;
@@ -45,9 +45,9 @@ class WhoopsErrorRenderer implements ExceptionRenderer
         $handler->addDataTableCallback('PSR7 File', [$request, 'getUploadedFiles']);
         $handler->addDataTableCallback('PSR7 Attribute', [$request, 'getAttributes']);
 
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         if ($container->has(SessionContract::class)) {
-            $session = $container->get(SessionContract::class);
+            $session = $container->make(SessionContract::class);
             if ($session->isStarted()) {
                 $handler->addDataTableCallback('Laravel Session', [$session, 'all']);
             }

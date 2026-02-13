@@ -9,12 +9,11 @@ use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
@@ -103,7 +102,7 @@ if (! function_exists('base_path')) {
      */
     function base_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -139,7 +138,7 @@ if (! function_exists('database_path')) {
      */
     function database_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'database', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -155,7 +154,7 @@ if (! function_exists('storage_path')) {
      */
     function storage_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'storage', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -171,7 +170,7 @@ if (! function_exists('config_path')) {
      */
     function config_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'config', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -187,7 +186,7 @@ if (! function_exists('resource_path')) {
      */
     function resource_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'resources', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -203,7 +202,7 @@ if (! function_exists('lang_path')) {
      */
     function lang_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'lang', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -219,7 +218,7 @@ if (! function_exists('public_path')) {
      */
     function public_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'public', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -357,26 +356,11 @@ if (! function_exists('app')) {
      */
     function app(?string $abstract = null, array $parameters = [])
     {
-        if (ApplicationContext::hasContainer()) {
-            /** @var Container $container */
-            $container = ApplicationContext::getContainer();
-
-            if (is_null($abstract)) {
-                return $container;
-            }
-
-            if (count($parameters) == 0 && $container->has($abstract)) {
-                return $container->get($abstract);
-            }
-
-            return $container->make($abstract, $parameters);
-        }
-
         if (is_null($abstract)) {
-            throw new InvalidArgumentException('Invalid argument $abstract');
+            return Container::getInstance();
         }
 
-        return new $abstract(...array_values($parameters));
+        return Container::getInstance()->make($abstract, $parameters);
     }
 }
 

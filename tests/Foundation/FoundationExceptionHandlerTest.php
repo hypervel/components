@@ -15,7 +15,7 @@ use Hyperf\View\RenderInterface;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Config\Repository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
@@ -79,7 +79,7 @@ class FoundationExceptionHandlerTest extends TestCase
         ]);
 
         ResponseContext::set(new Psr7Response());
-        ApplicationContext::setContainer($this->container);
+        Container::setInstance($this->container);
         View::shouldReceive('replaceNamespace')->once();
         Context::destroy(SessionInterface::class);
 
