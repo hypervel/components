@@ -251,7 +251,9 @@ This preserves the test's location so future diffs against Hyperf/Laravel show i
 
 #### Directory Structure
 
-Ported Hyperf tests live in `tests/{PackageName}/` (PascalCase). There is no subdirectory — these are the primary tests for the package.
+All tests live in `tests/{PackageName}/` (PascalCase), regardless of whether they originate from Hyperf or Laravel. File names and directory structure should mirror the source (Laravel or Hyperf) for 1:1 mapping — this enables automated porting of upstream PRs.
+
+When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
 
 #### Namespace Changes
 
@@ -321,19 +323,14 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 
 #### Directory Structure
 
-Ported Laravel tests live in `tests/{PackageName}/Laravel/` subdirectories. This separation:
-- Makes it easy to diff against Laravel's test suite to identify missing tests
-- Keeps Hypervel-specific tests separate from compatibility tests
-- Allows running Laravel-ported tests independently
+Laravel tests go in `tests/{PackageName}/` — the same directory as Hyperf-ported tests. File names should mirror Laravel's test layout for 1:1 mapping.
 
-**Also check Laravel's `tests/Integration/{PackageName}/` directory** — that's where Laravel puts integration tests for each package. Those must be ported too, following the same workflow, to our `tests/Integration/{PackageName}/Laravel/` directory (or directly to `tests/Integration/{PackageName}/` if there's no need to separate from Hypervel-specific integration tests).
+**Also check Laravel's `tests/Integration/{PackageName}/` directory** — that's where Laravel puts integration tests for each package. Those go in our `tests/Integration/{PackageName}/`.
 
 #### Namespace Changes
 
-- Change `Illuminate\` to `Hypervel\`
-- **Preserve Laravel's namespace structure** — just swap prefix and add `\Laravel`:
-  - `Illuminate\Tests\Integration\Database` → `Hypervel\Tests\Integration\Database\Laravel`
-  - `Illuminate\Tests\Integration\Database\EloquentFooTest` → `Hypervel\Tests\Integration\Database\Laravel\EloquentFooTest`
+- Change `Illuminate\Tests\{Package}` to `Hypervel\Tests\{Package}`
+- Change all `Illuminate\` source imports to `Hypervel\`
 
 If Laravel's namespace includes the test class name, keep it. Stripping it causes "Cannot redeclare class" errors.
 
@@ -452,13 +449,13 @@ Laravel tests define helper classes (models, stubs) with generic names like `Use
 
 ```php
 // WRONG - shared namespace causes conflicts
-namespace Hypervel\Tests\Integration\Database\Laravel;
+namespace Hypervel\Tests\Integration\Database;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // Conflicts with Comment in other files!
 
 // CORRECT - test-specific namespace isolates classes
-namespace Hypervel\Tests\Integration\Database\Laravel\EloquentDeleteTest;
+namespace Hypervel\Tests\Integration\Database\EloquentDeleteTest;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // No conflict - different namespace
@@ -544,7 +541,7 @@ public function testWorkingVersion()
 
 #### Laravel Quick Checklist
 
-1. Update namespace to `Hypervel\Tests\{Package}\Laravel`
+1. Update namespace to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
 4. Add `@internal` and `@coversNothing` docblock to test classes
@@ -554,7 +551,7 @@ public function testWorkingVersion()
 8. Add type declarations to model properties
 9. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 10. Add `->andReturnSelf()` to chained method mocks
-11. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Laravel\EloquentDeleteTest`)
+11. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
 12. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
 13. Run tests and fix any remaining type errors
 
