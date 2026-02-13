@@ -28,7 +28,7 @@ class EventListCommand extends HyperfCommand
         $eventFilter = $this->input->getOption('event');
         $listenerFilter = $this->input->getOption('listener');
 
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
 
         $this->show($this->handleData($dispatcher, $eventFilter, $listenerFilter), $this->output);
     }

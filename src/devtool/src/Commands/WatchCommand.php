@@ -32,7 +32,7 @@ class WatchCommand extends HyperfCommand
             return;
         }
 
-        $options = $this->container->get('config')->get('watcher', []);
+        $options = $this->container->make('config')->get('watcher', []);
         if (empty($options)
             && file_exists($defaultConfigPath = BASE_PATH . '/vendor/hyperf/watcher/publish/watcher.php')
         ) {

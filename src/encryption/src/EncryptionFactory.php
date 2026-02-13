@@ -13,7 +13,7 @@ class EncryptionFactory
 {
     public function __invoke(Container $container): Encrypter
     {
-        $config = $container->get('config');
+        $config = $container->make('config');
         // Fallback to the encryption config if key is not set in app config.
         $config = ($config->has('app.cipher') && $config->has('app.key'))
             ? $config->get('app')
