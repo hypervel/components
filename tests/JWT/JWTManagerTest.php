@@ -248,7 +248,7 @@ class JWTManagerTest extends TestCase
     {
         $this->blacklist = m::mock(BlacklistContract::class);
 
-        $this->container->shouldReceive('get')->with(BlacklistContract::class)->andReturn($this->blacklist);
+        $this->container->shouldReceive('make')->with(BlacklistContract::class)->andReturn($this->blacklist);
     }
 
     private function createManager(): JWTManager
