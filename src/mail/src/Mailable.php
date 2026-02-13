@@ -9,7 +9,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Factory;
@@ -236,8 +235,8 @@ class Mailable implements MailableContract, Renderable
             $this->prepareMailableForDelivery();
 
             /** @var \Hypervel\Mail\Mailer $mailer */
-            $mailer = ApplicationContext::getContainer()
-                ->get(Mailer::class);
+            $mailer = Container::getInstance()
+                ->make(Mailer::class);
 
             return $mailer->render(
                 $this->buildView(),
@@ -429,7 +428,7 @@ class Mailable implements MailableContract, Renderable
     {
         foreach ($this->diskAttachments as $attachment) {
             /** @var \Hypervel\Filesystem\FilesystemAdapter $storage */
-            $storage = ApplicationContext::getContainer()->get(
+            $storage = Container::getInstance()->make(
                 FilesystemFactory::class
             )->disk($attachment['disk']);
 
@@ -1310,8 +1309,8 @@ class Mailable implements MailableContract, Renderable
             $this->prepareMailableForDelivery();
 
             /** @var \Hypervel\Mail\Mailer $mailer */
-            $mailer = ApplicationContext::getContainer()
-                ->get(Mailer::class);
+            $mailer = Container::getInstance()
+                ->make(Mailer::class);
 
             $html = $mailer->render(
                 $view = $this->buildView(),
@@ -1341,7 +1340,7 @@ class Mailable implements MailableContract, Renderable
     protected function prepareMailableForDelivery(): void
     {
         if (method_exists($this, 'build')) {
-            ApplicationContext::getContainer()->call([$this, 'build']);
+            Container::getInstance()->call([$this, 'build']);
         }
 
         $this->ensureHeadersAreHydrated();

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Notifications\Messages\MailMessage;
@@ -80,7 +80,7 @@ class Attachment
 
     protected static function getStorageDisk(?string $disk): Filesystem
     {
-        return ApplicationContext::getContainer()->get(
+        return Container::getInstance()->make(
             FilesystemFactory::class
         )->disk($disk);
     }
