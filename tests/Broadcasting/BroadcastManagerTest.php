@@ -78,7 +78,7 @@ class BroadcastManagerTest extends TestCase
         $config->shouldReceive('get')->with('broadcasting.connections.alien_connection')->andReturn(null);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('get')->with('config')->andReturn($config);
+        $app->shouldReceive('make')->with('config')->andReturn($config);
 
         $broadcastManager = new BroadcastManager($app);
 
@@ -109,8 +109,8 @@ class BroadcastManagerTest extends TestCase
 
         $app = m::mock(Container::class);
         $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
-        $app->shouldReceive('get')->with('config')->andReturn($config);
-        $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+        $app->shouldReceive('make')->with('config')->andReturn($config);
+        $app->shouldReceive('make')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->routes();
@@ -136,7 +136,7 @@ class BroadcastManagerTest extends TestCase
             ->andReturn($router);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+        $app->shouldReceive('make')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->userRoutes();

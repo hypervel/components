@@ -233,7 +233,7 @@ abstract class Broadcaster implements BroadcasterContract
     protected function normalizeChannelHandlerToCallable($callback)
     {
         return is_callable($callback) ? $callback : function (...$args) use ($callback) {
-            return $this->container->get($callback)->join(...$args);
+            return $this->container->make($callback)->join(...$args);
         };
     }
 
@@ -245,7 +245,7 @@ abstract class Broadcaster implements BroadcasterContract
         $options = $this->retrieveChannelOptions($channel);
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
 
         if (is_null($guards)) {
             return $auth->user();

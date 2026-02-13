@@ -184,7 +184,7 @@ class BroadcasterTest extends TestCase
             ->withNoArgs()
             ->andReturn(new DummyUser());
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->once()
             ->with(AuthManager::class)
             ->andReturn($authManager);
@@ -211,7 +211,7 @@ class BroadcasterTest extends TestCase
             ->with('myguard')
             ->andReturn($guard);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->once()
             ->with(AuthManager::class)
             ->andReturn($authManager);
@@ -249,7 +249,7 @@ class BroadcasterTest extends TestCase
         $authManager->shouldNotReceive('guard')
             ->withNoArgs();
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->twice()
             ->with(AuthManager::class)
             ->andReturn($authManager);
@@ -282,7 +282,7 @@ class BroadcasterTest extends TestCase
         $authManager->shouldNotReceive('guard')
             ->withNoArgs();
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->once()
             ->with(AuthManager::class)
             ->andReturn($authManager);
@@ -311,7 +311,7 @@ class BroadcasterTest extends TestCase
         $authManager->shouldNotReceive('guard')
             ->withNoArgs();
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->once()
             ->with(AuthManager::class)
             ->andReturn($authManager);

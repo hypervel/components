@@ -11,7 +11,7 @@ class UserResolver
 {
     public function __invoke(Container $container): Closure
     {
-        return $container->get(AuthManager::class)
+        return $container->make(AuthManager::class)
             ->userResolver();
     }
 }

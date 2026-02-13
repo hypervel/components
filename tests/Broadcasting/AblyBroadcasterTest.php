@@ -128,7 +128,7 @@ class AblyBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn($user);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 
@@ -143,7 +143,7 @@ class AblyBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn(null);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 

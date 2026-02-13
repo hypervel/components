@@ -51,7 +51,7 @@ class AuthManager implements AuthFactoryContract
     public function __construct(
         protected Container $app
     ) {
-        $this->config = $this->app->get('config');
+        $this->config = $this->app->make('config');
         $this->userResolver = function ($guard = null) {
             return $this->guard($guard)->user();
         };
@@ -109,7 +109,7 @@ class AuthManager implements AuthFactoryContract
         return new SessionGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(SessionContract::class)
+            $this->app->make(SessionContract::class)
         );
     }
 
@@ -121,8 +121,8 @@ class AuthManager implements AuthFactoryContract
         return new JwtGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(JWTManager::class),
-            $this->app->get(RequestInterface::class),
+            $this->app->make(JWTManager::class),
+            $this->app->make(RequestInterface::class),
             (int) $this->config->get('jwt.ttl', 120)
         );
     }

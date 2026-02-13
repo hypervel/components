@@ -11,7 +11,7 @@ class GateFactory
 {
     public function __invoke(Container $container)
     {
-        $userResolver = $container->get(AuthManager::class)->userResolver();
+        $userResolver = $container->make(AuthManager::class)->userResolver();
 
         return new Gate($container, $userResolver);
     }

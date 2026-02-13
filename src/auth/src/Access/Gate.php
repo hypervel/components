@@ -454,7 +454,7 @@ class Gate implements GateContract
             return;
         }
 
-        $this->container->get(Dispatcher::class)->dispatch(
+        $this->container->make(Dispatcher::class)->dispatch(
             new GateEvaluated($user, $ability, $result, $arguments)
         );
     }
