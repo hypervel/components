@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Exception\InvalidArgumentException;
 use Hypervel\Engine\Channel;
@@ -102,14 +102,10 @@ class Concurrent
      */
     protected function reportException(Throwable $throwable): void
     {
-        if (! ApplicationContext::hasContainer()) {
-            return;
-        }
-
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         if ($container->has(ExceptionHandlerContract::class)) {
-            $container->get(ExceptionHandlerContract::class)
+            $container->make(ExceptionHandlerContract::class)
                 ->report($throwable);
         }
     }

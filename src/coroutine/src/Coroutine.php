@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Engine\Coroutine as Co;
@@ -186,14 +186,14 @@ class Coroutine
      */
     protected static function printLog(Throwable $throwable): void
     {
-        if (! ApplicationContext::hasContainer() || ! static::$enableReportException) {
+        if (! static::$enableReportException) {
             return;
         }
 
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         if ($container->has(ExceptionHandlerContract::class)) {
-            $container->get(ExceptionHandlerContract::class)
+            $container->make(ExceptionHandlerContract::class)
                 ->report($throwable);
         }
     }

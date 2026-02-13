@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Exception;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
@@ -79,9 +78,6 @@ class ConcurrentTest extends TestCase
 
     protected function getContainer(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
-
-        ApplicationContext::setContainer($container);
+        Container::setInstance(new Container());
     }
 }

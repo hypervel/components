@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Coroutine;
 
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exception\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
@@ -29,9 +28,9 @@ class WaiterTest extends TestCase
     {
         parent::setUp();
 
-        $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
-        $container->shouldReceive('get')->with(Waiter::class)->andReturn(new Waiter());
+        $container = new Container();
+        $container->instance(Waiter::class, new Waiter());
+        Container::setInstance($container);
     }
 
     public function testWait()

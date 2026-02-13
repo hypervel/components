@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Exception;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
@@ -59,13 +58,12 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineAndDeferWithException()
     {
-        $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
 
         $exception = new Exception();
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(ExceptionHandlerContract::class)
-            ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
         $handler->shouldReceive('report')->with($exception)->twice();
 
         $chan = new Channel(1);
@@ -143,11 +141,10 @@ class CoroutineTest extends TestCase
 
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
     {
-        $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('get')->with(ExceptionHandlerContract::class)
-            ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
+        $container = new Container();
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
         $handler->shouldReceive('report')->once();
 
         $secondCallbackRan = false;

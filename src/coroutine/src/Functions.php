@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use RuntimeException;
 use Swoole\Runtime;
 
@@ -30,11 +30,9 @@ function parallel(array $callables, int $concurrent = 0): array
  */
 function wait(Closure $closure, ?float $timeout = null)
 {
-    if (ApplicationContext::hasContainer()) {
-        $waiter = ApplicationContext::getContainer()->get(Waiter::class);
-        return $waiter->wait($closure, $timeout);
-    }
-    return (new Waiter())->wait($closure, $timeout);
+    return Container::getInstance()
+        ->make(Waiter::class)
+        ->wait($closure, $timeout);
 }
 
 function co(callable $callable): bool|int
