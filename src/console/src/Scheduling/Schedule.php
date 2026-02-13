@@ -13,7 +13,6 @@ use Hypervel\Console\Contracts\CacheAware;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\BindingResolutionException;
@@ -109,15 +108,15 @@ class Schedule
             );
         }
 
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         $this->eventMutex = $container->bound(EventMutex::class)
-            ? $container->get(EventMutex::class)
-            : $container->get(CacheEventMutex::class);
+            ? $container->make(EventMutex::class)
+            : $container->make(CacheEventMutex::class);
 
         $this->schedulingMutex = $container->bound(SchedulingMutex::class)
-            ? $container->get(SchedulingMutex::class)
-            : $container->get(CacheSchedulingMutex::class);
+            ? $container->make(SchedulingMutex::class)
+            : $container->make(CacheSchedulingMutex::class);
     }
 
     /**
@@ -143,7 +142,7 @@ class Schedule
     public function command(string $command, array $parameters = []): Event
     {
         if (class_exists($command)) {
-            $command = ApplicationContext::getContainer()->get($command);
+            $command = Container::getInstance()->make($command);
 
             return $this->exec(
                 $command->getName(),
@@ -176,7 +175,7 @@ class Schedule
 
         /* @phpstan-ignore-next-line */
         return $this->name($jobName)->call(function () use ($job, $queue, $connection) {
-            $job = is_string($job) ? ApplicationContext::getContainer()->get($job) : $job;
+            $job = is_string($job) ? Container::getInstance()->make($job) : $job;
 
             if ($job instanceof ShouldQueue) {
                 $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
@@ -220,11 +219,11 @@ class Schedule
      */
     protected function dispatchUniqueJobToQueue(object $job, ?string $queue, ?string $connection): void
     {
-        if (! ApplicationContext::getContainer()->has(CacheFactory::class)) {
+        if (! Container::getInstance()->has(CacheFactory::class)) {
             throw new RuntimeException('Cache driver not available. Scheduling unique jobs not supported.');
         }
 
-        $cache = ApplicationContext::getContainer()->get(CacheFactory::class);
+        $cache = Container::getInstance()->make(CacheFactory::class);
         if (! (new UniqueLock($cache))->acquire($job)) {
             return;
         }
@@ -391,7 +390,7 @@ class Schedule
     {
         if ($this->dispatcher === null) {
             try {
-                $this->dispatcher = ApplicationContext::getContainer()->get(Dispatcher::class);
+                $this->dispatcher = Container::getInstance()->make(Dispatcher::class);
             } catch (BindingResolutionException $e) {
                 throw new RuntimeException(
                     'Unable to resolve the dispatcher from the service container. Please bind it or install the hypervel/bus package.',

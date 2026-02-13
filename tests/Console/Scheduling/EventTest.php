@@ -7,10 +7,9 @@ namespace Hypervel\Tests\Console\Scheduling;
 use DateTimeZone;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -51,9 +50,8 @@ class EventTest extends TestCase
     {
         parent::setUp();
 
-        ApplicationContext::setContainer(
-            $this->container = $this->getApplication()
-        );
+        $this->container = $this->getApplication();
+        Container::setInstance($this->container);
     }
 
     protected function tearDown(): void

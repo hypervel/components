@@ -12,7 +12,7 @@ use Hyperf\Command\Event\AfterHandle;
 use Hyperf\Command\Event\BeforeHandle;
 use Hyperf\Command\Event\FailToHandle;
 use Hypervel\Console\Contracts\CommandMutex;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -47,7 +47,7 @@ abstract class Command extends HyperfCommand
         parent::__construct($name);
 
         /** @var ApplicationContract $app */
-        $app = ApplicationContext::getContainer();
+        $app = Container::getInstance();
         $this->app = $app;
 
         if ($this instanceof Isolatable) {

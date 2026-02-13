@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 use function Hyperf\Support\value;
@@ -44,8 +44,8 @@ trait ConfirmableTrait
 
     protected function isShouldConfirm(): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(ApplicationContract::class)
+        return Container::getInstance()
+            ->make(ApplicationContract::class)
             ->isProduction();
     }
 }
