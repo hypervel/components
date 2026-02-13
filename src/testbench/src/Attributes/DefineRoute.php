@@ -28,7 +28,7 @@ final class DefineRoute implements Actionable
      */
     public function handle(ApplicationContract $app, Closure $action): mixed
     {
-        $router = $app->get(Router::class);
+        $router = $app->make(Router::class);
 
         \call_user_func($action, $this->method, [$router]);
 

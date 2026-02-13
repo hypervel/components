@@ -27,7 +27,7 @@ class TestCaseTest extends TestCase
         parent::defineEnvironment($app);
 
         $this->defineEnvironmentCalled = true;
-        $app->get('config')->set('testing.define_environment', 'called');
+        $app->make('config')->set('testing.define_environment', 'called');
     }
 
     public function testTestCaseUsesCreatesApplicationTrait(): void
@@ -68,20 +68,20 @@ class TestCaseTest extends TestCase
     public function testDefineEnvironmentIsCalled(): void
     {
         $this->assertTrue($this->defineEnvironmentCalled);
-        $this->assertSame('called', $this->app->get('config')->get('testing.define_environment'));
+        $this->assertSame('called', $this->app->make('config')->get('testing.define_environment'));
     }
 
     public function testClassLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at class level should be applied
-        $this->assertSame('class_level', $this->app->get('config')->get('testing.testcase_class'));
+        $this->assertSame('class_level', $this->app->make('config')->get('testing.testcase_class'));
     }
 
     #[WithConfig('testing.method_attribute', 'method_level')]
     public function testMethodLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at method level should be applied
-        $this->assertSame('method_level', $this->app->get('config')->get('testing.method_attribute'));
+        $this->assertSame('method_level', $this->app->make('config')->get('testing.method_attribute'));
     }
 
     public function testReloadApplicationMethodExists(): void

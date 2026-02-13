@@ -25,7 +25,7 @@ final class WithConfig implements Invokable
      */
     public function __invoke(ApplicationContract $app): mixed
     {
-        $app->get('config')->set($this->key, $this->value);
+        $app->make('config')->set($this->key, $this->value);
 
         return null;
     }

@@ -34,7 +34,7 @@ trait HandlesRoutes
      */
     protected function setUpApplicationRoutes(ApplicationContract $app): void
     {
-        $router = $app->get(Router::class);
+        $router = $app->make(Router::class);
 
         $this->defineRoutes($router);
 

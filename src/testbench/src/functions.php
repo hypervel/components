@@ -26,7 +26,7 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
     $app->afterResolving($name, $callback);
 
     if ($app->resolved($name)) {
-        value($callback, $app->get($name), $app);
+        value($callback, $app->make($name), $app);
     }
 }
 

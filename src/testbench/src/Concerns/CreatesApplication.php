@@ -62,7 +62,7 @@ trait CreatesApplication
             return;
         }
 
-        $config = $app->get('config');
+        $config = $app->make('config');
         $existing = $config->get('app.aliases', []);
         $config->set('app.aliases', array_merge($existing, $aliases));
     }

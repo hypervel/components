@@ -56,7 +56,7 @@ class CreatesApplicationTest extends TestCase
 
     public function testRegisterPackageAliasesAddsToConfig(): void
     {
-        $aliases = $this->app->get('config')->get('app.aliases', []);
+        $aliases = $this->app->make('config')->get('app.aliases', []);
 
         $this->assertArrayHasKey('TestAlias', $aliases);
         $this->assertSame(TestFacade::class, $aliases['TestAlias']);
