@@ -81,7 +81,7 @@ class CallQueuedHandler
 
         if ($this->container->has(Encrypter::class)) {
             return unserialize(
-                $this->container->get(Encrypter::class)->decrypt($data['command'])
+                $this->container->make(Encrypter::class)->decrypt($data['command'])
             );
         }
 
@@ -167,7 +167,7 @@ class CallQueuedHandler
     protected function ensureUniqueJobLockIsReleased(mixed $command): void
     {
         if ($command instanceof ShouldBeUnique) {
-            (new UniqueLock($this->container->get(CacheFactory::class)))->release($command);
+            (new UniqueLock($this->container->make(CacheFactory::class)))->release($command);
         }
     }
 

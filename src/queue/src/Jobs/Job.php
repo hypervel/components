@@ -205,7 +205,7 @@ abstract class Job implements JobContract
      */
     protected function resolve(string $class): mixed
     {
-        return $this->container->get($class);
+        return $this->container->make($class);
     }
 
     /**

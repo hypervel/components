@@ -30,7 +30,7 @@ class PruneFailedJobsCommand extends Command
      */
     public function handle(): ?int
     {
-        $failer = $this->app->get(FailedJobProviderInterface::class);
+        $failer = $this->app->make(FailedJobProviderInterface::class);
 
         if ($failer instanceof PrunableFailedJobProvider) {
             $count = $failer->prune(Carbon::now()->subHours((int) $this->option('hours')));

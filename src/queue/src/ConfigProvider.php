@@ -32,7 +32,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 FactoryContract::class => QueueManagerFactory::class,
-                Queue::class => fn (Container $container) => $container->get(FactoryContract::class)->connection(),
+                Queue::class => fn (Container $container) => $container->make(FactoryContract::class)->connection(),
                 FailedJobProviderInterface::class => FailedJobProviderFactory::class,
                 Listener::class => fn (Container $container) => new Listener($this->getBasePath($container)),
                 Worker::class => WorkerFactory::class,

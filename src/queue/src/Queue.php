@@ -141,7 +141,7 @@ abstract class Queue
         ]);
 
         $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)
-            ? $this->container->get(Encrypter::class)->encrypt(serialize(clone $job))
+            ? $this->container->make(Encrypter::class)->encrypt(serialize(clone $job))
             : serialize(clone $job);
 
         return array_merge($payload, [
@@ -278,7 +278,7 @@ abstract class Queue
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            return $this->container->get('db.transactions')
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     function () use ($queue, $job, $payload, $delay, $callback) {
                         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
@@ -325,7 +325,7 @@ abstract class Queue
         if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(Dispatcher::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
         }
     }
@@ -340,7 +340,7 @@ abstract class Queue
         if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(Dispatcher::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
     }

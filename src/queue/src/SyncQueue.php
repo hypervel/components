@@ -76,7 +76,7 @@ class SyncQueue extends Queue implements QueueContract
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            return $this->container->get('db.transactions')
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     fn () => $this->executeJob($job, $data, $queue)
                 );
@@ -121,7 +121,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseBeforeJobEvent(JobContract $job): void
     {
         if ($this->container->has(Dispatcher::class)) {
-            $this->container->get(Dispatcher::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobProcessing($this->connectionName, $job));
         }
     }
@@ -132,7 +132,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseAfterJobEvent(JobContract $job): void
     {
         if ($this->container->has(Dispatcher::class)) {
-            $this->container->get(Dispatcher::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobProcessed($this->connectionName, $job));
         }
     }
@@ -143,7 +143,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseExceptionOccurredJobEvent(JobContract $job, Throwable $e): void
     {
         if ($this->container->has(Dispatcher::class)) {
-            $this->container->get(Dispatcher::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobExceptionOccurred($this->connectionName, $job, $e));
         }
     }
@@ -159,7 +159,7 @@ class SyncQueue extends Queue implements QueueContract
 
         $queueJob->fail($e);
 
-        $this->container->get(ExceptionHandler::class)
+        $this->container->make(ExceptionHandler::class)
             ->report($e);
 
         throw $e;

@@ -33,7 +33,7 @@ class PruneBatchesCommand extends Command
      */
     public function handle()
     {
-        $repository = $this->app->get(BatchRepository::class);
+        $repository = $this->app->make(BatchRepository::class);
 
         $count = 0;
 

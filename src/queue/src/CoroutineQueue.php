@@ -25,7 +25,7 @@ class CoroutineQueue extends SyncQueue
             $this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            return $this->container->get('db.transactions')
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     fn () => $this->executeJob($job, $data, $queue)
                 );

@@ -14,9 +14,9 @@ class WorkerFactory
     public function __invoke(Container $container): Worker
     {
         return new Worker(
-            $container->get(QueueManager::class),
-            $container->get(Dispatcher::class),
-            $container->get(ExceptionHandlerContract::class),
+            $container->make(QueueManager::class),
+            $container->make(Dispatcher::class),
+            $container->make(ExceptionHandlerContract::class),
             fn () => false,
         );
     }

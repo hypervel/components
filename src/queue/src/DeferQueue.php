@@ -24,7 +24,7 @@ class DeferQueue extends SyncQueue
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            return $this->container->get('db.transactions')
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     fn () => $this->deferJob($job, $data, $queue)
                 );

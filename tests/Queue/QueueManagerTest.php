@@ -26,7 +26,7 @@ class QueueManagerTest extends TestCase
     public function testDefaultConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get('config');
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
@@ -47,7 +47,7 @@ class QueueManagerTest extends TestCase
     public function testOtherConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get('config');
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
@@ -68,7 +68,7 @@ class QueueManagerTest extends TestCase
     public function testNullConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get('config');
+        $config = $container->make('config');
         $config->set('queue.default', 'null');
 
         $manager = new QueueManager($container);
@@ -88,7 +88,7 @@ class QueueManagerTest extends TestCase
     public function testAddPoolableConnector()
     {
         $container = $this->getContainer();
-        $config = $container->get('config');
+        $config = $container->make('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 

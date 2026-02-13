@@ -19,7 +19,7 @@ class QueueManagerFactory
         }
 
         $connectors = ['coroutine', 'defer'];
-        $reportHandler = fn (Throwable $e) => $container->get(ExceptionHandler::class)->report($e);
+        $reportHandler = fn (Throwable $e) => $container->make(ExceptionHandler::class)->report($e);
         foreach ($connectors as $connector) {
             try {
                 $manager->connection($connector) // @phpstan-ignore-line

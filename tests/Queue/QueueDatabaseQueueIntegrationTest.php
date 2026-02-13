@@ -36,7 +36,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         parent::setUp();
 
         $this->queue = new DatabaseQueue(
-            $this->app->get(ConnectionResolverInterface::class),
+            $this->app->make(ConnectionResolverInterface::class),
             null,
             'jobs'
         );
@@ -221,10 +221,10 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
         Uuid::setFactory($uuidFactory);
 
-        $this->app->get(Dispatcher::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
+        $this->app->make(Dispatcher::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
             $jobQueueingEvent = $e;
         });
-        $this->app->get(Dispatcher::class)->listen(function (JobQueued $e) use (&$jobQueuedEvent) {
+        $this->app->make(Dispatcher::class)->listen(function (JobQueued $e) use (&$jobQueuedEvent) {
             $jobQueuedEvent = $e;
         });
 

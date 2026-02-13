@@ -12,7 +12,7 @@ class FailedJobProviderFactory
 {
     public function __invoke(Container $container)
     {
-        $config = $container->get('config')
+        $config = $container->make('config')
             ->get('queue.failed', []);
 
         if (array_key_exists('driver', $config)
@@ -25,7 +25,7 @@ class FailedJobProviderFactory
             return new FileFailedJobProvider(
                 $config['path'] ?? $this->getBasePath($container) . '/storage/framework/cache/failed-jobs.json',
                 $config['limit'] ?? 100,
-                fn () => $container->get(CacheFactoryContract::class)->store('file'),
+                fn () => $container->make(CacheFactoryContract::class)->store('file'),
             );
         }
         if (isset($config['driver']) && $config['driver'] === 'database-uuids') {
@@ -44,7 +44,7 @@ class FailedJobProviderFactory
     protected function databaseFailedJobProvider(Container $container, array $config): DatabaseFailedJobProvider
     {
         return new DatabaseFailedJobProvider(
-            $container->get(ConnectionResolverInterface::class),
+            $container->make(ConnectionResolverInterface::class),
             $config['table'],
             $config['database']
         );
@@ -56,7 +56,7 @@ class FailedJobProviderFactory
     protected function databaseUuidFailedJobProvider(Container $container, array $config): DatabaseUuidFailedJobProvider
     {
         return new DatabaseUuidFailedJobProvider(
-            $container->get(ConnectionResolverInterface::class),
+            $container->make(ConnectionResolverInterface::class),
             $config['table'],
             $config['database']
         );

@@ -164,7 +164,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $event = $this->container->get(Dispatcher::class);
+        $event = $this->container->make(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             $this->writeOutput($event->job, 'starting');
         });
@@ -297,7 +297,7 @@ class WorkCommand extends Command
      */
     protected function logFailedJob(JobFailed $event): void
     {
-        $this->container->get(FailedJobProviderInterface::class)
+        $this->container->make(FailedJobProviderInterface::class)
             ->log(
                 $event->connectionName,
                 $event->job->getQueue(),

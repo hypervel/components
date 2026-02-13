@@ -64,7 +64,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __construct(
         protected Container $app
     ) {
-        $this->config = $app->get('config');
+        $this->config = $app->make('config');
 
         $this->registerConnectors();
     }
@@ -74,7 +74,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -83,7 +83,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -92,7 +92,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -101,7 +101,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -110,7 +110,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -119,7 +119,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -318,7 +318,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('database', function () {
             return new DatabaseConnector(
-                $this->app->get(ConnectionResolverInterface::class)
+                $this->app->make(ConnectionResolverInterface::class)
             );
         });
     }
@@ -330,7 +330,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('redis', function () {
             return new RedisConnector(
-                $this->app->get(RedisFactory::class)
+                $this->app->make(RedisFactory::class)
             );
         });
     }
@@ -383,7 +383,7 @@ class QueueManager implements FactoryContract, MonitorContract
         $this->addConnector('failover', function () {
             return new FailoverConnector(
                 $this,
-                $this->app->get(Dispatcher::class)
+                $this->app->make(Dispatcher::class)
             );
         });
     }
