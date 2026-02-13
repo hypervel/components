@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Throwable;
 
@@ -15,10 +15,10 @@ trait DetectsConcurrencyErrors
      */
     protected function causedByConcurrencyError(Throwable $e): bool
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         $detector = $container->has(ConcurrencyErrorDetectorContract::class)
-            ? $container->get(ConcurrencyErrorDetectorContract::class)
+            ? $container->make(ConcurrencyErrorDetectorContract::class)
             : new ConcurrencyErrorDetector();
 
         return $detector->causedByConcurrencyError($e);

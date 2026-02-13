@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Throwable;
 
@@ -15,10 +15,10 @@ trait DetectsLostConnections
      */
     protected function causedByLostConnection(Throwable $e): bool
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         $detector = $container->has(LostConnectionDetectorContract::class)
-            ? $container->get(LostConnectionDetectorContract::class)
+            ? $container->make(LostConnectionDetectorContract::class)
             : new LostConnectionDetector();
 
         return $detector->causedByLostConnection($e);

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Database\DatabaseManager;
 
 /**
@@ -25,8 +25,8 @@ class SchemaProxy
      */
     public function connection(?string $name = null): Builder
     {
-        return ApplicationContext::getContainer()
-            ->get(DatabaseManager::class)
+        return Container::getInstance()
+            ->make(DatabaseManager::class)
             ->connection($name)
             ->getSchemaBuilder();
     }

@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Factories;
 
 use Closure;
 use Faker\Generator;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -870,7 +870,7 @@ abstract class Factory
             return null;
         }
 
-        return ApplicationContext::getContainer()->get(Generator::class);
+        return Container::getInstance()->make(Generator::class);
     }
 
     /**
@@ -902,8 +902,8 @@ abstract class Factory
     protected static function appNamespace(): string
     {
         try {
-            return ApplicationContext::getContainer()
-                ->get(Application::class)
+            return Container::getInstance()
+                ->make(Application::class)
                 ->getNamespace();
         } catch (Throwable) {
             return 'App\\';

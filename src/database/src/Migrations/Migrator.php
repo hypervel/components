@@ -9,7 +9,7 @@ use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
 use FriendsOfHyperf\PrettyConsole\View\Components\Info;
 use FriendsOfHyperf\PrettyConsole\View\Components\Task;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
@@ -715,10 +715,10 @@ class Migrator
      */
     public function fireMigrationEvent(MigrationEventContract $event): void
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         if ($container->has(Dispatcher::class)) {
-            $container->get(Dispatcher::class)->dispatch($event);
+            $container->make(Dispatcher::class)->dispatch($event);
         }
     }
 }
