@@ -145,14 +145,14 @@ abstract class Command extends HyperfCommand
     protected function commandIsolationMutex(): CommandMutex
     {
         return $this->app->bound(CommandMutex::class)
-            ? $this->app->get(CommandMutex::class)
-            : $this->app->get(CacheCommandMutex::class);
+            ? $this->app->make(CommandMutex::class)
+            : $this->app->make(CacheCommandMutex::class);
     }
 
     protected function replaceOutput(): void
     {
         if ($this->app->bound(OutputInterface::class)) {
-            $this->output = $this->app->get(OutputInterface::class); // @phpstan-ignore assign.propertyType (PendingCommand binds a SymfonyStyle mock)
+            $this->output = $this->app->make(OutputInterface::class); // @phpstan-ignore assign.propertyType (PendingCommand binds a SymfonyStyle mock)
         }
     }
 

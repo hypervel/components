@@ -27,7 +27,7 @@ class ScheduleTestCommand extends Command
      */
     public function handle()
     {
-        $commands = $this->app->get(Schedule::class)->events();
+        $commands = $this->app->make(Schedule::class)->events();
 
         $commandNames = [];
 

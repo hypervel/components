@@ -175,7 +175,7 @@ class Event
             return $this->runProcess($container);
         }
 
-        return $container->get(KernelContract::class)
+        return $container->make(KernelContract::class)
             ->call($this->command);
     }
 
@@ -335,7 +335,7 @@ class Event
      */
     public function writeOutput(Container $container): void
     {
-        $filesystem = $container->get(Filesystem::class);
+        $filesystem = $container->make(Filesystem::class);
         if (! $this->ensureOutputIsBeingCaptured
             && (! $this->output || (! $this->isSystem && ! $filesystem->isFile($this->output)))
         ) {
@@ -358,7 +358,7 @@ class Event
             return $this->getProcessOutput();
         }
 
-        return $container->get(KernelContract::class)->output();
+        return $container->make(KernelContract::class)->output();
     }
 
     /**
@@ -525,7 +525,7 @@ class Event
             try {
                 $this->getHttpClient($container)->request('GET', $url);
             } catch (ClientExceptionInterface|TransferException $e) {
-                $container->get(ExceptionHandler::class)->report($e);
+                $container->make(ExceptionHandler::class)->report($e);
             }
         };
     }

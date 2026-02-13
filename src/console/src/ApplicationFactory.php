@@ -13,7 +13,7 @@ class ApplicationFactory
     public function __invoke(Container $container)
     {
         try {
-            return $container->get(KernelContract::class)
+            return $container->make(KernelContract::class)
                 ->getArtisan();
         } catch (Throwable $throwable) {
             (new ErrorRenderer())

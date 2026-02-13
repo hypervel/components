@@ -145,7 +145,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         if (is_subclass_of($command, SymfonyCommand::class)) {
             $callingClass = true;
 
-            $command = $this->container->get($command)->getName();
+            $command = $this->container->make($command)->getName();
         }
 
         if (! isset($callingClass) && empty($parameters)) {
@@ -189,7 +189,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         }
 
         return $this->add(
-            $this->container->get($command)
+            $this->container->make($command)
         );
     }
 
