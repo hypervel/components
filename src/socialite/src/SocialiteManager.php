@@ -191,8 +191,8 @@ class SocialiteManager extends Manager implements Contracts\Factory
         }
 
         return (new $provider(
-            $this->container->get(RequestContract::class),
-            $this->container->get(ResponseContract::class),
+            $this->container->make(RequestContract::class),
+            $this->container->make(ResponseContract::class),
             $config['client_id'],
             $config['client_secret'],
             $this->formatRedirectUrl($config),
@@ -220,7 +220,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
         $redirect = value($config['redirect']);
 
         return Str::startsWith($redirect ?? '', '/')
-            ? $this->container->get(UrlGeneratorContract::class)->to($redirect)
+            ? $this->container->make(UrlGeneratorContract::class)->to($redirect)
             : $redirect;
     }
 
