@@ -12,7 +12,7 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
@@ -3212,7 +3212,7 @@ class HttpClientTest extends TestCase
     {
         $container = $this->getContainer();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->factory->registerConnection('vapor');
         $client = $this->factory->getClient('vapor', (new PendingRequest($this->factory))->buildHandlerStack());

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pool;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Coordinator\Constants;
@@ -118,7 +118,7 @@ class HeartbeatConnectionTest extends TestCase
     protected function getContainer()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $container->shouldReceive('get')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container) {
             return new HeartbeatPoolStub($container, []);

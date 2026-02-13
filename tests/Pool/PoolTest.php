@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
@@ -143,7 +143,7 @@ class PoolTest extends TestCase
     protected function getContainer()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }
