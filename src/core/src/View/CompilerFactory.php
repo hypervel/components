@@ -14,7 +14,7 @@ class CompilerFactory
     public function __invoke(Container $container)
     {
         $blade = new BladeCompiler(
-            $container->get(Filesystem::class),
+            $container->make(Filesystem::class),
             Blade::config('config.cache_path')
         );
 
