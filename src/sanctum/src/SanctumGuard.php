@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\Guards\GuardHelpers;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
@@ -51,7 +51,7 @@ class SanctumGuard implements GuardContract
         }
 
         // Check stateful guards first (like 'web')
-        $authFactory = ApplicationContext::getContainer()->get(AuthFactory::class);
+        $authFactory = Container::getInstance()->make(AuthFactory::class);
         foreach (Arr::wrap(config('sanctum.guard', 'web')) as $guard) {
             if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
                 $user = $authFactory->guard($guard)->user();
