@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Mockery;
@@ -24,7 +24,7 @@ abstract class Facade
      */
     public static function resolved(Closure $callback): void
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         $accessor = static::getFacadeAccessor();
 
         if ($container->resolved($accessor) === true) {
@@ -133,9 +133,7 @@ abstract class Facade
         $accessor = static::getFacadeAccessor();
         static::$resolvedInstance[$accessor] = $instance;
 
-        if (ApplicationContext::hasContainer()) {
-            ApplicationContext::getContainer()->instance($accessor, $instance);
-        }
+        Container::getInstance()->instance($accessor, $instance);
     }
 
     /**
@@ -187,8 +185,10 @@ abstract class Facade
             return static::$resolvedInstance[$name];
         }
 
-        if (ApplicationContext::getContainer()->has($name)) {
-            return static::$resolvedInstance[$name] = ApplicationContext::getContainer()->get($name);
+        $container = Container::getInstance();
+
+        if ($container->has($name)) {
+            return static::$resolvedInstance[$name] = $container->make($name);
         }
 
         return null;

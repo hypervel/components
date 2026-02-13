@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Testing\Fakes\QueueFake;
@@ -93,7 +93,7 @@ class Queue extends Facade
             : static::getFacadeRoot();
 
         return tap(new QueueFake(
-            ApplicationContext::getContainer(),
+            Container::getInstance(),
             $jobsToFake,
             $actualQueueManager
         ), function ($fake) {

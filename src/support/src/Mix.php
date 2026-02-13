@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use RuntimeException;
 
@@ -61,8 +61,8 @@ class Mix
             $exception = new RuntimeException("Unable to locate Mix file: {$path}.");
 
             if (! config('app.debug')) {
-                ApplicationContext::getContainer()
-                    ->get(ExceptionHandlerContract::class)
+                Container::getInstance()
+                    ->make(ExceptionHandlerContract::class)
                     ->report($exception);
 
                 return $path;

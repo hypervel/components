@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
@@ -231,9 +231,9 @@ if (! function_exists('environment')) {
      */
     function environment(mixed ...$environments): bool|Environment
     {
-        $environment = ApplicationContext::hasContainer()
-            ? ApplicationContext::getContainer()
-                ->get(Environment::class)
+        $container = Container::getInstance();
+        $environment = $container->has(Environment::class)
+            ? $container->make(Environment::class)
             : new Environment();
 
         if (count($environments) > 0) {
