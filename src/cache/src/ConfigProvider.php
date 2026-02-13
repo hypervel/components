@@ -21,7 +21,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 Factory::class => CacheManager::class,
-                Store::class => fn ($container) => $container->get(CacheManager::class)->driver(),
+                Store::class => fn ($container) => $container->make(CacheManager::class)->driver(),
             ],
             'listeners' => [
                 CreateSwooleTable::class,

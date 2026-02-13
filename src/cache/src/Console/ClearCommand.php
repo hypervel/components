@@ -32,7 +32,7 @@ class ClearCommand extends Command
      */
     public function handle(): ?int
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
 
         if (! $this->cache()->getStore()->flush()) {
@@ -42,7 +42,7 @@ class ClearCommand extends Command
 
         $this->flushRuntime();
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
 
         $this->info('Application cache cleared successfully.');
@@ -55,7 +55,7 @@ class ClearCommand extends Command
      */
     protected function cache(): Repository
     {
-        $cache = $this->app->get(CacheContract::class)
+        $cache = $this->app->make(CacheContract::class)
             ->store($this->argument('store'));
 
         /** @var \Hypervel\Cache\Repository $cache */
@@ -67,7 +67,7 @@ class ClearCommand extends Command
      */
     protected function flushRuntime(): void
     {
-        $this->app->get(Filesystem::class)
+        $this->app->make(Filesystem::class)
             ->deleteDirectory(BASE_PATH . '/runtime/container');
     }
 

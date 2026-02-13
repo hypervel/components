@@ -14,7 +14,7 @@ trait DetectsRedisStore
      */
     protected function detectRedisStore(): ?string
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $stores = $config->get('cache.stores', []);
 
         foreach ($stores as $name => $storeConfig) {

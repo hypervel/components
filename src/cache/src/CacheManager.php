@@ -94,7 +94,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get('config')
+        return $this->app->make('config')
             ->get('cache.default', 'file');
     }
 
@@ -103,7 +103,7 @@ class CacheManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('cache.default', $name);
     }
 
@@ -230,7 +230,7 @@ class CacheManager implements FactoryContract
      */
     protected function createRedisDriver(array $config): Repository
     {
-        $redis = $this->app->get(RedisFactory::class);
+        $redis = $this->app->make(RedisFactory::class);
 
         $connection = $config['connection'] ?? 'default';
 
@@ -248,7 +248,7 @@ class CacheManager implements FactoryContract
      */
     protected function createSwooleDriver(array $config): Repository
     {
-        $cacheTable = $this->app->get(SwooleTableManager::class)->get($config['table']);
+        $cacheTable = $this->app->make(SwooleTableManager::class)->get($config['table']);
         $store = new SwooleStore(
             $cacheTable,
             $config['memory_limit_buffer'] ?? 0.05,
@@ -283,7 +283,7 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connectionResolver = $this->app->get(\Hypervel\Database\ConnectionResolverInterface::class);
+        $connectionResolver = $this->app->make(\Hypervel\Database\ConnectionResolverInterface::class);
 
         $store = new DatabaseStore(
             $connectionResolver,
@@ -308,7 +308,7 @@ class CacheManager implements FactoryContract
         }
 
         $repository->setEventDispatcher(
-            $this->app->get(Dispatcher::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -317,7 +317,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app->get('config')->get('cache.prefix');
+        return $config['prefix'] ?? $this->app->make('config')->get('cache.prefix');
     }
 
     /**
@@ -326,7 +326,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get('config')->get("cache.stores.{$name}");
+            return $this->app->make('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];

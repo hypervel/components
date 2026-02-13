@@ -28,7 +28,7 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
     {
         $this->skipIfAnyTagModeUnsupported();
 
-        $factory = $this->app->get(RedisFactory::class);
+        $factory = $this->app->make(RedisFactory::class);
         $store = new RedisStore($factory, $cachePrefix, 'default');
         $store->setTagMode(TagMode::Any);
 
@@ -344,7 +344,7 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->skipIfAnyTagModeUnsupported();
 
         $connectionName = $this->createRedisConnectionWithPrefix($optPrefix);
-        $factory = $this->app->get(RedisFactory::class);
+        $factory = $this->app->make(RedisFactory::class);
         $store = new RedisStore($factory, $cachePrefix, $connectionName);
         $store->setTagMode(TagMode::Any);
 

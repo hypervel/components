@@ -31,7 +31,7 @@ class PruneStaleTagsCommand extends Command
     {
         $storeName = $this->argument('store') ?? 'redis';
 
-        $repository = $this->app->get(CacheContract::class)->store($storeName);
+        $repository = $this->app->make(CacheContract::class)->store($storeName);
         $store = $repository->getStore();
 
         if (! $store instanceof RedisStore) {

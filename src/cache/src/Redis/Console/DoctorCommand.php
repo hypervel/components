@@ -93,7 +93,7 @@ class DoctorCommand extends Command
 
         // Validate that the store is using redis driver
         /** @var \Hypervel\Cache\Repository $repository */
-        $repository = $this->app->get(CacheContract::class)->store($storeName);
+        $repository = $this->app->make(CacheContract::class)->store($storeName);
         $store = $repository->getStore();
 
         if (! $store instanceof RedisStore) {
@@ -310,7 +310,7 @@ class DoctorCommand extends Command
         $this->line('  Framework: <fg=cyan>Hypervel</>');
 
         // Cache Store
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $defaultStore = $config->get('cache.default', 'file');
         $this->line("  Default Cache Store: <fg=cyan>{$defaultStore}</>");
 
@@ -319,7 +319,7 @@ class DoctorCommand extends Command
             $storeName = $this->option('store') ?: $this->detectRedisStore();
 
             if ($storeName) {
-                $repository = $this->app->get(CacheContract::class)->store($storeName);
+                $repository = $this->app->make(CacheContract::class)->store($storeName);
                 $store = $repository->getStore();
 
                 if ($store instanceof RedisStore) {
