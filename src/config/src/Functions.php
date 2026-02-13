@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 
 /**
  * Get / set the specified configuration value.
@@ -16,7 +16,7 @@ use Hypervel\Context\ApplicationContext;
  */
 function config(mixed $key = null, mixed $default = null): mixed
 {
-    $config = ApplicationContext::getContainer()->get('config');
+    $config = Container::getInstance()->make('config');
 
     if (is_null($key)) {
         return $config;
