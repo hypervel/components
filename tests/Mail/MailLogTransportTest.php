@@ -30,11 +30,11 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithConfiguredChannel()
     {
-        $this->app->get('config')->set('mail', [
+        $this->app->make('config')->set('mail', [
             'driver' => 'log',
             'log_channel' => 'mail',
         ]);
-        $this->app->get('config')->set('logging', [
+        $this->app->make('config')->set('logging', [
             'channels' => [
                 'mail' => [
                     'driver' => 'single',
@@ -43,7 +43,7 @@ class MailLogTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $this->app->get(FactoryContract::class)
+        $transport = $this->app->make(FactoryContract::class)
             ->removePoolable('log')
             ->getSymfonyTransport();
         $this->assertInstanceOf(LogTransport::class, $transport);
@@ -104,16 +104,16 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithPsrLogger()
     {
-        $this->app->get('config')->set('mail', [
+        $this->app->make('config')->set('mail', [
             'driver' => 'log',
         ]);
 
         $this->app->instance(LoggerInterface::class, new NullLogger());
 
-        $transportLogger = $this->app->get(FactoryContract::class)->getSymfonyTransport()->logger();
+        $transportLogger = $this->app->make(FactoryContract::class)->getSymfonyTransport()->logger();
 
         $this->assertEquals(
-            $this->app->get(LoggerInterface::class),
+            $this->app->make(LoggerInterface::class),
             $transportLogger
         );
     }

@@ -78,7 +78,7 @@ class MailManager implements FactoryContract
     public function __construct(
         protected Container $app
     ) {
-        $this->config = $app->get('config');
+        $this->config = $app->make('config');
     }
 
     /**
@@ -128,13 +128,13 @@ class MailManager implements FactoryContract
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app->get(FactoryInterface::class),
+            $this->app->make(FactoryInterface::class),
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
-            $this->app->get(Dispatcher::class)
+            $this->app->make(Dispatcher::class)
         );
 
         if ($this->app->has(QueueFactory::class)) {
-            $mailer->setQueue($this->app->get(QueueFactory::class));
+            $mailer->setQueue($this->app->make(QueueFactory::class));
         }
 
         // Next we will set all of the global addresses on this mailer, which allows
@@ -404,11 +404,11 @@ class MailManager implements FactoryContract
      */
     protected function createLogTransport(array $config): LogTransport
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         if ($logger instanceof LogManager) {
             $logger = $logger->channel(
-                $config['channel'] ?? $this->app->get('config')->get('mail.log_channel')
+                $config['channel'] ?? $this->app->make('config')->get('mail.log_channel')
             );
         }
 

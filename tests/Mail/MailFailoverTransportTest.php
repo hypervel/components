@@ -24,7 +24,7 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithConfiguredTransports()
     {
-        $this->app->get('config')->set('mail', [
+        $this->app->make('config')->set('mail', [
             'default' => 'failover',
             'mailers' => [
                 'failover' => [
@@ -46,7 +46,7 @@ class MailFailoverTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $this->app->get(FactoryContract::class)
+        $transport = $this->app->make(FactoryContract::class)
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
@@ -54,13 +54,13 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithLaravel6StyleMailConfiguration()
     {
-        $this->app->get('config')->set('mail', [
+        $this->app->make('config')->set('mail', [
             'driver' => 'failover',
             'mailers' => ['sendmail', 'array'],
             'sendmail' => '/usr/sbin/sendmail -bs',
         ]);
 
-        $transport = $this->app->get(FactoryContract::class)
+        $transport = $this->app->make(FactoryContract::class)
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);

@@ -31,7 +31,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testGetTransport()
     {
-        $this->app->get('config')->set('services.ses', [
+        $this->app->make('config')->set('services.ses', [
             'key' => 'foo',
             'secret' => 'bar',
             'region' => 'us-east-1',
@@ -97,7 +97,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSesV2LocalConfiguration()
     {
-        $this->app->get('config')->set('mail', [
+        $this->app->make('config')->set('mail', [
             'mailers' => [
                 'ses' => [
                     'transport' => 'ses-v2',
@@ -111,7 +111,7 @@ class MailSesV2TransportTest extends TestCase
                 ],
             ],
         ]);
-        $this->app->get('config')->set('services', [
+        $this->app->make('config')->set('services', [
             'ses' => [
                 'region' => 'us-east-1',
             ],

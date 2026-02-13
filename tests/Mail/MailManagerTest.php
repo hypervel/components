@@ -30,7 +30,7 @@ class MailManagerTest extends TestCase
      */
     public function testEmptyTransportConfig($transport)
     {
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('mail.mailers.custom_smtp', [
                 'transport' => $transport,
                 'host' => null,
@@ -59,7 +59,7 @@ class MailManagerTest extends TestCase
 
     public function testMailUrlConfig()
     {
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
@@ -78,7 +78,7 @@ class MailManagerTest extends TestCase
 
     public function testPoolableMailUrlConfig()
     {
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
