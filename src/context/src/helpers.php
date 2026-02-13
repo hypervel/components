@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 
 if (! function_exists('context')) {
@@ -12,7 +12,7 @@ if (! function_exists('context')) {
     function context(array|string|null $key = null, mixed $default = null, ?int $coroutineId = null): mixed
     {
         return match (true) {
-            is_null($key) => ApplicationContext::getContainer()->get(Context::class),
+            is_null($key) => Container::getInstance()->make(Context::class),
             is_array($key) => Context::setMany($key, $coroutineId),
             default => Context::get($key, $default, $coroutineId),
         };
