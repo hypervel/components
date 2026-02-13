@@ -18,7 +18,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 {
     public function testItCanFindAFailedJobByItsId()
     {
-        $repository = $this->app->get(JobRepository::class);
+        $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
 
         $repository->failed(new Exception('Failed Job'), 'redis', 'default', $payload);
@@ -28,7 +28,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
     public function testItWillNotFindAFailedJobIfTheJobHasNotFailed()
     {
-        $repository = $this->app->get(JobRepository::class);
+        $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
 
         $repository->pushed('redis', 'default', $payload);
@@ -43,7 +43,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         setlocale(LC_NUMERIC, 'fr_FR');
 
         try {
-            $repository = $this->app->get(JobRepository::class);
+            $repository = $this->app->make(JobRepository::class);
             $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
 
             $repository->pushed('redis', 'default', $payload);
@@ -62,7 +62,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
     public function testItRemovesRecentJobsWhenQueueIsPurged()
     {
-        $repository = $this->app->get(JobRepository::class);
+        $repository = $this->app->make(JobRepository::class);
 
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '1', 'displayName' => 'first'])));
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '2', 'displayName' => 'second'])));
@@ -86,7 +86,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
     public function testItWillDeleteAFailedJob()
     {
-        $repository = $this->app->get(JobRepository::class);
+        $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
 
         $repository->failed(new Exception('Failed Job'), 'redis', 'default', $payload);
@@ -101,7 +101,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
     public function testItWillNotDeleteAJobIfTheJobHasNotFailed()
     {
-        $repository = $this->app->get(JobRepository::class);
+        $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
 
         $repository->pushed('redis', 'default', $payload);

@@ -28,9 +28,9 @@ $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
 Container::setInstance($app);
-$app->get(ApplicationInterface::class);
+$app->make(ApplicationInterface::class);
 
-$config = $app->get('config');
+$config = $app->make('config');
 $config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);
 $config->set('queue', [
     'default' => 'redis',
@@ -49,7 +49,7 @@ $config->set('queue', [
 $app->register(HorizonServiceProvider::class);
 
 /** @var Worker $worker */
-$worker = $app->get(Worker::class);
+$worker = $app->make(Worker::class);
 
 // Pause the worker if needed...
 if (in_array('--paused', $_SERVER['argv'])) {

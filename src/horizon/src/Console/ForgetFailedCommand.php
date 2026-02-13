@@ -34,7 +34,7 @@ class ForgetFailedCommand extends Command
                 $failedJobs->pluck('id')->each(function (string $failedId) use ($repository): void { // @phpstan-ignore argument.type
                     $repository->deleteFailed($failedId);
 
-                    if ($this->app->get(FailedJobProviderInterface::class)->forget($failedId)) {
+                    if ($this->app->make(FailedJobProviderInterface::class)->forget($failedId)) {
                         $this->components->info('Failed job (id): ' . $failedId . ' deleted successfully!');
                     }
                 });
@@ -55,7 +55,7 @@ class ForgetFailedCommand extends Command
 
         $repository->deleteFailed($this->argument('id'));
 
-        if ($this->app->get(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
+        if ($this->app->make(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
             $this->components->info('Failed job deleted successfully!');
         } else {
             $this->components->error('No failed job matches the given ID.');

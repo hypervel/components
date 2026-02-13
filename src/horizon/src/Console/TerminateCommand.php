@@ -59,7 +59,7 @@ class TerminateCommand extends Command
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 
-        $this->app->get(CacheFactory::class)
+        $this->app->make(CacheFactory::class)
             ->store()->forever('illuminate:queue:restart', $this->currentTime());
     }
 }

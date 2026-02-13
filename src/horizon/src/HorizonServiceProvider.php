@@ -33,7 +33,7 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerEvents(): void
     {
-        $events = $this->app->get(Dispatcher::class);
+        $events = $this->app->make(Dispatcher::class);
 
         foreach ($this->events as $event => $listeners) {
             foreach ($listeners as $listener) {
@@ -152,7 +152,7 @@ class HorizonServiceProvider extends ServiceProvider
         $this->callAfterResolving(QueueManager::class, function (QueueManager $manager) {
             $manager->addConnector('redis', function () {
                 return new RedisConnector(
-                    $this->app->get(RedisFactory::class)
+                    $this->app->make(RedisFactory::class)
                 );
             });
         });

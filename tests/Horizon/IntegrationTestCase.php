@@ -46,10 +46,10 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set('queue', $this->originalQueueConfig);
 
-        $poolFactory = $this->app->get(PoolFactory::class);
+        $poolFactory = $this->app->make(PoolFactory::class);
         $pool = $poolFactory->getPool('default');
         $pool->flushOne(true);
 
@@ -58,7 +58,7 @@ abstract class IntegrationTestCase extends TestCase
 
     public function setUpInCoroutine()
     {
-        $poolFactory = $this->app->get(PoolFactory::class);
+        $poolFactory = $this->app->make(PoolFactory::class);
 
         defer(function () use ($poolFactory) {
             $pool = $poolFactory->getPool('default');
@@ -71,7 +71,7 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function loadServiceProviders(): void
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
         $config->set('horizon.middleware', [Authenticate::class]);
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
 

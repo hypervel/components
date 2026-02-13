@@ -154,7 +154,7 @@ class RedisQueue extends BaseQueue
         if ($this->container->has(Dispatcher::class)) {
             $queue = Str::replaceFirst('queues:', '', $queue);
 
-            $this->container->get(Dispatcher::class)->dispatch(
+            $this->container->make(Dispatcher::class)->dispatch(
                 $event->connection($this->getConnectionName())->queue($queue)
             );
         }

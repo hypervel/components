@@ -43,7 +43,7 @@ class SupervisorCommandTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->app->get(Kernel::class)
+        $this->app->make(Kernel::class)
             ->registerCommand(SupervisorCommand::class);
     }
 
