@@ -55,8 +55,8 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     {
         (new NotificationSender(
             $this,
-            $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcher::class),
+            $this->container->make(BusDispatcherContract::class),
+            $this->container->make(EventDispatcher::class),
             $this->getLocale()
         ))->send($notifiables, $notification);
     }
@@ -68,8 +68,8 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     {
         (new NotificationSender(
             $this,
-            $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcher::class),
+            $this->container->make(BusDispatcherContract::class),
+            $this->container->make(EventDispatcher::class),
             $this->getLocale()
         ))->sendNow($notifiables, $notification, $channels);
     }
@@ -87,7 +87,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createDatabaseDriver(): DatabaseChannel
     {
-        return $this->container->get(DatabaseChannel::class);
+        return $this->container->make(DatabaseChannel::class);
     }
 
     /**
@@ -95,7 +95,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createBroadcastDriver(): BroadcastChannel
     {
-        return $this->container->get(BroadcastChannel::class);
+        return $this->container->make(BroadcastChannel::class);
     }
 
     /**
@@ -103,7 +103,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createMailDriver(): MailChannel
     {
-        return $this->container->get(MailChannel::class);
+        return $this->container->make(MailChannel::class);
     }
 
     /**
@@ -111,7 +111,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createSlackDriver(): SlackNotificationRouterChannel
     {
-        return $this->container->get(SlackNotificationRouterChannel::class);
+        return $this->container->make(SlackNotificationRouterChannel::class);
     }
 
     /**
@@ -138,7 +138,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
 
         if (! method_exists($this, $method)) {
             if (class_exists($driver)) {
-                return $this->container->get($driver);
+                return $this->container->make($driver);
             }
 
             throw new InvalidArgumentException("Driver [{$driver}] is not supported.");

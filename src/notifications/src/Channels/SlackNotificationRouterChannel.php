@@ -40,13 +40,13 @@ class SlackNotificationRouterChannel
     protected function determineChannel(mixed $route): SlackWebApiChannel|SlackWebhookChannel
     {
         if ($route instanceof UriInterface) {
-            return $this->container->get(SlackWebhookChannel::class);
+            return $this->container->make(SlackWebhookChannel::class);
         }
 
         if (is_string($route) && Str::startsWith($route, ['http://', 'https://'])) {
-            return $this->container->get(SlackWebhookChannel::class);
+            return $this->container->make(SlackWebhookChannel::class);
         }
 
-        return $this->container->get(SlackWebApiChannel::class);
+        return $this->container->make(SlackWebApiChannel::class);
     }
 }

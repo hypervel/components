@@ -56,7 +56,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(Dispatcher::class);
+        $events = $container->make(Dispatcher::class);
 
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
@@ -71,7 +71,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(Dispatcher::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -85,7 +85,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(Dispatcher::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldNotReceive('driver');
@@ -98,7 +98,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(Dispatcher::class);
+        $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -111,7 +111,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testNotificationCanBeQueued()
     {
         $container = $this->getContainer();
-        $container->get(BusDispatcherContract::class)
+        $container->make(BusDispatcherContract::class)
             ->shouldReceive('dispatch')
             ->with(m::type(SendQueuedNotifications::class));
 
