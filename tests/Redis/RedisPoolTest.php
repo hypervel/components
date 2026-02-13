@@ -98,7 +98,7 @@ class RedisPoolTest extends TestCase
         $redisConfig->shouldReceive('connectionConfig')->once()->with('default')->andReturn($connectionConfig);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->with(RedisConfig::class)->once()->andReturn($redisConfig);
+        $container->shouldReceive('make')->with(RedisConfig::class)->once()->andReturn($redisConfig);
 
         return $container;
     }

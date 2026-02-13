@@ -29,7 +29,7 @@ class TransformIntegrationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get('config');
+        $config = $app->make('config');
         $this->configureRedisForTesting($config);
     }
 

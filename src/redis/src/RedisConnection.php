@@ -485,7 +485,7 @@ class RedisConnection extends BaseConnection
         $this->lastUseTime = microtime(true);
 
         if (($this->config['event']['enable'] ?? false) && $this->container->has(Dispatcher::class)) {
-            $this->eventDispatcher = $this->container->get(Dispatcher::class);
+            $this->eventDispatcher = $this->container->make(Dispatcher::class);
         }
 
         return true;
@@ -619,7 +619,7 @@ class RedisConnection extends BaseConnection
                         ...($auth ? ['auth' => $auth] : []),
                     ];
 
-                    $sentinel = $this->container->get(RedisSentinelFactory::class)->create($options);
+                    $sentinel = $this->container->make(RedisSentinelFactory::class)->create($options);
                     $masterInfo = $sentinel->getMasterAddrByName($masterName);
                     if (is_array($masterInfo) && count($masterInfo) >= 2) {
                         [$host, $port] = $masterInfo;
@@ -685,7 +685,7 @@ class RedisConnection extends BaseConnection
     protected function log(string $message, string $level = LogLevel::WARNING): void
     {
         if ($this->container->has(StdoutLoggerInterface::class)) {
-            $this->container->get(StdoutLoggerInterface::class)->log($level, $message);
+            $this->container->make(StdoutLoggerInterface::class)->log($level, $message);
         }
     }
 

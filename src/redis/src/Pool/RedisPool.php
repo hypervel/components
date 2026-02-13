@@ -23,7 +23,7 @@ class RedisPool extends Pool
         Container $container,
         protected string $name
     ) {
-        $configService = $container->get(RedisConfig::class);
+        $configService = $container->make(RedisConfig::class);
         $this->config = $configService->connectionConfig($this->name);
         $poolOptions = Arr::get($this->config, 'pool', []);
 

@@ -31,7 +31,7 @@ class RedisProxyIntegrationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get('config');
+        $config = $app->make('config');
         $this->configureRedisForTesting($config);
     }
 
@@ -573,7 +573,7 @@ class RedisProxyIntegrationTest extends TestCase
      */
     private function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
     {
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         if ($config->get("database.redis.{$name}") !== null) {
             return $name;

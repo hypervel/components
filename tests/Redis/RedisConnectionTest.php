@@ -340,7 +340,7 @@ class RedisConnectionTest extends TestCase
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(\Hypervel\Contracts\Event\Dispatcher::class)->andReturn(false);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn($logger);
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
 
         $connection = new class($container, $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(

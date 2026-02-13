@@ -89,7 +89,7 @@ class PoolFactoryTest extends TestCase
         $redisConfig->shouldReceive('connectionConfig')->andReturn($connectionConfig);
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('get')->with(RedisConfig::class)->andReturn($redisConfig);
+        $container->shouldReceive('make')->with(RedisConfig::class)->andReturn($redisConfig);
         $container->shouldReceive('has')->andReturn(false);
         $container->shouldReceive('make')->with(RedisPool::class, m::any())->andReturnUsing(
             fn ($class, $args) => new PoolFactoryTestPool($container, $args['name'])
