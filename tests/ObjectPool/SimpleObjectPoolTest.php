@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use stdClass;
 
 /**
@@ -28,8 +26,8 @@ class SimpleObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = m::mock(Container::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         return $container;
     }

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolProxy;
@@ -34,13 +33,9 @@ class PoolProxyTest extends TestCase
             ->once()
             ->andReturn($pool);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('get')
-            ->with(PoolFactory::class)
-            ->once()
-            ->andReturn($poolFactory);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(PoolFactory::class, $poolFactory);
+        Container::setInstance($container);
 
         $proxy = new PoolProxy(
             'foo',

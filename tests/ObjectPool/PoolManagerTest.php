@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
@@ -13,7 +12,6 @@ use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use RuntimeException;
 
 /**
@@ -32,11 +30,10 @@ class PoolManagerTest extends TestCase
     {
         parent::setUp();
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('get')
-            ->with(PoolManager::class)
-            ->andReturn($this->manager = new PoolManager($container));
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $this->manager = new PoolManager($container);
+        $container->instance(PoolManager::class, $this->manager);
+        Container::setInstance($container);
 
         $this->container = $container;
     }
@@ -142,7 +139,7 @@ class PoolManagerTest extends TestCase
         $container = new Container();
         $container->instance(PoolFactory::class, $this->manager);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }
