@@ -43,9 +43,9 @@ class JobWatcher extends Watcher
             return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];
         });
 
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(JobProcessed::class, [$this, 'recordProcessedJob']);
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(JobFailed::class, [$this, 'recordFailedJob']);
     }
 

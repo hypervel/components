@@ -18,7 +18,7 @@ class DumpWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 DumpWatcher::class => true,
             ]);

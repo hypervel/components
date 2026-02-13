@@ -22,7 +22,7 @@ class NotificationWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 NotificationWatcher::class => true,
             ]);
@@ -41,7 +41,7 @@ class NotificationWatcherTest extends FeatureTestCase
             'response'
         );
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

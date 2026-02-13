@@ -25,7 +25,7 @@ class EventWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 EventWatcher::class => [
                     'enabled' => true,
@@ -41,7 +41,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherRegistersAnyEvents()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -52,7 +52,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherStoresPayloads()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEvent('Telescope', 'Laravel', 'PHP'));
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -67,7 +67,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEventWithObject());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -83,7 +83,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherIgnoreEvent()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new IgnoredEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -98,7 +98,7 @@ class EventWatcherTest extends FeatureTestCase
      */
     public function testFormatListeners($listener, $formatted)
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');

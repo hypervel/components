@@ -21,7 +21,7 @@ class ModelWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ModelWatcher::class => [
                     'enabled' => true,

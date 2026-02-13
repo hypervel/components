@@ -18,7 +18,7 @@ class CommandWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, [$this, 'recordCommand']);
     }
 

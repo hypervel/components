@@ -22,11 +22,11 @@ class RedisWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 RedisWatcher::class => true,
             ]);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('database.redis.foo', [
                 'host' => '127.0.0.1',
                 'port' => 6379,
@@ -41,14 +41,14 @@ class RedisWatcherTest extends FeatureTestCase
     public function testRegisterEnableRedisEvents()
     {
         $this->assertTrue(
-            $this->app->get('config')
+            $this->app->make('config')
                 ->get('database.redis.foo.event.enable', false)
         );
     }
 
     public function testRedisWatcherRegistersEntries()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new CommandExecuted(
                 'command',
                 ['foo', 'bar'],

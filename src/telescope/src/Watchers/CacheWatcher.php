@@ -30,7 +30,7 @@ class CacheWatcher extends Watcher
             return;
         }
 
-        $event = $app->get(Dispatcher::class);
+        $event = $app->make(Dispatcher::class);
 
         $event->listen(CacheHit::class, [$this, 'recordCacheHit']);
         $event->listen(CacheMissed::class, [$this, 'recordCacheMissed']);
@@ -44,7 +44,7 @@ class CacheWatcher extends Watcher
      */
     public static function enableCacheEvents(Container $app): void
     {
-        $config = $app->get('config');
+        $config = $app->make('config');
         foreach (array_keys($config->get('cache.stores', [])) as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }

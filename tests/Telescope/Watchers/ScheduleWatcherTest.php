@@ -23,7 +23,7 @@ class ScheduleWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ScheduleWatcher::class => true,
             ]);
@@ -42,7 +42,7 @@ class ScheduleWatcherTest extends FeatureTestCase
 
     public function testScheduleRegistersEntry()
     {
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new ScheduledTaskStarting(
                 m::mock(Event::class)
             ));
@@ -57,7 +57,7 @@ class ScheduleWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn($output = 'success');
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new ScheduledTaskFinished($task, 0.1));
 
         $entry = $this->loadTelescopeEntries()->first();

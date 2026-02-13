@@ -24,7 +24,7 @@ class TelescopeTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 QueryWatcher::class => [
                     'enabled' => true,
@@ -51,7 +51,7 @@ class TelescopeTest extends FeatureTestCase
     {
         Telescope::afterRecording(function (Telescope $telescope, IncomingEntry $entry) {
             if (count(Telescope::getEntriesQueue()) > 1) {
-                $repository = $this->app->get(EntriesRepository::class);
+                $repository = $this->app->make(EntriesRepository::class);
                 $telescope->store($repository);
             }
         });
@@ -86,7 +86,7 @@ class TelescopeTest extends FeatureTestCase
 
         $this->assertSame(0, $this->count);
 
-        $repository = $this->app->get(EntriesRepository::class);
+        $repository = $this->app->make(EntriesRepository::class);
         Telescope::store($repository);
 
         $this->assertSame(2, $this->count);
@@ -101,7 +101,7 @@ class TelescopeTest extends FeatureTestCase
 
         $this->assertFalse(Telescope::isRecording());
 
-        $this->app->get(Dispatcher::class)->dispatch(
+        $this->app->make(Dispatcher::class)->dispatch(
             new MySyncJob('Awesome Laravel')
         );
 

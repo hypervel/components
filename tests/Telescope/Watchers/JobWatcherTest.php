@@ -30,7 +30,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 JobWatcher::class => true,
             ]);
@@ -68,7 +68,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         Bus::fake();
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(
                 new JobProcessed(
                     'connection',
@@ -93,7 +93,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         Bus::fake();
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(
                 new JobFailed(
                     'connection',

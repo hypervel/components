@@ -23,11 +23,11 @@ class ExceptionWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ExceptionWatcher::class => true,
             ]);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('logging.default', 'null');
 
         $this->startTelescope();
@@ -35,7 +35,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaException('Something went bananas.');
 
@@ -52,7 +52,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterThrowableEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaError('Something went bananas.');
 
@@ -69,7 +69,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterEntriesWhenEvalFailed()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = null;
 

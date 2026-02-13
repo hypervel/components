@@ -22,7 +22,7 @@ class ViewWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ViewWatcher::class => true,
             ]);
@@ -43,7 +43,7 @@ class ViewWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn(['foo' => 'bar']);
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new ViewRendered($view));
 
         $entry = $this->loadTelescopeEntries()->first();

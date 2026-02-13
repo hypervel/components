@@ -46,9 +46,9 @@ class FeatureTestCase extends TestCase
 
         $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope', [
                 'enabled' => true,
                 'path' => 'telescope',
@@ -57,19 +57,19 @@ class FeatureTestCase extends TestCase
                 ],
                 'defer' => false,
             ]);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('cache.default', 'array');
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('cache.stores.array', [
                 'driver' => 'array',
                 'serialize' => false,
                 'events' => true,
             ]);
-        $this->app->get(CacheFactoryContract::class)
+        $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
-        $this->app->get(Environment::class)
+        $this->app->make(Environment::class)
             ->set('production');
-        $this->app->get(Environment::class)
+        $this->app->make(Environment::class)
             ->setDebug(false);
     }
 
@@ -166,7 +166,7 @@ class FeatureTestCase extends TestCase
     public function terminateTelescope(): void
     {
         Telescope::store(
-            $this->app->get(EntriesRepository::class)
+            $this->app->make(EntriesRepository::class)
         );
     }
 }

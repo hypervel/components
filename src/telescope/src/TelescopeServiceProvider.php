@@ -164,17 +164,17 @@ class TelescopeServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
 
         $this->app->singleton(
             ClearableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
 
         $this->app->singleton(
             PrunableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
     }
 }

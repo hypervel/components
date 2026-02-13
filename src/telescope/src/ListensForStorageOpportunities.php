@@ -62,10 +62,10 @@ trait ListensForStorageOpportunities
      */
     public static function recordEntriesForRequests(Container $app): void
     {
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(RequestReceived::class, function ($event) use ($app) {
                 if (static::shouldListen()
-                    && static::requestIsToApprovedUri($app->get(RequestContract::class))
+                    && static::requestIsToApprovedUri($app->make(RequestContract::class))
                 ) {
                     static::startRecording();
                 }
@@ -77,7 +77,7 @@ trait ListensForStorageOpportunities
      */
     public static function manageRecordingStateForCommands(Container $app): void
     {
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(BeforeHandleCommand::class, function () {
                 if (static::shouldListen()
                     && static::runningApprovedArtisanCommand()
@@ -85,10 +85,10 @@ trait ListensForStorageOpportunities
                     static::startRecording();
                 }
             });
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, function () use ($app) {
                 static::store(
-                    $app->get(EntriesRepository::class)
+                    $app->make(EntriesRepository::class)
                 );
             });
     }
@@ -132,7 +132,7 @@ trait ListensForStorageOpportunities
      */
     protected static function storeEntriesAfterWorkerLoop(Container $app): void
     {
-        $event = $app->get(Dispatcher::class);
+        $event = $app->make(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             if (static::shouldListen() && $event->connectionName !== 'sync') {
                 static::startRecording();
@@ -170,7 +170,7 @@ trait ListensForStorageOpportunities
         static::popProcessingJob();
 
         if (empty(static::getProcessingJobs()) && $event->connectionName !== 'sync') {
-            static::store($app->get(EntriesRepository::class));
+            static::store($app->make(EntriesRepository::class));
             static::stopRecording();
         }
     }

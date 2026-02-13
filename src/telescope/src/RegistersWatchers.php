@@ -45,7 +45,7 @@ trait RegistersWatchers
                 continue;
             }
 
-            $watcher = $app->get(is_string($key) ? $key : $watcher)
+            $watcher = $app->make(is_string($key) ? $key : $watcher)
                 ->setOptions(is_array($watcher) ? $watcher : []);
 
             static::$watchers[] = get_class($watcher);

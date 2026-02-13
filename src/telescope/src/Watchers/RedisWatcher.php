@@ -29,7 +29,7 @@ class RedisWatcher extends Watcher
             return;
         }
 
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(CommandExecuted::class, [$this, 'recordCommand']);
     }
 
@@ -39,8 +39,8 @@ class RedisWatcher extends Watcher
      */
     public static function enableRedisEvents(Container $app): void
     {
-        $config = $app->get('config');
-        $redisConfig = $app->get(RedisConfig::class);
+        $config = $app->make('config');
+        $redisConfig = $app->make(RedisConfig::class);
         foreach ($redisConfig->connectionNames() as $connection) {
             $config->set("database.redis.{$connection}.event.enable", true);
         }

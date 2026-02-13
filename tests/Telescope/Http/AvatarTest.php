@@ -24,11 +24,11 @@ class AvatarTest extends FeatureTestCase
 
         $this->withoutMiddleware(Authorize::class);
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 LogWatcher::class => true,
             ]);
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('logging.default', 'null');
 
         $this->startTelescope();
@@ -57,7 +57,7 @@ class AvatarTest extends FeatureTestCase
 
         $this->actingAs($user);
 
-        $this->app->get(LoggerInterface::class)
+        $this->app->make(LoggerInterface::class)
             ->error('Avatar path will be generated.', [
                 'exception' => 'Some error message',
             ]);

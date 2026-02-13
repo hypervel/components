@@ -49,18 +49,18 @@ class RequestWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $this->request = $app->get(RequestContract::class);
-        $this->entriesRepository = $app->get(EntriesRepository::class);
+        $this->request = $app->make(RequestContract::class);
+        $this->entriesRepository = $app->make(EntriesRepository::class);
 
         $this->enableRequestEvents($app);
 
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(RequestHandled::class, [$this, 'recordRequest']);
     }
 
     protected function enableRequestEvents(Container $app): void
     {
-        $config = $app->get('config');
+        $config = $app->make('config');
         $servers = $config->get('server.servers', []);
 
         foreach ($servers as &$server) {

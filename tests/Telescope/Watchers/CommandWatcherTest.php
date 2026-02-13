@@ -20,7 +20,7 @@ class CommandWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 CommandWatcher::class => true,
             ]);
@@ -30,10 +30,10 @@ class CommandWatcherTest extends FeatureTestCase
 
     public function testCommandWatcherRegisterEntry()
     {
-        $this->app->get(KernelContract::class)
+        $this->app->make(KernelContract::class)
             ->registerCommand(MyCommand::class);
 
-        $this->app->get(KernelContract::class)
+        $this->app->make(KernelContract::class)
             ->call('telescope:test-command');
 
         $entry = $this->loadTelescopeEntries()->first();

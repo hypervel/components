@@ -24,7 +24,7 @@ class GateWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 GateWatcher::class => true,
             ]);
@@ -36,7 +36,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersAllowedEntries()
     {
-        $check = $this->app->get(GateContract::class)
+        $check = $this->app->make(GateContract::class)
             ->forUser(new User('allow'))
             ->check('potato');
 
@@ -51,7 +51,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersDeniedEntries()
     {
-        $check = $this->app->get(GateContract::class)
+        $check = $this->app->make(GateContract::class)
             ->forUser(new User('deny'))
             ->check('potato', ['banana']);
 
@@ -66,7 +66,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersAllowedGuestEntries()
     {
-        $check = $this->app->get(GateContract::class)
+        $check = $this->app->make(GateContract::class)
             ->check('guest potato');
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -80,7 +80,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersDeniedGuestEntries()
     {
-        $check = $this->app->get(GateContract::class)
+        $check = $this->app->make(GateContract::class)
             ->check('deny potato', ['gelato']);
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -94,7 +94,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersAllowedPolicyEntries()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->policy(TestResource::class, TestPolicy::class);
 
         (new TestController())->create(new TestResource());
@@ -109,12 +109,12 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersAfterChecks()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->after(function (?User $user) {
                 return true;
             });
 
-        $check = $this->app->get(GateContract::class)
+        $check = $this->app->make(GateContract::class)
             ->check('foo-bar');
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -128,7 +128,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersDeniedPolicyEntries()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->policy(TestResource::class, TestPolicy::class);
 
         try {
@@ -147,7 +147,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherCallsFormatForTelescopeMethodIfItExists()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->policy(TestResourceWithFormatForTelescope::class, TestPolicy::class);
 
         try {
@@ -166,7 +166,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersAllowedResponsePolicyEntries()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->policy(TestResource::class, TestPolicy::class);
 
         try {
@@ -185,7 +185,7 @@ class GateWatcherTest extends FeatureTestCase
 
     public function testGateWatcherRegistersDeniedResponsePolicyEntries()
     {
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->policy(TestResource::class, TestPolicy::class);
 
         try {

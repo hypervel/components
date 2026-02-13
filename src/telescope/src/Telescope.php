@@ -131,7 +131,7 @@ class Telescope
         static::registerMailableTagExtractor();
 
         static::$started = true;
-        static::$store = $app->get(EntriesRepository::class);
+        static::$store = $app->make(EntriesRepository::class);
     }
 
     /**

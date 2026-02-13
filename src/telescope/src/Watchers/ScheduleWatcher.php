@@ -35,11 +35,11 @@ class ScheduleWatcher extends Watcher
 
         $this->app = $app;
 
-        $this->entriesRepository = $app->get(EntriesRepository::class);
+        $this->entriesRepository = $app->make(EntriesRepository::class);
 
         Telescope::startRecording();
 
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen([
                 Events\ScheduledTaskStarting::class,
                 Events\ScheduledTaskFinished::class,

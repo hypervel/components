@@ -17,7 +17,7 @@ class BatchWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(BatchDispatched::class, [$this, 'recordBatch']);
     }
 

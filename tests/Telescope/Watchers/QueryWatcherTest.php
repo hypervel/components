@@ -27,7 +27,7 @@ class QueryWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 QueryWatcher::class => [
                     'enabled' => true,
@@ -139,7 +139,7 @@ SQL,
             },
         );
 
-        $sql = $this->app->get(QueryWatcher::class)->replaceBindings($event);
+        $sql = $this->app->make(QueryWatcher::class)->replaceBindings($event);
 
         $this->assertSame(<<<'SQL'
 select

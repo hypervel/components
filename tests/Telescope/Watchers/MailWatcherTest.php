@@ -22,7 +22,7 @@ class MailWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 MailWatcher::class => true,
             ]);
@@ -45,7 +45,7 @@ class MailWatcherTest extends FeatureTestCase
 
         $event = new MessageSent($message);
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

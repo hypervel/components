@@ -23,7 +23,7 @@ class BatchWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 JobWatcher::class => true,
                 BatchWatcher::class => true,
@@ -47,7 +47,7 @@ class BatchWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn(true);
 
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new BatchDispatched($batch));
 
         $entries = $this->loadTelescopeEntries()->all();

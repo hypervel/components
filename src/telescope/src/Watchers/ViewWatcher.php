@@ -23,10 +23,10 @@ class ViewWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get('config')
+        $app->make('config')
             ->set('view.event.enable', true);
 
-        $app->get(Dispatcher::class)
+        $app->make(Dispatcher::class)
             ->listen(ViewRendered::class, [$this, 'recordAction']);
     }
 
