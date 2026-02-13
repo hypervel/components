@@ -9,7 +9,7 @@ use Hyperf\Engine\Coroutine as Co;
 use Hyperf\Engine\Exception\CoroutineDestroyedException;
 use Hyperf\Engine\Exception\RunningInNonCoroutineException;
 use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Throwable;
 
@@ -148,16 +148,14 @@ class Coroutine
 
     private static function printLog(Throwable $throwable): void
     {
-        if (ApplicationContext::hasContainer()) {
-            $container = ApplicationContext::getContainer();
-            if ($container->has(StdoutLoggerInterface::class)) {
-                $logger = $container->get(StdoutLoggerInterface::class);
-                if ($container->has(FormatterInterface::class)) {
-                    $formatter = $container->get(FormatterInterface::class);
-                    $logger->warning($formatter->format($throwable));
-                } else {
-                    $logger->warning((string) $throwable);
-                }
+        $container = Container::getInstance();
+        if ($container->has(StdoutLoggerInterface::class)) {
+            $logger = $container->make(StdoutLoggerInterface::class);
+            if ($container->has(FormatterInterface::class)) {
+                $formatter = $container->make(FormatterInterface::class);
+                $logger->warning($formatter->format($throwable));
+            } else {
+                $logger->warning((string) $throwable);
             }
         }
     }
