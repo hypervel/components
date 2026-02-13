@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 
 /**
@@ -19,8 +19,8 @@ use Hypervel\Contracts\Event\Dispatcher;
  */
 function event(object $event)
 {
-    return ApplicationContext::getContainer()
-        ->get(Dispatcher::class)
+    return Container::getInstance()
+        ->make(Dispatcher::class)
         ->dispatch($event);
 }
 

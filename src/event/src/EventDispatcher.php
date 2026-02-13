@@ -6,11 +6,11 @@ namespace Hypervel\Event;
 
 use Closure;
 use Exception;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
 use Hypervel\Contracts\Event\ShouldHandleEventsAfterCommit;
@@ -51,10 +51,10 @@ class EventDispatcher implements DispatcherContract
     public function __construct(
         protected ListenerProviderContract $listeners,
         protected ?LoggerInterface $logger = null,
-        protected ?Container $container = null
+        protected ?ContainerContract $container = null
     ) {
-        if (! $container && ApplicationContext::hasContainer()) {
-            $this->container = ApplicationContext::getContainer();
+        if (! $container) {
+            $this->container = Container::getInstance();
         }
     }
 

@@ -7,7 +7,7 @@ namespace Hypervel\Event;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\Queueable;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
@@ -73,7 +73,7 @@ class CallQueuedListener implements ShouldQueue
 
         $handler = $this->setJobInstanceIfNecessary(
             $this->job,
-            ApplicationContext::getContainer()->get($this->class)
+            Container::getInstance()->make($this->class)
         );
 
         $handler->{$this->method}(...array_values($this->data));
@@ -100,7 +100,7 @@ class CallQueuedListener implements ShouldQueue
     {
         $this->prepareData();
 
-        $handler = ApplicationContext::getContainer()->get($this->class);
+        $handler = Container::getInstance()->make($this->class);
 
         $parameters = array_merge(array_values($this->data), [$e]);
 
