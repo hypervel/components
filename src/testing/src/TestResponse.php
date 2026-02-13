@@ -9,7 +9,7 @@ use Closure;
 use Hyperf\Contract\MessageBag;
 use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;
 use Hyperf\ViewEngine\ViewErrorBag;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Support\Arr;
@@ -227,12 +227,12 @@ class TestResponse extends HyperfTestResponse
 
     protected function session(): SessionContract
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         if (! $container->has(SessionContract::class)) {
             throw new RuntimeException('Package `hypervel/session` is not installed.');
         }
 
-        return $container->get(SessionContract::class);
+        return $container->make(SessionContract::class);
     }
 
     /**
