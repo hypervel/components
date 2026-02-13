@@ -6,9 +6,9 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Log\Events\MessageLogged;
@@ -120,7 +120,7 @@ class Telescope
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
-    public static function start(Container $app): void
+    public static function start(ContainerContract $app): void
     {
         if (! config('telescope.enabled')) {
             return;
@@ -163,9 +163,9 @@ class Telescope
     /**
      * Determine if the application is handling an approved request.
      */
-    public static function handlingApprovedRequest(Container $app): bool
+    public static function handlingApprovedRequest(ContainerContract $app): bool
     {
-        return static::requestIsToApprovedDomain($request = $app->get(RequestContract::class))
+        return static::requestIsToApprovedDomain($request = $app->make(RequestContract::class))
             && static::requestIsToApprovedUri($request);
     }
 
@@ -614,8 +614,8 @@ class Telescope
                             ->onQueue(config('telescope.queue.queue'))
                             ->delay(is_numeric($delay) && $delay > 0 ? now()->addSeconds($delay) : null);
                     } catch (Throwable $e) {
-                        ApplicationContext::getContainer()
-                            ->get(ExceptionHandler::class)
+                        Container::getInstance()
+                            ->make(ExceptionHandler::class)
                             ->report($e);
                     }
                 }
@@ -626,8 +626,8 @@ class Telescope
 
                 Collection::make(static::$afterStoringHooks)->every->__invoke(static::getEntriesQueue(), $batchId);
             } catch (Throwable $e) {
-                ApplicationContext::getContainer()
-                    ->get(ExceptionHandler::class)
+                Container::getInstance()
+                    ->make(ExceptionHandler::class)
                     ->report($e);
             }
         });

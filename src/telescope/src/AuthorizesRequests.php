@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Support\Environment;
 
@@ -32,8 +32,8 @@ trait AuthorizesRequests
     public static function check(RequestContract $request): bool
     {
         return (static::$authUsing ?: function () {
-            return ApplicationContext::getContainer()
-                ->get(Environment::class)
+            return Container::getInstance()
+                ->make(Environment::class)
                 ->isLocal();
         })($request);
     }
