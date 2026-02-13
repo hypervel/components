@@ -351,7 +351,7 @@ class PendingCommand
         $mock = $this->mockConsoleOutput();
 
         $exception = null;
-        $this->app->get(Dispatcher::class)
+        $this->app->make(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) use (&$exception) {
                 $exception = $event->getThrowable();
             });
