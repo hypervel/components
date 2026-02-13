@@ -86,7 +86,7 @@ class RouteDependencyTest extends TestCase
             ->with('service')
             ->once()
             ->andReturn(true);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('service')
             ->once()
             ->andReturn('service');
@@ -132,7 +132,7 @@ class RouteDependencyTest extends TestCase
             ->with('service')
             ->once()
             ->andReturn(true);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('service')
             ->once()
             ->andReturn('service');

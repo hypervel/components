@@ -25,7 +25,7 @@ class HandleCors implements MiddlewareInterface
         protected RequestContract $request,
         protected Cors $cors,
     ) {
-        $this->config = $container->get('config')->get('cors', []);
+        $this->config = $container->make('config')->get('cors', []);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface

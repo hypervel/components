@@ -162,7 +162,7 @@ class RouteDependency
             } elseif ($definition->getMeta('defaultValueAvailable')) {
                 $dependencies[] = $definition->getMeta('defaultValue');
             } elseif ($this->container->has($name = $definition->getName())) {
-                $dependencies[] = $this->container->get($name);
+                $dependencies[] = $this->container->make($name);
             } elseif ($definition->allowsNull()) {
                 $dependencies[] = null;
             } else {

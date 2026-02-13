@@ -41,7 +41,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         protected string $serverName
     ) {
         $this->dispatcher = $this->createDispatcher($serverName);
-        $this->routeDependency = $container->get(RouteDependency::class);
+        $this->routeDependency = $container->make(RouteDependency::class);
     }
 
     /**
@@ -53,14 +53,14 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         if ($response instanceof Renderable) {
             if ($response instanceof ViewInterface) {
-                if ($this->container->get('config')->get('view.event.enable', false)) {
-                    $this->container->get(EventDispatcher::class)
+                if ($this->container->make('config')->get('view.event.enable', false)) {
+                    $this->container->make(EventDispatcher::class)
                         ->dispatch(new ViewRendered($response));
                 }
             }
 
             return $this->response()
-                ->setHeader('Content-Type', $this->container->get(RenderInterface::class)->getContentType())
+                ->setHeader('Content-Type', $this->container->make(RenderInterface::class)->getContentType())
                 ->setBody(new SwooleStream($response->render()));
         }
 
@@ -107,7 +107,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
 
     protected function createDispatcher(string $serverName): Dispatcher
     {
-        return $this->container->get(DispatcherFactory::class)
+        return $this->container->make(DispatcherFactory::class)
             ->getDispatcher($serverName);
     }
 
@@ -138,7 +138,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         }
 
         [$controller, $action] = $route->getControllerCallback();
-        $controllerInstance = $this->container->get($controller);
+        $controllerInstance = $this->container->make($controller);
         if (! method_exists($controllerInstance, $action)) {
             throw new ServerErrorHttpException("{$controller}@{$action} does not exist.");
         }

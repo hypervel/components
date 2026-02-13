@@ -22,7 +22,7 @@ class HandleCorsTest extends TestCase
     {
         parent::setUp();
 
-        $config = $this->app->get('config');
+        $config = $this->app->make('config');
 
         $config->set('cors', [
             'paths' => ['api/*'],
@@ -64,7 +64,7 @@ class HandleCorsTest extends TestCase
 
     public function testAllowAllOrigins()
     {
-        $this->app->get('config')->set('cors.allowed_origins', ['*']);
+        $this->app->make('config')->set('cors.allowed_origins', ['*']);
 
         $crawler = $this->options('api/ping', [], [
             'Origin' => 'http://laravel.com',
@@ -77,7 +77,7 @@ class HandleCorsTest extends TestCase
 
     public function testAllowAllOriginsWildcard()
     {
-        $this->app->get('config')->set('cors.allowed_origins', ['*.laravel.com']);
+        $this->app->make('config')->set('cors.allowed_origins', ['*.laravel.com']);
 
         $crawler = $this->options('api/ping', [], [
             'Origin' => 'http://test.laravel.com',
@@ -90,7 +90,7 @@ class HandleCorsTest extends TestCase
 
     public function testOriginsWildcardIncludesNestedSubdomains()
     {
-        $this->app->get('config')->set('cors.allowed_origins', ['*.laravel.com']);
+        $this->app->make('config')->set('cors.allowed_origins', ['*.laravel.com']);
 
         $crawler = $this->options('api/ping', [], [
             'Origin' => 'http://api.service.test.laravel.com',
@@ -103,7 +103,7 @@ class HandleCorsTest extends TestCase
 
     public function testAllowAllOriginsWildcardNoMatch()
     {
-        $this->app->get('config')->set('cors.allowed_origins', ['*.laravel.com']);
+        $this->app->make('config')->set('cors.allowed_origins', ['*.laravel.com']);
 
         $crawler = $this->options('api/ping', [], [
             'Origin' => 'http://test.symfony.com',
@@ -171,7 +171,7 @@ class HandleCorsTest extends TestCase
 
     public function testAllowHeaderAllowedWildcardOptions()
     {
-        $this->app->get('config')->set('cors.allowed_headers', ['*']);
+        $this->app->make('config')->set('cors.allowed_headers', ['*']);
 
         $crawler = $this->options('api/ping', [], [
             'Origin' => 'http://localhost',
@@ -208,7 +208,7 @@ class HandleCorsTest extends TestCase
 
     public function testAllowHeaderAllowedWildcard()
     {
-        $this->app->get('config')->set('cors.allowed_headers', ['*']);
+        $this->app->make('config')->set('cors.allowed_headers', ['*']);
 
         $crawler = $this->post('web/ping', [], [
             'Origin' => 'http://localhost',
@@ -271,7 +271,7 @@ class HandleCorsTest extends TestCase
 
     protected function registerRoutes()
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $router->post('web/ping', function () {
             return 'PONG';
