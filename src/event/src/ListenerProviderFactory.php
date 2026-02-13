@@ -36,7 +36,7 @@ class ListenerProviderFactory
      */
     protected function registerConfig(ListenerProvider $provider, Container $container): void
     {
-        $config = $container->get('config');
+        $config = $container->make('config');
 
         foreach ($config->get('listeners', []) as $key => $value) {
             // Support both indexed array and associative (legacy priority) format
@@ -65,7 +65,7 @@ class ListenerProviderFactory
      */
     protected function register(ListenerProvider $provider, Container $container, string $listener): void
     {
-        $instance = $container->get($listener);
+        $instance = $container->make($listener);
 
         if ($instance instanceof ListenerInterface) {
             foreach ($instance->listen() as $event) {

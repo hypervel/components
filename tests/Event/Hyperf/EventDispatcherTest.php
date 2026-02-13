@@ -50,10 +50,10 @@ class EventDispatcherTest extends TestCase
     public function testInvokeDispatcherByFactory()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->with('config')->andReturn(new Repository([]));
-        $config = $container->get('config');
-        $container->shouldReceive('get')->with(ListenerProviderContract::class)->andReturn(new ListenerProvider());
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn(new StdoutLogger($config));
+        $container->shouldReceive('make')->with('config')->andReturn(new Repository([]));
+        $config = $container->make('config');
+        $container->shouldReceive('make')->with(ListenerProviderContract::class)->andReturn(new ListenerProvider());
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(new StdoutLogger($config));
         $this->assertInstanceOf(Dispatcher::class, $instance = (new EventDispatcherFactory())($container));
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');

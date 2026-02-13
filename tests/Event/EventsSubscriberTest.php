@@ -34,7 +34,7 @@ class EventsSubscriberTest extends TestCase
         $d = $this->getEventDispatcher();
         $subs = m::mock(ExampleSubscriber::class);
         $subs->shouldReceive('subscribe')->once()->with($d);
-        $this->container->shouldReceive('get')->once()->with(ExampleSubscriber::class)->andReturn($subs);
+        $this->container->shouldReceive('make')->once()->with(ExampleSubscriber::class)->andReturn($subs);
 
         $d->subscribe(ExampleSubscriber::class);
     }
@@ -51,7 +51,7 @@ class EventsSubscriberTest extends TestCase
     public function testEventSubscribeCanReturnMappings()
     {
         $d = $this->getEventDispatcher();
-        $this->container->shouldReceive('get')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber());
+        $this->container->shouldReceive('make')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber());
 
         $d->subscribe(DeclarativeSubscriber::class);
 

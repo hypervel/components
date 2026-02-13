@@ -13,15 +13,15 @@ class EventDispatcherFactory
 {
     public function __invoke(Container $container)
     {
-        $listeners = $container->get(ListenerProvider::class);
-        $stdoutLogger = $container->get(StdoutLoggerInterface::class);
+        $listeners = $container->make(ListenerProvider::class);
+        $stdoutLogger = $container->make(StdoutLoggerInterface::class);
         $dispatcher = new EventDispatcher($listeners, $stdoutLogger, $container);
 
-        $dispatcher->setQueueResolver(fn () => $container->get(QueueFactoryContract::class));
+        $dispatcher->setQueueResolver(fn () => $container->make(QueueFactoryContract::class));
 
         $dispatcher->setTransactionManagerResolver(
             fn () => $container->has('db.transactions')
-                ? $container->get('db.transactions')
+                ? $container->make('db.transactions')
                 : null
         );
 

@@ -63,7 +63,7 @@ class QueuedEventsTest extends TestCase
     public function testQueuedEventHandlersAreQueued()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
             ->andReturn(new TestDispatcherQueuedHandler());
@@ -84,7 +84,7 @@ class QueuedEventsTest extends TestCase
     public function testCallableHandlersAreQueued()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
             ->andReturn(new TestDispatcherQueuedHandler());
@@ -106,7 +106,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueIsSetByGetConnection()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnection::class)
             ->andReturn(new TestDispatcherGetConnection());
@@ -127,7 +127,7 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelay()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelay::class)
             ->andReturn(new TestDispatcherGetConnection());
@@ -148,7 +148,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueIsSetByGetConnectionDynamically()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnectionDynamically::class)
             ->andReturn(new TestDispatcherGetConnectionDynamically());
@@ -172,7 +172,7 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelayDynamically()
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelayDynamically::class)
             ->andReturn(new TestDispatcherGetDelayDynamically());
@@ -254,7 +254,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsStringBackedEnumViaProperty(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueProperty::class)
             ->andReturn(new TestDispatcherStringEnumQueueProperty());
@@ -276,7 +276,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsUnitEnumViaProperty(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherUnitEnumQueueProperty::class)
             ->andReturn(new TestDispatcherUnitEnumQueueProperty());
@@ -298,7 +298,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueWithIntBackedEnumViaPropertyThrowsTypeError(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherIntEnumQueueProperty::class)
             ->andReturn(new TestDispatcherIntEnumQueueProperty());
@@ -321,7 +321,7 @@ class QueuedEventsTest extends TestCase
     public function testQueueAcceptsStringBackedEnumViaMethod(): void
     {
         $this->container
-            ->shouldReceive('get')
+            ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueMethod::class)
             ->andReturn(new TestDispatcherStringEnumQueueMethod());

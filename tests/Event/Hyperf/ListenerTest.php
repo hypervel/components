@@ -61,35 +61,35 @@ class ListenerTest extends TestCase
     public function testListenerInvokeByFactory()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')->once()->with('config')->andReturn(new Repository([]));
+        $container->shouldReceive('make')
             ->once()
             ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
-        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $listenerProvider = $container->make(ListenerProviderContract::class);
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
     }
 
     public function testListenerInvokeByFactoryWithConfig()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([
+        $container->shouldReceive('make')->once()->with('config')->andReturn(new Repository([
             'listeners' => [
                 AlphaListener::class,
                 BetaListener::class,
             ],
         ]));
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(AlphaListener::class)
             ->andReturn($alphaListener = new AlphaListener());
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(BetaListener::class)
             ->andReturn($betaListener = new BetaListener());
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->once()
             ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
-        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $listenerProvider = $container->make(ListenerProviderContract::class);
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertSame(2, count($listenerProvider->listeners));
 
@@ -109,19 +109,19 @@ class ListenerTest extends TestCase
         $listenerAnnotation->collectClass(BetaListener::class, ListenerAnnotation::class);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')->once()->with('config')->andReturn(new Repository([]));
+        $container->shouldReceive('make')
             ->with(AlphaListener::class)
             ->andReturn($alphaListener = new AlphaListener());
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(BetaListener::class)
             ->andReturn($betaListener = new BetaListener());
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->once()
             ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
 
-        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $listenerProvider = $container->make(ListenerProviderContract::class);
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertSame(2, count($listenerProvider->listeners));
 

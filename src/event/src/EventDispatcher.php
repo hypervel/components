@@ -216,7 +216,7 @@ class EventDispatcher implements DispatcherContract
     protected function broadcastEvent(ShouldBroadcast $event): void
     {
         /** @var \Hypervel\Broadcasting\BroadcastManager $broadcaster */
-        $broadcaster = $this->container->get(BroadcastFactory::class);
+        $broadcaster = $this->container->make(BroadcastFactory::class);
         $broadcaster->queue($event);
     }
 
@@ -298,7 +298,7 @@ class EventDispatcher implements DispatcherContract
             return $this->createQueuedHandlerCallable($class, $method);
         }
 
-        $listener = is_string($class) ? $this->container->get($class) : $class;
+        $listener = is_string($class) ? $this->container->make($class) : $class;
 
         return $this->handlerShouldBeDispatchedAfterDatabaseTransactions($listener)
             ? $this->createCallbackForListenerRunningAfterCommits($listener, $method)
@@ -472,7 +472,7 @@ class EventDispatcher implements DispatcherContract
      */
     protected function handlerWantsToBeQueued(object|string $class, array $arguments): bool
     {
-        $instance = is_string($class) ? $this->container->get($class) : $class;
+        $instance = is_string($class) ? $this->container->make($class) : $class;
 
         if (method_exists($instance, 'shouldQueue')) {
             return $instance->shouldQueue($arguments[0]);
@@ -590,7 +590,7 @@ class EventDispatcher implements DispatcherContract
     protected function resolveSubscriber(object|string $subscriber): mixed
     {
         if (is_string($subscriber)) {
-            return $this->container->get($subscriber);
+            return $this->container->make($subscriber);
         }
 
         return $subscriber;
