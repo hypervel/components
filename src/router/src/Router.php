@@ -9,7 +9,7 @@ use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\DispatchedRoute;
 use RuntimeException;
@@ -144,8 +144,8 @@ class Router
     public function current(): ?DispatchedRoute
     {
         /** @var \Hypervel\Http\Request $request */
-        $request = ApplicationContext::getContainer()
-            ->get(Request::class);
+        $request = Container::getInstance()
+            ->make(Request::class);
 
         return $request->route();
     }
@@ -184,8 +184,8 @@ class Router
 
     public static function __callStatic(string $name, array $arguments)
     {
-        return ApplicationContext::getContainer()
-            ->get(Router::class)
+        return Container::getInstance()
+            ->make(Router::class)
             ->{$name}(...$arguments);
     }
 }

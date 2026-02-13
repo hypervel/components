@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Router;
 
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\RouteFileCollector;
@@ -127,7 +126,7 @@ class DispatcherFactoryTest extends TestCase
             $container->singleton($abstract, $concrete);
         }
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

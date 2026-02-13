@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\UrlGenerator;
@@ -31,9 +29,6 @@ use ReflectionMethod;
  */
 class UrlGeneratorTest extends TestCase
 {
-    /**
-     * @var Container|MockInterface
-     */
     private Container $container;
 
     /**
@@ -61,13 +56,9 @@ class UrlGeneratorTest extends TestCase
 
         $this->mockRouter();
 
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
-            ->with('app.url')
-            ->andReturn('http://example.com');
-        $this->container->shouldReceive('get')
-            ->with('config')
-            ->andReturn($config);
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://example.com'],
+        ]));
 
         $this->router
             ->shouldReceive('getNamedRoutes')
@@ -249,13 +240,11 @@ class UrlGeneratorTest extends TestCase
 
     public function testNoRequestContext()
     {
-        $urlGenerator = new UrlGenerator($this->container);
-
-        $this->container->shouldReceive('get')->with('config')->andReturn(new ConfigRepository([
-            'app' => [
-                'url' => 'http://localhost',
-            ],
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://localhost'],
         ]));
+
+        $urlGenerator = new UrlGenerator($this->container);
 
         $this->assertEquals('http://localhost/foo', $urlGenerator->to('foo'));
     }
@@ -290,9 +279,6 @@ class UrlGeneratorTest extends TestCase
                 ['referer' => 'http://example.com/previous']
             )
         );
-        $this->container->shouldReceive('has')
-            ->with(SessionInterface::class)
-            ->andReturnFalse();
 
         $this->assertEquals('http://example.com/previous', $urlGenerator->previous());
 
@@ -323,19 +309,9 @@ class UrlGeneratorTest extends TestCase
             )
         );
 
-        // Mock config Repository for app.url
-        $mockConfig = m::mock(ConfigRepository::class);
-        $mockConfig->shouldReceive('get')
-            ->with('app.url')
-            ->andReturn('http://example.com');
-        $this->container->shouldReceive('get')
-            ->with('config')
-            ->andReturn($mockConfig);
-
-        // Test with referer header
-        $this->container->shouldReceive('has')
-            ->with(SessionInterface::class)
-            ->andReturnFalse();
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://example.com'],
+        ]));
 
         $this->assertEquals('/previous/path', $urlGenerator->previousPath());
 
@@ -639,14 +615,10 @@ class UrlGeneratorTest extends TestCase
 
     private function mockContainer()
     {
-        /** @var Container|MockInterface */
-        $container = m::mock(Container::class);
+        $container = new Container();
+        $container->instance(RequestInterface::class, new Request());
 
-        $container->shouldReceive('get')
-            ->with(RequestInterface::class)
-            ->andReturn(new Request());
-
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->container = $container;
     }
@@ -659,10 +631,7 @@ class UrlGeneratorTest extends TestCase
         /** @var MockInterface|RouteCollector */
         $router = $router ?: m::mock(RouteCollector::class);
 
-        $this->container
-            ->shouldReceive('get')
-            ->with(HyperfDispatcherFactory::class)
-            ->andReturn($factory);
+        $this->container->instance(HyperfDispatcherFactory::class, $factory);
 
         $factory
             ->shouldReceive('getRouter')
