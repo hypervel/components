@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Messages;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Renderable;
@@ -306,16 +306,16 @@ class MailMessage extends SimpleMessage implements Renderable
     public function render(): string
     {
         if (isset($this->view)) {
-            return ApplicationContext::getContainer()
-                ->get('mailer')
+            return Container::getInstance()
+                ->make('mailer')
                 ->render(
                     $this->view,
                     $this->data()
                 );
         }
 
-        $markdown = ApplicationContext::getContainer()
-            ->get(Markdown::class);
+        $markdown = Container::getInstance()
+            ->make(Markdown::class);
 
         return (string) $markdown->theme($this->theme ?: $markdown->getTheme())
             ->render($this->markdown, $this->data());

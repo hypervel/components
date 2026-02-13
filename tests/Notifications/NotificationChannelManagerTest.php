@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Notifications;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -130,7 +129,7 @@ class NotificationChannelManagerTest extends TestCase
         $container->instance(Dispatcher::class, m::mock(Dispatcher::class));
         $container->singleton(PoolFactory::class, PoolManager::class);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

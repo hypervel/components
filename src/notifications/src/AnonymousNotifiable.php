@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Notifications\Dispatcher;
 use InvalidArgumentException;
 
@@ -36,8 +36,8 @@ class AnonymousNotifiable
      */
     public function notify(mixed $notification): void
     {
-        ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        Container::getInstance()
+            ->make(Dispatcher::class)
             ->send($this, $notification);
     }
 
@@ -46,8 +46,8 @@ class AnonymousNotifiable
      */
     public function notifyNow(mixed $notification): void
     {
-        ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        Container::getInstance()
+            ->make(Dispatcher::class)
             ->sendNow($this, $notification);
     }
 

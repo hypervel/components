@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Notifications\Dispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\RoutesNotifications;
@@ -64,7 +63,7 @@ class NotificationRoutesNotificationsTest extends TestCase
     {
         $container = new Container();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }
