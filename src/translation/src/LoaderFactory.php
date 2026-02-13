@@ -18,7 +18,7 @@ class LoaderFactory
             : BASE_PATH . DIRECTORY_SEPARATOR . 'lang';
 
         return new FileLoader(
-            $container->get(Filesystem::class),
+            $container->make(Filesystem::class),
             [
                 dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lang',
                 $langPath,
