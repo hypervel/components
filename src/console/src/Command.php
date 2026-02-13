@@ -46,9 +46,8 @@ abstract class Command extends HyperfCommand
     {
         parent::__construct($name);
 
-        /** @var ApplicationContract $app */
-        $app = Container::getInstance();
-        $this->app = $app;
+        /* @phpstan-ignore assign.propertyType */
+        $this->app = Container::getInstance();
 
         if ($this instanceof Isolatable) {
             $this->configureIsolation();
