@@ -10,7 +10,7 @@ use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -87,9 +87,6 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(Dispatcher::class)->once()->andReturnFalse();
-        $app->shouldReceive('has')->with(Dispatcher::class)->once()->andReturnTrue();
-        $app->shouldReceive('get')->with(Dispatcher::class)->once()->andReturn($eventDispatcher = m::mock(Dispatcher::class));
 
         $cacheManager = new CacheManager($app);
         $repo = $cacheManager->repository($theStore = new NullStore(), ['events' => true]);
@@ -98,6 +95,9 @@ class CacheManagerTest extends TestCase
         $this->assertSame($theStore, $repo->getStore());
 
         // binding dispatcher after the repo's birth will have no effect.
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $app->instance(Dispatcher::class, $eventDispatcher);
+
         $this->assertNull($repo->getEventDispatcher());
         $this->assertSame($theStore, $repo->getStore());
 
@@ -125,9 +125,6 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(Dispatcher::class)->twice()->andReturnFalse();
-        $app->shouldReceive('has')->with(Dispatcher::class)->twice()->andReturnTrue();
-        $app->shouldReceive('get')->with(Dispatcher::class)->twice()->andReturn($eventDispatcher = m::mock(Dispatcher::class));
 
         $cacheManager = new CacheManager($app);
         $repo1 = $cacheManager->store('store_1');
@@ -135,6 +132,9 @@ class CacheManagerTest extends TestCase
 
         $this->assertNull($repo1->getEventDispatcher());
         $this->assertNull($repo2->getEventDispatcher());
+
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $app->instance(Dispatcher::class, $eventDispatcher);
 
         $cacheManager->refreshEventDispatcher();
 
@@ -164,7 +164,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->setDefaultDriver('><((((@>');
 
-        $this->assertEquals('><((((@>', $app->get('config')->get('cache.default'));
+        $this->assertEquals('><((((@>', $app->make('config')->get('cache.default'));
     }
 
     public function testItPurgesMemoizedStoreObjects()
@@ -183,7 +183,6 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
         $cacheManager = new CacheManager($app);
 
@@ -391,16 +390,15 @@ class CacheManagerTest extends TestCase
         $this->assertSame(TagMode::All, $store->getTagMode());
     }
 
-    protected function getApp(array $userConfig)
+    protected function getApp(array $userConfig): Container
     {
-        /** @var Container|MockInterface */
-        $app = m::mock(Container::class);
-        $app->shouldReceive('get')->with('config')->andReturn(new ConfigRepository($userConfig));
+        $app = new Container();
+        $app->instance('config', new ConfigRepository($userConfig));
 
         return $app;
     }
 
-    protected function getAppWithRedis(array $userConfig)
+    protected function getAppWithRedis(array $userConfig): Container
     {
         $app = $this->getApp($userConfig);
 
@@ -430,14 +428,10 @@ class CacheManagerTest extends TestCase
         // Mock RedisFactory
         $redisFactory = m::mock(RedisFactory::class);
 
-        $app->shouldReceive('get')->with(RedisFactory::class)->andReturn($redisFactory);
-        $app->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
+        $app->instance(RedisFactory::class, $redisFactory);
+        $app->instance(PoolFactory::class, $poolFactory);
 
-        // Override make() to return our mocked PoolFactory
-        // Since make() uses container internally, we need to handle this
-        \Hyperf\Context\ApplicationContext::setContainer($app);
-        $app->shouldReceive('get')->with(PoolFactory::class)->andReturn($poolFactory);
-        $app->shouldReceive('make')->with(PoolFactory::class, m::any())->andReturn($poolFactory);
+        Container::setInstance($app);
 
         return $app;
     }

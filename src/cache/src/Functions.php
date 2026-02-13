@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\InvalidArgumentException;
 
 /**
@@ -20,7 +20,7 @@ use Hypervel\Contracts\Cache\InvalidArgumentException;
  */
 function cache($key = null, $default = null)
 {
-    $manager = ApplicationContext::getContainer()->get(CacheManager::class);
+    $manager = Container::getInstance()->make(CacheManager::class);
 
     if (is_null($key)) {
         return $manager;

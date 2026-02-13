@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\TagMode;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory;
 use Redis;
@@ -135,8 +135,8 @@ class StoreContext
      */
     public function withConnection(callable $callback): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
+        return Container::getInstance()
+            ->make(RedisFactory::class)
             ->get($this->connectionName)
             ->withConnection($callback, transform: false);
     }
