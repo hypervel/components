@@ -63,7 +63,7 @@ class LogManager implements LoggerInterface
     public function __construct(
         protected Container $app
     ) {
-        $this->config = $this->app->get('config');
+        $this->config = $this->app->make('config');
     }
 
     /**
@@ -83,7 +83,7 @@ class LogManager implements LoggerInterface
     {
         return new Logger(
             $this->createStackDriver(compact('channels', 'channel')),
-            $this->app->get(Dispatcher::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -110,7 +110,7 @@ class LogManager implements LoggerInterface
     {
         try {
             return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->get(Dispatcher::class)));
+                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->make(Dispatcher::class)));
             });
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
@@ -157,7 +157,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app->get(Dispatcher::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -469,7 +469,7 @@ class LogManager implements LoggerInterface
      */
     protected function getFallbackChannelName(): string
     {
-        return $this->app->get(Environment::class)->get() ?: 'production';
+        return $this->app->make(Environment::class)->get() ?: 'production';
     }
 
     /**
@@ -527,7 +527,7 @@ class LogManager implements LoggerInterface
     {
         $driver ??= $this->getDefaultDriver();
 
-        if ($this->app->get(Environment::class)->isTesting()) {
+        if ($this->app->make(Environment::class)->isTesting()) {
             $driver ??= 'null';
         }
 

@@ -13,12 +13,12 @@ class BlacklistFactory
 {
     public function __invoke(Container $container): BlacklistContract
     {
-        $config = $container->get('config');
+        $config = $container->make('config');
 
         $storageClass = $config->get('jwt.providers.storage');
         $storage = match ($storageClass) {
-            TaggedCache::class => new TaggedCache($container->get(CacheManager::class)->store()),
-            default => $container->get($storageClass),
+            TaggedCache::class => new TaggedCache($container->make(CacheManager::class)->store()),
+            default => $container->make($storageClass),
         };
 
         return new Blacklist(

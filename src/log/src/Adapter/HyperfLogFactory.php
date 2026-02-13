@@ -12,7 +12,7 @@ class HyperfLogFactory
     {
         return new LogFactoryAdapter(
             $container,
-            $container->get('config')
+            $container->make('config')
         );
     }
 }

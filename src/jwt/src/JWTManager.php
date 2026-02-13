@@ -31,7 +31,7 @@ class JWTManager extends Manager implements ManagerContract
         protected Container $container
     ) {
         parent::__construct($container);
-        $this->blacklist = $container->get(BlacklistContract::class);
+        $this->blacklist = $container->make(BlacklistContract::class);
         $this->blacklistEnabled = $this->config->get('jwt.blacklist_enabled', false);
     }
 
