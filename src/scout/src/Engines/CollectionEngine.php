@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -301,8 +301,8 @@ class CollectionEngine extends Engine
      */
     protected function getScoutConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 }

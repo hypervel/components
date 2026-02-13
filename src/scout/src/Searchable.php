@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -389,7 +389,7 @@ trait Searchable
      */
     public function searchableUsing(): Engine
     {
-        return ApplicationContext::getContainer()->get(EngineManager::class)->engine();
+        return Container::getInstance()->make(EngineManager::class)->engine();
     }
 
     /**
@@ -510,8 +510,8 @@ trait Searchable
      */
     protected static function getScoutConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 }

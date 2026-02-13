@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -69,8 +69,8 @@ class SearchableScope implements Scope
      */
     protected static function getScoutConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 
@@ -79,8 +79,8 @@ class SearchableScope implements Scope
      */
     protected static function dispatchEvent(object $event): void
     {
-        ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        Container::getInstance()
+            ->make(Dispatcher::class)
             ->dispatch($event);
     }
 }

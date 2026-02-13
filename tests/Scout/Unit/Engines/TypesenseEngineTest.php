@@ -545,7 +545,7 @@ class TypesenseEngineTest extends TestCase
     }
 
     /**
-     * Create a partial engine mock that stubs getConfig to avoid ApplicationContext dependency.
+     * Create a partial engine mock that stubs getConfig to avoid container dependency.
      */
     protected function createPartialEngineWithConfig(?MockInterface $client = null): MockInterface&TypesenseEngine
     {
