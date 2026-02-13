@@ -38,7 +38,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesWhenPassingCorrectEnum()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 'pending',
                 'int_status' => 1,
@@ -55,7 +55,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesWhenPassingInstanceOfEnum()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => StringStatus::done,
             ],
@@ -70,7 +70,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesWhenPassingInstanceOfPureEnum()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => PureEnum::one,
             ],
@@ -85,7 +85,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsWhenProvidingNoExistingCases()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 'finished',
             ],
@@ -101,7 +101,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesForAllCasesUntilEitherOnlyOrExceptIsPassed()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status_1' => PureEnum::one,
                 'status_2' => PureEnum::two,
@@ -124,7 +124,7 @@ class ValidationEnumRuleTest extends TestCase
         bool $expected
     ) {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => $enum,
             ],
@@ -143,7 +143,7 @@ class ValidationEnumRuleTest extends TestCase
         bool $expected
     ) {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => $enum,
             ],
@@ -169,7 +169,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testOnlyHasHigherOrderThanExcept()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => PureEnum::one,
             ],
@@ -186,7 +186,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsWhenProvidingDifferentType()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 10,
             ],
@@ -202,7 +202,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesWhenProvidingDifferentTypeThatIsCastableToTheEnumType()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => '1',
             ],
@@ -214,7 +214,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertTrue($v->fails());
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 1,
             ],
@@ -229,7 +229,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsWhenProvidingNull()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => null,
             ],
@@ -245,7 +245,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationPassesWhenProvidingNullButTheFieldIsNullable()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => null,
             ],
@@ -260,7 +260,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsOnPureEnum()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 'one',
             ],
@@ -275,7 +275,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsWhenProvidingStringToIntegerType()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 'abc',
             ],
@@ -291,7 +291,7 @@ class ValidationEnumRuleTest extends TestCase
     public function testValidationFailsWhenUsingDifferentCase()
     {
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             [
                 'status' => 'DONE',
             ],

@@ -61,7 +61,7 @@ class ValidationFileRuleTest extends TestCase
 
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->get(TranslatorContract::class),
+                $this->app->make(TranslatorContract::class),
                 ['my_file' => $value],
                 ['my_file' => is_object($rule) ? clone $rule : $rule]
             );

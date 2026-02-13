@@ -12,7 +12,7 @@ class PresenceVerifierFactory
     public function __invoke(Container $container): DatabasePresenceVerifier
     {
         return new DatabasePresenceVerifier(
-            $container->get(ConnectionResolverInterface::class)
+            $container->make(ConnectionResolverInterface::class)
         );
     }
 }

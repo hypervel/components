@@ -87,6 +87,6 @@ class ValidationRuleCanTest extends TestCase
      */
     protected function gate()
     {
-        return $this->app->get(GateContract::class);
+        return $this->app->make(GateContract::class);
     }
 }

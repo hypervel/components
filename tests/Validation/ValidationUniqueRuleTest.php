@@ -187,7 +187,7 @@ class ValidationUniqueRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make(ConnectionResolverInterface::class)
         ));
 
         $v->setData(['id_column' => 1]);

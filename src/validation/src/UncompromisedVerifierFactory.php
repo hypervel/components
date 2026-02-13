@@ -12,7 +12,7 @@ class UncompromisedVerifierFactory
     public function __invoke(Container $container): NotPwnedVerifier
     {
         return new NotPwnedVerifier(
-            $container->get(HttpFactory::class)
+            $container->make(HttpFactory::class)
         );
     }
 }
