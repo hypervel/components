@@ -98,7 +98,7 @@ class Event extends Facade
         });
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         // Must use the canonical binding key (registered by ConfigProvider), not an alias.
         // Facade::swap() calls instance() with this key, and rebinding callbacks are

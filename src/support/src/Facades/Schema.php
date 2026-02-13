@@ -40,7 +40,7 @@ use Hypervel\Database\Schema\SchemaProxy;
  */
 class Schema extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return SchemaProxy::class;
     }

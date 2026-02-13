@@ -114,7 +114,7 @@ use Hypervel\HttpClient\Factory;
  */
 class Http extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
     }

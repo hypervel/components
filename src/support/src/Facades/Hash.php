@@ -27,7 +27,7 @@ use Hypervel\Contracts\Hashing\Hasher;
  */
 class Hash extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Hasher::class;
     }

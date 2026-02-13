@@ -24,7 +24,7 @@ use Hypervel\JWT\Contracts\ManagerContract;
  */
 class JWT extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return ManagerContract::class;
     }

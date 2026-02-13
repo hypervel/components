@@ -55,7 +55,7 @@ use Hypervel\Filesystem\Filesystem;
  */
 class File extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Filesystem::class;
     }

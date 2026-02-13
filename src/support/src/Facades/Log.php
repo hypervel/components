@@ -41,7 +41,7 @@ use Psr\Log\LoggerInterface;
  */
 class Log extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return LoggerInterface::class;
     }

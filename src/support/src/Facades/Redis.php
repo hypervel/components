@@ -312,7 +312,7 @@ use Hypervel\Redis\Redis as RedisClient;
  */
 class Redis extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return RedisClient::class;
     }

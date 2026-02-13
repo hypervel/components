@@ -21,7 +21,7 @@ use Hypervel\Contracts\Cookie\Cookie as CookieContract;
  */
 class Cookie extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return CookieContract::class;
     }

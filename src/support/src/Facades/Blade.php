@@ -46,7 +46,7 @@ use Hyperf\ViewEngine\Compiler\CompilerInterface;
  */
 class Blade extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return CompilerInterface::class;
     }

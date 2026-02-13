@@ -39,7 +39,7 @@ use Hypervel\Support\Facades\Facade;
  */
 class Socialite extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
     }

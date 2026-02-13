@@ -60,7 +60,7 @@ use Hypervel\Contracts\Cache\Factory;
  */
 class Cache extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
     }

@@ -22,7 +22,7 @@ use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
  */
 class Crypt extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return EncrypterContract::class;
     }

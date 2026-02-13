@@ -42,7 +42,7 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
  */
 class Lang extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return TranslatorContract::class;
     }

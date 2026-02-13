@@ -36,7 +36,7 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
  */
 class Gate extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return GateContract::class;
     }

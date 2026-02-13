@@ -39,7 +39,7 @@ use Hypervel\Router\Router;
  */
 class Route extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Router::class;
     }

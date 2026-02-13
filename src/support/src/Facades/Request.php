@@ -143,7 +143,7 @@ use Hypervel\Contracts\Http\Request as RequestContract;
  */
 class Request extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return RequestContract::class;
     }

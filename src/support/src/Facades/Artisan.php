@@ -27,7 +27,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
  */
 class Artisan extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return KernelContract::class;
     }

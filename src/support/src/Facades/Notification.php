@@ -84,7 +84,7 @@ class Notification extends Facade
         return (new AnonymousNotifiable())->route($channel, $route);
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return NotificationDispatcher::class;
     }

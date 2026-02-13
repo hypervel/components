@@ -84,7 +84,7 @@ namespace Hypervel\Support\Facades;
  */
 class App extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return 'app';
     }

@@ -20,6 +20,22 @@ abstract class Facade
     protected static array $resolvedInstance;
 
     /**
+     * Indicates if the resolved instance should be cached.
+     *
+     * When false, the facade resolves from the container on every access
+     * instead of caching in $resolvedInstance. Useful for stateful services
+     * like Pipeline where each usage needs a fresh instance.
+     *
+     * Important: for $cached = false to produce fresh instances, the
+     * underlying class must be explicitly bound with bind(), not singleton().
+     * Our container auto-singletons unbound classes, so an unbound class
+     * would still return the same instance from the container regardless
+     * of this setting. This differs from Laravel where unbound classes
+     * always resolve fresh.
+     */
+    protected static bool $cached = true;
+
+    /**
      * Run a Closure when the facade has been resolved.
      */
     public static function resolved(Closure $callback): void
@@ -175,23 +191,26 @@ abstract class Facade
     /**
      * Resolve the facade root instance from the container.
      */
-    protected static function resolveFacadeInstance(object|string $name): mixed
+    protected static function resolveFacadeInstance(string $name): mixed
     {
-        if (is_object($name)) {
-            return $name;
-        }
-
         if (isset(static::$resolvedInstance[$name])) {
             return static::$resolvedInstance[$name];
         }
 
         $container = Container::getInstance();
 
-        if ($container->has($name)) {
+        // Guard against resolving facades before their services are available.
+        // Equivalent to Laravel's `if (static::$app)` null check — prevents
+        // auto-resolution cascades for unavailable accessors during bootstrap.
+        if (! $container->has($name)) {
+            return null;
+        }
+
+        if (static::$cached) {
             return static::$resolvedInstance[$name] = $container->make($name);
         }
 
-        return null;
+        return $container->make($name);
     }
 
     /**
@@ -258,10 +277,8 @@ abstract class Facade
 
     /**
      * Get the registered name of the component.
-     *
-     * @return object|string
      */
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         throw new RuntimeException('Facade does not implement getFacadeAccessor method.');
     }

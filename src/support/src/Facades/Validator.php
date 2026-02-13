@@ -190,7 +190,7 @@ use Hypervel\Contracts\Validation\Factory as FactoryContract;
  */
 class Validator extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return FactoryContract::class;
     }

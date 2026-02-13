@@ -41,7 +41,7 @@ use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
  */
 class URL extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return UrlGeneratorContract::class;
     }
