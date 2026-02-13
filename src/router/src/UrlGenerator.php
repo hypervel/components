@@ -67,7 +67,7 @@ class UrlGenerator implements UrlGeneratorContract
     public function route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http'): string
     {
         /** @var \Hypervel\Router\RouteCollector $router */
-        $router = $this->container->get(DispatcherFactory::class)->getRouter($server);
+        $router = $this->container->make(DispatcherFactory::class)->getRouter($server);
         $namedRoutes = $router->getNamedRoutes();
 
         if (! array_key_exists($name, $namedRoutes)) {
@@ -321,7 +321,7 @@ class UrlGenerator implements UrlGeneratorContract
                 ?: ($fallback ? $this->to($fallback) : $this->to('/'));
         }
 
-        $referrer = $this->container->get(RequestInterface::class)
+        $referrer = $this->container->make(RequestInterface::class)
             ->header('referer');
         $url = $referrer ? $this->to($referrer) : $this->getPreviousUrlFromSession();
 
@@ -349,7 +349,7 @@ class UrlGenerator implements UrlGeneratorContract
             return null;
         }
 
-        return $this->container->get(SessionInterface::class)
+        return $this->container->make(SessionInterface::class)
             ->previousUrl();
     }
 
@@ -481,7 +481,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->signedKey;
         }
 
-        return $this->container->get('config')
+        return $this->container->make('config')
             ->get('app.key');
     }
 
@@ -512,9 +512,9 @@ class UrlGenerator implements UrlGeneratorContract
     protected function getRequestUri(): Uri
     {
         if (RequestContext::has()) {
-            return $this->container->get(RequestInterface::class)->getUri(); // @phpstan-ignore return.type (getUri() returns UriInterface but is always Uri in practice)
+            return $this->container->make(RequestInterface::class)->getUri(); // @phpstan-ignore return.type (getUri() returns UriInterface but is always Uri in practice)
         }
 
-        return new Uri($this->container->get('config')->get('app.url'));
+        return new Uri($this->container->make('config')->get('app.url'));
     }
 }

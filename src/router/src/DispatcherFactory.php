@@ -27,7 +27,7 @@ class DispatcherFactory extends BaseDispatcherFactory
 
         // Fetch route files at initialization time
         // Ensures routes added via loadRoutesFrom() in service providers are included
-        $routes = $this->container->get(RouteFileCollector::class)->getRouteFiles();
+        $routes = $this->container->make(RouteFileCollector::class)->getRouteFiles();
 
         foreach ($routes as $route) {
             if (file_exists($route)) {
