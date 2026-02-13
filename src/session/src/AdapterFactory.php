@@ -13,7 +13,7 @@ class AdapterFactory
     public function __invoke(Container $container): SessionInterface
     {
         return new SessionAdapter(
-            $container->get(SessionContract::class)
+            $container->make(SessionContract::class)
         );
     }
 }

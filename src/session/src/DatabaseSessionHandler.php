@@ -159,7 +159,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userId(): mixed
     {
-        return $this->container->get(Guard::class)->id();
+        return $this->container->make(Guard::class)->id();
     }
 
     /**
@@ -186,7 +186,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
             return '127.0.0.1';
         }
 
-        $request = $this->container->get(Request::class);
+        $request = $this->container->make(Request::class);
 
         return $request->getHeaderLine('x-real-ip')
             ?: $request->server('remote_addr');
@@ -197,7 +197,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userAgent(): string
     {
-        return substr((string) $this->container->get(Request::class)->header('User-Agent'), 0, 500);
+        return substr((string) $this->container->make(Request::class)->header('User-Agent'), 0, 500);
     }
 
     public function destroy(string $sessionId): bool

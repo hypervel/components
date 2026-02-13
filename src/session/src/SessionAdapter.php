@@ -14,7 +14,7 @@ class SessionAdapter implements SessionInterface
     public function __invoke(Container $container): SessionInterface
     {
         return new static(
-            $container->get(SessionContract::class)
+            $container->make(SessionContract::class)
         );
     }
 

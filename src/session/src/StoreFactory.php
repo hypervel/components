@@ -13,7 +13,7 @@ class StoreFactory
     public function __invoke(Container $container): SessionContract
     {
         /** @var \Hypervel\Session\SessionManager $manager */
-        $manager = $container->get(Factory::class);
+        $manager = $container->make(Factory::class);
 
         return $manager->driver();
     }
