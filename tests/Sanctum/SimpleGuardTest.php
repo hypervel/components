@@ -28,7 +28,7 @@ class SimpleGuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -39,7 +39,7 @@ class SimpleGuardTest extends TestCase
             ]);
 
         // Create users table
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();

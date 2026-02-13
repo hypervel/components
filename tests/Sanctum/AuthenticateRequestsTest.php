@@ -44,7 +44,7 @@ class AuthenticateRequestsTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app->get('config')->set([
+        $app->make('config')->set([
             'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
@@ -86,7 +86,7 @@ class AuthenticateRequestsTest extends TestCase
      */
     protected function createUsersTable(): void
     {
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();

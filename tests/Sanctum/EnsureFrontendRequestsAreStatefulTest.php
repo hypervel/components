@@ -19,7 +19,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get('config')->set('sanctum.stateful', ['test.com', '*.test.com']);
+        $this->app->make('config')->set('sanctum.stateful', ['test.com', '*.test.com']);
     }
 
     public function testRequestFromFrontendIsIdentified(): void

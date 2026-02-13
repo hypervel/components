@@ -44,7 +44,7 @@ class SanctumServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('sanctum', function ($name, $config) use ($authManager) {
-                $request = $this->app->get(RequestInterface::class);
+                $request = $this->app->make(RequestInterface::class);
 
                 // Get the provider
                 $provider = $authManager->createUserProvider($config['provider'] ?? null);
@@ -52,11 +52,11 @@ class SanctumServiceProvider extends ServiceProvider
                 // Get event dispatcher if available
                 $events = null;
                 if ($this->app->has(Dispatcher::class)) {
-                    $events = $this->app->get(Dispatcher::class);
+                    $events = $this->app->make(Dispatcher::class);
                 }
 
                 // Get expiration from sanctum config
-                $expiration = $this->app->get('config')->get('sanctum.expiration');
+                $expiration = $this->app->make('config')->get('sanctum.expiration');
 
                 return new SanctumGuard(
                     name: $name,

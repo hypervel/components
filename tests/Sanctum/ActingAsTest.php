@@ -25,7 +25,7 @@ class ActingAsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure auth guards
-        $this->app->get('config')
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -90,7 +90,7 @@ class ActingAsTest extends TestCase
 
         Sanctum::actingAs($user, ['read'], 'api');
 
-        $this->assertSame($user, $this->app->get(AuthFactoryContract::class)->guard('api')->user());
+        $this->assertSame($user, $this->app->make(AuthFactoryContract::class)->guard('api')->user());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void

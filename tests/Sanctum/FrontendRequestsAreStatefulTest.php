@@ -43,7 +43,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get('config')->set([
+        $this->app->make('config')->set([
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
@@ -53,15 +53,15 @@ class FrontendRequestsAreStatefulTest extends TestCase
             ],
         ]);
 
-        $this->app->get(SanctumServiceProvider::class)->register();
-        $this->app->get(SanctumServiceProvider::class)->boot();
+        $this->app->make(SanctumServiceProvider::class)->register();
+        $this->app->make(SanctumServiceProvider::class)->boot();
 
         $this->registerRoutes();
     }
 
     protected function registerRoutes(): void
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $webMiddleware = [
             StartSession::class,

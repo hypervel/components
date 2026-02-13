@@ -35,7 +35,7 @@ class GuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get('config')
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -83,7 +83,7 @@ class GuardTest extends TestCase
      */
     protected function createUsersTable(): void
     {
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();
@@ -157,7 +157,7 @@ class GuardTest extends TestCase
         ]);
 
         // Set the user on the web guard
-        $authManager = $this->app->get(AuthManager::class);
+        $authManager = $this->app->make(AuthManager::class);
         $authManager->guard('web')->setUser($user);
 
         // Make request without token - should use web guard
@@ -277,7 +277,7 @@ class GuardTest extends TestCase
         $tokenAuthenticatedFired = false;
 
         // Get the real event dispatcher
-        $realDispatcher = $this->app->get(Dispatcher::class);
+        $realDispatcher = $this->app->make(Dispatcher::class);
 
         // Create a partial mock that delegates to the real dispatcher
         $events = m::mock($realDispatcher);
