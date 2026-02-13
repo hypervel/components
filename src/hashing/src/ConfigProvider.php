@@ -13,7 +13,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 Hasher::class => HashManager::class,
-                'hash.driver' => fn ($container) => $container->get(Hasher::class)->driver(),
+                'hash.driver' => fn ($container) => $container->make(Hasher::class)->driver(),
             ],
             'publish' => [
                 [
