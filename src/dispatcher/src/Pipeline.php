@@ -6,7 +6,7 @@ namespace Hypervel\Dispatcher;
 
 use Closure;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
-use Hyperf\Pipeline\Pipeline as BasePipeline;
+use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Psr\Http\Server\MiddlewareInterface;
 
 class Pipeline extends BasePipeline

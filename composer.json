@@ -58,6 +58,7 @@
             "Hypervel\\Notifications\\": "src/notifications/src/",
             "Hypervel\\ObjectPool\\": "src/object-pool/src/",
             "Hypervel\\Pagination\\": "src/pagination/src/",
+            "Hypervel\\Pipeline\\": "src/pipeline/src/",
             "Hypervel\\Pool\\": "src/pool/src/",
             "Hypervel\\Process\\": "src/process/src/",
             "Hypervel\\Prompts\\": "src/prompts/src/",
@@ -205,6 +206,7 @@
         "hypervel/notifications": "self.version",
         "hypervel/object-pool": "self.version",
         "hypervel/pagination": "self.version",
+        "hypervel/pipeline": "self.version",
         "hypervel/pool": "self.version",
         "hypervel/process": "self.version",
         "hypervel/prompts": "self.version",
@@ -314,6 +316,7 @@
             "providers": [
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
+                "Hypervel\\Pipeline\\PipelineServiceProvider",
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider"

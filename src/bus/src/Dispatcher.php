@@ -11,10 +11,10 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Pipeline;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
