@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Middleware;
 
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use UnitEnum;
@@ -35,8 +35,8 @@ class RateLimited
      */
     public function __construct(UnitEnum|string $limiterName)
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
 
         $this->limiterName = enum_value($limiterName);
     }
@@ -121,7 +121,7 @@ class RateLimited
      */
     public function __wakeup()
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
     }
 }

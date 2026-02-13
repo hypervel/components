@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Mockery as m;
@@ -57,7 +56,7 @@ class QueueDelayTest extends TestCase
         $container = new Container();
         $container->instance(Dispatcher::class, $event);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
     }
 }
 

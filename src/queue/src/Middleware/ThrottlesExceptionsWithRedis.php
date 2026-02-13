@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\InteractsWithTime;
@@ -29,8 +29,8 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $this->redis = ApplicationContext::getContainer()
-            ->get(RedisFactory::class);
+        $this->redis = Container::getInstance()
+            ->make(RedisFactory::class);
 
         $this->limiter = new DurationLimiter(
             $this->redis,
@@ -67,8 +67,8 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
 
     protected function getConnectionName(): string
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get('queue.connections.redis.connection', 'default');
     }
 }

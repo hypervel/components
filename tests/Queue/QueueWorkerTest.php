@@ -8,7 +8,6 @@ use DateInterval;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
@@ -53,7 +52,7 @@ class QueueWorkerTest extends TestCase
         $this->container->instance(EventDispatcher::class, $this->events);
         $this->container->instance(ExceptionHandlerContract::class, $this->exceptionHandler);
 
-        ApplicationContext::setContainer($this->container);
+        Container::setInstance($this->container);
     }
 
     protected function tearDown(): void

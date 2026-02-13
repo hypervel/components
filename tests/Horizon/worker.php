@@ -5,7 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../vendor/autoload.php';
 
 use Hyperf\Contract\ApplicationInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -27,7 +27,7 @@ $app = new Application();
 $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
-ApplicationContext::setContainer($app);
+Container::setInstance($app);
 $app->get(ApplicationInterface::class);
 
 $config = $app->get('config');

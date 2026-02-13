@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Queue;
@@ -111,7 +110,7 @@ class QueueManagerTest extends TestCase
         $container->instance(Encrypter::class, m::mock(Encrypter::class));
         $container->singleton(PoolFactory::class, PoolManager::class);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

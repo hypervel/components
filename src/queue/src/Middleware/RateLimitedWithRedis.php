@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\InteractsWithTime;
@@ -30,8 +30,8 @@ class RateLimitedWithRedis extends RateLimited
     {
         parent::__construct($limiterName);
 
-        $this->redis = ApplicationContext::getContainer()
-            ->get(RedisFactory::class);
+        $this->redis = Container::getInstance()
+            ->make(RedisFactory::class);
     }
 
     /**
@@ -78,8 +78,8 @@ class RateLimitedWithRedis extends RateLimited
 
     protected function getConnectionName(): string
     {
-        return ApplicationContext::getContainer()
-            ->get('config')
+        return Container::getInstance()
+            ->make('config')
             ->get('queue.connections.redis.connection', 'default');
     }
 
@@ -90,6 +90,6 @@ class RateLimitedWithRedis extends RateLimited
     {
         parent::__wakeup();
 
-        $this->redis = ApplicationContext::getContainer()->get(RedisFactory::class);
+        $this->redis = Container::getInstance()->make(RedisFactory::class);
     }
 }
