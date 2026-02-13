@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Authenticatable;
 
@@ -21,7 +21,7 @@ trait AuthorizesRequests
     {
         [$ability, $arguments] = $this->parseAbilityAndArguments($ability, $arguments);
 
-        return ApplicationContext::getContainer()->get(Gate::class)->authorize($ability, $arguments);
+        return Container::getInstance()->make(Gate::class)->authorize($ability, $arguments);
     }
 
     /**

@@ -10,7 +10,6 @@ use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
@@ -34,7 +33,7 @@ class AuthMangerTest extends TestCase
     public function testGetDefaultDriverFromConfig()
     {
         $manager = new AuthManager($container = $this->getContainer());
-        $container->get('config')
+        $container->make('config')
             ->set('auth.defaults.guard', 'foo');
 
         $this->assertSame('foo', $manager->getDefaultDriver());
@@ -58,7 +57,7 @@ class AuthMangerTest extends TestCase
     public function testExtendDriver()
     {
         $manager = new AuthManager($container = $this->getContainer());
-        $container->get('config')
+        $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
         $guard = m::mock(Guard::class);
 
@@ -72,7 +71,7 @@ class AuthMangerTest extends TestCase
     public function testGetDefaultUserProvider()
     {
         $manager = new AuthManager($container = $this->getContainer());
-        $container->get('config')
+        $container->make('config')
             ->set('auth.defaults.provider', 'foo');
 
         $this->assertSame('foo', $manager->getDefaultUserProvider());
@@ -89,7 +88,7 @@ class AuthMangerTest extends TestCase
     {
         $manager = new AuthManager($container = $this->getContainer());
 
-        $container->get('config')
+        $container->make('config')
             ->set('auth.providers.foo', [
                 'driver' => 'database',
                 'connection' => 'foo',
@@ -115,7 +114,7 @@ class AuthMangerTest extends TestCase
     {
         $manager = new AuthManager($container = $this->getContainer());
 
-        $container->get('config')
+        $container->make('config')
             ->set('auth.providers.foo', [
                 'driver' => 'bar',
             ]);
@@ -146,17 +145,17 @@ class AuthMangerTest extends TestCase
         $manager = new AuthManager($container = $this->getContainer());
         $container->instance(RequestInterface::class, m::mock(RequestInterface::class));
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
-        $container->get('config')
+        $container->make('config')
             ->set('auth.providers.foo', [
                 'driver' => 'foo',
             ]);
-        $container->get('config')
+        $container->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'custom',
             ]);
-        $container->get('config')
+        $container->make('config')
             ->set('auth.defaults.provider', 'foo');
 
         $provider = m::mock(UserProvider::class);

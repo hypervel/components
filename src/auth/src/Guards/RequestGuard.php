@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Guards;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
@@ -33,8 +33,8 @@ class RequestGuard implements Guard
         callable $callback
     ) {
         $this->callback = $callback;
-        $this->request = ApplicationContext::getContainer()
-            ->get(RequestInterface::class);
+        $this->request = Container::getInstance()
+            ->make(RequestInterface::class);
     }
 
     public function user(): ?Authenticatable
