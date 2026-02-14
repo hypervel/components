@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Broadcasting;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 
 interface Broadcaster
 {

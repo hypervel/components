@@ -8,7 +8,7 @@ use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use InvalidArgumentException;
 
 interface UrlGenerator
