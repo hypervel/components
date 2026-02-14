@@ -28,6 +28,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Exceptions\InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use UnitEnum;
 
@@ -575,6 +576,108 @@ class Repository implements ArrayAccess, CacheContract
     public function offsetUnset($key): void
     {
         $this->forget($key);
+    }
+
+    /**
+     * @param null|callable(): string|string $default
+     *
+     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
+     */
+    public function string(string $key, callable|string|null $default = null): string
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a string, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param null|callable(): int|int $default
+     *
+     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
+     */
+    public function integer(string $key, callable|int|null $default = null): int
+    {
+        $value = $this->get($key, $default);
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_INT) !== false) {
+            return (int) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be an integer, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * @param null|callable(): float|float $default
+     *
+     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
+     */
+    public function float(string $key, callable|float|null $default = null): float
+    {
+        $value = $this->get($key, $default);
+
+        if (is_float($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_FLOAT) !== false) {
+            return (float) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be an float, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * @param null|bool|callable(): bool $default
+     *
+     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
+     */
+    public function boolean(string $key, callable|bool|null $default = null): bool
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_bool($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a boolean, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * @template TDefaultArray of array<array-key, mixed>
+     *
+     * @param null|callable(): TDefaultArray|TDefaultArray $default
+     *
+     * @return array<string, mixed>|TDefaultArray
+     *
+     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
+     */
+    public function array(string $key, callable|array|null $default = null): array
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_array($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be an array, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
     }
 
     /**
