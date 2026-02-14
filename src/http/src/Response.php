@@ -7,7 +7,7 @@ namespace Hypervel\Http;
 use DateTimeImmutable;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Response as HyperfResponse;
+use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hyperf\View\RenderInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -23,7 +23,7 @@ use Hypervel\Support\MimeTypeExtensionGuesser;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
-class Response extends HyperfResponse implements ResponseContract
+class Response extends HttpServerResponse implements ResponseContract
 {
     public const HTTP_CONTINUE = 100;
 

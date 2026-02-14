@@ -9,7 +9,7 @@ use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
 

@@ -27,7 +27,7 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/http-server": "~3.1.0",
+        "hypervel/http-server": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/context": "^0.4",

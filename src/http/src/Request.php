@@ -7,8 +7,8 @@ namespace Hypervel\Http;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Closure;
-use Hyperf\HttpServer\Request as HyperfRequest;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Request as HttpServerRequest;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -26,7 +26,7 @@ use stdClass;
 use Stringable;
 use TypeError;
 
-class Request extends HyperfRequest implements RequestContract
+class Request extends HttpServerRequest implements RequestContract
 {
     /**
      * The user resolver callback.

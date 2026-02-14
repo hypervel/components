@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Response as HyperfResponse;
+use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hyperf\View\RenderInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -110,7 +110,7 @@ class ResponseTest extends TestCase
 
         $renderer = m::mock(RenderInterface::class);
         $renderer->shouldReceive('render')->with('test-view', ['data' => 'value'])->andReturn(
-            (new HyperfResponse())->withAddedHeader('content-type', 'text/html')->withBody(new SwooleStream('<h1>Test</h1>'))
+            (new HttpServerResponse())->withAddedHeader('content-type', 'text/html')->withBody(new SwooleStream('<h1>Test</h1>'))
         );
 
         $container->instance(RenderInterface::class, $renderer);

@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Http;
 use Carbon\Carbon;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
-use Hyperf\HttpServer\Request as HyperfRequest;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Request as HttpServerRequest;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
@@ -36,8 +36,8 @@ class RequestTest extends TestCase
     {
         Context::destroy(ServerRequestInterface::class);
         Context::destroy('http.request.parsedData');
-        Context::destroy(HyperfRequest::class . '.properties.requestUri');
-        Context::destroy(HyperfRequest::class . '.properties.pathInfo');
+        Context::destroy(HttpServerRequest::class . '.properties.requestUri');
+        Context::destroy(HttpServerRequest::class . '.properties.pathInfo');
     }
 
     public function testAllFiles()
