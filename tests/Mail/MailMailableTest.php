@@ -8,8 +8,6 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Contracts\Factory as FactoryContract;
@@ -20,6 +18,8 @@ use Hypervel\Mail\Mailables\Headers;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
@@ -1170,7 +1170,7 @@ class MailMailableTest extends TestCase
 
     protected function mockView()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->andReturn('rendered.view');
 

@@ -8,7 +8,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Macroable\Macroable;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Mail\Contracts\Mailable;
 use Hypervel\Mail\Contracts\Mailable as MailableContract;
 use Hypervel\Mail\Contracts\Mailer as MailerContract;
@@ -20,6 +19,7 @@ use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Envelope;
@@ -63,13 +63,13 @@ class Mailer implements MailerContract, MailQueueContract
      * Create a new Mailer instance.
      *
      * @param string $name the name that is configured for the mailer
-     * @param FactoryInterface $views the view factory instance
+     * @param FactoryContract $views the view factory instance
      * @param TransportInterface $transport the Symfony Transport instance
      * @param null|EventDispatcherInterface $events the event dispatcher instance
      */
     public function __construct(
         protected string $name,
-        protected FactoryInterface $views,
+        protected FactoryContract $views,
         protected TransportInterface $transport,
         protected ?EventDispatcherInterface $events = null
     ) {
@@ -493,7 +493,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Get the view factory instance.
      */
-    public function getViewFactory(): FactoryInterface
+    public function getViewFactory(): FactoryContract
     {
         return $this->views;
     }

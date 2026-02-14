@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Contracts;
 
-use Hyperf\ViewEngine\Contract\Htmlable as HyperfHtmlable;
-
-interface Htmlable extends HyperfHtmlable
+interface Htmlable
 {
+    /**
+     * Get content as a string of HTML.
+     */
+    public function toHtml(): string;
 }

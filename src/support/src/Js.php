@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Jsonable;
 use Hyperf\Stringable\Str;
-use Hyperf\ViewEngine\Contract\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use JsonException;
 use JsonSerializable;
 use Stringable;

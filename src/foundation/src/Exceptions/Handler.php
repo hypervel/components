@@ -8,16 +8,12 @@ use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
-use Hyperf\Contract\MessageBag as MessageBagContract;
-use Hyperf\Contract\MessageProvider;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\ExceptionHandler\ExceptionHandler;
 use Hyperf\HttpMessage\Base\Response as BaseResponse;
 use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\Support\MessageBag;
-use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Foundation\Contracts\Application as Container;
@@ -33,10 +29,14 @@ use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Session\TokenMismatchException;
+use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
+use Hypervel\Support\Contracts\MessageProvider;
 use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\MessageBag;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
@@ -461,7 +461,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
         if ($callbacks = $this->afterResponseCallbacks()) {
             foreach ($callbacks as $callback) {
-                $response = $callback($response, $e, $request);
+                $response = $callback($response, $e, $request) ?: $response;
             }
         }
 
