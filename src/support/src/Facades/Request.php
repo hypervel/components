@@ -139,7 +139,7 @@ use Hypervel\Contracts\Http\Request as RequestContract;
  * @method static bool hasMacro(string $name)
  *
  * @see \Hypervel\Http\Request
- * @see \Hyperf\HttpServer\Request
+ * @see \Hypervel\HttpServer\Request
  */
 class Request extends Facade
 {

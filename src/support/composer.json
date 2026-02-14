@@ -30,6 +30,7 @@
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/macroable": "^0.4",
+        "hypervel/pipeline": "^0.4",
         "hypervel/reflection": "^0.4",
         "laravel/serializable-closure": "^1.3",
         "league/uri": "^7.5",

@@ -27,6 +27,14 @@ function artisan_binary(): string
     return defined('ARTISAN_BINARY') ? ARTISAN_BINARY : 'artisan';
 }
 
+/**
+ * Get the Swoole hook flags for coroutine support.
+ */
+function swoole_hook_flags(): int
+{
+    return defined('SWOOLE_HOOK_FLAGS') ? SWOOLE_HOOK_FLAGS : SWOOLE_HOOK_ALL;
+}
+
 // Time functions...
 
 /**

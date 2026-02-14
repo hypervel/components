@@ -10,7 +10,7 @@ use Hypervel\Router\Router;
  * @method static void addServer(string $serverName, callable $callback)
  * @method static void group(string $prefix, callable|string $source, array $options = [])
  * @method static void addGroup(string $prefix, callable|string $source, array $options = [])
- * @method static \Hyperf\HttpServer\Router\RouteCollector getRouter()
+ * @method static \Hypervel\HttpServer\Router\RouteCollector getRouter()
  * @method static void model(string $param, string $modelClass)
  * @method static void bind(string $param, \Closure $callback)
  * @method static string|null getModelBinding(string $param)

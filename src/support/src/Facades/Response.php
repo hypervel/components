@@ -23,7 +23,7 @@ use Hypervel\Contracts\Http\Response as ResponseContract;
  * @method static \Psr\Http\Message\ResponseInterface raw(mixed|\Stringable $data, string $charset = 'utf-8')
  * @method static \Psr\Http\Message\ResponseInterface redirect(string $toUrl, int $status = 302, string $schema = 'http')
  * @method static \Psr\Http\Message\ResponseInterface download(string $file, string $name = '')
- * @method static \Hyperf\HttpServer\Contract\ResponseInterface withCookie(\Hyperf\HttpMessage\Cookie\Cookie $cookie)
+ * @method static \Hypervel\HttpServer\Contracts\ResponseInterface withCookie(\Hyperf\HttpMessage\Cookie\Cookie $cookie)
  * @method static string getProtocolVersion()
  * @method static \Psr\Http\Message\ResponseInterface withProtocolVersion(string $version)
  * @method static string[][] getHeaders()
