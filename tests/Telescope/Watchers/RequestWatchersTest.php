@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\HttpServer\Server as HttpServer;
-use Hyperf\Server\Event;
+use Hypervel\HttpServer\Server as HttpServer;
+use Hypervel\Server\Event;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
