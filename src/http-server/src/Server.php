@@ -6,6 +6,7 @@ namespace Hypervel\HttpServer;
 
 use FastRoute\Dispatcher;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Engine\Http\WritableConnection;
 use Hyperf\HttpMessage\Server\Request as Psr7Request;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
 use Hypervel\Context\RequestContext;
@@ -15,7 +16,6 @@ use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Dispatcher\HttpDispatcher;
-use Hypervel\Engine\Http\WritableConnection;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Hypervel\HttpServer\Events\RequestHandled;
