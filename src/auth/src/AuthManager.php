@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;

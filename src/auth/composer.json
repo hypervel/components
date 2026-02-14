@@ -26,7 +26,7 @@
         "hypervel/macroable": "^0.4",
         "hyperf/contract": "~3.1.0",
         "hyperf/config": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
+        "hypervel/http-server": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/hashing": "^0.4",
         "hypervel/jwt": "^0.4"

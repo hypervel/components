@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
