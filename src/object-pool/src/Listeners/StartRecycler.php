@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Listeners;
 
-use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Framework\Event\AfterWorkerStart;
+use Hypervel\Event\Contracts\ListenerInterface;
+use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\Recycler;
 
