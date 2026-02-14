@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hyperf\ExceptionHandler\ExceptionHandlerDispatcher;
+use Hypervel\Dispatcher\HttpDispatcher;
+use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hyperf\HttpMessage\Server\Request;
-use Hyperf\HttpServer\MiddlewareManager;
-use Hyperf\HttpServer\ResponseEmitter;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\HttpServer\Router\Handler;
+use Hypervel\HttpServer\MiddlewareManager;
+use Hypervel\HttpServer\ResponseEmitter;
+use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Router\Handler;
 use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Router\Exceptions\InvalidMiddlewareExclusionException;

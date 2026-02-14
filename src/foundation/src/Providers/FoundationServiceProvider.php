@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hyperf\Command\Event\FailToHandle;
+use Hypervel\Console\Events\FailToHandle;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\HttpServer\MiddlewareManager;
+use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hyperf\ExceptionHandler\ExceptionHandlerDispatcher;
+use Hypervel\Dispatcher\HttpDispatcher;
+use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hyperf\HttpMessage\Server\Request as Psr7Request;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpMessage\Uri\Uri;
-use Hyperf\HttpServer\Event\RequestHandled;
-use Hyperf\HttpServer\Event\RequestReceived;
-use Hyperf\HttpServer\ResponseEmitter;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\ResponseEmitter;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;

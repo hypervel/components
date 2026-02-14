@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Dispatcher;
 
-use Hyperf\Dispatcher\HttpDispatcher as HyperfHttpDispatcher;
+use Hypervel\Dispatcher\HttpDispatcher as BaseHttpDispatcher;
 use Hypervel\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 
-class HttpDispatcher extends HyperfHttpDispatcher
+class HttpDispatcher extends BaseHttpDispatcher
 {
     public function dispatch(...$params): ResponseInterface
     {

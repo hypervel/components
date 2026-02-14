@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hyperf\HttpServer\Request;
+use Hypervel\HttpServer\Request;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;

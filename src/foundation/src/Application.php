@@ -760,16 +760,16 @@ class Application extends Container implements ApplicationContract, HyperfContai
             \Hypervel\Redis\Redis::class => ['redis'],
             \Psr\Http\Message\ServerRequestInterface::class => [
                 'request',
-                \Hyperf\HttpServer\Contract\RequestInterface::class,
-                \Hyperf\HttpServer\Request::class,
+                \Hypervel\HttpServer\Contracts\RequestInterface::class,
+                \Hypervel\HttpServer\Request::class,
                 \Hypervel\Contracts\Http\Request::class,
             ],
             \Hypervel\Contracts\Http\Response::class => [
                 'response',
-                \Hyperf\HttpServer\Contract\ResponseInterface::class,
-                \Hyperf\HttpServer\Response::class,
+                \Hypervel\HttpServer\Contracts\ResponseInterface::class,
+                \Hypervel\HttpServer\Response::class,
             ],
-            \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
+            \Hypervel\HttpServer\Router\DispatcherFactory::class => ['router'],
             \Hypervel\Router\Router::class => ['router'],
             \Hypervel\Contracts\Router\UrlGenerator::class => [
                 'url',

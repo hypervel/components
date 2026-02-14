@@ -10,7 +10,7 @@ use Hyperf\Command\Annotation\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
-use Hyperf\Framework\Event\BootApplication;
+use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
 use Hypervel\Console\HasPendingCommand;

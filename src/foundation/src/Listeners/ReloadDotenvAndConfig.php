@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Framework\Event\BeforeWorkerStart;
+use Hypervel\Event\Contracts\ListenerInterface;
+use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\DotenvManager;

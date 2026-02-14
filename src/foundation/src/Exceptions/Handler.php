@@ -9,7 +9,7 @@ use Exception;
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\ExceptionHandler\ExceptionHandler;
+use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hyperf\HttpMessage\Base\Response as BaseResponse;
 use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;
 use Hyperf\HttpMessage\Upload\UploadedFile;

@@ -7,11 +7,11 @@ namespace Hypervel\Foundation\Http;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
-use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
-use Hyperf\HttpServer\Event\RequestHandled;
-use Hyperf\HttpServer\Event\RequestReceived;
-use Hyperf\HttpServer\Event\RequestTerminated;
-use Hyperf\HttpServer\Server as HyperfServer;
+use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Server as HttpServer;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -22,11 +22,13 @@ use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
+use Swoole\Http\Request as SwooleRequest;
+use Swoole\Http\Response as SwooleResponse;
 use Throwable;
 
 use function Hypervel\Coroutine\defer;
 
-class Kernel extends HyperfServer implements MiddlewareContract
+class Kernel extends HttpServer implements MiddlewareContract
 {
     use HasMiddleware;
 
@@ -61,7 +63,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
             : [ExceptionHandler::class];
     }
 
-    public function onRequest($swooleRequest, $swooleResponse): void
+    public function onRequest(SwooleRequest $swooleRequest, SwooleResponse $swooleResponse): void
     {
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();

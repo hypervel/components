@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Hyperf\Contract\ApplicationInterface;
-use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
-use Hyperf\Server\Listener\InitProcessTitleListener;
+use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
+use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Console\ApplicationFactory;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
