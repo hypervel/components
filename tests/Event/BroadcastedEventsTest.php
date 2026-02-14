@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

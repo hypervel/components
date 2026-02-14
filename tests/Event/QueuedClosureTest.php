@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Event;
 
 use Hypervel\Event\QueuedClosure;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use TypeError;
 
 enum QueuedClosureTestConnectionStringEnum: string

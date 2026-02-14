@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Hyperf\Di\Annotation\AnnotationCollector;
-use Hyperf\Event\Annotation\Listener;
-use Hyperf\Event\Contract\ListenerInterface;
+use Hypervel\Event\Annotation\Listener;
+use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Contracts\Container\Container;
 
 /**

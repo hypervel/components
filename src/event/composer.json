@@ -31,7 +31,6 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/event": "~3.1.0",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/bus": "^0.4",
