@@ -7,7 +7,7 @@ namespace Hypervel\Router\Middleware;
 use BackedEnum;
 use Closure;
 use Hyperf\Di\ReflectionType;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;

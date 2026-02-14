@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
-use Hyperf\HttpServer\Request;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\HttpServer\Router\DispatcherFactory;
-use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\HttpServer\Request;
+use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Router\DispatcherFactory;
+use Hypervel\HttpServer\Router\RouteCollector;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\DispatchedRoute;
 use RuntimeException;
 
 /**
- * @mixin \Hyperf\HttpServer\Router\RouteCollector
+ * @mixin \Hypervel\HttpServer\Router\RouteCollector
  */
 class Router
 {

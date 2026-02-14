@@ -8,8 +8,8 @@ use FastRoute\DataGenerator as DataGeneratorContract;
 use FastRoute\DataGenerator\GroupCountBased as DataGenerator;
 use FastRoute\RouteParser as RouteParserContract;
 use FastRoute\RouteParser\Std as RouterParser;
-use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
-use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
+use Hypervel\HttpServer\Router\DispatcherFactory as HttpServerDispatcherFactory;
+use Hypervel\HttpServer\Router\RouteCollector as HttpServerRouteCollector;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 
 class ConfigProvider
@@ -18,10 +18,10 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                HyperfDispatcherFactory::class => DispatcherFactory::class,
+                HttpServerDispatcherFactory::class => DispatcherFactory::class,
                 RouteParserContract::class => RouterParser::class,
                 DataGeneratorContract::class => DataGenerator::class,
-                HyperfRouteCollector::class => RouteCollector::class,
+                HttpServerRouteCollector::class => RouteCollector::class,
                 UrlGeneratorContract::class => UrlGenerator::class,
             ],
         ];

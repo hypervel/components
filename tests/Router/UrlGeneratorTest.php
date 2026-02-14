@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Router;
 
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Request;
-use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Request;
+use Hypervel\HttpServer\Router\DispatcherFactory as HttpServerDispatcherFactory;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -631,7 +631,7 @@ class UrlGeneratorTest extends TestCase
         /** @var MockInterface|RouteCollector */
         $router = $router ?: m::mock(RouteCollector::class);
 
-        $this->container->instance(HyperfDispatcherFactory::class, $factory);
+        $this->container->instance(HttpServerDispatcherFactory::class, $factory);
 
         $factory
             ->shouldReceive('getRouter')

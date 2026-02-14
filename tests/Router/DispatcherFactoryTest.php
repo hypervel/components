@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
+use Hypervel\HttpServer\Router\RouteCollector as HttpServerRouteCollector;
 use Hypervel\Container\Container;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
@@ -39,7 +39,7 @@ class DispatcherFactoryTest extends TestCase
         $routeCollector = m::mock(RouteCollector::class);
 
         $getContainer = $this->getContainer([
-            HyperfRouteCollector::class => fn () => $routeCollector,
+            HttpServerRouteCollector::class => fn () => $routeCollector,
             RouteFileCollector::class => fn () => new RouteFileCollector(['foo']),
         ]);
 
@@ -60,7 +60,7 @@ class DispatcherFactoryTest extends TestCase
         $routeCollector->shouldReceive('get')->with('/bar', 'Handler::Bar')->once();
 
         $container = $this->getContainer([
-            HyperfRouteCollector::class => fn () => $routeCollector,
+            HttpServerRouteCollector::class => fn () => $routeCollector,
             RouteFileCollector::class => fn () => new RouteFileCollector([
                 __DIR__ . '/routes/foo.php',
                 __DIR__ . '/routes/bar.php',
@@ -102,7 +102,7 @@ class DispatcherFactoryTest extends TestCase
         ]);
 
         $container = $this->getContainer([
-            HyperfRouteCollector::class => fn () => $routeCollector,
+            HttpServerRouteCollector::class => fn () => $routeCollector,
             RouteFileCollector::class => fn () => $routeFileCollector,
         ]);
 

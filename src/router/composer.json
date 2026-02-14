@@ -31,7 +31,7 @@
     "require": {
         "php": "^8.4",
         "hypervel/context": "^0.4",
-        "hyperf/http-server": "~3.1.0",
+        "hypervel/http-server": "^0.4",
         "nikic/fast-route": "^1.3.0"
     },
     "suggest": {
