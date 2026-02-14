@@ -781,6 +781,7 @@ class PendingRequest
                 throw $exception;
             }
         }, $this->retryDelay ?? 100, function ($exception) use (&$shouldRetry) {
+            // @phpstan-ignore-next-line nullCoalesce.variable
             $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
                 $exception,
