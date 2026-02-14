@@ -272,7 +272,7 @@ class HandleCorsTest extends TestCase
 
     protected function registerRoutes()
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $router->post('web/ping', function () {
             return 'PONG';
