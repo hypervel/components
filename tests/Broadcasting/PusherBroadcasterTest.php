@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hypervel\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\HttpServer\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Pusher\Pusher;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Framework\Logger\StdoutLogger;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
@@ -13,6 +12,7 @@ use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;
 use Hypervel\Event\ListenerProvider;
+use Hypervel\Framework\Logger\StdoutLogger;
 use Hypervel\Tests\Event\Stub\Alpha;
 use Hypervel\Tests\Event\Stub\AlphaListener;
 use Hypervel\Tests\Event\Stub\BetaListener;
@@ -28,7 +28,6 @@ use ReflectionClass;
  */
 class EventDispatcherTest extends TestCase
 {
-
     public function testInvokeDispatcher()
     {
         $listeners = m::mock(ListenerProviderContract::class);

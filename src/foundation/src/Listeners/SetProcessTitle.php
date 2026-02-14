@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Server\Listener\InitProcessTitleListener;
 
 class SetProcessTitle extends InitProcessTitleListener
 {

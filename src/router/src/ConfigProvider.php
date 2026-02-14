@@ -8,9 +8,9 @@ use FastRoute\DataGenerator as DataGeneratorContract;
 use FastRoute\DataGenerator\GroupCountBased as DataGenerator;
 use FastRoute\RouteParser as RouteParserContract;
 use FastRoute\RouteParser\Std as RouterParser;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\HttpServer\Router\DispatcherFactory as HttpServerDispatcherFactory;
 use Hypervel\HttpServer\Router\RouteCollector as HttpServerRouteCollector;
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 
 class ConfigProvider
 {

@@ -20,7 +20,6 @@ use Symfony\Component\Console\Output\ConsoleOutput;
  */
 class StdoutLoggerTest extends TestCase
 {
-
     public function testLog()
     {
         $logger = $this->getLogger('<info>[INFO]</> Hello Hyperf.');

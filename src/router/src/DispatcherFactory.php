@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Router;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\HttpServer\Router\DispatcherFactory as BaseDispatcherFactory;
 use Hypervel\HttpServer\Router\RouteCollector;
-use Hypervel\Contracts\Container\Container;
 
 class DispatcherFactory extends BaseDispatcherFactory
 {

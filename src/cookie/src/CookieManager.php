@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Support\InteractsWithTime;
 use UnitEnum;
 

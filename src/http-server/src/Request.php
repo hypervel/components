@@ -6,12 +6,12 @@ namespace Hypervel\HttpServer;
 
 use Hyperf\Collection\Arr;
 use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hyperf\Macroable\Macroable;
+use Hyperf\Stringable\Str;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpServer\Router\Dispatched;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface as Psr7RequestInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -23,8 +23,8 @@ use function data_get;
 use function value;
 
 /**
- * @property string|null $pathInfo
- * @property string|null $requestUri
+ * @property null|string $pathInfo
+ * @property null|string $requestUri
  */
 class Request implements RequestInterface
 {

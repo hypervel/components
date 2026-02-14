@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\DispatchedRoute;
 use Hypervel\HttpServer\Request;
 use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\HttpServer\Router\DispatcherFactory;
 use Hypervel\HttpServer\Router\RouteCollector;
-use Hypervel\Container\Container;
-use Hypervel\Database\Eloquent\Model;
-use Hypervel\Http\DispatchedRoute;
 use RuntimeException;
 
 /**

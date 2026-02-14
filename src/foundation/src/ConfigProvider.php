@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Hyperf\Contract\ApplicationInterface;
-use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
-use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Console\ApplicationFactory;
+use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\Listeners\SetProcessTitle;
+use Hypervel\Server\Listener\InitProcessTitleListener;
 
 class ConfigProvider
 {

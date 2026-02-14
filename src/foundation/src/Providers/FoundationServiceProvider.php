@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hypervel\Console\Events\FailToHandle;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
@@ -21,6 +20,7 @@ use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
+use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Symfony\Component\Console\Output\ConsoleOutput;

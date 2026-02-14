@@ -18,6 +18,7 @@ use function Hypervel\Coroutine\parallel;
 class ContextTest extends TestCase
 {
     use RunTestsInCoroutine;
+
     public function testHas()
     {
         Context::set('a', 42);

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Stubs;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpServer\Contracts\ResponseInterface as HttpResponse;
-use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

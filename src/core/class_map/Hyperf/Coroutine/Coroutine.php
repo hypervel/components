@@ -8,9 +8,9 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Engine\Coroutine as Co;
 use Hyperf\Engine\Exception\CoroutineDestroyedException;
 use Hyperf\Engine\Exception\RunningInNonCoroutineException;
-use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Throwable;
 
 class Coroutine

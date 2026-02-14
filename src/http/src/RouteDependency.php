@@ -9,8 +9,8 @@ use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
-use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\HttpServer\Router\Dispatched;
 use InvalidArgumentException;
 
 class RouteDependency

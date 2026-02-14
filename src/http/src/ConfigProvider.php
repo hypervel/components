@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hypervel\HttpServer\CoreMiddleware as HttpServerCoreMiddleware;
 use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\HttpServer\CoreMiddleware as HttpServerCoreMiddleware;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ConfigProvider

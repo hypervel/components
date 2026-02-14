@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Dispatcher\Stub;
 
-use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Hypervel\Context\Context;
+use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;

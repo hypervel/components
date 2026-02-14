@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Auth\Guards\GuardHelpers;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -14,6 +13,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;

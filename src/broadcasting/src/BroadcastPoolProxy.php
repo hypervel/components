@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\ObjectPool\PoolProxy;
 
 class BroadcastPoolProxy extends PoolProxy implements Broadcaster

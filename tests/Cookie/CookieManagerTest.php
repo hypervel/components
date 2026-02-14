@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Context\RequestContext;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieManager;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swow\Psr7\Message\ServerRequestPlusInterface;

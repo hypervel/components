@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Listeners;
 
-use Hypervel\Event\Contracts\ListenerInterface;
-use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Event\Contracts\ListenerInterface;
+use Hypervel\Framework\Events\BeforeWorkerStart;
 
 /**
  * Clears database connection context when task workers start.

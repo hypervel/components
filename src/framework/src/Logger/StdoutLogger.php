@@ -74,6 +74,8 @@ class StdoutLogger implements StdoutLoggerInterface
 
     /**
      * Log a message at the given level.
+     * @param mixed $level
+     * @param mixed $message
      */
     public function log($level, $message, array $context = []): void
     {

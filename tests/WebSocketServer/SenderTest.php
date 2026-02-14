@@ -37,9 +37,6 @@ class SenderTest extends TestCase
 
     // REMOVED: testSenderResult — Tests coroutine-server path (CoroutineServer::class config, setResponse(), direct push via $responses property). All of this code was removed in the Swoole-only simplification of Sender.php.
 
-    /**
-     * @return Container&MockInterface
-     */
     protected function getContainer(): Container|MockInterface
     {
         $container = Mockery::mock(Container::class);

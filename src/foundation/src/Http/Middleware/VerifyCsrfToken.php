@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hypervel\HttpServer\Request;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
+use Hypervel\HttpServer\Request;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;

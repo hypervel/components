@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Guards;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;
 

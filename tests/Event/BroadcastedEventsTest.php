@@ -9,8 +9,8 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 /**
  * @internal

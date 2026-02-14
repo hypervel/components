@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hypervel\HttpServer\Router\RouteCollector as HttpServerRouteCollector;
 use Hypervel\Container\Container;
+use Hypervel\HttpServer\Router\RouteCollector as HttpServerRouteCollector;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\RouteFileCollector;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Support\Facades\Broadcast;
 
 class BroadcastController

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Traits;
 
+use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\HttpServer\Router\Dispatched;
-use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\Router\Exceptions\InvalidMiddlewareExclusionException;
 use Hypervel\Router\MiddlewareExclusionManager;
 use InvalidArgumentException;

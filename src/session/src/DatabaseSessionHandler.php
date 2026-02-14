@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hypervel\HttpServer\Request;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Guard;
@@ -14,6 +13,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\HttpServer\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;

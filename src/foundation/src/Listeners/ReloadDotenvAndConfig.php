@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hypervel\Event\Contracts\ListenerInterface;
-use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Config\Repository;
+use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Foundation\Application;
+use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\DotenvManager;
 
 class ReloadDotenvAndConfig implements ListenerInterface

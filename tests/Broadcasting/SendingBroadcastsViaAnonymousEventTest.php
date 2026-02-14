@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;

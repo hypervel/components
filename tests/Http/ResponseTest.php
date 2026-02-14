@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hyperf\View\RenderInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -15,6 +14,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\RangeNotSatisfiableHttpException;
+use Hypervel\HttpServer\Response as HttpServerResponse;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;

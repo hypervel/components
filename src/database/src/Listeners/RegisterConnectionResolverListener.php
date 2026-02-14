@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Listeners;
 
-use Hypervel\Event\Contracts\ListenerInterface;
-use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Event\Contracts\ListenerInterface;
+use Hypervel\Framework\Events\BootApplication;
 
 /**
  * Registers the database connection resolver and event dispatcher on Eloquent Model.
