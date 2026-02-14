@@ -2,8 +2,14 @@
 /.phpunit.cache
 /vendor
 composer.lock
+testing
 /phpunit.xml
 .phpunit.result.cache
+.env
 !tests/Foundation/fixtures/hyperf1/composer.lock
 tests/Http/fixtures
 .env
+docs/node_modules/
+docs/.vuepress/dist/
+docs/.vuepress/.cache
+docs/.vuepress/.temp

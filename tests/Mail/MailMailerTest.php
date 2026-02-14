@@ -7,14 +7,18 @@ namespace Hypervel\Tests\Mail;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Bus\Queueable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
+use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
@@ -328,6 +332,26 @@ class MailMailerTest extends TestCase
         );
     }
 
+    public function testSendQueuedMailableReturnsNull()
+    {
+        $view = $this->mockView();
+        $queueFake = new QueueFake($this->app);
+
+        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer->setQueue($queueFake);
+
+        $mailable = new TestQueuedMail();
+
+        // Send the mailable
+        $result = $mailer->send($mailable);
+
+        // Assert result is null for queued mailable
+        $this->assertNull($result);
+
+        // Assert the mailable was queued
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
     protected function mockContainer(): Container
     {
         $container = new Container(
@@ -362,5 +386,18 @@ class TestMail extends Mailable
     {
         return $this->view('view')
             ->from('hello@hypervel.org');
+    }
+}
+
+class TestQueuedMail extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build()
+    {
+        return $this->view('view')
+            ->from('hello@hypervel.org')
+            ->to('test@hypervel.org')
+            ->subject('Test Queued Mail');
     }
 }
