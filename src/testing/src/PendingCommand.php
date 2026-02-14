@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
-use Hyperf\Command\Event\FailToHandle;
+use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
