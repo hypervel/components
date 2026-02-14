@@ -8,7 +8,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Engine\Coroutine as Co;
 use Hyperf\Engine\Exception\CoroutineDestroyedException;
 use Hyperf\Engine\Exception\RunningInNonCoroutineException;
-use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
+use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Throwable;
