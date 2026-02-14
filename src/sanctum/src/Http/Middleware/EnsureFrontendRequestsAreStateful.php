@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Contract\ResponseInterface as HttpResponse;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Contracts\ResponseInterface as HttpResponse;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Dispatcher\Pipeline;
 use Hypervel\Support\Collection;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;

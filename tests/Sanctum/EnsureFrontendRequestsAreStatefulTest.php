@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;

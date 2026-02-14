@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Auth\Guards\GuardHelpers;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
