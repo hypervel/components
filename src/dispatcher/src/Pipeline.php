@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Dispatcher;
 
 use Closure;
-use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
+use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Psr\Http\Server\MiddlewareInterface;
 
