@@ -106,11 +106,6 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
      */
     protected static array $resolvedBuilderClasses = [];
 
-    /**
-     * The connection name for the model.
-     *
-     * Overrides Hyperf's default of 'default' to null.
-     */
     protected ?string $connection = null;
 
     /**

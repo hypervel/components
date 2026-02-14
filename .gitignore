@@ -1,5 +1,7 @@
 .idea
+/.env
 /.phpunit.cache
+/.tmp
 /vendor
 composer.lock
 testing

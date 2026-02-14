@@ -125,7 +125,7 @@ class Rule
     /**
      * Get a contains rule builder instance.
      */
-    public static function contains(array|Arrayable|BackedEnum|string|UnitEnum $values): Contains
+    public static function contains(array|Arrayable|UnitEnum|string $values): Contains
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -137,7 +137,7 @@ class Rule
     /**
      * Get a doesnt_contain rule builder instance.
      */
-    public static function doesntContain(array|Arrayable|BackedEnum|string|UnitEnum $values): DoesntContain
+    public static function doesntContain(array|Arrayable|UnitEnum|string $values): DoesntContain
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();

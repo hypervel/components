@@ -118,7 +118,7 @@ class RedisTagRepository implements TagRepository
         $this->connection()->pipeline(function ($pipe) use ($tags, $ids) {
             foreach ((array) $tags as $tag) {
                 foreach ((array) $ids as $id) {
-                    $pipe->zRem($tag, $id);
+                    $pipe->zrem($tag, $id);
                 }
             }
         });

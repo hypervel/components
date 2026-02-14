@@ -351,6 +351,15 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
+        // Use optimized single-connection path for RedisStore
+        if ($this->store instanceof RedisStore) {
+            return $this->store->remember(
+                $this->itemKey($key),
+                $this->getSeconds($ttl),
+                $callback
+            );
+        }
+
         $value = $this->get($key);
 
         // If the item exists in the cache we will just return this immediately and if
@@ -390,6 +399,23 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
+        // Use optimized single-connection path for RedisStore
+        if ($this->store instanceof RedisStore) {
+            [$value, $wasHit] = $this->store->rememberForever(
+                $this->itemKey($key),
+                $callback
+            );
+
+            if ($wasHit) {
+                $this->event(new CacheHit($this->getName(), $key, $value));
+            } else {
+                $this->event(new CacheMissed($this->getName(), $key));
+                $this->event(new KeyWritten($this->getName(), $key, $value));
+            }
+
+            return $value;
+        }
+
         $value = $this->get($key);
 
         // If the item exists in the cache we will just return this immediately

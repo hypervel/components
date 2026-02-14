@@ -31,12 +31,13 @@ trait HasCollection
      *
      * @param array<array-key, static> $models
      * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
+     * @phpstan-ignore generics.notSubtype (static in Pivot/MorphPivot context satisfies Model constraint at runtime)
      */
     public function newCollection(array $models = []): Collection
     {
         static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
 
-        return new static::$resolvedCollectionClasses[static::class]($models);
+        return new static::$resolvedCollectionClasses[static::class]($models); // @phpstan-ignore argument.type
     }
 
     /**
