@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Request;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Context\RequestContext;

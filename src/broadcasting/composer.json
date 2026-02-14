@@ -28,7 +28,7 @@
     "require": {
         "php": "^8.4",
         "hyperf/contract": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
+        "hypervel/http-server": "^0.4",
         "hypervel/pool": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/bus": "^0.4",

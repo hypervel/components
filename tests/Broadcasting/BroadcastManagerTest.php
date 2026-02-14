@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
+use Hypervel\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;

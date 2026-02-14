@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Ably\AblyRest;
-use Hyperf\HttpServer\Request;
+use Hypervel\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Contracts\Container\Container;

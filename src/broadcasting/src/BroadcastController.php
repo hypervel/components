@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Support\Facades\Broadcast;
 

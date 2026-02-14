@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Request;
+use Hypervel\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Contracts\Container\Container;
