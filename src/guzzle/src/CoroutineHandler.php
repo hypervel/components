@@ -23,7 +23,7 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 
 /**
- * Http handler that uses Swoole/Swow Coroutine as a transport layer.
+ * Http handler that uses Swoole Coroutine as a transport layer.
  */
 class CoroutineHandler
 {
