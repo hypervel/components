@@ -4,27 +4,78 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
+use ArrayAccess;
 use Carbon\Carbon;
 use Closure;
-use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;
+use Hyperf\Macroable\Macroable;
+use Hyperf\Tappable\Tappable;
+use Hyperf\Testing\AssertableJsonString;
+use Hyperf\Testing\Fluent\AssertableJson;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\MessageBag;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\Testing\Concerns\AssertsStatusCodes;
+use Hypervel\Testing\Constraints\SeeInOrder;
 use Hypervel\Testing\TestResponseAssert as PHPUnit;
+use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
-class TestResponse extends HyperfTestResponse
+class TestResponse implements ArrayAccess
 {
+    use AssertsStatusCodes, Tappable, Macroable {
+        __call as macroCall;
+    }
+
+    protected ?array $decoded = null;
+
+    /**
+     * The streamed content of the response.
+     */
+    protected ?string $streamedContent = null;
+
     public function __construct(protected ResponseInterface $response)
     {
         if (method_exists($response, 'getStreamedContent')) {
             /** @var \Hypervel\Foundation\Testing\Http\ServerResponse $response */
             $this->streamedContent = $response->getStreamedContent();
         }
+    }
+
+    /**
+     * Handle dynamic calls into macros or pass missing methods to the base response.
+     */
+    public function __call(string $method, array $args): mixed
+    {
+        if (static::hasMacro($method)) {
+            return $this->macroCall($method, $args);
+        }
+
+        return $this->response->{$method}(...$args);
+    }
+
+    /**
+     * Dynamically access base response parameters.
+     */
+    public function __get(string $key): mixed
+    {
+        return $this->response->{$key};
+    }
+
+    /**
+     * Proxy isset() checks to the underlying base response.
+     */
+    public function __isset(string $key): bool
+    {
+        return isset($this->response->{$key});
     }
 
     /**
@@ -464,5 +515,553 @@ class TestResponse extends HyperfTestResponse
         dump($this->session()->all());
 
         return $this;
+    }
+
+    /**
+     * Get the content of the response.
+     */
+    public function getContent(): string
+    {
+        return $this->response->getBody()->getContents();
+    }
+
+    /**
+     * Assert that the given string matches the response content.
+     */
+    public function assertContent(string $value): static
+    {
+        PHPUnit::assertSame($value, $this->getContent());
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given string matches the streamed response content.
+     */
+    public function assertStreamedContent(string $value): static
+    {
+        PHPUnit::assertSame($value, $this->streamedContent());
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given string or array of strings are contained within the response.
+     */
+    public function assertSee(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $value) : $value;
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringContainsString((string) $value, $this->getContent());
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given strings are contained in order within the response.
+     */
+    public function assertSeeInOrder(array $values, bool $escape = true): static
+    {
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $values) : $values;
+
+        PHPUnit::assertThat($values, new SeeInOrder($this->getContent()));
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given string or array of strings are contained within the response text.
+     */
+    public function assertSeeText(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $value) : $value;
+
+        $content = strip_tags($this->getContent());
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringContainsString((string) $value, $content);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given strings are contained in order within the response text.
+     */
+    public function assertSeeTextInOrder(array $values, bool $escape = true): static
+    {
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $values) : $values;
+
+        PHPUnit::assertThat($values, new SeeInOrder(strip_tags($this->getContent())));
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given string or array of strings are not contained within the response.
+     */
+    public function assertDontSee(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $value) : $value;
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringNotContainsString((string) $value, $this->getContent());
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given string or array of strings are not contained within the response text.
+     */
+    public function assertDontSeeText(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(fn ($value) => htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true), $value) : $value;
+
+        $content = strip_tags($this->getContent());
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringNotContainsString((string) $value, $content);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response is a superset of the given JSON.
+     *
+     * @param array|callable $value
+     */
+    public function assertJson($value, bool $strict = false): static
+    {
+        $json = $this->decodeResponseJson();
+
+        if (is_array($value)) {
+            $json->assertSubset($value, $strict);
+        } else {
+            $assert = AssertableJson::fromAssertableJsonString($json);
+
+            $value($assert);
+
+            if (Arr::isAssoc($assert->toArray())) {
+                $assert->interacted();
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the expected value and type exists at the given path in the response.
+     */
+    public function assertJsonPath(string $path, mixed $expect): static
+    {
+        $this->decodeResponseJson()->assertPath($path, $expect);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has the exact given JSON.
+     */
+    public function assertExactJson(array $data): static
+    {
+        $this->decodeResponseJson()->assertExact($data);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has the similar JSON as given.
+     */
+    public function assertSimilarJson(array $data): static
+    {
+        $this->decodeResponseJson()->assertSimilar($data);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response contains the given JSON fragment.
+     */
+    public function assertJsonFragment(array $data): static
+    {
+        $this->decodeResponseJson()->assertFragment($data);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response does not contain the given JSON fragment.
+     */
+    public function assertJsonMissing(array $data, bool $exact = false): static
+    {
+        $this->decodeResponseJson()->assertMissing($data, $exact);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response does not contain the exact JSON fragment.
+     */
+    public function assertJsonMissingExact(array $data): static
+    {
+        $this->decodeResponseJson()->assertMissingExact($data);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response does not contain the given path.
+     */
+    public function assertJsonMissingPath(string $path): static
+    {
+        $this->decodeResponseJson()->assertMissingPath($path);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has a given JSON structure.
+     */
+    public function assertJsonStructure(?array $structure = null, mixed $responseData = null): static
+    {
+        $this->decodeResponseJson()->assertStructure($structure, $responseData);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response JSON has the expected count of items at the given key.
+     */
+    public function assertJsonCount(int $count, ?string $key = null): static
+    {
+        $this->decodeResponseJson()->assertCount($count, $key);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has the given JSON validation errors.
+     */
+    public function assertJsonValidationErrors(array|string $errors, string $responseKey = 'errors'): static
+    {
+        $errors = Arr::wrap($errors);
+
+        PHPUnit::assertNotEmpty($errors, 'No validation errors were provided.');
+
+        $jsonErrors = Arr::get($this->json(), $responseKey) ?? [];
+
+        $errorMessage = $jsonErrors
+                ? 'Response has the following JSON validation errors:'
+                        . PHP_EOL . PHP_EOL . json_encode($jsonErrors, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL
+                : 'Response does not have JSON validation errors.';
+
+        foreach ($errors as $key => $value) {
+            if (is_int($key)) {
+                $this->assertJsonValidationErrorFor($value, $responseKey);
+
+                continue;
+            }
+
+            $this->assertJsonValidationErrorFor($key, $responseKey);
+
+            foreach (Arr::wrap($value) as $expectedMessage) {
+                $errorMissing = true;
+
+                foreach (Arr::wrap($jsonErrors[$key]) as $jsonErrorMessage) {
+                    if (Str::contains($jsonErrorMessage, $expectedMessage)) {
+                        $errorMissing = false;
+
+                        break;
+                    }
+                }
+            }
+
+            if ($errorMissing) { /* @phpstan-ignore-line */
+                PHPUnit::fail(
+                    "Failed to find a validation error in the response for key and message: '{$key}' => '{$expectedMessage}'" . PHP_EOL . PHP_EOL . $errorMessage  /* @phpstan-ignore-line */
+                );
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert the response has any JSON validation errors for the given key.
+     */
+    public function assertJsonValidationErrorFor(string $key, string $responseKey = 'errors'): static
+    {
+        $jsonErrors = Arr::get($this->json(), $responseKey) ?? [];
+
+        $errorMessage = $jsonErrors
+            ? 'Response has the following JSON validation errors:'
+            . PHP_EOL . PHP_EOL . json_encode($jsonErrors, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL
+            : 'Response does not have JSON validation errors.';
+
+        PHPUnit::assertArrayHasKey(
+            $key,
+            $jsonErrors,
+            "Failed to find a validation error in the response for key: '{$key}'" . PHP_EOL . PHP_EOL . $errorMessage
+        );
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has no JSON validation errors for the given keys.
+     */
+    public function assertJsonMissingValidationErrors(array|string|null $keys = null, string $responseKey = 'errors'): static
+    {
+        if ($this->getContent() === '') {
+            PHPUnit::assertTrue(true);
+
+            return $this;
+        }
+
+        $json = $this->json();
+
+        if (! Arr::has($json, $responseKey)) {
+            PHPUnit::assertTrue(true);
+
+            return $this;
+        }
+
+        $errors = Arr::get($json, $responseKey, []);
+
+        if (is_null($keys) && count($errors) > 0) {
+            PHPUnit::fail(
+                'Response has unexpected validation errors: ' . PHP_EOL . PHP_EOL
+                . json_encode($errors, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            );
+        }
+
+        foreach (Arr::wrap($keys) as $key) {
+            PHPUnit::assertFalse(
+                isset($errors[$key]),
+                "Found unexpected validation error for key: '{$key}'"
+            );
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given key is a JSON array.
+     */
+    public function assertJsonIsArray(?string $key = null): static
+    {
+        $data = $this->json($key);
+
+        $encodedData = json_encode($data);
+
+        PHPUnit::assertTrue(
+            is_array($data)
+            && str_starts_with($encodedData, '[')
+            && str_ends_with($encodedData, ']')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given key is a JSON object.
+     */
+    public function assertJsonIsObject(?string $key = null): static
+    {
+        $data = $this->json($key);
+
+        $encodedData = json_encode($data);
+
+        PHPUnit::assertTrue(
+            is_array($data)
+            && str_starts_with($encodedData, '{')
+            && str_ends_with($encodedData, '}')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Validate and return the decoded response JSON.
+     *
+     * @throws Throwable
+     */
+    public function decodeResponseJson(): AssertableJsonString
+    {
+        $testJson = new AssertableJsonString($this->getContent());
+
+        $decodedResponse = $testJson->json();
+
+        if (is_null($decodedResponse) || $decodedResponse === false) {
+            $exception = $this->exception ?? null;
+
+            $exception && throw $exception;
+
+            PHPUnit::fail('Invalid JSON was returned from the route.');
+        }
+
+        return $testJson;
+    }
+
+    /**
+     * Get the JSON decoded body of the response as an array or scalar value.
+     */
+    public function json(?string $key = null): mixed
+    {
+        return $this->decodeResponseJson()->json($key);
+    }
+
+    /**
+     * Get the JSON decoded body of the response as a collection.
+     */
+    public function collect(?string $key = null): Collection
+    {
+        return Collection::make($this->json($key));
+    }
+
+    public function offsetExists(mixed $offset): bool
+    {
+        return isset($this->json()[$offset]);
+    }
+
+    public function offsetGet(mixed $offset): mixed
+    {
+        return $this->json()[$offset];
+    }
+
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        throw new LogicException('Response data may not be mutated using array access.');
+    }
+
+    public function offsetUnset(mixed $offset): void
+    {
+        throw new LogicException('Response data may not be mutated using array access.');
+    }
+
+    /**
+     * Create a TestResponse from a base response.
+     */
+    public static function fromBaseResponse(ResponsePlusInterface $response): static
+    {
+        return new static($response);
+    }
+
+    /**
+     * Assert that the response has a successful status code.
+     */
+    public function assertSuccessful(): static
+    {
+        PHPUnit::assertTrue(
+            $this->isSuccessful(),
+            $this->statusMessageWithDetails('>=200, <300', $this->getStatusCode())
+        );
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response has the given status code.
+     */
+    public function assertStatus(int $status): static
+    {
+        $message = $this->statusMessageWithDetails($status, $actual = $this->getStatusCode());
+
+        PHPUnit::assertSame($actual, $status, $message);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the response was successful.
+     */
+    public function isSuccessful(): bool
+    {
+        return $this->getStatusCode() >= 200 && $this->getStatusCode() < 300;
+    }
+
+    /**
+     * Determine if there was a server error.
+     */
+    public function isServerError(): bool
+    {
+        return $this->getStatusCode() >= 500 && $this->getStatusCode() < 600;
+    }
+
+    /**
+     * Assert that the response is a server error.
+     */
+    public function assertServerError(): static
+    {
+        PHPUnit::assertTrue(
+            $this->isServerError(),
+            $this->statusMessageWithDetails('>=500, < 600', $this->getStatusCode())
+        );
+
+        return $this;
+    }
+
+    /**
+     * Get the response status code.
+     */
+    public function getStatusCode(): int
+    {
+        return $this->response->getStatusCode();
+    }
+
+    /**
+     * Get the streamed content from the response.
+     */
+    public function streamedContent(): string
+    {
+        if (! is_null($this->streamedContent)) {
+            return $this->streamedContent;
+        }
+
+        if (! $this->response instanceof StreamedResponse) {
+            PHPUnit::fail('The response is not a streamed response.');
+        }
+
+        ob_start(function (string $buffer): string {
+            $this->streamedContent .= $buffer;
+
+            return '';
+        });
+
+        $this->sendContent();
+
+        ob_end_clean();
+
+        return (string) $this->streamedContent;
+    }
+
+    /**
+     * Send the content for the current web response.
+     */
+    public function sendContent(): static
+    {
+        echo $this->streamedContent;
+
+        return $this;
+    }
+
+    /**
+     * Get an assertion message for a status assertion containing extra details when available.
+     */
+    protected function statusMessageWithDetails(int|string $expected, int|string $actual): string
+    {
+        return "Expected response status code [{$expected}] but received {$actual}.";
     }
 }
