@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
