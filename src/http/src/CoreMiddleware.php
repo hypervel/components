@@ -7,15 +7,13 @@ namespace Hypervel\Http;
 use FastRoute\Dispatcher;
 use Hyperf\HttpMessage\Server\ResponsePlusProxy;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\View\RenderInterface;
-use Hyperf\ViewEngine\Contract\Renderable;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\Support\Renderable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
@@ -24,7 +22,7 @@ use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\HttpServer\Router\DispatcherFactory;
 use Hypervel\Server\Exceptions\ServerException;
 use Hypervel\Support\Json;
-use Hypervel\View\Events\ViewRendered;
+use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -47,21 +45,20 @@ class CoreMiddleware implements CoreMiddlewareInterface
     /**
      * Transfer the non-standard response content to a standard response object.
      *
-     * @param null|array|Arrayable|Jsonable|Renderable|ResponseInterface|string|ViewInterface $response
+     * @param null|array|Arrayable|Jsonable|Renderable|ResponseInterface|string|ViewContract $response
      */
     protected function transferToResponse($response, ServerRequestInterface $request): ResponsePlusInterface
     {
         if ($response instanceof Renderable) {
-            if ($response instanceof ViewInterface) {
-                if ($this->container->make('config')->get('view.event.enable', false)) {
-                    $this->container->make(EventDispatcher::class)
-                        ->dispatch(new ViewRendered($response));
-                }
-            }
-
             return $this->response()
-                ->setHeader('Content-Type', $this->container->make(RenderInterface::class)->getContentType())
+                ->addHeader('content-type', 'text/html')
                 ->setBody(new SwooleStream($response->render()));
+        }
+
+        if ($response instanceof Htmlable) {
+            return $this->response()
+                ->addHeader('content-type', 'text/html')
+                ->setBody(new SwooleStream((string) $response));
         }
 
         if (is_string($response)) {
