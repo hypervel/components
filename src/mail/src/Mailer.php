@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
@@ -62,13 +62,13 @@ class Mailer implements MailerContract, MailQueueContract
      * Create a new Mailer instance.
      *
      * @param string $name the name that is configured for the mailer
-     * @param FactoryInterface $views the view factory instance
+     * @param FactoryContract $views the view factory instance
      * @param TransportInterface $transport the Symfony Transport instance
      * @param null|Dispatcher $events the event dispatcher instance
      */
     public function __construct(
         protected string $name,
-        protected FactoryInterface $views,
+        protected FactoryContract $views,
         protected TransportInterface $transport,
         protected ?Dispatcher $events = null
     ) {
@@ -267,9 +267,14 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function sendMailable(MailableContract $mailable): ?SentMessage
     {
-        return $mailable instanceof ShouldQueue
-            ? $mailable->mailer($this->name)->queue($this->queue)
-            : $mailable->mailer($this->name)->send($this);
+        $mailable = $mailable->mailer($this->name);
+
+        if ($mailable instanceof ShouldQueue) {
+            $mailable->queue($this->queue);
+            return null;
+        }
+
+        return $mailable->send($this);
     }
 
     /**
@@ -488,7 +493,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Get the view factory instance.
      */
-    public function getViewFactory(): FactoryInterface
+    public function getViewFactory(): FactoryContract
     {
         return $this->views;
     }

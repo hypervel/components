@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
@@ -128,7 +128,7 @@ class MailManager implements FactoryContract
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app->make(FactoryInterface::class),
+            $this->app->make(ViewFactoryContract::class),
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
             $this->app->make(Dispatcher::class)
         );

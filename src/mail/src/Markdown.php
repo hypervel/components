@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use League\CommonMark\Environment\Environment;
@@ -29,7 +29,7 @@ class Markdown
      * Create a new Markdown renderer instance.
      */
     public function __construct(
-        protected FactoryInterface $view,
+        protected FactoryContract $view,
         array $options = []
     ) {
         $this->theme = $options['theme'] ?? 'default';
