@@ -11,9 +11,6 @@ use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\HttpMessage\Exception\HttpException;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
 use Hyperf\HttpMessage\Uri\Uri;
-use Hyperf\View\RenderInterface;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
@@ -29,12 +26,16 @@ use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
+use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use InvalidArgumentException;
 use Mockery as m;
 use OutOfRangeException;
@@ -71,7 +72,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
             ConfigContract::class => fn () => $this->config,
-            FactoryInterface::class => fn () => new stdClass(),
+            FactoryContract::class => fn () => new stdClass(),
             Request::class => fn () => $this->request,
             ServerRequestInterface::class => fn () => m::mock(ServerRequestInterface::class),
             ResponseContract::class => fn () => new Response(),
@@ -92,6 +93,7 @@ class FoundationExceptionHandlerTest extends TestCase
 
         Context::destroy('__request.root.uri');
         Context::destroy(ServerRequestInterface::class);
+        Facade::clearResolvedInstances();
     }
 
     public function testHandlerReportsExceptionAsContext()
@@ -365,6 +367,8 @@ class FoundationExceptionHandlerTest extends TestCase
 
         $this->assertSame(302, $response->getStatusCode());
         $this->assertSame($redirectTo, $response->getHeaderLine('Location'));
+
+        RequestContext::destroy();
     }
 
     public function testModelNotFoundReturns404WithoutReporting()
@@ -386,11 +390,12 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsSpecificErrorViewIfExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->with('errors::502')->andReturn(true);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
+        View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
             {
@@ -403,12 +408,13 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsFallbackErrorViewIfExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::502')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::5xx')->andReturn(true);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
+        View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
             {
@@ -421,12 +427,13 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsNullIfNoErrorViewExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::4xx')->andReturn(false);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
+        View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
             {
@@ -442,14 +449,12 @@ class FoundationExceptionHandlerTest extends TestCase
         // When debug is true, it is OK to bubble the exception thrown while rendering
         // the error view as the debug handler should handle this gracefully.
 
-        $viewFactory = m::mock(FactoryInterface::class);
+        $view = m::mock(ViewContract::class);
+        $view->shouldReceive('render')->once()->withAnyArgs()->andThrow(new Exception('Rendering this view throws an exception'));
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(true);
-
-        $this->container->instance(FactoryInterface::class, $viewFactory);
-
-        $renderer = m::mock(RenderInterface::class);
-        $renderer->shouldReceive('render')->once()->withAnyArgs()->andThrow(new Exception('Rendering this view throws an exception'));
-        $this->container->instance(RenderInterface::class, $renderer);
+        $viewFactory->shouldReceive('make')->once()->with('errors::404', m::any())->andReturn($view);
+        $this->container->instance(FactoryContract::class, $viewFactory);
         $this->config->set('app.debug', true);
 
         $handler = new class($this->container) extends Handler {
