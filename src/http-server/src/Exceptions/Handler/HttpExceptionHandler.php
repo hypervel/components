@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer\Exceptions\Handler;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\HttpMessage\Exception\HttpException;
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Swow\Psr7\Message\ResponsePlusInterface;

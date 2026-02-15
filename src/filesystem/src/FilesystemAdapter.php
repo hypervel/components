@@ -7,7 +7,7 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;

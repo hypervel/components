@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Filesystem;
 
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 

@@ -7,9 +7,8 @@ namespace Hypervel\Foundation\Exceptions;
 use Closure;
 use Exception;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpMessage\Base\Response as BaseResponse;
-use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Base\Response as BaseResponse;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Context\Context;
@@ -110,7 +109,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     protected array $internalDontReport = [
         AuthenticationException::class,
         AuthorizationException::class,
-        HyperfHttpException::class,
+        HttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
         TokenMismatchException::class,
@@ -674,7 +673,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         }
 
         if (! $this->isHttpException($e)) {
-            $e = new HyperfHttpException(500, $e->getMessage(), $e->getCode(), $e);
+            $e = new HttpException(500, $e->getMessage(), $e->getCode(), $e);
         }
 
         return $this->renderHttpException($e);
@@ -688,7 +687,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         $response = response()->html(
             $this->renderExceptionContent($e)
         )->withStatus(
-            $e instanceof HyperfHttpException ? $e->getStatusCode() : 500
+            $e instanceof HttpException ? $e->getStatusCode() : 500
         );
 
         if ($e instanceof HttpException) {
@@ -729,7 +728,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Render the given HttpException.
      */
-    protected function renderHttpException(HyperfHttpException $e): ResponseInterface
+    protected function renderHttpException(HttpException $e): ResponseInterface
     {
         if ($view = $this->getHttpExceptionView($e)) {
             try {
@@ -791,7 +790,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Get the view used to render HTTP exceptions.
      */
-    protected function getHttpExceptionView(HyperfHttpException $e): ?string
+    protected function getHttpExceptionView(HttpException $e): ?string
     {
         $view = 'errors::' . $e->getStatusCode();
 
@@ -815,7 +814,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     {
         return response()->json(
             $this->convertExceptionToArray($e),
-            $e instanceof HyperfHttpException ? $e->getStatusCode() : 500,
+            $e instanceof HttpException ? $e->getStatusCode() : 500,
             $e instanceof HttpException ? $e->getHeaders() : []
         );
     }
@@ -849,11 +848,11 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Determine if the given exception is an HTTP exception.
      *
-     * @phpstan-assert-if-true HyperfHttpException $e
+     * @phpstan-assert-if-true HttpException $e
      */
     protected function isHttpException(Throwable $e): bool
     {
-        return $e instanceof HyperfHttpException;
+        return $e instanceof HttpException;
     }
 
     /**

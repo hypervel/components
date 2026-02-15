@@ -101,7 +101,7 @@ use Hypervel\Contracts\Http\Request as RequestContract;
  * @method static bool hasCookie(string $key)
  * @method static mixed server(string $key, mixed $default = null)
  * @method static bool isMethod(string $method)
- * @method static null|\Hyperf\HttpMessage\Upload\UploadedFile|\Hyperf\HttpMessage\Upload\UploadedFile[] file(string $key, mixed $default = null)
+ * @method static null|\Hypervel\HttpMessage\Upload\UploadedFile|\Hypervel\HttpMessage\Upload\UploadedFile[] file(string $key, mixed $default = null)
  * @method static bool hasFile(string $key)
  * @method static string getProtocolVersion()
  * @method static \Psr\Http\Message\MessageInterface withProtocolVersion(string $version)

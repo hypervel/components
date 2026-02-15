@@ -6,7 +6,7 @@ namespace Hypervel\HttpServer;
 
 use Hyperf\Contract\ResponseEmitterInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\HttpMessage\Stream\FileInterface;
+use Hypervel\HttpMessage\Stream\FileInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Response;
 use Throwable;

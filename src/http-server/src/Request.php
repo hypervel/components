@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use Hyperf\Collection\Arr;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\Context;

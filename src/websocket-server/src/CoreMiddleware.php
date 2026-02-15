@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hyperf\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Context\ResponseContext;
 use Hypervel\HttpServer\CoreMiddleware as HttpCoreMiddleware;
 use Hypervel\HttpServer\Router\Dispatched;

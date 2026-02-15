@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Http\Request as RequestContract;
@@ -650,7 +650,7 @@ class FilesystemAdapterTest extends TestCase
         $container->instance(RequestContract::class, $request);
         Container::setInstance($container);
 
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content)
             ->once()

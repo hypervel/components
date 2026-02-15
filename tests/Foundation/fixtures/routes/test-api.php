@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Support\Facades\Route;

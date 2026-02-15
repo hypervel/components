@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ExceptionHandler;
 
-use Hyperf\HttpMessage\Base\Response;
-use Hyperf\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Server\Request;
 use Hypervel\Context\Context;
 use Hypervel\ExceptionHandler\Handler\WhoopsExceptionHandler;
 use Hypervel\Tests\TestCase;

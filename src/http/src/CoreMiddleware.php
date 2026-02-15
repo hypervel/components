@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hyperf\HttpMessage\Server\ResponsePlusProxy;
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Server\ResponsePlusProxy;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;

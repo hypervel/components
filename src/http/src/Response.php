@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use DateTimeImmutable;
-use Hyperf\HttpMessage\Server\Chunk\Chunkable;
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Server\Chunk\Chunkable;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;

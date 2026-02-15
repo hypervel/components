@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer\Exception;
 
-use Hyperf\HttpMessage\Exception\BadRequestHttpException;
+use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 
 class WebSocketHandShakeException extends BadRequestHttpException
 {

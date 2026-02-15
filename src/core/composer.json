@@ -31,7 +31,6 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/http-message": "~3.1.0",
         "hypervel/context": "^0.4",
         "symfony/polyfill-php85": "^1.33"
     },

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hyperf\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Server\Request;
 use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;

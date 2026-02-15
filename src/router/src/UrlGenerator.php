@@ -10,7 +10,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpMessage\Uri\Uri;
+use Hypervel\HttpMessage\Uri\Uri;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;

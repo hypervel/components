@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\HttpServer\Request;
@@ -112,7 +112,7 @@ class RequestTest extends TestCase
 
     public function testClearStoredParsedData()
     {
-        $psrRequest = new \Hyperf\HttpMessage\Server\Request('GET', '/');
+        $psrRequest = new \Hypervel\HttpMessage\Server\Request('GET', '/');
         $psrRequest = $psrRequest->withParsedBody(['id' => 1]);
         RequestContext::set($psrRequest);
 

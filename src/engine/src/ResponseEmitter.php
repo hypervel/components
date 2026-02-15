@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Engine;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\HttpMessage\Server\Response as HyperfResponse;
-use Hyperf\HttpMessage\Stream\FileInterface;
+use Hypervel\HttpMessage\Cookie\Cookie;
+use Hypervel\HttpMessage\Server\Response as HyperfResponse;
+use Hypervel\HttpMessage\Stream\FileInterface;
 use Hypervel\Contracts\Engine\ResponseEmitterInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Response;

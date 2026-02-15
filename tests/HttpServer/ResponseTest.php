@@ -6,9 +6,9 @@ namespace Hypervel\Tests\HttpServer;
 
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Xmlable;
-use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\HttpMessage\Server\Request;
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Cookie\Cookie;
+use Hypervel\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -44,7 +44,7 @@ class ResponseTest extends TestCase
         $container->shouldReceive('make')->with(RequestInterface::class)->andReturn($request);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -75,7 +75,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -149,7 +149,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -178,7 +178,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -195,7 +195,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -209,7 +209,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -246,7 +246,7 @@ class ResponseTest extends TestCase
         });
         $swooleResponse->shouldReceive('end')->once()->andReturn(true);
 
-        Context::set(PsrResponseInterface::class, $psrResponse = new \Hyperf\HttpMessage\Server\Response());
+        Context::set(PsrResponseInterface::class, $psrResponse = new \Hypervel\HttpMessage\Server\Response());
 
         $response = new Response();
         $response = $response->withCookie($cookie1)->withCookie($cookie2)->withCookie($cookie3)->withHeader('X-Token', 'xxx')->withStatus(200);

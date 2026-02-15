@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hyperf\HttpMessage\Server\Request as Psr7Request;
-use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpMessage\Uri\Uri;
+use Hypervel\HttpMessage\Server\Request as Psr7Request;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Uri\Uri;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;

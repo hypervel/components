@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Http\Cors;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;

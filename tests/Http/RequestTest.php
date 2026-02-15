@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Carbon\Carbon;
-use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
+use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Uri\Uri as HypervelUri;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
@@ -266,7 +266,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('http://localhost/path')
+            new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -278,7 +278,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('https://localhost/path')
+            new HypervelUri('https://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -290,7 +290,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('http://localhost/path')
+            new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -302,7 +302,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('https://localhost/path')
+            new HypervelUri('https://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -439,7 +439,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('https://example.com:8080')
+            new HypervelUri('https://example.com:8080')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -597,7 +597,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('http://localhost/path')
+            new HypervelUri('http://localhost/path')
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -612,7 +612,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value', 'foo' => 'bar']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('http://localhost/path')
+            new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -626,7 +626,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri('https://example.com:8080')
+            new HypervelUri('https://example.com:8080')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -650,7 +650,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new HyperfUri($uri = 'http://localhost/path')
+            new HypervelUri($uri = 'http://localhost/path')
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -1027,7 +1027,7 @@ class RequestTest extends TestCase
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => 'key=value', 'request_uri' => '/api/users?key=value']);
-        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
+        $psrRequest->shouldReceive('getUri')->andReturn(new HypervelUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -1048,7 +1048,7 @@ class RequestTest extends TestCase
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => '', 'request_uri' => '/api/users']);
-        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
+        $psrRequest->shouldReceive('getUri')->andReturn(new HypervelUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();

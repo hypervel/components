@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\HttpMessage\Server\Request as ServerRequest;
+use Hypervel\HttpMessage\Server\Request as ServerRequest;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ExceptionHandler;
 
 use Exception;
-use Hyperf\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;

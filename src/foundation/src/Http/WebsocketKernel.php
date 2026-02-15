@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\HttpMessage\Base\Response;
-use Hyperf\HttpMessage\Server\Response as Psr7Response;
+use Hypervel\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Server\Response as Psr7Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;

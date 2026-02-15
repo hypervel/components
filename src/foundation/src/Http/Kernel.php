@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpMessage\Server\Request;
-use Hyperf\HttpMessage\Server\Response;
-use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
+use Hypervel\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Server\Response;
+use Hypervel\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;

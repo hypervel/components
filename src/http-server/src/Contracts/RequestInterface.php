@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpServer\Contracts;
 
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Psr\Http\Message\ServerRequestInterface;
 
 interface RequestInterface extends ServerRequestInterface

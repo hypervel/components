@@ -8,7 +8,7 @@ use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\HttpMessage\Server\Response;
+use Hypervel\HttpMessage\Server\Response;
 use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Responsable;

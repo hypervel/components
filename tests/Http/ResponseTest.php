@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Support\Arrayable;
@@ -41,7 +41,7 @@ class ResponseTest extends TestCase
         $container = new Container();
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -88,7 +88,7 @@ class ResponseTest extends TestCase
         $container = new Container();
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
         $response = new Response();
@@ -102,7 +102,7 @@ class ResponseTest extends TestCase
 
     public function testView()
     {
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
         $container = new Container();
@@ -127,7 +127,7 @@ class ResponseTest extends TestCase
 
     public function testGetPsr7Response()
     {
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         $response = new Response($psrResponse);
 
         $this->assertSame($psrResponse, $response->getPsr7Response());
@@ -147,7 +147,7 @@ class ResponseTest extends TestCase
 
         $this->expectException(FileNotFoundException::class);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         (new Response($psrResponse))
             ->file('file_path');
     }
@@ -168,7 +168,7 @@ class ResponseTest extends TestCase
         $container->instance(Filesystem::class, $filesystem);
         Container::setInstance($container);
 
-        $psrResponse = new \Hyperf\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
         $response = (new Response($psrResponse))
             ->file('file_path', ['Content-Type' => $mime = 'image/jpeg']);
 
@@ -178,7 +178,7 @@ class ResponseTest extends TestCase
 
     public function testStream()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'Streaming content')
             ->once()
@@ -201,7 +201,7 @@ class ResponseTest extends TestCase
 
     public function testStreamWithStringResult()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'Streaming content')
             ->once()
@@ -235,7 +235,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownload()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -262,7 +262,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithRangeHeader()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -298,7 +298,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithRangeHeaderAndWithoutContentLength()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content = 'File content')
             ->once()
@@ -333,7 +333,7 @@ class ResponseTest extends TestCase
 
     public function testStreamDownloadWithInvalidRangeHeader()
     {
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldNotReceive('write');
         Context::set(ResponseInterface::class, $psrResponse);
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\HttpMessage\Stream\StandardStream;
-use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
+use Hypervel\HttpMessage\Stream\StandardStream;
+use Hypervel\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Exceptions\CannotWriteFileException;

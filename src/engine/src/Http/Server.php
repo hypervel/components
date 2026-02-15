@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Engine\Http;
 
-use Hyperf\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Server\Request;
 use Hypervel\Contracts\Engine\Http\ServerInterface;
 use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;

@@ -6,9 +6,9 @@ namespace Hypervel\WebSocketServer;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\HttpMessage\Base\Response;
-use Hyperf\HttpMessage\Server\Request as Psr7Request;
-use Hyperf\HttpMessage\Server\Response as Psr7Response;
+use Hypervel\HttpMessage\Base\Response;
+use Hypervel\HttpMessage\Server\Request as Psr7Request;
+use Hypervel\HttpMessage\Server\Response as Psr7Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;

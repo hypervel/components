@@ -6,6 +6,7 @@ namespace Hypervel\Http;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -88,7 +89,7 @@ class JsonResponse implements ResponseInterface
             $body->rewind();
         }
 
-        $newBody = new \Hyperf\HttpMessage\Stream\SwooleStream($json);
+        $newBody = new SwooleStream($json);
         $this->response = $this->response->withBody($newBody);
 
         return $this;

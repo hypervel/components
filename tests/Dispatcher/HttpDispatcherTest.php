@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Dispatcher;
 
-use Hyperf\HttpMessage\Server\Response;
+use Hypervel\HttpMessage\Server\Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Dispatcher\HttpDispatcher;

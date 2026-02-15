@@ -7,7 +7,7 @@ namespace Hypervel\HttpServer\Contracts;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Jsonable;
 use Hyperf\Contract\Xmlable;
-use Hyperf\HttpMessage\Cookie\Cookie;
+use Hypervel\HttpMessage\Cookie\Cookie;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Stringable;
 

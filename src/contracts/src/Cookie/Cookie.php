@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Cookie;
 
-use Hyperf\HttpMessage\Cookie\Cookie as HyperfCookie;
+use Hypervel\HttpMessage\Cookie\Cookie as BaseCookie;
 use UnitEnum;
 
 interface Cookie
@@ -13,7 +13,7 @@ interface Cookie
 
     public function get(UnitEnum|string $key, ?string $default = null): ?string;
 
-    public function make(UnitEnum|string $name, string $value, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): HyperfCookie;
+    public function make(UnitEnum|string $name, string $value, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): BaseCookie;
 
     public function queue(...$parameters): void;
 
@@ -23,7 +23,7 @@ interface Cookie
 
     public function getQueuedCookies(): array;
 
-    public function forever(UnitEnum|string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): HyperfCookie;
+    public function forever(UnitEnum|string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): BaseCookie;
 
-    public function forget(UnitEnum|string $name, string $path = '', string $domain = ''): HyperfCookie;
+    public function forget(UnitEnum|string $name, string $path = '', string $domain = ''): BaseCookie;
 }

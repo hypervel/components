@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ExceptionHandler\Handler;
 
 use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\ExceptionHandler\ExceptionHandler;

@@ -84,7 +84,11 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write → delete.
 - **No class docblocks unless warranted** — only add a class docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added.
-- **Preserve existing comments** — do not remove them. Translate non-English comments to English and improve grammar when appropriate.
+- **Preserve existing comments — do not remove them.** Only remove:
+  - Source package boilerplate (e.g., the Hyperf license header block)
+  - `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey. Examples of removable: `@param string $name The name of the cookie` (just restates `string $name`), `@return int Position of the file pointer` (just restates `tell(): int`), `@param int $offset Stream offset` (just restates `int $offset`). Examples to keep: `@param bool $secure Whether the cookie should only be transmitted over a secure HTTPS connection`, `@param int $whence Specifies how the cursor position will be calculated...`, `@return resource|null` (when the native type is `mixed` because `resource` isn't a valid PHP type hint).
+
+  Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes. Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it. Translate non-English comments to English and fix grammar errors in place.
 - **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
 - **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
