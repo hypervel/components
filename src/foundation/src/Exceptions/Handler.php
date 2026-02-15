@@ -6,13 +6,13 @@ namespace Hypervel\Foundation\Exceptions;
 
 use Closure;
 use Exception;
-use Hyperf\Contract\MessageBag as MessageBagContract;
-use Hyperf\Contract\MessageProvider;
+use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
+use Hypervel\Contracts\Support\MessageProvider;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Base\Response as BaseResponse;
 use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Context\Context;
@@ -461,7 +461,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
         if ($callbacks = $this->afterResponseCallbacks()) {
             foreach ($callbacks as $callback) {
-                $response = $callback($response, $e, $request);
+                $response = $callback($response, $e, $request) ?: $response;
             }
         }
 
