@@ -29,6 +29,7 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -187,6 +188,116 @@ class Repository implements ArrayAccess, CacheContract
         return tap($this->get($key, $default), function () use ($key) {
             $this->forget($key);
         });
+    }
+
+    /**
+     * Retrieve a string item from the cache.
+     *
+     * @param null|(Closure(): (null|string))|string $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function string(UnitEnum|string $key, callable|string|null $default = null): string
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a string, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve an integer item from the cache.
+     *
+     * @param null|(Closure(): (null|int))|int $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function integer(UnitEnum|string $key, callable|int|null $default = null): int
+    {
+        $value = $this->get($key, $default);
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_INT) !== false) {
+            return (int) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be an integer, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * Retrieve a float item from the cache.
+     *
+     * @param null|(Closure(): (null|float))|float $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function float(UnitEnum|string $key, callable|float|null $default = null): float
+    {
+        $value = $this->get($key, $default);
+
+        if (is_float($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_FLOAT) !== false) {
+            return (float) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be a float, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * Retrieve a boolean item from the cache.
+     *
+     * @param null|bool|(Closure(): (null|bool)) $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function boolean(UnitEnum|string $key, callable|bool|null $default = null): bool
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_bool($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a boolean, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve an array item from the cache.
+     *
+     * @param null|array<array-key, mixed>|(Closure(): (null|array<array-key, mixed>)) $default
+     *
+     * @return array<array-key, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    public function array(UnitEnum|string $key, callable|array|null $default = null): array
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_array($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be an array, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
     }
 
     /**
