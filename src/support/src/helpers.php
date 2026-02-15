@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use BackedEnum;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
-use Stringable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
@@ -121,7 +119,7 @@ if (! function_exists('e')) {
     /**
      * Encode HTML special characters in a string.
      */
-    function e(BackedEnum|DeferringDisplayableValue|Stringable|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
+    function e(\BackedEnum|DeferringDisplayableValue|\Stringable|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
     {
         if ($value instanceof DeferringDisplayableValue) {
             $value = $value->resolveDisplayableValue();
@@ -131,7 +129,7 @@ if (! function_exists('e')) {
             return $value->toHtml();
         }
 
-        if ($value instanceof BackedEnum) {
+        if ($value instanceof \BackedEnum) {
             $value = $value->value;
         }
 
