@@ -7,7 +7,7 @@ namespace Hypervel\Http;
 use DateTimeImmutable;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\View\RenderInterface;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -205,15 +205,14 @@ class Response extends HttpServerResponse implements ResponseContract
      */
     public function view(string $view, array $data = [], int $status = 200, array $headers = []): ResponseInterface
     {
-        $response = Container::getInstance()
-            ->make(RenderInterface::class)
-            ->render($view, $data);
+        $content = Container::getInstance()
+            ->make(FactoryContract::class)
+            ->make($view, $data)
+            ->render();
 
-        foreach ($headers as $name => $value) {
-            $response = $response->withAddedHeader($name, $value);
-        }
+        $headers['Content-Type'] = 'text/html';
 
-        return $response->withStatus($status);
+        return $this->make($content, $status, $headers);
     }
 
     /**
