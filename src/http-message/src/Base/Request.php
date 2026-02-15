@@ -58,6 +58,9 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
         }
     }
 
+    /**
+     * Get the string representation of the request.
+     */
     public function __toString(): string
     {
         return $this->toString();
@@ -81,10 +84,10 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
         }
 
         $target = $this->uri->getPath();
-        if ($target == '') {
+        if ($target === '') {
             $target = '/';
         }
-        if ($this->uri->getQuery() != '') {
+        if ($this->uri->getQuery() !== '') {
             $target .= '?' . $this->uri->getQuery();
         }
 
@@ -142,7 +145,7 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
     {
         $method = strtoupper($method);
         $methods = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD'];
-        if (! in_array($method, $methods)) {
+        if (! in_array($method, $methods, true)) {
             throw new InvalidArgumentException('Invalid Method');
         }
         $new = clone $this;
@@ -188,7 +191,7 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
      * @param UriInterface $uri new request URI to use
      * @param bool $preserveHost preserve the original state of the Host header
      */
-    public function withUri(UriInterface $uri, $preserveHost = false): static
+    public function withUri(UriInterface $uri, bool $preserveHost = false): static
     {
         if ($uri === $this->uri) {
             return $this;
@@ -204,17 +207,23 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
         return $new;
     }
 
+    /**
+     * Set the HTTP method.
+     */
     public function setMethod(string $method): static
     {
         $method = strtoupper($method);
         $methods = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD'];
-        if (! in_array($method, $methods)) {
+        if (! in_array($method, $methods, true)) {
             throw new InvalidArgumentException('Invalid Method');
         }
         $this->method = $method;
         return $this;
     }
 
+    /**
+     * Set the URI.
+     */
     public function setUri(string|UriInterface $uri, ?bool $preserveHost = null): static
     {
         $this->uri = $uri;
@@ -226,6 +235,9 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
         return $this;
     }
 
+    /**
+     * Set the request target.
+     */
     public function setRequestTarget(string $requestTarget): static
     {
         if (preg_match('#\s#', $requestTarget)) {
@@ -236,6 +248,9 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
         return $this;
     }
 
+    /**
+     * Serialize the request to an HTTP string.
+     */
     public function toString(bool $withoutBody = false): string
     {
         return Http::packRequest(

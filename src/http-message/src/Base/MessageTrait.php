@@ -175,6 +175,9 @@ trait MessageTrait
         return $new;
     }
 
+    /**
+     * Return an instance with the provided headers, replacing all existing headers.
+     */
     public function withHeaders(array $headers): static
     {
         return (clone $this)->setHeaders($headers);
@@ -275,25 +278,21 @@ trait MessageTrait
     }
 
     /**
-     * Get a specific field from a header like content type or all fields as array.
+     * Get a specific field from a header like content type, or all fields as an array.
      *
      * If the header occurs more than once, only the value from the first header
      * is returned.
      *
-     * Throws an Exception if the requested header does not exist. If
-     * the specific header field does not exist, returns null.
-     *
-     * @param string $name name of header, like in getHeader()
-     * @param string $wantedPart the wanted part, default is first, if null an array with all parts is returned
-     * @param string $firstName key name for the first part
-     * @return array|string wanted part or all parts as array($firstName => firstPart, partname => value)
      * @throws RuntimeException
      */
-    public function getHeaderField(string $name, string $wantedPart = '0', string $firstName = '0')
+    public function getHeaderField(string $name, string $wantedPart = '0', string $firstName = '0'): array|string|null
     {
         return Decode::splitHeaderField($this->getHeaderLine($name), $wantedPart, $firstName);
     }
 
+    /**
+     * Get the Content-Type header value.
+     */
     public function getContentType(): string
     {
         return $this->getHeaderLine('Content-Type');
@@ -313,12 +312,18 @@ trait MessageTrait
         }
     }
 
+    /**
+     * Set the HTTP protocol version.
+     */
     public function setProtocolVersion(string $version): static
     {
         $this->protocol = $version;
         return $this;
     }
 
+    /**
+     * Set a header value, replacing any existing values.
+     */
     public function setHeader(string $name, mixed $value): static
     {
         if (! is_array($value)) {
@@ -337,6 +342,9 @@ trait MessageTrait
         return $this;
     }
 
+    /**
+     * Append a header value to an existing header, or add it if it doesn't exist.
+     */
     public function addHeader(string $name, mixed $value): static
     {
         if (! is_array($value)) {
@@ -357,6 +365,9 @@ trait MessageTrait
         return $this;
     }
 
+    /**
+     * Remove a header by name.
+     */
     public function unsetHeader(string $name): static
     {
         $normalized = strtolower($name);
@@ -372,6 +383,9 @@ trait MessageTrait
         return $this;
     }
 
+    /**
+     * Get headers with Connection and Content-Length defaults applied.
+     */
     public function getStandardHeaders(): array
     {
         $headers = $this->getHeaders();
@@ -384,11 +398,17 @@ trait MessageTrait
         return $headers;
     }
 
+    /**
+     * Determine if the connection should be kept alive.
+     */
     public function shouldKeepAlive(): bool
     {
         return strtolower($this->getHeaderLine('Connection')) === 'keep-alive';
     }
 
+    /**
+     * Set the message body.
+     */
     public function setBody(StreamInterface $body): static
     {
         $this->stream = $body;
@@ -396,6 +416,8 @@ trait MessageTrait
     }
 
     /**
+     * Replace all headers with the given set.
+     *
      * @param array<string, array<string>|string> $headers
      */
     public function setHeaders(array $headers): static
