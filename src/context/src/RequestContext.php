@@ -29,6 +29,11 @@ class RequestContext
         return Context::has(ServerRequestInterface::class, $coroutineId);
     }
 
+    public static function destroy(?int $coroutineId = null): void
+    {
+        Context::destroy(ServerRequestInterface::class, $coroutineId);
+    }
+
     public static function getOrNull(?int $coroutineId = null): ?ServerRequestPlusInterface
     {
         return Context::get(ServerRequestInterface::class, null, $coroutineId);
