@@ -115,22 +115,16 @@ class Coroutine implements CoroutineInterface
 
     /**
      * Yield the current coroutine.
-     *
-     * @param mixed $data only supported in Swow
-     * @return bool
      */
-    public static function yield(mixed $data = null): mixed
+    public static function yield(): bool
     {
         return SwooleCo::yield();
     }
 
     /**
      * Resume a coroutine by ID.
-     *
-     * @param mixed $data only supported in Swow
-     * @return bool
      */
-    public static function resumeById(int $id, mixed ...$data): mixed
+    public static function resumeById(int $id): bool
     {
         return SwooleCo::resume($id);
     }
