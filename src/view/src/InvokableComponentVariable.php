@@ -6,9 +6,9 @@ namespace Hypervel\View;
 
 use ArrayIterator;
 use Closure;
-use Hyperf\Collection\Enumerable;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Enumerable;
 use IteratorAggregate;
 use Stringable;
 use Traversable;

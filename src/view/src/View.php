@@ -6,12 +6,12 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hypervel\Support\Collection;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;

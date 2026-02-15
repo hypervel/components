@@ -105,7 +105,7 @@ trait ManagesEvents
         // the instance out of the IoC container and call the method on it with the
         // given arguments that are passed to the Closure as the composer's data.
         return function () use ($class, $method) {
-            return $this->container->get($class)->{$method}(...func_get_args());
+            return $this->container->make($class)->{$method}(...func_get_args());
         };
     }
 
@@ -155,7 +155,7 @@ trait ManagesEvents
             return $this->eventEnabled;
         }
 
-        return $this->eventEnabled = $this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false);
+        return $this->eventEnabled = $this->getContainer()->make(ConfigInterface::class)->get('view.event.enable', false);
     }
 
     /**
@@ -163,7 +163,7 @@ trait ManagesEvents
      */
     public function callCreator(ViewContract $view): void
     {
-        if ($this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false)
+        if ($this->getContainer()->make(ConfigInterface::class)->get('view.event.enable', false)
             && $this->events->hasListeners($event = 'creating: ' . $view->name())
         ) {
             $this->events->dispatch($event, [$view]);

@@ -6,8 +6,8 @@ namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
@@ -236,7 +236,7 @@ class ComponentTagCompiler
         // can be accessed within the component and we can render out the view.
         if (! class_exists($class)) {
             $view = Str::startsWith($component, 'mail::')
-                ? "\$__env->getContainer()->get(Hypervel\\View\\Factory::class)->make('{$component}')"
+                ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
                 : "'{$class}'";
 
             $parameters = [
@@ -263,7 +263,7 @@ class ComponentTagCompiler
      */
     public function componentClass(string $component): string
     {
-        $viewFactory = Container::getInstance()->get(Factory::class);
+        $viewFactory = Container::getInstance()->make(Factory::class);
 
         if (isset($this->aliases[$component])) {
             if (class_exists($alias = $this->aliases[$component])) {
@@ -410,7 +410,7 @@ class ComponentTagCompiler
         }
 
         return $this->namespace = Container::getInstance()
-            ->get(Application::class)
+            ->make(Application::class)
             ->getNamespace();
     }
 

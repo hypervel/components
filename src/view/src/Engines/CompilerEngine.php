@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
-use Hyperf\Database\Exception\MultipleRecordsFoundException;
-use Hyperf\Database\Exception\RecordsNotFoundException;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\HttpMessage\Exception\HttpException;
 use Hypervel\Context\Context;
+use Hypervel\Database\RecordNotFoundException;
+use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\Support\Str;
 use Hypervel\View\Compilers\CompilerInterface;
@@ -93,9 +92,8 @@ class CompilerEngine extends PhpEngine
     {
         if ($e instanceof HttpException
             || $e instanceof HttpResponseException
-            || $e instanceof MultipleRecordsFoundException
+            || $e instanceof RecordNotFoundException
             || $e instanceof RecordsNotFoundException
-            || $e instanceof ModelNotFoundException
         ) {
             parent::handleViewException($e, $obLevel);
         }
