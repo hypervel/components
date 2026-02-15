@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpMessage\Stream;
 
 use BadMethodCallException;
-use Hypervel\HttpServer\Exceptions\Http\FileException;
+use Hypervel\HttpMessage\Exceptions\FileException;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use SplFileInfo;

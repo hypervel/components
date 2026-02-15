@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hypervel\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Dispatcher\HttpDispatcher;
@@ -19,6 +18,7 @@ use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\ResponseEmitter;
 use Hypervel\Support\Arr;
+use Hypervel\Testing\HttpMessage\Upload\UploadedFile;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
