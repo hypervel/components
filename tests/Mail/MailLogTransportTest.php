@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Testbench\TestCase;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;

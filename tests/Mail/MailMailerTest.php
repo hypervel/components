@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View as ViewContract;
+use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -14,11 +14,11 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Mail\Transport\ArrayTransport;
-use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Bus\Queueable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 
 /**

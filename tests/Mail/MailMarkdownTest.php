@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Hypervel\Mail\Markdown;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View as ViewContract;
-use Hypervel\Mail\Markdown;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

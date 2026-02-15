@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Notifications\Messages\MailMessage;
@@ -12,6 +11,7 @@ use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery as m;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;

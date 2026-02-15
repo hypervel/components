@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
@@ -17,6 +15,8 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Testbench\TestCase;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 

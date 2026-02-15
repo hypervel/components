@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\Testbench\TestCase;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use InvalidArgumentException;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;

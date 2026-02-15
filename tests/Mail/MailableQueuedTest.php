@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\View\Factory;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -15,6 +14,7 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use Hypervel\View\Factory;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
