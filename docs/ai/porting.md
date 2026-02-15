@@ -95,6 +95,75 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
 - **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 
+### Container Usage (Hyperf → Hypervel)
+
+Hyperf and Hypervel have fundamentally different container semantics. Every ported file that touches the container needs these updates.
+
+#### Background: How the containers differ
+
+**Hyperf container:**
+- `get($id)` — returns a singleton. Caches the result in `$resolvedEntries`; subsequent calls return the cached instance.
+- `make($name)` — always returns a fresh instance. No caching. This is how Hyperf code gets non-shared objects.
+- `ApplicationContext::getContainer()` — static access to the container. Returns `Psr\Container\ContainerInterface` (PSR — only exposes `get()` and `has()`).
+- Everything resolved via `get()` is implicitly a singleton. There is no `singleton()`, `scoped()`, or `bind()`.
+
+**Hypervel container (Laravel-style):**
+- `make($abstract)` and `get($id)` both call the same internal `resolve()` method. `get()` is just a PSR-compliant exception wrapper around it.
+- Resolution behavior depends on how the abstract was registered:
+  - `singleton()` — cached for the worker lifetime (in `$instances`)
+  - `scoped()` — cached per-request via coroutine Context
+  - `bind()` — fresh instance every time (no caching)
+  - **Unbound concrete classes** — auto-singletoned for Swoole performance (cached in `$autoSingletons`). This is the key behavioral difference from Hyperf's `make()`.
+- `Container::getInstance()` — static access. Uses `??= new static()`, so it always returns a container (never null).
+
+#### What to change when porting
+
+**1. `ApplicationContext` → `Container::getInstance()`**
+
+```php
+// Hyperf
+use Hyperf\Context\ApplicationContext;
+$container = ApplicationContext::getContainer();
+
+// Hypervel
+use Hypervel\Container\Container;
+$container = Container::getInstance();
+```
+
+Remove `ApplicationContext::hasContainer()` guards — `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container instance.
+
+Replace `ApplicationContext::setContainer($c)` with `Container::setInstance($c)` (tests only).
+
+**2. `->get()` → `->make()` on the container**
+
+All `$container->get()` / `$this->container->get()` calls become `->make()`. In Hypervel both methods resolve identically, but `make()` is the Laravel convention (internal API, not PSR wrapper). Use `make()` consistently.
+
+```php
+// Hyperf
+$this->container->get(ConfigInterface::class);
+
+// Hypervel
+$this->container->make(ConfigInterface::class);
+```
+
+**3. Audit `make()` calls for auto-singleton safety**
+
+In Hyperf, `$container->make(Foo::class)` always returns a fresh `Foo`. In Hypervel, if `Foo` has no explicit binding, it will be auto-singletoned (cached for the worker lifetime). This is usually desirable for Swoole performance, but needs verification:
+
+- **Safe as auto-singleton (most cases):** Services, middleware, listeners, factories, formatters — stateless or process-global by nature. Leave as `make()`.
+- **Needs fresh instances:** Mutable request-scoped DTOs, builders that accumulate state, objects that capture per-request data in their constructor. **STOP and report** with a recommendation (typically: register with `bind()` so the container returns fresh instances).
+- **`make()` with parameters always returns fresh:** `$container->make(Foo::class, ['bar' => $baz])` bypasses all caching (singleton, scoped, and auto-singleton) because parameters trigger a contextual build. No action needed for these calls.
+
+#### Quick reference
+
+| Hyperf | Hypervel | Behavior change? |
+|---|---|---|
+| `ApplicationContext::getContainer()->get(Foo::class)` | `Container::getInstance()->make(Foo::class)` | No — both return singletons |
+| `$this->container->get(Foo::class)` | `$this->container->make(Foo::class)` | No — convention change only |
+| `$this->container->make(Foo::class)` | `$this->container->make(Foo::class)` | **Yes** — Hyperf: fresh each time. Hypervel: auto-singletoned if unbound. Verify safe. |
+| `ApplicationContext::hasContainer()` | Remove guard | `getInstance()` always returns a container |
+| `ApplicationContext::setContainer($c)` | `Container::setInstance($c)` | Tests only |
+
 ## Porting Tests
 
 ### Test Porting Workflow
@@ -267,16 +336,20 @@ When both Hyperf and Laravel have tests covering the same class, merge them into
 
 #### Container Mocking
 
-Hyperf tests use `Psr\Container\ContainerInterface`. Change to `Hypervel\Contracts\Container\Container`:
+Hyperf tests use `Psr\Container\ContainerInterface`. Change to `Hypervel\Contracts\Container\Container`. Also change all `->get()` to `->make()` — both mock expectations AND direct calls on the container in test setup code (see "Container Usage" section above for why):
 
 ```php
 // Hyperf
 use Psr\Container\ContainerInterface;
 $container = Mockery::mock(ContainerInterface::class);
+$container->shouldReceive('get')->with(Foo::class)->andReturn(new Foo());
+$result = $container->get(Foo::class);  // test setup call
 
 // Hypervel
 use Hypervel\Contracts\Container\Container as ContainerContract;
 $container = m::mock(ContainerContract::class);
+$container->shouldReceive('make')->with(Foo::class)->andReturn(new Foo());
+$result = $container->make(Foo::class);  // test setup call
 ```
 
 #### Error Handler Mocking
@@ -294,7 +367,7 @@ $formatter->shouldReceive('format')->with($exception)->twice()->andReturn('unit'
 // Hypervel
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-$container->shouldReceive('get')->with(ExceptionHandlerContract::class)
+$container->shouldReceive('make')->with(ExceptionHandlerContract::class)
     ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
 $handler->shouldReceive('report')->with($exception)->twice();
 ```
@@ -313,7 +386,7 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 6. Add `use RunTestsInCoroutine;` if tests need coroutine context
 7. Add `@internal` and `@coversNothing` docblock
 8. Do **not** add `: void` return types to test methods
-9. Change container mock to `Hypervel\Contracts\Container\Container`
+9. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
 10. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
 11. Extract `#[Group('NonCoroutine')]` methods to separate class
 12. Ensure `parent::setUp()` is called
