@@ -58,7 +58,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Htmlable) {
             return $this->response()
                 ->addHeader('content-type', 'text/html')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toHtml()));
         }
 
         if (is_string($response)) {

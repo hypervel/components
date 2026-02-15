@@ -38,7 +38,7 @@ namespace Hypervel\Support\Facades;
  */
 class Vite extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return \Hypervel\Foundation\Vite::class;
     }

@@ -7,7 +7,7 @@ namespace Hypervel\View\Compilers;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
