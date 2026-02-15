@@ -30,7 +30,7 @@ class HttpDispatcherTest extends TestCase
         ];
         $container = $this->getContainer();
         $request = Context::get(ServerRequestInterface::class);
-        $coreHandler = $container->get(CoreMiddleware::class);
+        $coreHandler = $container->make(CoreMiddleware::class);
         $dispatcher = new HttpDispatcher($container);
         $this->assertInstanceOf(HttpDispatcher::class, $dispatcher);
         $response = $dispatcher->dispatch($request, $middlewares, $coreHandler);
@@ -47,7 +47,7 @@ class HttpDispatcherTest extends TestCase
         ];
         $container = $this->getContainer();
         $request = Context::get(ServerRequestInterface::class);
-        $coreHandler = $container->get(CoreMiddleware::class);
+        $coreHandler = $container->make(CoreMiddleware::class);
         $dispatcher = new HttpDispatcher($container);
         $this->assertInstanceOf(HttpDispatcher::class, $dispatcher);
         $response = $dispatcher->dispatch($request, $middlewares, $coreHandler);
@@ -65,7 +65,7 @@ class HttpDispatcherTest extends TestCase
         ];
         $container = $this->getContainer();
         $request = Context::get(ServerRequestInterface::class);
-        $coreHandler = $container->get(CoreMiddleware::class);
+        $coreHandler = $container->make(CoreMiddleware::class);
         $dispatcher = new HttpDispatcher($container);
         $this->assertInstanceOf(HttpDispatcher::class, $dispatcher);
         $response = $dispatcher->dispatch($request, $middlewares, $coreHandler);
@@ -78,8 +78,8 @@ class HttpDispatcherTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
 
-        $container->shouldReceive('get')->with(CoreMiddleware::class)->andReturn(new CoreMiddleware());
-        $container->shouldReceive('get')->with(Pipeline::class)
+        $container->shouldReceive('make')->with(CoreMiddleware::class)->andReturn(new CoreMiddleware());
+        $container->shouldReceive('make')->with(Pipeline::class)
             ->andReturnUsing(fn () => new Pipeline($container));
         $container->shouldReceive('make')->with(TestMiddleware::class)->andReturn(new TestMiddleware());
         $container->shouldReceive('make')->with(Test2Middleware::class)->andReturn(new Test2Middleware());

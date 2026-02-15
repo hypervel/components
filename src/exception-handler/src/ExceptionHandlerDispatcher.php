@@ -33,7 +33,7 @@ class ExceptionHandlerDispatcher extends AbstractDispatcher
             if (! $this->container->has($handler)) {
                 throw new InvalidArgumentException(sprintf('Invalid exception handler %s.', $handler));
             }
-            $handlerInstance = $this->container->get($handler);
+            $handlerInstance = $this->container->make($handler);
             if (! $handlerInstance instanceof ExceptionHandler || ! $handlerInstance->isValid($throwable)) {
                 continue;
             }

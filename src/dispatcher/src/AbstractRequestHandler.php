@@ -34,7 +34,7 @@ abstract class AbstractRequestHandler
             $handler = $this->coreHandler;
         } else {
             $handler = $this->middlewares[$this->offset];
-            is_string($handler) && $handler = $this->container->get($handler);
+            is_string($handler) && $handler = $this->container->make($handler);
         }
         if (! $handler || ! method_exists($handler, 'process')) {
             throw new InvalidArgumentException('Invalid middleware, it has to provide a process() method.');

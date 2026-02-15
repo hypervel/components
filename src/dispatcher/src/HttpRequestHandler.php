@@ -31,7 +31,7 @@ class HttpRequestHandler implements RequestHandlerInterface
         Context::set('__request.middleware', $this->middlewares);
 
         return $this->container
-            ->get(Pipeline::class)
+            ->make(Pipeline::class)
             ->send($request)
             ->through([...$this->middlewares, $this->coreMiddleware])
             ->thenReturn();

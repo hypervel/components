@@ -50,10 +50,10 @@ class CoreMiddleware implements CoreMiddlewareInterface
     public function __construct(protected ContainerInterface $container, private string $serverName)
     {
         $this->dispatcher = $this->createDispatcher($serverName);
-        $this->normalizer = $this->container->get(NormalizerInterface::class);
-        $this->methodDefinitionCollector = $this->container->get(MethodDefinitionCollectorInterface::class);
+        $this->normalizer = $this->container->make(NormalizerInterface::class);
+        $this->methodDefinitionCollector = $this->container->make(MethodDefinitionCollectorInterface::class);
         if ($this->container->has(ClosureDefinitionCollectorInterface::class)) {
-            $this->closureDefinitionCollector = $this->container->get(ClosureDefinitionCollectorInterface::class);
+            $this->closureDefinitionCollector = $this->container->make(ClosureDefinitionCollectorInterface::class);
         }
     }
 
@@ -111,7 +111,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
 
     protected function createDispatcher(string $serverName): Dispatcher
     {
-        $factory = $this->container->get(DispatcherFactory::class);
+        $factory = $this->container->make(DispatcherFactory::class);
         return $factory->getDispatcher($serverName);
     }
 
@@ -128,7 +128,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
             $response = $callback(...$parameters);
         } else {
             [$controller, $action] = $this->prepareHandler($dispatched->handler->callback);
-            $controllerInstance = $this->container->get($controller);
+            $controllerInstance = $this->container->make($controller);
             if (! method_exists($controllerInstance, $action)) {
                 // Route found, but the handler does not exist.
                 throw new ServerErrorHttpException('Method of class does not exist.');
@@ -251,7 +251,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
                 if ($definition->getMeta('defaultValueAvailable')) {
                     $injections[] = $definition->getMeta('defaultValue');
                 } elseif ($this->container->has($definition->getName())) {
-                    $injections[] = $this->container->get($definition->getName());
+                    $injections[] = $this->container->make($definition->getName());
                 } elseif ($definition->allowsNull()) {
                     $injections[] = null;
                 } else {

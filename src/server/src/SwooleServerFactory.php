@@ -14,7 +14,7 @@ class SwooleServerFactory
      */
     public function __invoke(ContainerInterface $container): SwooleServer
     {
-        $factory = $container->get(ServerFactory::class);
+        $factory = $container->make(ServerFactory::class);
 
         return $factory->getServer()->getServer();
     }

@@ -68,7 +68,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         $this->serverName = $serverName;
         $this->coreMiddleware = new CoreMiddleware($this->container, $serverName);
 
-        $config = $this->container->get(ConfigInterface::class);
+        $config = $this->container->make(ConfigInterface::class);
         $this->middlewares = $config->get('middlewares.' . $serverName, []);
         $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, [
             WebSocketExceptionHandler::class,
@@ -81,7 +81,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     public function getServer(): WebSocketServer
     {
         /** @var WebSocketServer */
-        return $this->container->get(SwooleServer::class);
+        return $this->container->make(SwooleServer::class);
     }
 
     /**
@@ -89,7 +89,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
      */
     public function getSender(): Sender
     {
-        return $this->container->get(Sender::class);
+        return $this->container->make(Sender::class);
     }
 
     /**
@@ -101,7 +101,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
             Context::set(WsContext::FD, $fd);
-            $security = $this->container->get(Security::class);
+            $security = $this->container->make(Security::class);
 
             $psr7Response = $this->initResponse();
             $psr7Request = $this->initRequest($request);
@@ -137,7 +137,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             $this->deferOnOpen($request, $class, $server, $fd);
         } catch (Throwable $throwable) {
             // Delegate the exception to exception handler.
-            $psr7Response = $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+            $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
                 return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
             }, static function () {
                 return (new Psr7Response())->withStatus(400);
@@ -166,7 +166,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             return;
         }
 
-        $instance = $this->container->get($fdObj->class);
+        $instance = $this->container->make($fdObj->class);
 
         if (! $instance instanceof OnMessageInterface) {
             $this->logger->warning($instance::class . ' is not instanceof ' . OnMessageInterface::class);
@@ -199,7 +199,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             WsContext::release($fd);
         });
 
-        $instance = $this->container->get($fdObj->class);
+        $instance = $this->container->make($fdObj->class);
         if ($instance instanceof OnCloseInterface) {
             try {
                 $instance->onClose($server, $fd, $reactorId);
@@ -214,7 +214,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
      */
     protected function getFd(SwooleResponse $response): int
     {
-        return $this->container->get(FdGetter::class)->get($response);
+        return $this->container->make(FdGetter::class)->get($response);
     }
 
     /**
@@ -222,7 +222,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
      */
     protected function deferOnOpen(Request $request, string $class, WebSocketServer $server, int $fd): void
     {
-        $instance = $this->container->get($class);
+        $instance = $this->container->make($class);
         defer(static function () use ($request, $instance, $server) {
             if ($instance instanceof OnOpenInterface) {
                 $instance->onOpen($server, $request);

@@ -21,7 +21,7 @@ class InitProcessTitleListener implements ListenerInterface
     public function __construct(ContainerInterface $container)
     {
         if ($container->has(ConfigInterface::class)) {
-            if ($name = $container->get(ConfigInterface::class)->get('app_name')) {
+            if ($name = $container->make(ConfigInterface::class)->get('app_name')) {
                 $this->name = $name;
             }
         }

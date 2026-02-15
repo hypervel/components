@@ -64,7 +64,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('has')->with(ConfigInterface::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(ConfigInterface::class)->andReturn(new Config([
             'app_name' => $name,
         ]));
 
@@ -86,7 +86,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('has')->with(ConfigInterface::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(ConfigInterface::class)->andReturn(new Config([
             'app_name' => $name,
         ]));
 

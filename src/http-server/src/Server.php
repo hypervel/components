@@ -57,7 +57,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         protected ResponseEmitter $responseEmitter
     ) {
         if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->event = $this->container->get(EventDispatcherInterface::class);
+            $this->event = $this->container->make(EventDispatcherInterface::class);
         }
     }
 
@@ -69,7 +69,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         $this->serverName = $serverName;
         $this->coreMiddleware = $this->createCoreMiddleware();
 
-        $config = $this->container->get(ConfigInterface::class);
+        $config = $this->container->make(ConfigInterface::class);
         $this->middlewares = $config->get('middlewares.' . $serverName, []);
         $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, $this->getDefaultExceptionHandler());
 
@@ -110,7 +110,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             $psr7Response = $this->dispatcher->dispatch($psr7Request, $middlewares, $this->coreMiddleware);
         } catch (Throwable $throwable) {
             // Delegate the exception to exception handler.
-            $psr7Response = $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+            $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
                 return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
             }, static function () {
                 return (new Psr7Response())->withStatus(400);
@@ -168,7 +168,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
      */
     protected function initOption(): void
     {
-        $ports = $this->container->get(ServerFactory::class)->getConfig()?->getServers();
+        $ports = $this->container->make(ServerFactory::class)->getConfig()?->getServers();
         if (! $ports) {
             return;
         }
@@ -188,7 +188,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
      */
     protected function createDispatcher(string $serverName): Dispatcher
     {
-        $factory = $this->container->get(DispatcherFactory::class);
+        $factory = $this->container->make(DispatcherFactory::class);
         return $factory->getDispatcher($serverName);
     }
 

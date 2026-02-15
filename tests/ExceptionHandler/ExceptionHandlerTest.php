@@ -73,8 +73,8 @@ class ExceptionHandlerTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(true);
-        $container->shouldReceive('get')->with(BarExceptionHandler::class)->andReturn(new BarExceptionHandler());
-        $container->shouldReceive('get')->with(FooExceptionHandler::class)->andReturn(new FooExceptionHandler());
+        $container->shouldReceive('make')->with(BarExceptionHandler::class)->andReturn(new BarExceptionHandler());
+        $container->shouldReceive('make')->with(FooExceptionHandler::class)->andReturn(new FooExceptionHandler());
 
         return $container;
     }

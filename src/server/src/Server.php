@@ -96,7 +96,7 @@ class Server implements ServerInterface
             if (isset($callbacks[Event::ON_BEFORE_START])) {
                 [$class, $method] = $callbacks[Event::ON_BEFORE_START];
                 if ($this->container->has($class)) {
-                    $this->container->get($class)->{$method}();
+                    $this->container->make($class)->{$method}();
                 }
             }
 
@@ -170,7 +170,7 @@ class Server implements ServerInterface
                 }
 
                 $this->onRequestCallbacks[$className . $method] = $serverName;
-                $class = $this->container->get($className);
+                $class = $this->container->make($className);
                 if (method_exists($class, 'setServerName')) {
                     // Override the server name.
                     $class->setServerName($serverName);

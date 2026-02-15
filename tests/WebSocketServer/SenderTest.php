@@ -26,7 +26,7 @@ class SenderTest extends TestCase
         $server->shouldReceive('connection_info')->once()->andReturn([]);
         $server->shouldReceive('connection_info')->once()->andReturn(['websocket_status' => WEBSOCKET_STATUS_CLOSING]);
         $server->shouldReceive('connection_info')->once()->andReturn(['websocket_status' => WEBSOCKET_STATUS_ACTIVE]);
-        $container->shouldReceive('get')->with(Server::class)->andReturn($server);
+        $container->shouldReceive('make')->with(Server::class)->andReturn($server);
         $sender = new Sender($container);
 
         $this->assertFalse($sender->check(1));
@@ -41,7 +41,7 @@ class SenderTest extends TestCase
     {
         $container = Mockery::mock(Container::class);
 
-        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn(
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(
             Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()
         );
 

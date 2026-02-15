@@ -128,7 +128,7 @@ class CoreMiddlewareTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $router = $container->get(DispatcherFactory::class)->getRouter('http');
+        $router = $container->make(DispatcherFactory::class)->getRouter('http');
         $router->addRoute('GET', '/user', 'UserController::index');
         $router->addRoute('GET', '/user/{id:\d+}', 'UserController::info');
 
@@ -170,11 +170,11 @@ class CoreMiddlewareTest extends TestCase
         $container = $this->getContainer();
         $id = uniqid();
         $container->shouldReceive('make')->with(SetHeaderMiddleware::class)->andReturn(new SetHeaderMiddleware($id));
-        $container->shouldReceive('get')->with(Pipeline::class)->andReturnUsing(function () use ($container) {
+        $container->shouldReceive('make')->with(Pipeline::class)->andReturnUsing(function () use ($container) {
             return new Pipeline($container);
         });
 
-        $router = $container->get(DispatcherFactory::class)->getRouter('http');
+        $router = $container->make(DispatcherFactory::class)->getRouter('http');
         $router->addRoute('GET', '/request', function () {
             return Context::get(ServerRequestInterface::class)->getHeaders();
         });
@@ -200,7 +200,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFound()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('get')->with(DemoController::class)->andReturn(new DemoController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController());
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -214,7 +214,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFoundWithInvokable()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('get')->with(DemoController::class)->andReturn(new DemoController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController());
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -228,7 +228,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFoundWithNamespace()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('get')->with(DemoController::class)->andReturn(new FooController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new FooController());
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -243,14 +243,14 @@ class CoreMiddlewareTest extends TestCase
     protected function getContainer()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('get')->with(DispatcherFactory::class)->andReturn(new DispatcherFactory());
-        $container->shouldReceive('get')->with(MethodDefinitionCollectorInterface::class)
+        $container->shouldReceive('make')->with(DispatcherFactory::class)->andReturn(new DispatcherFactory());
+        $container->shouldReceive('make')->with(MethodDefinitionCollectorInterface::class)
             ->andReturn(new MethodDefinitionCollector());
         $container->shouldReceive('has')->with(ClosureDefinitionCollectorInterface::class)
             ->andReturn(false);
-        $container->shouldReceive('get')->with(ClosureDefinitionCollectorInterface::class)
+        $container->shouldReceive('make')->with(ClosureDefinitionCollectorInterface::class)
             ->andReturn(new ClosureDefinitionCollector());
-        $container->shouldReceive('get')->with(NormalizerInterface::class)
+        $container->shouldReceive('make')->with(NormalizerInterface::class)
             ->andReturn(new SimpleNormalizer());
         return $container;
     }

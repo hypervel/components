@@ -33,11 +33,11 @@ class StartServer extends Command
     {
         $this->checkEnvironment($output);
 
-        $serverFactory = $this->container->get(ServerFactory::class)
-            ->setEventDispatcher($this->container->get(EventDispatcherInterface::class))
-            ->setLogger($this->container->get(StdoutLoggerInterface::class));
+        $serverFactory = $this->container->make(ServerFactory::class)
+            ->setEventDispatcher($this->container->make(EventDispatcherInterface::class))
+            ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
-        $serverConfig = $this->container->get(ConfigInterface::class)->get('server', []);
+        $serverConfig = $this->container->make(ConfigInterface::class)->get('server', []);
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
         }

@@ -106,12 +106,12 @@ class ServerTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnFalse();
-        $container->shouldReceive('get')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+        $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
 
         $dispatcher = m::mock(EventDispatcherInterface::class);
         $dispatcher->shouldReceive('dispatch')->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(true);
-        $container->shouldReceive('get')->with(EventDispatcherInterface::class)->andReturn($dispatcher);
+        $container->shouldReceive('make')->with(EventDispatcherInterface::class)->andReturn($dispatcher);
 
         Container::setInstance($container);
 

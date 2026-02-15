@@ -29,7 +29,7 @@ class CoreMiddleware extends HttpCoreMiddleware
         /** @var Response $response */
         $response = ResponseContext::get();
 
-        $security = $this->container->get(Security::class);
+        $security = $this->container->make(Security::class);
 
         $key = $request->getHeaderLine(Security::SEC_WEBSOCKET_KEY);
         $response = $response->setStatus(101)->setHeaders($security->handshakeHeaders($key));

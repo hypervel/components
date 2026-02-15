@@ -41,7 +41,7 @@ class ResponseTest extends TestCase
         $container = m::mock(ContainerContract::class);
         $request = m::mock(RequestInterface::class);
         RequestContext::set(new Request('GET', 'http://127.0.0.1:9501'));
-        $container->shouldReceive('get')->with(RequestInterface::class)->andReturn($request);
+        $container->shouldReceive('make')->with(RequestInterface::class)->andReturn($request);
         Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();

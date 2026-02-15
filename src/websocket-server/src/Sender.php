@@ -26,7 +26,7 @@ class Sender
 
     public function __construct(protected Container $container)
     {
-        $this->logger = $container->get(StdoutLoggerInterface::class);
+        $this->logger = $container->make(StdoutLoggerInterface::class);
     }
 
     /**
@@ -117,7 +117,7 @@ class Sender
      */
     protected function getServer(): Server
     {
-        return $this->container->get(Server::class);
+        return $this->container->make(Server::class);
     }
 
     /**

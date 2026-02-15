@@ -37,7 +37,7 @@ class ServerTest extends TestCase
         WebSocketStub::$coroutineId = 0;
 
         $container = Mockery::mock(Container::class);
-        $container->shouldReceive('get')->with(WebSocketStub::class)->andReturn(new WebSocketStub());
+        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub());
 
         $server = new Server(
             $container,
