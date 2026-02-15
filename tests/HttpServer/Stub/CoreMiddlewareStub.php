@@ -6,7 +6,7 @@ namespace Hypervel\Tests\HttpServer\Stub;
 
 use Hypervel\HttpMessage\Server\Response;
 use Hypervel\HttpServer\CoreMiddleware;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class CoreMiddlewareStub extends CoreMiddleware
 {

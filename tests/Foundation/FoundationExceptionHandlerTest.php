@@ -45,7 +45,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use stdClass;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Throwable;
 
 /**

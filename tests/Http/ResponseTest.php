@@ -20,8 +20,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
-use Swow\Psr7\Message\ResponsePlusInterface;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 /**
  * @internal

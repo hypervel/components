@@ -21,7 +21,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
 use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 /**
  * @internal

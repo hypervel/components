@@ -15,7 +15,7 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
 use Swoole\Coroutine\Channel;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 use function Hypervel\Coroutine\go;
 

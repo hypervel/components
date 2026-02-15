@@ -11,7 +11,7 @@ use Hypervel\HttpServer\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 /**
  * @internal

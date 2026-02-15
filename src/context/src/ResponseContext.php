@@ -6,7 +6,7 @@ namespace Hypervel\Context;
 
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class ResponseContext
 {

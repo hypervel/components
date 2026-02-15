@@ -26,7 +26,7 @@ use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class CoreMiddleware implements CoreMiddlewareInterface
 {

@@ -14,8 +14,8 @@ use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
-use Swow\Psr7\Message\ResponsePlusInterface;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;

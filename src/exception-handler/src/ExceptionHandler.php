@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler;
 
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Throwable;
 
 abstract class ExceptionHandler

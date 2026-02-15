@@ -9,7 +9,7 @@ use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Throwable;
 
 class WebSocketExceptionHandler extends ExceptionHandler

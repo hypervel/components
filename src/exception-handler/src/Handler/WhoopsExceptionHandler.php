@@ -10,7 +10,7 @@ use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\Support\Str;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Throwable;
 use Whoops\Handler\JsonResponseHandler;
 use Whoops\Handler\PlainTextHandler;

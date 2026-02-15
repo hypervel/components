@@ -10,7 +10,7 @@ use Hypervel\Cookie\CookieManager;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use TypeError;
 
 enum CookieManagerTestNameEnum: string
