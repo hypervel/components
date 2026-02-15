@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use BackedEnum;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Stringable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
@@ -118,11 +120,8 @@ if (! function_exists('class_uses_recursive')) {
 if (! function_exists('e')) {
     /**
      * Encode HTML special characters in a string.
-     *
-     * @param null|\BackedEnum|float|\Hypervel\Contracts\Support\DeferringDisplayableValue|\Hypervel\Contracts\Support\Htmlable|int|string $value
-     * @param bool $doubleEncode
      */
-    function e($value, $doubleEncode = true): string
+    function e(BackedEnum|DeferringDisplayableValue|Stringable|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
     {
         if ($value instanceof DeferringDisplayableValue) {
             $value = $value->resolveDisplayableValue();
@@ -136,7 +135,7 @@ if (! function_exists('e')) {
             $value = $value->value;
         }
 
-        return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
+        return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
     }
 }
 
