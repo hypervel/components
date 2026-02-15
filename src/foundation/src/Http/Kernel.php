@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
@@ -31,6 +32,8 @@ use function Hypervel\Coroutine\defer;
 class Kernel extends HttpServer implements MiddlewareContract
 {
     use HasMiddleware;
+
+    protected bool $enableHttpMethodParameterOverride;
 
     public function initCoreMiddleware(string $serverName): void
     {
@@ -178,5 +181,42 @@ class Kernel extends HttpServer implements MiddlewareContract
         }, static function () {
             return (new Response())->withStatus(400);
         });
+    }
+
+    /**
+     * Initialize PSR-7 Request and Response objects.
+     */
+    protected function initRequestAndResponse(SwooleRequest $request, SwooleResponse $response): array
+    {
+        [$psr7Request, $psr7Response] = parent::initRequestAndResponse($request, $response);
+
+        if ($this->enableHttpMethodParameterOverride()) {
+            $this->overrideHttpMethod($psr7Request);
+        }
+
+        return [$psr7Request, $psr7Response];
+    }
+
+    /**
+     * Determine if HTTP method parameter override is enabled.
+     */
+    protected function enableHttpMethodParameterOverride(): bool
+    {
+        if (isset($this->enableHttpMethodParameterOverride)) {
+            return $this->enableHttpMethodParameterOverride;
+        }
+
+        return $this->enableHttpMethodParameterOverride = $this->container->make(ConfigInterface::class)
+            ->get('view.enable_override_http_method', false);
+    }
+
+    /**
+     * Override the HTTP method if the request contains a _method field.
+     */
+    protected function overrideHttpMethod(Request $psr7Request): void
+    {
+        if ($psr7Request->getMethod() === 'POST' && $method = $psr7Request->getParsedBody()['_method'] ?? null) {
+            $psr7Request->setMethod(strtoupper($method));
+        }
     }
 }
