@@ -13,13 +13,14 @@ use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
+use Hypervel\Context\RequestContext;
+use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
 use Hypervel\HttpMessage\Server\ResponsePlusProxy;
 use Hypervel\HttpMessage\Stream\SwooleStream;
-use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\HttpServer\Router\DispatcherFactory;
@@ -30,7 +31,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 /**
  * Core middleware, main responsibility is to handle route info

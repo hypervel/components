@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pagination;
 
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Cursor;
@@ -15,7 +16,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
 use Swoole\Coroutine\Channel;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 use function Hypervel\Coroutine\go;
 

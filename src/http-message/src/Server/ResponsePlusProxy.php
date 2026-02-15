@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Server;
 
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class ResponsePlusProxy implements ResponsePlusInterface, Stringable
 {

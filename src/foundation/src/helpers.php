@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Carbon\Carbon;
-use Hypervel\HttpMessage\Cookie\Cookie;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
@@ -24,6 +23,7 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
+use Hypervel\HttpMessage\Cookie\Cookie;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;

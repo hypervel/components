@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Concerns;
 
 use Closure;
-use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Contracts\Validation\Validator;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 

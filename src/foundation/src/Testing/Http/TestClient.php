@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hypervel\HttpMessage\Server\Request as Psr7Request;
-use Hypervel\HttpMessage\Stream\SwooleStream;
-use Hypervel\HttpMessage\Uri\Uri;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
@@ -15,6 +12,9 @@ use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\HttpMessage\Server\Request as Psr7Request;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Uri\Uri;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\ResponseEmitter;

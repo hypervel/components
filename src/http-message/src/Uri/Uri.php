@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Uri;
 
+use Hypervel\Contracts\Http\UriPlusInterface;
 use InvalidArgumentException;
 use Psr\Http\Message\UriInterface;
 use Stringable;
-use Hypervel\Contracts\Http\UriPlusInterface;
 
 class Uri implements UriInterface, UriPlusInterface, Stringable
 {
@@ -746,7 +746,7 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
     /**
      * Filter and validate the URI port.
      */
-    private function filterPort(null|int|string $port): ?int
+    private function filterPort(int|string|null $port): ?int
     {
         if ($port === null) {
             return null;

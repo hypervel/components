@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\WebSocketServer\Exception\Handler;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Throwable;
 
 class WebSocketExceptionHandler extends ExceptionHandler

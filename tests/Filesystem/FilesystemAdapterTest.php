@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Http\Request as RequestContract;
@@ -15,6 +14,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Response;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;

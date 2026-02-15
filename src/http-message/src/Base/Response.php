@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Base;
 
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Engine\Http\Http;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Stringable;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class Response implements ResponseInterface, ResponsePlusInterface, Stringable
 {

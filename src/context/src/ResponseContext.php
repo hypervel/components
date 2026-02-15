@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Context;
 
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class ResponseContext
 {

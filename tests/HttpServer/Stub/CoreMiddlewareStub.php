@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer\Stub;
 
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\HttpMessage\Server\Response;
 use Hypervel\HttpServer\CoreMiddleware;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class CoreMiddlewareStub extends CoreMiddleware
 {

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Server\Chunk;
 
-use Hypervel\Contracts\Engine\Http\Writable;
-
 trait HasChunk
 {
     /**

@@ -6,7 +6,6 @@ namespace Hypervel\Validation;
 
 use BadMethodCallException;
 use Closure;
-use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\DataAwareRule;
@@ -15,6 +14,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;

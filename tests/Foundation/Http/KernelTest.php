@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hypervel\HttpMessage\Server\Request;
 use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Foundation\Http\Kernel;
+use Hypervel\HttpMessage\Server\Request;
 use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\HttpServer\ResponseEmitter;
 use Hypervel\HttpServer\Router\Dispatched;

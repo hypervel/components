@@ -36,7 +36,7 @@ interface ServerRequestPlusInterface extends RequestPlusInterface, ServerRequest
     /** @param array<string, string> $cookies */
     public function withCookieParams(array $cookies): static;
 
-    /** @return array<mixed>|object|null */
+    /** @return null|array<mixed>|object */
     public function getParsedBody(): array|object|null;
 
     /** @param null|array<mixed>|object $data */

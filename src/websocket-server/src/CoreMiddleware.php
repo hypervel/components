@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Context\ResponseContext;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\HttpServer\CoreMiddleware as HttpCoreMiddleware;
 use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\WebSocketServer\Exception\WebSocketHandShakeException;

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ExceptionHandler;
 
 use Exception;
-use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Tests\ExceptionHandler\Stub\BarExceptionHandler;
 use Hypervel\Tests\ExceptionHandler\Stub\FooExceptionHandler;
 use Hypervel\Tests\TestCase;

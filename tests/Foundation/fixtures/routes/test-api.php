@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Support\Facades\Route;
 
 Route::get('/foo', function () {

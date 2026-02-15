@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Base;
 
+use Hypervel\Contracts\Http\RequestPlusInterface;
 use Hypervel\Engine\Http\Http;
 use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\HttpMessage\Uri\Uri;
@@ -12,7 +13,6 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use Stringable;
-use Hypervel\Contracts\Http\RequestPlusInterface;
 
 class Request implements RequestInterface, RequestPlusInterface, Stringable
 {

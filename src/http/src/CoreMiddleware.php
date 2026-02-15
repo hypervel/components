@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hypervel\HttpMessage\Server\ResponsePlusProxy;
-use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Jsonable;
@@ -17,6 +16,8 @@ use Hypervel\Contracts\Support\Renderable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
+use Hypervel\HttpMessage\Server\ResponsePlusProxy;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
 use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\HttpServer\Router\DispatcherFactory;
@@ -26,7 +27,6 @@ use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class CoreMiddleware implements CoreMiddlewareInterface
 {

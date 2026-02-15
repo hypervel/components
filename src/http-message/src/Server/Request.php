@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpMessage\Server;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\HttpMessage\Base\Request as BaseRequest;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\Request\Parser;
@@ -16,7 +17,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Message\UriInterface;
 use Swoole;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 class Request extends BaseRequest implements ServerRequestInterface, ServerRequestPlusInterface
 {
@@ -210,7 +210,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
      * @return null|array|object The deserialized body parameters, if any.
      *                           These will typically be an array or object.
      */
-    public function getParsedBody(): null|array|object
+    public function getParsedBody(): array|object|null
     {
         return $this->parsedBody;
     }
@@ -426,7 +426,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
     /**
      * Set the parsed body data.
      */
-    public function setParsedBody(null|array|object $data): static
+    public function setParsedBody(array|object|null $data): static
     {
         $this->parsedBody = $data;
         return $this;

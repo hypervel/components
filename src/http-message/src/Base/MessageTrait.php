@@ -45,7 +45,6 @@ trait MessageTrait
      * This method MUST be implemented in such a way as to retain the
      * immutability of the message, and MUST return an instance that has the
      * new protocol version.
-     *
      */
     public function withProtocolVersion(string $version): static
     {

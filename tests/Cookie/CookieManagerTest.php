@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cookie;
 
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieManager;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use TypeError;
 
 enum CookieManagerTestNameEnum: string

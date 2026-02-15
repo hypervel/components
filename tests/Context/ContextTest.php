@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Context;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 use function Hypervel\Coroutine\run;
 

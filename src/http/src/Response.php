@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use DateTimeImmutable;
-use Hypervel\HttpMessage\Server\Chunk\Chunkable;
-use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -15,6 +13,8 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Exceptions\FileNotFoundException;
+use Hypervel\HttpMessage\Server\Chunk\Chunkable;
+use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Json;

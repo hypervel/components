@@ -60,7 +60,7 @@ class SwooleFileStream implements StreamInterface, FileInterface, Stringable
     /**
      * Separate the underlying resource from the stream.
      *
-     * @return resource|null
+     * @return null|resource
      */
     public function detach(): mixed
     {

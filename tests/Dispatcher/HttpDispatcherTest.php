@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Dispatcher;
 
-use Hypervel\HttpMessage\Server\Response;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Dispatcher\Pipeline;
+use Hypervel\HttpMessage\Server\Response;
 use Hypervel\Tests\Dispatcher\Stub\CoreMiddleware;
 use Hypervel\Tests\Dispatcher\Stub\Test2Middleware;
 use Hypervel\Tests\Dispatcher\Stub\TestMiddleware;

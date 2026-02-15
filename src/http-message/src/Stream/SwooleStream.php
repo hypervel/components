@@ -56,7 +56,7 @@ class SwooleStream implements StreamInterface, Stringable
      *
      * After the stream has been detached, the stream is in an unusable state.
      *
-     * @return resource|null
+     * @return null|resource
      */
     public function detach(): mixed
     {

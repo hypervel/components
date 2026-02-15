@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
-use Hypervel\HttpMessage\Server\Request as ServerRequest;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Context\RequestContext;
@@ -14,6 +13,7 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Server\Request as ServerRequest;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpServer\Request;
 use Mockery as m;

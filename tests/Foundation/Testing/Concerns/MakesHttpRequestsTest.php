@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Http\ServerResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\HttpMessage\Base\Response;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
