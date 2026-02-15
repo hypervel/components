@@ -51,7 +51,6 @@ class ResponseEmitter implements ResponseEmitterInterface
         }
 
         // Cookies
-        // This part maybe only supports of hyperf/http-message component.
         if (method_exists($response, 'getCookies')) {
             foreach ((array) $response->getCookies() as $domain => $paths) {
                 foreach ($paths ?? [] as $path => $item) {

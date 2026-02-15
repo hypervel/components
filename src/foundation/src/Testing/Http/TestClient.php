@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
+use Hypervel\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Dispatcher\HttpDispatcher;
