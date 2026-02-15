@@ -10,6 +10,7 @@ use Hyperf\Contract\SessionInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Cookie\Cookie;
 use Hypervel\HttpServer\Request;
 use Hypervel\HttpServer\Router\Dispatched;
@@ -18,6 +19,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Throwable;
 
 class StartSession implements MiddlewareInterface
 {
@@ -27,11 +29,13 @@ class StartSession implements MiddlewareInterface
      * @param SessionManager $manager the session manager
      * @param CacheFactoryContract $cache the cache factory
      * @param Request $request Hyperf's request proxy
+     * @param ExceptionHandlerContract $exceptionHandler the exception handler
      */
     public function __construct(
         protected SessionManager $manager,
         protected CacheFactoryContract $cache,
-        protected Request $request
+        protected Request $request,
+        protected ExceptionHandlerContract $exceptionHandler,
     ) {
     }
 
@@ -97,26 +101,34 @@ class StartSession implements MiddlewareInterface
      */
     protected function handleStatefulRequest(ServerRequestInterface $request, Session $session, RequestHandlerInterface $handler): mixed
     {
-        // If a session driver has been configured, we will need to start the session here
-        // so that the data is ready for an application. Note that the Hypervel sessions
-        // do not make use of PHP "native" sessions in any way since they are crappy.
-        Context::set(SessionInterface::class, $session);
-        $session->start();
+        try {
+            // If a session driver has been configured, we will need to start the session here
+            // so that the data is ready for an application. Note that the Hypervel sessions
+            // do not make use of PHP "native" sessions in any way since they are crappy.
+            Context::set(SessionInterface::class, $session);
+            $session->start();
 
-        $this->collectGarbage($session);
+            $this->collectGarbage($session);
 
-        $response = $handler->handle($request);
+            $response = $handler->handle($request);
 
-        $this->storeCurrentUrl($session);
+            $this->storeCurrentUrl($session);
 
-        $response = $this->addCookieToResponse($response, $session);
+            $response = $this->addCookieToResponse($response, $session);
 
-        // Again, if the session has been configured we will need to close out the session
-        // so that the attributes may be persisted to some storage medium. We will also
-        // add the session identifier cookie to the application response headers now.
-        $this->saveSession();
+            // Again, if the session has been configured we will need to close out the session
+            // so that the attributes may be persisted to some storage medium. We will also
+            // add the session identifier cookie to the application response headers now.
+            $this->saveSession();
 
-        return $response;
+            return $response;
+        } catch (Throwable $e) {
+            $this->exceptionHandler->afterResponse(
+                fn () => $this->saveSession()
+            );
+
+            throw $e;
+        }
     }
 
     /**
