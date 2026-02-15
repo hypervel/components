@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace %NAMESPACE%;
 
 use Closure;
-use Hyperf\ViewEngine\Component\Component;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Support\Facades\View;
+use Hypervel\View\Component;
+use Hypervel\View\Contracts\View as ViewContract;
 
 class %CLASS% extends Component
 {
@@ -22,7 +22,7 @@ class %CLASS% extends Component
     /**
      * Get the view / contents that represent the component.
      */
-    public function render(): ViewInterface|Closure|string
+    public function render(): ViewContract|Closure|string
     {
         return %VIEW%;
     }
