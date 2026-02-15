@@ -71,10 +71,17 @@ class Filesystem
      *
      * @throws FileNotFoundException
      */
-    public function getRequire(string $path)
+    public function getRequire(string $path, array $data = [])
     {
         if ($this->isFile($path)) {
-            return require $path;
+            $__path = $path;
+            $__data = $data;
+
+            return (static function () use ($__path, $__data) {
+                extract($__data, EXTR_SKIP);
+
+                return require $__path;
+            })();
         }
 
         throw new FileNotFoundException("File does not exist at path {$path}");
