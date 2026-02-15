@@ -13,7 +13,7 @@ trait HasChunk
      */
     public function write(string $content): bool
     {
-        if (isset($this->connection) && $this->connection instanceof Writable) {
+        if (isset($this->connection)) {
             return $this->connection->write($content);
         }
 

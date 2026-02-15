@@ -12,7 +12,7 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use Stringable;
-use Swow\Psr7\Message\RequestPlusInterface;
+use Hypervel\Contracts\Http\RequestPlusInterface;
 
 class Request implements RequestInterface, RequestPlusInterface, Stringable
 {
@@ -106,9 +106,8 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
      *
      * @see http://tools.ietf.org/html/rfc7230#section-5.3 (for the various
      *     request-target forms allowed in request messages)
-     * @param string $requestTarget
      */
-    public function withRequestTarget(mixed $requestTarget): static
+    public function withRequestTarget(string $requestTarget): static
     {
         if (preg_match('#\s#', $requestTarget)) {
             throw new InvalidArgumentException('Invalid request target provided; cannot contain whitespace');
@@ -141,7 +140,7 @@ class Request implements RequestInterface, RequestPlusInterface, Stringable
      * @param string $method case-sensitive method
      * @throws InvalidArgumentException for invalid HTTP methods
      */
-    public function withMethod(mixed $method): static
+    public function withMethod(string $method): static
     {
         $method = strtoupper($method);
         $methods = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD'];

@@ -7,7 +7,7 @@ namespace Hypervel\HttpMessage\Uri;
 use InvalidArgumentException;
 use Psr\Http\Message\UriInterface;
 use Stringable;
-use Swow\Psr7\Message\UriPlusInterface;
+use Hypervel\Contracts\Http\UriPlusInterface;
 
 class Uri implements UriInterface, UriPlusInterface, Stringable
 {
@@ -283,11 +283,10 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * insensitively, and MAY accommodate other schemes if required.
      * An empty scheme is equivalent to removing the scheme.
      *
-     * @param string $scheme the scheme to use with the new instance
      * @return static a new instance with the specified scheme
      * @throws InvalidArgumentException for invalid or unsupported schemes
      */
-    public function withScheme(mixed $scheme): static
+    public function withScheme(string $scheme): static
     {
         $scheme = $this->filterScheme($scheme);
         if ($this->scheme === $scheme) {
@@ -308,11 +307,9 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * user; an empty string for the user is equivalent to removing user
      * information.
      *
-     * @param string $user the username to use for authority
-     * @param null|string $password the password associated with $user
      * @return static a new instance with the specified user information
      */
-    public function withUserInfo(mixed $user, mixed $password = null): static
+    public function withUserInfo(string $user, ?string $password = null): static
     {
         $info = $user;
         if ($password !== '') {
@@ -333,11 +330,10 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * an instance that contains the specified host.
      * An empty host value is equivalent to removing the host.
      *
-     * @param string $host the hostname to use with the new instance
      * @return static a new instance with the specified host
      * @throws InvalidArgumentException for invalid hostnames
      */
-    public function withHost(mixed $host): static
+    public function withHost(string $host): static
     {
         $host = $this->filterHost($host);
         if ($this->host === $host) {
@@ -358,12 +354,10 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * A null value provided for the port is equivalent to removing the port
      * information.
      *
-     * @param null|int|string $port the port to use with the new instance; a null value
-     *                              removes the port information
      * @return static a new instance with the specified port
      * @throws InvalidArgumentException for invalid ports
      */
-    public function withPort(mixed $port): static
+    public function withPort(?int $port): static
     {
         $port = $this->filterPort($port);
         if ($this->port === $port) {
@@ -389,11 +383,10 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * Users can provide both encoded and decoded path characters.
      * Implementations ensure the correct encoding as outlined in getPath().
      *
-     * @param string $path the path to use with the new instance
      * @return static a new instance with the specified path
      * @throws InvalidArgumentException for invalid paths
      */
-    public function withPath(mixed $path): static
+    public function withPath(string $path): static
     {
         $path = $this->filterPath($path);
         if ($this->path === $path) {
@@ -413,11 +406,10 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * Implementations ensure the correct encoding as outlined in getQuery().
      * An empty query string value is equivalent to removing the query string.
      *
-     * @param string $query the query string to use with the new instance
      * @return static a new instance with the specified query string
      * @throws InvalidArgumentException for invalid query strings
      */
-    public function withQuery(mixed $query): static
+    public function withQuery(string $query): static
     {
         $query = $this->filterQueryAndFragment($query);
         if ($this->query === $query) {
@@ -475,10 +467,9 @@ class Uri implements UriInterface, UriPlusInterface, Stringable
      * Implementations ensure the correct encoding as outlined in getFragment().
      * An empty fragment value is equivalent to removing the fragment.
      *
-     * @param string $fragment the fragment to use with the new instance
      * @return static a new instance with the specified fragment
      */
-    public function withFragment(mixed $fragment): static
+    public function withFragment(string $fragment): static
     {
         $fragment = $this->filterQueryAndFragment($fragment);
         if ($this->fragment === $fragment) {

@@ -8,7 +8,7 @@ use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class ResponsePlusProxy implements ResponsePlusInterface, Stringable
 {
@@ -80,7 +80,7 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
     /**
      * Return an instance with the specified HTTP protocol version.
      */
-    public function withProtocolVersion(mixed $version): static
+    public function withProtocolVersion(string $version): static
     {
         return new static($this->response->withProtocolVersion($version));
     }
@@ -88,7 +88,7 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
     /**
      * Determine if a header exists by the given name.
      */
-    public function hasHeader(mixed $name): bool
+    public function hasHeader(string $name): bool
     {
         return $this->response->hasHeader($name);
     }
@@ -96,7 +96,7 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
     /**
      * Retrieve a message header value by the given name.
      */
-    public function getHeader(mixed $name): array
+    public function getHeader(string $name): array
     {
         return $this->response->getHeader($name);
     }
@@ -104,15 +104,17 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
     /**
      * Retrieve a comma-separated string of the values for a single header.
      */
-    public function getHeaderLine(mixed $name): string
+    public function getHeaderLine(string $name): string
     {
         return $this->response->getHeaderLine($name);
     }
 
     /**
      * Set a header value (mutable).
+     *
+     * @param string|string[] $value
      */
-    public function setHeader(string $name, mixed $value): static
+    public function setHeader(string $name, string|array $value): static
     {
         $this->response = $this->response->withHeader($name, $value);
         return $this;
@@ -120,16 +122,20 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
 
     /**
      * Return an instance with the provided value replacing the specified header.
+     *
+     * @param string|string[] $value
      */
-    public function withHeader(mixed $name, mixed $value): static
+    public function withHeader(string $name, $value): static
     {
         return new static($this->response->withHeader($name, $value));
     }
 
     /**
      * Add a header value (mutable).
+     *
+     * @param string|string[] $value
      */
-    public function addHeader(string $name, mixed $value): static
+    public function addHeader(string $name, string|array $value): static
     {
         $this->response = $this->response->withAddedHeader($name, $value);
         return $this;
@@ -137,8 +143,10 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
 
     /**
      * Return an instance with the specified header appended with the given value.
+     *
+     * @param string|string[] $value
      */
-    public function withAddedHeader(mixed $name, mixed $value): static
+    public function withAddedHeader(string $name, $value): static
     {
         return new static($this->response->withAddedHeader($name, $value));
     }
@@ -155,7 +163,7 @@ class ResponsePlusProxy implements ResponsePlusInterface, Stringable
     /**
      * Return an instance without the specified header.
      */
-    public function withoutHeader(mixed $name): static
+    public function withoutHeader(string $name): static
     {
         return new static($this->response->withoutHeader($name));
     }

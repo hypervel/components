@@ -16,7 +16,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Message\UriInterface;
 use Swoole;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 
 class Request extends BaseRequest implements ServerRequestInterface, ServerRequestPlusInterface
 {
@@ -55,7 +55,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
         $uri = self::getUriFromGlobals($swooleRequest);
         $body = new SwooleStream((string) $swooleRequest->rawContent());
         $protocol = isset($server['server_protocol']) ? str_replace('HTTP/', '', $server['server_protocol']) : '1.1';
-        $request = new Request($method, $uri, $headers, $body, $protocol);
+        $request = new static($method, $uri, $headers, $body, $protocol);
         $request->cookieParams = ($swooleRequest->cookie ?? []);
         $request->queryParams = ($swooleRequest->get ?? []);
         $request->serverParams = ($server ?? []);
@@ -259,7 +259,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
      * @throws InvalidArgumentException if an unsupported argument type is
      *                                  provided
      */
-    public function withParsedBody(null|array|object $data): static
+    public function withParsedBody($data): static
     {
         $clone = clone $this;
         $clone->parsedBody = $data;
@@ -299,7 +299,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
      *
      * @see getAttributes()
      */
-    public function getAttribute(mixed $name, mixed $default = null): mixed
+    public function getAttribute(string $name, mixed $default = null): mixed
     {
         return array_key_exists($name, $this->attributes) ? $this->attributes[$name] : $default;
     }
@@ -314,7 +314,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
      *
      * @see getAttributes()
      */
-    public function withAttribute(mixed $name, mixed $value): static
+    public function withAttribute(string $name, mixed $value): static
     {
         $clone = clone $this;
         $clone->attributes[$name] = $value;

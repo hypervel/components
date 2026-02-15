@@ -8,7 +8,7 @@ use Hypervel\Engine\Http\Http;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Stringable;
-use Swow\Psr7\Message\ResponsePlusInterface;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 
 class Response implements ResponseInterface, ResponsePlusInterface, Stringable
 {
