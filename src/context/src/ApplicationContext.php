@@ -22,6 +22,8 @@ class ApplicationContext extends \Hyperf\Context\ApplicationContext
     // protected static ?ContainerInterface $container = null;
 
     /**
+     * Get the application container instance.
+     *
      * @throws TypeError
      */
     public static function getContainer(): ContainerContract
@@ -30,11 +32,17 @@ class ApplicationContext extends \Hyperf\Context\ApplicationContext
         return self::$container;
     }
 
+    /**
+     * Determine if the container has been set.
+     */
     public static function hasContainer(): bool
     {
         return isset(self::$container);
     }
 
+    /**
+     * Set the application container instance.
+     */
     public static function setContainer(ContainerInterface $container): ContainerInterface
     {
         self::$container = $container;

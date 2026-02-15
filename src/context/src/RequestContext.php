@@ -10,11 +10,17 @@ use Swow\Psr7\Message\ServerRequestPlusInterface;
 
 class RequestContext
 {
+    /**
+     * Get the current request from context.
+     */
     public static function get(?int $coroutineId = null): ServerRequestPlusInterface
     {
         return Context::get(ServerRequestInterface::class, null, $coroutineId);
     }
 
+    /**
+     * Set the current request in context.
+     */
     public static function set(ServerRequestInterface $request, ?int $coroutineId = null): ServerRequestPlusInterface
     {
         if (! $request instanceof ServerRequestPlusInterface) {
@@ -24,16 +30,25 @@ class RequestContext
         return Context::set(ServerRequestInterface::class, $request, $coroutineId);
     }
 
+    /**
+     * Determine if a request exists in context.
+     */
     public static function has(?int $coroutineId = null): bool
     {
         return Context::has(ServerRequestInterface::class, $coroutineId);
     }
 
+    /**
+     * Remove the request from context.
+     */
     public static function destroy(?int $coroutineId = null): void
     {
         Context::destroy(ServerRequestInterface::class, $coroutineId);
     }
 
+    /**
+     * Get the current request from context, or null if not set.
+     */
     public static function getOrNull(?int $coroutineId = null): ?ServerRequestPlusInterface
     {
         return Context::get(ServerRequestInterface::class, null, $coroutineId);

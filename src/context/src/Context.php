@@ -29,6 +29,8 @@ class Context extends \Hyperf\Context\Context
     // protected static array $nonCoContext = [];
 
     /**
+     * Store a value in the current context.
+     *
      * @param TKey $id
      * @param TValue $value
      * @return TValue
@@ -47,6 +49,8 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
+     * Retrieve a value from the current context.
+     *
      * @param TKey $id
      * @return TValue
      */
@@ -62,6 +66,8 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
+     * Determine if a value exists in the current context.
+     *
      * @param TKey $id
      */
     public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
@@ -76,7 +82,7 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
-     * Release the context when you are not in coroutine environment.
+     * Remove a value from the current context.
      *
      * @param TKey $id
      */
@@ -115,7 +121,7 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
-     * Retrieve the value and override it by closure.
+     * Retrieve a value and replace it with the result of a closure.
      *
      * @param TKey $id
      * @param (Closure(TValue):TValue) $closure
@@ -262,6 +268,8 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
+     * Get the raw context storage for the current or specified coroutine.
+     *
      * @return null|array<TKey, TValue>|ArrayObject<TKey, TValue>
      */
     public static function getContainer(?int $coroutineId = null): array|ArrayObject|null
