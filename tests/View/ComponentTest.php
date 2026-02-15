@@ -10,7 +10,7 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;

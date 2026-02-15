@@ -9,7 +9,7 @@ use Hypervel\Container\DefinitionSource;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 use Hypervel\View\Component;
@@ -950,7 +950,7 @@ class TestContainerComponent extends Component
 namespace App\View\Components\Card;
 
 use Closure;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\View\Component;
 use Hypervel\View\Contracts\View;
 

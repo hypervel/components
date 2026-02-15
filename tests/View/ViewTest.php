@@ -6,8 +6,8 @@ namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hypervel\Support\Contracts\Arrayable;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\View\Contracts\Engine;
