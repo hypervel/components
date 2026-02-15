@@ -673,9 +673,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
 
     /**
      * Register the core class aliases in the container.
-     */
-    /**
-     * Register the core class aliases in the container.
      *
      * The key is the abstract (a resolvable FQCN), and the values are aliases
      * that should resolve to it. This direction is important: aliases point TO
@@ -777,8 +774,8 @@ class Application extends Container implements ApplicationContract, HyperfContai
             ],
             \Hypervel\Contracts\Validation\Factory::class => ['validator'],
             \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
-            \Hyperf\ViewEngine\Contract\FactoryInterface::class => ['view'],
-            \Hyperf\ViewEngine\Compiler\CompilerInterface::class => ['blade.compiler'],
+            \Hypervel\View\Contracts\Factory::class => ['view'],
+            \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
             \Hypervel\Contracts\Session\Factory::class => [
                 'session',
                 \Hypervel\Session\SessionManager::class,
