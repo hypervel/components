@@ -6,9 +6,9 @@ namespace Hypervel\Testing;
 
 use Carbon\Carbon;
 use Closure;
-use Hyperf\Contract\MessageBag;
+use Hypervel\Contracts\Support\MessageBag;
 use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;
-use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;
