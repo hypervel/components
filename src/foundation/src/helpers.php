@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Carbon\Carbon;
 use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
@@ -749,13 +749,10 @@ if (! function_exists('__')) {
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
-     *
-     * @param null|string $view
-     * @param array $mergeData
      */
-    function view($view = null, array|Arrayable $data = [], $mergeData = []): FactoryInterface|ViewInterface
+    function view($view = null, array|Arrayable $data = [], $mergeData = []): ViewFactory|ViewContract
     {
-        $factory = app(FactoryInterface::class);
+        $factory = app(ViewFactory::class);
 
         if (func_num_args() === 0) {
             return $factory;
