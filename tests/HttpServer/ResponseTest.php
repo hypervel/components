@@ -9,7 +9,7 @@ use Hyperf\Contract\Xmlable;
 use Hyperf\HttpMessage\Cookie\Cookie;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -42,7 +42,7 @@ class ResponseTest extends TestCase
         $request = m::mock(RequestInterface::class);
         RequestContext::set(new Request('GET', 'http://127.0.0.1:9501'));
         $container->shouldReceive('get')->with(RequestInterface::class)->andReturn($request);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -73,7 +73,7 @@ class ResponseTest extends TestCase
     public function testToXml()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -147,7 +147,7 @@ class ResponseTest extends TestCase
     public function testToJson()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -176,7 +176,7 @@ class ResponseTest extends TestCase
     public function testHtml()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -193,7 +193,7 @@ class ResponseTest extends TestCase
     public function testObjectToJson()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -207,7 +207,7 @@ class ResponseTest extends TestCase
     public function testPsrResponse()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(PsrResponseInterface::class, $psrResponse);
@@ -222,7 +222,7 @@ class ResponseTest extends TestCase
     public function testCookiesAndHeaders()
     {
         $container = m::mock(ContainerContract::class);
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $swooleResponse = m::mock(SwooleResponse::class);
         $id = uniqid();

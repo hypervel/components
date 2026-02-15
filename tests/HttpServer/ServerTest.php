@@ -7,7 +7,7 @@ namespace Hypervel\Tests\HttpServer;
 use Hyperf\HttpMessage\Exception\BadRequestHttpException;
 use Hyperf\HttpMessage\Exception\HttpException;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -113,7 +113,7 @@ class ServerTest extends TestCase
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(true);
         $container->shouldReceive('get')->with(EventDispatcherInterface::class)->andReturn($dispatcher);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

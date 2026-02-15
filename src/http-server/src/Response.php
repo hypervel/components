@@ -18,7 +18,7 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\ClearStatCache;
 use Hyperf\Support\MimeTypeExtensionGuesser;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
@@ -149,12 +149,8 @@ class Response implements PsrResponseInterface, ResponseInterface
         $filename = $name ?: $file->getBasename();
         $etag = $this->createEtag($file);
         $contentType = value(function () use ($file) {
-            $mineType = null;
-            if (ApplicationContext::hasContainer()) {
-                $guesser = ApplicationContext::getContainer()->get(MimeTypeExtensionGuesser::class);
-                $mineType = $guesser->guessMimeType($file->getExtension());
-            }
-            return $mineType ?? 'application/octet-stream';
+            $guesser = Container::getInstance()->make(MimeTypeExtensionGuesser::class);
+            return $guesser->guessMimeType($file->getExtension()) ?? 'application/octet-stream';
         });
 
         // Determine if ETag the client expects matches calculated ETag
