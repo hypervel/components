@@ -750,7 +750,7 @@ if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
      */
-    function view($view = null, array|Arrayable $data = [], $mergeData = []): ViewFactory|ViewContract
+    function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract
     {
         $factory = app(ViewFactory::class);
 
