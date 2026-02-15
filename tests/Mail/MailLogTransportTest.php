@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;

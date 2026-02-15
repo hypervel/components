@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Context\Context;
 use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;

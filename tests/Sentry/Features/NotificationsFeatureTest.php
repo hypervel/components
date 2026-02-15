@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Notifications\Messages\MailMessage;

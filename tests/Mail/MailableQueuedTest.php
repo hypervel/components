@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\ViewEngine\Factory;
+use Hypervel\View\Factory;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\ShouldQueue;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\HttpMessage\Base\Response;
-use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Http\ServerResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;

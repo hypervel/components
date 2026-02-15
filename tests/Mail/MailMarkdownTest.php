@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Mail\Markdown;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +18,7 @@ class MailMarkdownTest extends TestCase
 {
     public function testRenderFunctionReturnsHtml()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
 
         $viewFactory = m::mock(ViewFactory::class);
@@ -36,7 +36,7 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderFunctionReturnsHtmlWithCustomTheme()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
 
         $viewFactory = m::mock(ViewFactory::class);
@@ -55,7 +55,7 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderFunctionReturnsHtmlWithCustomThemeWithMailPrefix()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
 
         $viewFactory = m::mock(ViewFactory::class);
@@ -74,7 +74,7 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderTextReturnsText()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->andReturn('text');
 
         $viewFactory = m::mock(ViewFactory::class);

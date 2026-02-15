@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Mail;
 use Aws\Command;
 use Aws\Exception\AwsException;
 use Aws\Ses\SesClient;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesTransport;
 use Hypervel\Testbench\TestCase;

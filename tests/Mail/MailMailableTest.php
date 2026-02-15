@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
@@ -1154,7 +1154,7 @@ class MailMailableTest extends TestCase
 
     protected function mockView()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->andReturn('rendered.view');
 
