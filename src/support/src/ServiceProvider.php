@@ -117,6 +117,15 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
+            if (isset($this->app->config['view']['paths']) &&
+                is_array($this->app->config['view']['paths'])) {
+                foreach ($this->app->config['view']['paths'] as $viewPath) {
+                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                        $view->addNamespace($namespace, $appPath);
+                    }
+                }
+            }
+
             $view->addNamespace($namespace, $path);
         });
     }
