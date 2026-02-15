@@ -13,7 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class UploadedFileTest extends TestCase
 {
-
     public function testGetSize()
     {
         $file = new UploadedFile('', 10, 0);
