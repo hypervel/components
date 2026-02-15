@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\CompilerInterface;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Middleware;
 
 use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
-use Hypervel\Support\Contracts\MessageProvider;
+use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
+use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;

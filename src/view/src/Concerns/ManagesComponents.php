@@ -7,7 +7,7 @@ namespace Hypervel\View\Concerns;
 use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\View\ComponentSlot;
 use Hypervel\View\Contracts\View;
 

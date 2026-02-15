@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
+use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Bus\Queueable;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
@@ -130,7 +134,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContent()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -168,7 +172,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -316,6 +320,23 @@ class MailMailerTest extends TestCase
         );
     }
 
+    public function testSendQueuedMailableReturnsNull()
+    {
+        $view = $this->mockView();
+        $queueFake = new QueueFake($this->app);
+
+        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer->setQueue($queueFake);
+
+        $mailable = new TestQueuedMail();
+
+        $result = $mailer->send($mailable);
+
+        $this->assertNull($result);
+
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
     protected function mockContainer(): void
     {
         $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
@@ -323,7 +344,7 @@ class MailMailerTest extends TestCase
 
     protected function mockView()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->andReturn('rendered.view');
 
@@ -340,5 +361,18 @@ class TestMail extends Mailable
     {
         return $this->view('view')
             ->from('hello@hypervel.org');
+    }
+}
+
+class TestQueuedMail extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build()
+    {
+        return $this->view('view')
+            ->from('hello@hypervel.org')
+            ->to('test@hypervel.org')
+            ->subject('Test Queued Mail');
     }
 }

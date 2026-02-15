@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Closure;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\Factory as FactoryContract;

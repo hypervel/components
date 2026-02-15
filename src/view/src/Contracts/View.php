@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Contracts;
 
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Contracts\Support\Renderable;
 
 interface View extends Renderable
 {
