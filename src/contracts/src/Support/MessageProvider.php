@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Support;
 
-use Hyperf\Contract\MessageProvider as HyperfMessageProvider;
-
-interface MessageProvider extends HyperfMessageProvider
+interface MessageProvider
 {
+    /**
+     * Get the messages for the instance.
+     */
+    public function getMessageBag(): MessageBag;
 }
