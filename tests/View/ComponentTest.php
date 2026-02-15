@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\View\Component;
@@ -38,15 +36,12 @@ class ComponentTest extends TestCase
         $this->viewFactory = m::mock(Factory::class);
         $this->config = m::mock(Config::class);
 
-        $container = new Container(
-            new DefinitionSource([
-                'config' => fn () => $this->config,
-                'view' => fn () => $this->viewFactory,
-                FactoryContract::class => fn () => $this->viewFactory,
-            ])
-        );
+        $container = new Container();
+        $container->instance('config', $this->config);
+        $container->instance('view', $this->viewFactory);
+        $container->instance(FactoryContract::class, $this->viewFactory);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
     }
 
     protected function tearDown(): void
@@ -146,7 +141,7 @@ class ComponentTest extends TestCase
 
     public function testResolveWithUnresolvableDependency()
     {
-        $this->expectException(InvalidDefinitionException::class);
+        $this->expectException(BindingResolutionException::class);
 
         TestInlineViewComponentWhereRenderDependsOnProps::resolve([]);
     }
