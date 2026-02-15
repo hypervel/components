@@ -35,8 +35,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/laminas-mime": "^0.1.0",
-        "psr/http-message": "^2.0",
-        "swow/psr7-plus": "^1.0"
+        "psr/http-message": "^2.0"
     },
     "config": {
         "sort-packages": true
