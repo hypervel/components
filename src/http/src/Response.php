@@ -7,7 +7,6 @@ namespace Hypervel\Http;
 use DateTimeImmutable;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -20,6 +19,7 @@ use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Json;
 use Hypervel\Support\MimeTypeExtensionGuesser;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 

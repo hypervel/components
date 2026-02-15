@@ -6,12 +6,12 @@ namespace Hypervel\Support;
 
 use Closure;
 use Hyperf\Contract\TranslatorLoaderInterface;
-use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 abstract class ServiceProvider
 {
@@ -117,8 +117,8 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            if (isset($this->app->config['view']['paths']) &&
-                is_array($this->app->config['view']['paths'])) {
+            if (isset($this->app->config['view']['paths'])
+                && is_array($this->app->config['view']['paths'])) {
                 foreach ($this->app->config['view']['paths'] as $viewPath) {
                     if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
                         $view->addNamespace($namespace, $appPath);

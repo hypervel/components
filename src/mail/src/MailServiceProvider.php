@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 class MailServiceProvider extends ServiceProvider
 {
