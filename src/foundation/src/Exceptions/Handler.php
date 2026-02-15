@@ -7,8 +7,6 @@ namespace Hypervel\Foundation\Exceptions;
 use Closure;
 use Exception;
 use Hyperf\Contract\SessionInterface;
-use Hypervel\HttpMessage\Base\Response as BaseResponse;
-use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Context\Context;
@@ -25,10 +23,12 @@ use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\Http\Request;
+use Hypervel\HttpMessage\Base\Response as BaseResponse;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
@@ -739,7 +739,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
                         'exception' => $e,
                     ],
                     $e->getStatusCode(),
-                    $e instanceof HttpException ? $e->getHeaders() : []
+                    $e->getHeaders()
                 );
             } catch (Throwable $t) {
                 config('app.debug') && throw $t;

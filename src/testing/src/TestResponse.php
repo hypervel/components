@@ -11,8 +11,8 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Tappable\Tappable;
 use Hyperf\Testing\AssertableJsonString;
 use Hyperf\Testing\Fluent\AssertableJson;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\MessageBag;
 use Hypervel\Cookie\Cookie;
@@ -29,6 +29,9 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
+/**
+ * @mixin \Hypervel\HttpServer\Response
+ */
 class TestResponse implements ArrayAccess
 {
     use AssertsStatusCodes, Tappable, Macroable {
