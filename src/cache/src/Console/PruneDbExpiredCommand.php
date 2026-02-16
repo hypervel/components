@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Event\Dispatcher;

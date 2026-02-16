@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console;
 
 use Exception;
-use Hyperf\Command\Command;
-use Hyperf\Command\Concerns\Prohibitable;
+use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Cache\Redis\Console\Benchmark\BenchmarkContext;
 use Hypervel\Cache\Redis\Console\Benchmark\ResultsFormatter;
 use Hypervel\Cache\Redis\Console\Benchmark\ScenarioResult;
