@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpServer\Contracts;
 
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Contract\Xmlable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\Support\Xmlable;
 use Hypervel\HttpMessage\Cookie\Cookie;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Stringable;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\HttpServer;
 
 use FastRoute\Dispatcher;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollector;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
@@ -33,6 +33,7 @@ use Hypervel\Tests\HttpServer\Stub\FooController;
 use Hypervel\Tests\HttpServer\Stub\SetHeaderMiddleware;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -96,8 +97,8 @@ class CoreMiddlewareTest extends TestCase
         $this->assertSame('application/json', $response->getHeaderLine('content-type'));
 
         // Jsonable
-        $response = $reflectionMethod->invoke($middleware, new class implements Stringable, Jsonable {
-            public function __toString(): string
+        $response = $reflectionMethod->invoke($middleware, new class implements Jsonable {
+            public function toJson(int $options = 0): string
             {
                 return json_encode(['foo' => 'bar'], JSON_UNESCAPED_UNICODE);
             }
@@ -118,7 +119,7 @@ class CoreMiddlewareTest extends TestCase
         $this->assertSame('text/plain', $response->getHeaderLine('content-type'));
 
         // Json encode failed
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(JsonException::class);
         $this->expectExceptionMessage('Type is not supported');
         $response = $reflectionMethod->invoke($middleware, ['id' => fopen(__FILE__, 'r')], $request);
         $this->assertInstanceOf(ResponseInterface::class, $response);

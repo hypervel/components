@@ -6,9 +6,9 @@ namespace Hypervel\HttpServer;
 
 use Closure;
 use FastRoute\Dispatcher;
-use Hyperf\Codec\Json;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Support\Json;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
@@ -196,7 +196,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Jsonable) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toJson()));
         }
 
         if ($this->response()->hasHeader('content-type')) {

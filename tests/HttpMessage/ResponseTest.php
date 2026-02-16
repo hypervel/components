@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpMessage;
 
-use Hyperf\Codec\Json;
+use Hypervel\Support\Json;
 use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Engine\Http\WritableConnection;
 use Hypervel\HttpMessage\Cookie\Cookie;

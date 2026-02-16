@@ -18,7 +18,7 @@ use Hypervel\Contracts\Http\Response as ResponseContract;
  * @method static \Hypervel\Http\Response withRangeHeaders(int|null $fileSize = null)
  * @method static \Hypervel\Http\Response withoutRangeHeaders()
  * @method static bool shouldAppendRangeHeaders()
- * @method static \Psr\Http\Message\ResponseInterface xml(array|\Hypervel\Contracts\Support\Arrayable|\Hyperf\Contract\Xmlable $data, string $root = 'root', string $charset = 'utf-8')
+ * @method static \Psr\Http\Message\ResponseInterface xml(array|\Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Xmlable $data, string $root = 'root', string $charset = 'utf-8')
  * @method static \Psr\Http\Message\ResponseInterface html(string $html, string $charset = 'utf-8')
  * @method static \Psr\Http\Message\ResponseInterface raw(mixed|\Stringable $data, string $charset = 'utf-8')
  * @method static \Psr\Http\Message\ResponseInterface redirect(string $toUrl, int $status = 302, string $schema = 'http')

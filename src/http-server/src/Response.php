@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use BadMethodCallException;
-use Hyperf\Codec\Json;
-use Hyperf\Codec\Xml;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Contract\Xmlable;
+use Hypervel\Support\Json;
+use Hypervel\Support\Xml;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\Support\Xmlable;
 use Hyperf\Support\ClearStatCache;
 use Hyperf\Support\MimeTypeExtensionGuesser;
 use Hypervel\Container\Container;

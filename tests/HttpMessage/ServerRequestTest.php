@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpMessage;
 
-use Hyperf\Codec\Json;
-use Hyperf\Codec\Xml;
+use Hypervel\Support\Json;
+use Hypervel\Support\Xml;
 use Hypervel\Container\Container;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\Request;

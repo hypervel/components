@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Server\Request;
 
-use Hyperf\Codec\Json;
+use Hypervel\Support\Json;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\RequestParserInterface;
-use InvalidArgumentException;
+use JsonException;
 
 class JsonParser implements RequestParserInterface
 {
@@ -23,7 +23,7 @@ class JsonParser implements RequestParserInterface
         try {
             $parameters = Json::decode($rawBody, $this->asArray);
             return is_array($parameters) ? $parameters : [];
-        } catch (InvalidArgumentException $e) {
+        } catch (JsonException $e) {
             if ($this->throwException) {
                 throw new BadRequestHttpException('Invalid JSON data in request body: ' . $e->getMessage());
             }

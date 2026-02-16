@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Server\Request;
 
-use Hyperf\Codec\Xml;
+use Hypervel\Support\Xml;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\RequestParserInterface;
 use InvalidArgumentException;

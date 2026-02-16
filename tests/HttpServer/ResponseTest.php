@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Xmlable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Xmlable;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
