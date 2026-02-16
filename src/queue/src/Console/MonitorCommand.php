@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;

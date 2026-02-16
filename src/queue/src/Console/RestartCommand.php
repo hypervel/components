@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
