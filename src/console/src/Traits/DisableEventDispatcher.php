@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Traits;
 
 use Hypervel\Container\Container;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -27,13 +27,13 @@ trait DisableEventDispatcher
         if (! $input->getOption('disable-event-dispatcher')) {
             $container = Container::getInstance();
 
-            if (! $container->has(EventDispatcherInterface::class)) {
+            if (! $container->has(Dispatcher::class)) {
                 return;
             }
 
-            $dispatcher = $container->make(EventDispatcherInterface::class);
+            $dispatcher = $container->make(Dispatcher::class);
 
-            $this->eventDispatcher = $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null;
+            $this->eventDispatcher = $dispatcher instanceof Dispatcher ? $dispatcher : null;
         }
     }
 }

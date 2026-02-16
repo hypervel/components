@@ -14,9 +14,9 @@ use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -55,7 +55,7 @@ abstract class Command extends SymfonyCommand
     /**
      * The event dispatcher instance.
      */
-    protected ?EventDispatcherInterface $eventDispatcher = null;
+    protected ?Dispatcher $eventDispatcher = null;
 
     /**
      * The hook flags for the coroutine.
