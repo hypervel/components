@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Console;
 
 use Closure;
-use Hyperf\Command\Command;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -25,7 +24,7 @@ interface Application
 
     public function getContainer(): ContainerContract;
 
-    public function add(Command $command);
+    public function add(SymfonyCommand $command);
 
     public function all(?string $namespace = null);
 
@@ -46,7 +45,7 @@ interface Application
     /**
      * Add a command, resolving through the application.
      */
-    public function resolve(Command|string $command): ?SymfonyCommand;
+    public function resolve(SymfonyCommand|string $command): ?SymfonyCommand;
 
     /**
      * Resolve an array of commands through the application.

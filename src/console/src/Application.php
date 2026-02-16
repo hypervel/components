@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
-use Hyperf\Command\Command;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -174,7 +173,7 @@ class Application extends SymfonyApplication implements ApplicationContract
     /**
      * Add a command, resolving through the application.
      */
-    public function resolve(Command|string $command): ?SymfonyCommand
+    public function resolve(SymfonyCommand|string $command): ?SymfonyCommand
     {
         if (is_subclass_of($command, SymfonyCommand::class) && ($commandName = $command::getDefaultName())) {
             foreach (explode('|', $commandName) as $name) {
@@ -184,7 +183,7 @@ class Application extends SymfonyApplication implements ApplicationContract
             return null;
         }
 
-        if ($command instanceof Command) {
+        if ($command instanceof SymfonyCommand) {
             return $this->add($command);
         }
 
