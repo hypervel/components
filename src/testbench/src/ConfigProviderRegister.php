@@ -20,7 +20,8 @@ class ConfigProviderRegister
         \Hypervel\HttpServer\ConfigProvider::class,
         \Hyperf\Memory\ConfigProvider::class,
         \Hyperf\ModelListener\ConfigProvider::class,
-        \Hyperf\Process\ConfigProvider::class,
+        // @TODO: Remove once hyperf/process is ported — its BootProcessListener type-hints Hyperf\Contract\ConfigInterface
+        // \Hyperf\Process\ConfigProvider::class,
         \Hyperf\Serializer\ConfigProvider::class,
         \Hypervel\Server\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
