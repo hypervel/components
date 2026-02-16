@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpServer;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Str;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\HttpMessage\Upload\UploadedFile;
