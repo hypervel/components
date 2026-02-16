@@ -27,7 +27,6 @@
     "require": {
         "php": "^8.4",
         "guzzlehttp/guzzle": "^7.8.2",
-        "hyperf/command": "~3.1.0",
         "hypervel/cache": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/foundation": "^0.4",

@@ -9,7 +9,6 @@ use Hypervel\Support\Arr;
 class ConfigProviderRegister
 {
     protected static $configProviders = [
-        \Hyperf\Command\ConfigProvider::class,
         \Hyperf\DbConnection\ConfigProvider::class,
         \Hyperf\Di\ConfigProvider::class,
         \Hypervel\Dispatcher\ConfigProvider::class,

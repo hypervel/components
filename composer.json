@@ -110,8 +110,7 @@
             "src/context/src/helpers.php"
         ],
         "classmap": [
-            "src/core/class_map/Hyperf/Coroutine/Coroutine.php",
-            "src/core/class_map/Command/Concerns/Confirmable.php"
+            "src/core/class_map/Hyperf/Coroutine/Coroutine.php"
         ]
     },
     "autoload-dev": {
@@ -141,7 +140,6 @@
         "friendsofhyperf/pretty-console": "~3.1.0",
         "guzzlehttp/guzzle": "^7.8.2",
         "guzzlehttp/uri-template": "^1.0",
-        "hyperf/command": "~3.1.0",
         "hyperf/config": "~3.1.0",
         "hyperf/engine": "^2.10",
         "hyperf/memory": "~3.1.0",
