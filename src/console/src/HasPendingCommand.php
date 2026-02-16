@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use Hyperf\Command\Annotation\Command as AnnotationCommand;
-use Hyperf\Command\Parser;
+use Hypervel\Console\Annotations\Command as AnnotationCommand;
+use Hypervel\Console\Parser;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use InvalidArgumentException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;

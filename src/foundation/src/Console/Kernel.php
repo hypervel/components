@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hyperf\Command\Annotation\Command as AnnotationCommand;
+use Hypervel\Console\Annotations\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
