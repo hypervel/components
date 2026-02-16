@@ -42,7 +42,7 @@ class KeyGenerateCommand extends Command
         $this->info('Application key set successfully.');
     }
 
-    protected function configure()
+    protected function configure(): void
     {
         $this->setDescription('Set the application key')
             ->addOption('show', null, InputOption::VALUE_OPTIONAL, 'Display the key instead of modifying files')

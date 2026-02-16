@@ -31,9 +31,7 @@ trait DisableEventDispatcher
                 return;
             }
 
-            $dispatcher = $container->make(Dispatcher::class);
-
-            $this->eventDispatcher = $dispatcher instanceof Dispatcher ? $dispatcher : null;
+            $this->eventDispatcher = $container->make(Dispatcher::class);
         }
     }
 }
