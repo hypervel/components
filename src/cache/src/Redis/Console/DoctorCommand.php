@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console;
 
 use Exception;
-use Hypervel\Console\Command;
-use Hypervel\Console\Prohibitable;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\AddOperationsCheck;
@@ -35,6 +33,8 @@ use Hypervel\Cache\Redis\Console\Doctor\Checks\TaggedOperationsCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\TaggedRememberCheck;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Symfony\Component\Console\Input\InputOption;

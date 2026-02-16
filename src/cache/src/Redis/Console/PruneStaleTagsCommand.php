@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Symfony\Component\Console\Input\InputArgument;
 

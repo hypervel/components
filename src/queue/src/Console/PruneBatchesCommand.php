@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Hypervel\Support\Carbon;

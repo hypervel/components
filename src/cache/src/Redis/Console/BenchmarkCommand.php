@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console;
 
 use Exception;
-use Hypervel\Console\Command;
-use Hypervel\Console\Prohibitable;
 use Hypervel\Cache\Redis\Console\Benchmark\BenchmarkContext;
 use Hypervel\Cache\Redis\Console\Benchmark\ResultsFormatter;
 use Hypervel\Cache\Redis\Console\Benchmark\ScenarioResult;
@@ -23,6 +21,8 @@ use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Redis\Support\MonitoringDetector;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;

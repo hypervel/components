@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Logger;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Config\Repository;
 use Psr\Log\LogLevel;
 use Stringable;
 use Symfony\Component\Console\Output\ConsoleOutput;

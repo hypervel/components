@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
+use Hypervel\Console\Command;
 use Symfony\Component\Console\Input\InputArgument;
 
 class PruneDbExpiredCommand extends Command

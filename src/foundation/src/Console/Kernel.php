@@ -6,10 +6,10 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hypervel\Console\Annotations\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
+use Hypervel\Console\Annotations\Command as AnnotationCommand;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
 use Hypervel\Console\HasPendingCommand;

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use FastRoute\Dispatcher;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;

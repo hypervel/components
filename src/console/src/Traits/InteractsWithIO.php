@@ -181,8 +181,6 @@ trait InteractsWithIO
 
     /**
      * Execute a given callback while advancing a progress bar.
-     *
-     * @param int|iterable $totalSteps
      */
     public function withProgressBar(iterable|int $totalSteps, Closure $callback): mixed
     {
@@ -312,7 +310,7 @@ trait InteractsWithIO
     /**
      * Get the output implementation.
      *
-     * @return SymfonyStyle|null
+     * @return null|SymfonyStyle
      */
     public function getOutput(): ?OutputInterface
     {

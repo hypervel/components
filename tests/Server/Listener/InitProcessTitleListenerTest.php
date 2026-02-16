@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Server\Listener;
 
 use Hyperf\Config\Config;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler\Listener;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Annotation\AnnotationCollector;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
 use Hypervel\Framework\Events\BootApplication;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption\Commands;
 
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Encrypter;
 use Symfony\Component\Console\Input\InputOption;

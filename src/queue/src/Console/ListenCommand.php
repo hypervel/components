@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Str;
