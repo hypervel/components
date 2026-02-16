@@ -6,10 +6,10 @@ namespace Hypervel\ExceptionHandler\Listener;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
-use Hypervel\Support\SplPriorityQueue;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
 use Hypervel\Framework\Events\BootApplication;
+use Hypervel\Support\SplPriorityQueue;
 
 class ExceptionHandlerListener implements ListenerInterface
 {

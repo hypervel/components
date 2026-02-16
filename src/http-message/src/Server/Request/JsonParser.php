@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpMessage\Server\Request;
 
-use Hypervel\Support\Json;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\RequestParserInterface;
+use Hypervel\Support\Json;
 use JsonException;
 
 class JsonParser implements RequestParserInterface

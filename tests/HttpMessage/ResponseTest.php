@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpMessage;
 
-use Hypervel\Support\Json;
 use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Engine\Http\WritableConnection;
 use Hypervel\HttpMessage\Cookie\Cookie;
@@ -12,6 +11,7 @@ use Hypervel\HttpMessage\Server\Request;
 use Hypervel\HttpMessage\Server\Response;
 use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Http\Response as SwooleResponse;

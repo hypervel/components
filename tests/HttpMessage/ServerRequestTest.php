@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpMessage;
 
-use Hypervel\Support\Json;
-use Hypervel\Support\Xml;
 use Hypervel\Container\Container;
 use Hypervel\HttpMessage\Exceptions\BadRequestHttpException;
 use Hypervel\HttpMessage\Server\Request;
@@ -14,6 +12,8 @@ use Hypervel\HttpMessage\Server\Request\Parser;
 use Hypervel\HttpMessage\Server\Request\XmlParser;
 use Hypervel\HttpMessage\Server\RequestParserInterface;
 use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\Support\Json;
+use Hypervel\Support\Xml;
 use Hypervel\Tests\HttpMessage\Stub\ParserStub;
 use Hypervel\Tests\HttpMessage\Stub\Server\RequestStub;
 use Hypervel\Tests\TestCase;

@@ -60,5 +60,4 @@ class ClearStatCache
     {
         self::$interval = $interval;
     }
-
 }
