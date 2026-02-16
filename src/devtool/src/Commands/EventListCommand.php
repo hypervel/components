@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Commands;
 
 use Closure;
-use Hyperf\Command\Command as HyperfCommand;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Helper\Table;
@@ -16,7 +16,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Lists all registered events and their listeners.
  */
-class EventListCommand extends HyperfCommand
+class EventListCommand extends Command
 {
     public function __construct(private Container $container)
     {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption\Commands;
 
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Concerns\Confirmable as ConfirmableTrait;
+use Hypervel\Console\Command;
+use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Encrypter;
 use Symfony\Component\Console\Input\InputOption;
 
-class KeyGenerateCommand extends HyperfCommand
+class KeyGenerateCommand extends Command
 {
     use ConfirmableTrait;
 

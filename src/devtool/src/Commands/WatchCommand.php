@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Commands;
 
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Concerns\NullDisableEventDispatcher;
+use Hypervel\Console\Command;
+use Hypervel\Console\Traits\NullDisableEventDispatcher;
 use Hyperf\Watcher\Option;
 use Hyperf\Watcher\Watcher;
 use Hypervel\Contracts\Container\Container;
 use Symfony\Component\Console\Input\InputOption;
 
-class WatchCommand extends HyperfCommand
+class WatchCommand extends Command
 {
     use NullDisableEventDispatcher;
 
