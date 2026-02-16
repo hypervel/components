@@ -10,7 +10,7 @@ use Hypervel\Support\Xml;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Xmlable;
-use Hyperf\Support\ClearStatCache;
+use Hypervel\Support\ClearStatCache;
 use Hyperf\Support\MimeTypeExtensionGuesser;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
