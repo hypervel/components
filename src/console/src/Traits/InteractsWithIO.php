@@ -80,7 +80,7 @@ trait InteractsWithIO
     /**
      * Get the value of a command option.
      */
-    public function option(?string $key = null): array|bool|string|null
+    public function option(?string $key = null): array|bool|float|int|string|null
     {
         if (is_null($key)) {
             return $this->input->getOptions();

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ExceptionHandler;
 
-use Hyperf\Config\Config;
 use Hyperf\Di\Annotation\AnnotationCollector;
+use Hypervel\Config\Repository;
 use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
 use Hypervel\ExceptionHandler\Listener\ExceptionHandlerListener;
 use Hypervel\Tests\TestCase;
@@ -26,7 +26,7 @@ class ExceptionHandlerListenerTest extends TestCase
 
     public function testConfig()
     {
-        $config = new Config([
+        $config = new Repository([
             'exceptions' => [
                 'handler' => [
                     'http' => $http = [
@@ -46,7 +46,7 @@ class ExceptionHandlerListenerTest extends TestCase
 
     public function testAnnotation()
     {
-        $config = new Config([
+        $config = new Repository([
             'exceptions' => [
                 'handler' => [
                     'http' => [
@@ -67,7 +67,7 @@ class ExceptionHandlerListenerTest extends TestCase
 
     public function testAnnotationWithSamePriotity()
     {
-        $config = new Config([
+        $config = new Repository([
             'exceptions' => [
                 'handler' => [
                     'http' => [
@@ -89,7 +89,7 @@ class ExceptionHandlerListenerTest extends TestCase
 
     public function testTheSameHandler()
     {
-        $config = new Config([
+        $config = new Repository([
             'exceptions' => [
                 'handler' => [
                     'http' => [

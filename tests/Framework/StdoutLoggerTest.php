@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Framework;
 
-use Hyperf\Config\Config;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Framework\Logger\StdoutLogger;
 use Hypervel\Tests\Framework\Stub\TestObject;
 use Hypervel\Tests\TestCase;
@@ -53,7 +53,7 @@ class StdoutLoggerTest extends TestCase
         $output->shouldReceive('writeln')->with(m::any())->once()->andReturnUsing(function ($message) {
             $this->assertMatchesRegularExpression('/RuntimeException: Invalid Arguments./', $message);
         });
-        $logger = new StdoutLogger(new Config([
+        $logger = new StdoutLogger(new Repository([
             StdoutLoggerInterface::class => [
                 'log_level' => [
                     LogLevel::ERROR,
@@ -70,7 +70,7 @@ class StdoutLoggerTest extends TestCase
         $output->shouldReceive('writeln')->with(m::any())->once()->andReturnUsing(function ($message) use ($expected) {
             $this->assertSame($expected, $message);
         });
-        return new StdoutLogger(new Config([
+        return new StdoutLogger(new Repository([
             StdoutLoggerInterface::class => [
                 'log_level' => [
                     LogLevel::INFO,
