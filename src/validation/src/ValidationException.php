@@ -58,7 +58,7 @@ class ValidationException extends Exception
     {
         $messages = $validator->errors()->all();
 
-        if (! count($messages) || ! is_string($messages[0])) {
+        if (! count($messages)) {
             return $validator->getTranslator()->get('The given data was invalid.');
         }
 
