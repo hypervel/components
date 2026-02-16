@@ -9,7 +9,7 @@ use Hypervel\Support\Str;
 use LogicException;
 use Symfony\Component\Console\Input\InputOption;
 
-use function Hyperf\Config\config;
+use function Hypervel\Config\config;
 
 class PolicyCommand extends GeneratorCommand
 {

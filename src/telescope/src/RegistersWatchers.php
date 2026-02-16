@@ -6,7 +6,7 @@ namespace Hypervel\Telescope;
 
 use Hypervel\Contracts\Container\Container;
 
-use function Hyperf\Config\config;
+use function Hypervel\Config\config;
 
 trait RegistersWatchers
 {

@@ -8,7 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use RuntimeException;
 
-use function Hyperf\Config\config;
+use function Hypervel\Config\config;
 
 class Mix
 {
