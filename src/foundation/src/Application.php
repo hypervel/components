@@ -708,7 +708,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
             \Hypervel\Contracts\Config\Repository::class => [
                 'config',
                 \Hypervel\Config\Repository::class,
-                \Hyperf\Contract\ConfigInterface::class,
             ],
             \Hypervel\Cookie\CookieManager::class => ['cookie'],
             \Hypervel\Database\DatabaseManager::class => ['db'],

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Str;
 use Hypervel\View\Contracts\View as ViewContract;
 
@@ -155,7 +155,7 @@ trait ManagesEvents
             return $this->eventEnabled;
         }
 
-        return $this->eventEnabled = $this->getContainer()->make(ConfigInterface::class)->get('view.event.enable', false);
+        return $this->eventEnabled = $this->getContainer()->make(Repository::class)->get('view.event.enable', false);
     }
 
     /**
@@ -163,7 +163,7 @@ trait ManagesEvents
      */
     public function callCreator(ViewContract $view): void
     {
-        if ($this->getContainer()->make(ConfigInterface::class)->get('view.event.enable', false)
+        if ($this->getContainer()->make(Repository::class)->get('view.event.enable', false)
             && $this->events->hasListeners($event = 'creating: ' . $view->name())
         ) {
             $this->events->dispatch($event, [$view]);

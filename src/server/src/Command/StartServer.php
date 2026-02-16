@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Command;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;
@@ -37,7 +37,7 @@ class StartServer extends Command
             ->setEventDispatcher($this->container->make(EventDispatcherInterface::class))
             ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
-        $serverConfig = $this->container->make(ConfigInterface::class)->get('server', []);
+        $serverConfig = $this->container->make(Repository::class)->get('server', []);
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
         }

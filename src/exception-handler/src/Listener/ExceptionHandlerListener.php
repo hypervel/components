@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler\Listener;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
@@ -18,7 +18,7 @@ class ExceptionHandlerListener implements ListenerInterface
     /**
      * Create a new exception handler listener instance.
      */
-    public function __construct(private ConfigInterface $config)
+    public function __construct(private Repository $config)
     {
     }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -206,7 +206,7 @@ class Kernel extends HttpServer implements MiddlewareContract
             return $this->enableHttpMethodParameterOverride;
         }
 
-        return $this->enableHttpMethodParameterOverride = $this->container->make(ConfigInterface::class)
+        return $this->enableHttpMethodParameterOverride = $this->container->make(Repository::class)
             ->get('view.enable_override_http_method', false);
     }
 

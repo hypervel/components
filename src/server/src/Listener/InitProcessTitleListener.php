@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Listener;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;
@@ -20,8 +20,8 @@ class InitProcessTitleListener implements ListenerInterface
 
     public function __construct(ContainerInterface $container)
     {
-        if ($container->has(ConfigInterface::class)) {
-            if ($name = $container->make(ConfigInterface::class)->get('app_name')) {
+        if ($container->has(Repository::class)) {
+            if ($name = $container->make(Repository::class)->get('app_name')) {
                 $this->name = $name;
             }
         }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Server\Listener;
 
 use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Context\Context;
 use Hypervel\Framework\Events\AfterWorkerStart;
@@ -62,9 +62,9 @@ class InitProcessTitleListenerTest extends TestCase
     {
         $name = 'hyperf-skeleton.' . uniqid();
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('has')->with(ConfigInterface::class)->andReturn(true);
+        $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('make')->with(ConfigInterface::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(Repository::class)->andReturn(new Config([
             'app_name' => $name,
         ]));
 
@@ -84,9 +84,9 @@ class InitProcessTitleListenerTest extends TestCase
     {
         $name = 'hyperf-skeleton.' . uniqid();
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('has')->with(ConfigInterface::class)->andReturn(true);
+        $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('make')->with(ConfigInterface::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(Repository::class)->andReturn(new Config([
             'app_name' => $name,
         ]));
 

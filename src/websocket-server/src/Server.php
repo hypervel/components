@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
@@ -68,7 +68,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         $this->serverName = $serverName;
         $this->coreMiddleware = new CoreMiddleware($this->container, $serverName);
 
-        $config = $this->container->make(ConfigInterface::class);
+        $config = $this->container->make(Repository::class);
         $this->middlewares = $config->get('middlewares.' . $serverName, []);
         $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, [
             WebSocketExceptionHandler::class,

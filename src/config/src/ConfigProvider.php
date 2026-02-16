@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Config\Repository;
 
 class ConfigProvider
@@ -13,7 +12,6 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                ConfigInterface::class => ConfigFactory::class,
                 Repository::class => ConfigFactory::class,
             ],
         ];

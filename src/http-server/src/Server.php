@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use FastRoute\Dispatcher;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
@@ -69,7 +69,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         $this->serverName = $serverName;
         $this->coreMiddleware = $this->createCoreMiddleware();
 
-        $config = $this->container->make(ConfigInterface::class);
+        $config = $this->container->make(Repository::class);
         $this->middlewares = $config->get('middlewares.' . $serverName, []);
         $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, $this->getDefaultExceptionHandler());
 

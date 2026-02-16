@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Logger;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Psr\Log\LogLevel;
 use Stringable;
@@ -27,7 +27,7 @@ class StdoutLogger implements StdoutLoggerInterface
         'component',
     ];
 
-    public function __construct(private ConfigInterface $config, ?OutputInterface $output = null)
+    public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
         $this->output = $output ?? new ConsoleOutput();
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Bootstrap;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Framework\Events\OnTask;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\Server;
@@ -14,7 +14,7 @@ class TaskCallback
 {
     protected bool $taskEnableCoroutine = false;
 
-    public function __construct(protected EventDispatcherInterface $dispatcher, ConfigInterface $config)
+    public function __construct(protected EventDispatcherInterface $dispatcher, Repository $config)
     {
         $this->taskEnableCoroutine = (bool) $config->get('server.settings.task_enable_coroutine', false);
     }

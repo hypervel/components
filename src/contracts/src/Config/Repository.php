@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Config;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
 
-interface Repository extends ConfigInterface
+interface Repository
 {
     /**
      * Determine if the given configuration value exists.
