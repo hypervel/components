@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpServer;
 
-use Hyperf\Stdlib\SplPriorityQueue;
+use Hypervel\Support\SplPriorityQueue;
 
 class MiddlewareManager
 {

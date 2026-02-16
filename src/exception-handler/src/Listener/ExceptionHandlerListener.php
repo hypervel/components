@@ -6,7 +6,7 @@ namespace Hypervel\ExceptionHandler\Listener;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
-use Hyperf\Stdlib\SplPriorityQueue;
+use Hypervel\Support\SplPriorityQueue;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
 use Hypervel\Framework\Events\BootApplication;
