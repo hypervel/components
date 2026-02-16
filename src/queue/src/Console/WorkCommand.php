@@ -20,7 +20,6 @@ use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 
@@ -28,7 +27,6 @@ use function Termwind\terminal;
 
 class WorkCommand extends Command
 {
-    use HasLaravelStyleCommand;
     use InteractsWithTime;
 
     /**

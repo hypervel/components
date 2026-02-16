@@ -9,7 +9,6 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use ReflectionClass;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -17,7 +16,6 @@ use Symfony\Component\Console\Input\InputOption;
 class ClearCommand extends Command
 {
     use ConfirmableTrait;
-    use HasLaravelStyleCommand;
 
     /**
      * The console command name.

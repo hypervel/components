@@ -9,12 +9,9 @@ use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class PruneBatchesCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */

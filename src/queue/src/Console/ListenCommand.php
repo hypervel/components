@@ -9,12 +9,9 @@ use Hypervel\Config\Repository;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListenCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */

@@ -6,12 +6,9 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class FlushFailedCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */

@@ -37,13 +37,11 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class DoctorCommand extends Command
 {
     use DetectsRedisStore;
-    use HasLaravelStyleCommand;
     use Prohibitable;
 
     /**

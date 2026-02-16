@@ -7,13 +7,10 @@ namespace Hypervel\Cache\Console;
 use Hypervel\Console\Command;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputArgument;
 
 class PruneDbExpiredCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */

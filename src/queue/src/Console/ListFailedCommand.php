@@ -8,12 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListFailedCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */

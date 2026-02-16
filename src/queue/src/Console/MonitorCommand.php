@@ -10,12 +10,9 @@ use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class MonitorCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */

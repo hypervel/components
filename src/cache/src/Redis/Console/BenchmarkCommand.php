@@ -26,13 +26,11 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class BenchmarkCommand extends Command
 {
     use DetectsRedisStore;
-    use HasLaravelStyleCommand;
     use Prohibitable;
 
     /**
