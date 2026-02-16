@@ -13,13 +13,11 @@ use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
-use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
-use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -33,6 +31,7 @@ abstract class Command extends SymfonyCommand
 {
     use InteractsWithSignals;
     use Prettyable;
+    use Traits\CallsCommands;
     use Traits\DisableEventDispatcher;
     use Traits\HasParameters;
     use Traits\InteractsWithIO;
@@ -129,16 +128,6 @@ abstract class Command extends SymfonyCommand
     }
 
     /**
-     * Call another console command.
-     */
-    public function call(string $command, array $arguments = []): int
-    {
-        $arguments['command'] = $command;
-
-        return $this->getApplication()->find($command)->run($this->createInputFromArguments($arguments), $this->output);
-    }
-
-    /**
      * Configure the console command for isolation.
      */
     protected function configureIsolation(): void
@@ -171,34 +160,6 @@ abstract class Command extends SymfonyCommand
     protected function configure(): void
     {
         parent::configure();
-    }
-
-    /**
-     * Create an input instance from the given arguments.
-     */
-    protected function createInputFromArguments(array $arguments): ArrayInput
-    {
-        return tap(new ArrayInput(array_merge($this->context(), $arguments)), function (InputInterface $input) {
-            if ($input->hasParameterOption(['--no-interaction'], true)) {
-                $input->setInteractive(false);
-            }
-        });
-    }
-
-    /**
-     * Get all the context passed to the command.
-     */
-    protected function context(): array
-    {
-        return collect($this->input->getOptions())->only([
-            'ansi',
-            'no-ansi',
-            'no-interaction',
-            'quiet',
-            'verbose',
-        ])->filter()->mapWithKeys(function ($value, $key) {
-            return ["--{$key}" => $value];
-        })->all();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -308,13 +269,32 @@ abstract class Command extends SymfonyCommand
     }
 
     /**
-     * Call another console command without output.
+     * Resolve the console command instance for the given command.
      */
-    public function callSilent(string $command, array $arguments = []): int
+    protected function resolveCommand(SymfonyCommand|string $command): SymfonyCommand
     {
-        return $this->app
-            ->get(KernelContract::class)
-            ->call($command, $arguments);
+        if (is_string($command)) {
+            if (! class_exists($command)) {
+                return $this->getApplication()->find($command);
+            }
+
+            $command = $this->app->make($command);
+        }
+
+        if ($command instanceof SymfonyCommand) {
+            $command->setApplication($this->getApplication());
+        }
+
+        return $command;
+    }
+
+    /**
+     * Restore the prompts output.
+     *
+     * @TODO Port ConfiguresPrompts trait from Laravel for full prompt support.
+     */
+    protected function restorePrompts(): void
+    {
     }
 
     /**
