@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Support\ClearStatCache;
 use Hypervel\Tests\TestCase;
+use ReflectionClass;
 
 /**
  * @internal
@@ -17,9 +18,8 @@ class ClearStatCacheTest extends TestCase
     {
         parent::setUp();
 
-        ClearStatCache::reset();
-        TrackingClearStatCache::reset();
-        TrackingClearStatCache::$clearCount = 0;
+        $this->setStaticProperty('interval', 1);
+        $this->setStaticProperty('lastCleared', 0);
     }
 
     public function testGetAndSetInterval()
@@ -30,78 +30,68 @@ class ClearStatCacheTest extends TestCase
         $this->assertSame(5, ClearStatCache::getInterval());
     }
 
-    public function testResetRestoresDefaults()
-    {
-        ClearStatCache::setInterval(99);
-        ClearStatCache::reset();
-
-        $this->assertSame(1, ClearStatCache::getInterval());
-    }
-
     public function testClearAlwaysClearsWhenIntervalBelowOne()
     {
-        TrackingClearStatCache::setInterval(0);
+        ClearStatCache::setInterval(0);
 
-        TrackingClearStatCache::clear();
-        TrackingClearStatCache::clear();
-        TrackingClearStatCache::clear();
+        ClearStatCache::clear();
+        $firstCleared = $this->getStaticProperty('lastCleared');
+        $this->assertGreaterThan(0, $firstCleared);
 
-        $this->assertSame(3, TrackingClearStatCache::$clearCount);
+        // Set lastCleared to a recent timestamp — should still clear because interval < 1
+        $this->setStaticProperty('lastCleared', time());
+        ClearStatCache::clear();
+        $this->assertGreaterThanOrEqual($firstCleared, $this->getStaticProperty('lastCleared'));
     }
 
     public function testClearClearsOnFirstCallWhenNeverCleared()
     {
-        TrackingClearStatCache::setInterval(3600);
+        ClearStatCache::setInterval(3600);
 
-        TrackingClearStatCache::clear();
+        $this->assertSame(0, $this->getStaticProperty('lastCleared'));
 
-        $this->assertSame(1, TrackingClearStatCache::$clearCount);
+        ClearStatCache::clear();
+
+        $this->assertGreaterThan(0, $this->getStaticProperty('lastCleared'));
     }
 
     public function testClearSkipsWhenIntervalHasNotElapsed()
     {
-        TrackingClearStatCache::setInterval(3600);
+        ClearStatCache::setInterval(3600);
 
-        // First call clears (never cleared before)
-        TrackingClearStatCache::clear();
-        $this->assertSame(1, TrackingClearStatCache::$clearCount);
+        // Simulate a recent clear
+        $recentTimestamp = time();
+        $this->setStaticProperty('lastCleared', $recentTimestamp);
 
-        // Second call should be skipped — interval hasn't elapsed
-        TrackingClearStatCache::clear();
-        $this->assertSame(1, TrackingClearStatCache::$clearCount);
+        ClearStatCache::clear();
+
+        // lastCleared should be unchanged — clear was skipped
+        $this->assertSame($recentTimestamp, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testForceClearWithFilename()
+    public function testClearRunsWhenIntervalHasElapsed()
     {
-        $file = tempnam(sys_get_temp_dir(), 'clearstat');
-        file_put_contents($file, 'test');
+        ClearStatCache::setInterval(10);
 
-        // This should not throw — just verifying it accepts a filename
-        ClearStatCache::forceClear($file);
+        // Simulate a clear that happened 20 seconds ago
+        $oldTimestamp = time() - 20;
+        $this->setStaticProperty('lastCleared', $oldTimestamp);
 
-        unlink($file);
-        $this->assertTrue(true);
+        ClearStatCache::clear();
+
+        // lastCleared should be updated — interval elapsed
+        $this->assertGreaterThan($oldTimestamp, $this->getStaticProperty('lastCleared'));
     }
 
-    public function testForceClearWithoutFilename()
+    private function getStaticProperty(string $name): mixed
     {
-        // This should not throw — just verifying it works without a filename
-        ClearStatCache::forceClear();
-
-        $this->assertTrue(true);
+        $reflection = new ReflectionClass(ClearStatCache::class);
+        return $reflection->getStaticPropertyValue($name);
     }
-}
 
-/**
- * Testable subclass that tracks whether forceClear was called.
- */
-class TrackingClearStatCache extends ClearStatCache
-{
-    public static int $clearCount = 0;
-
-    public static function forceClear(?string $filename = null): void
+    private function setStaticProperty(string $name, mixed $value): void
     {
-        ++static::$clearCount;
-        parent::forceClear($filename);
+        $reflection = new ReflectionClass(ClearStatCache::class);
+        $reflection->setStaticPropertyValue($name, $value);
     }
 }

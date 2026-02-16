@@ -28,7 +28,7 @@ class ClearStatCache
             || ! self::$lastCleared
             || (self::$lastCleared + self::$interval < $now)
         ) {
-            static::forceClear($filename);
+            self::forceClear($filename);
             self::$lastCleared = $now;
         }
     }
@@ -61,12 +61,4 @@ class ClearStatCache
         self::$interval = $interval;
     }
 
-    /**
-     * Reset the state to defaults.
-     */
-    public static function reset(): void
-    {
-        self::$interval = 1;
-        self::$lastCleared = 0;
-    }
 }
