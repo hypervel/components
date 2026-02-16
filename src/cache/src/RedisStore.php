@@ -27,6 +27,7 @@ use Hypervel\Cache\Redis\Operations\RememberForever;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisFactory;
@@ -445,7 +446,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     private function resolvePoolFactory(): PoolFactory
     {
-        return \Hyperf\Support\make(PoolFactory::class);
+        return Container::getInstance()->make(PoolFactory::class);
     }
 
     /**
