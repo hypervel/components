@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Command;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;

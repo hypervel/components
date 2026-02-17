@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Contracts\Server\OnCloseInterface;
 use Hypervel\Contracts\Server\OnHandShakeInterface;

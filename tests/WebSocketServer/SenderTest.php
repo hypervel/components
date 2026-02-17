@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Sender;
 use Mockery;

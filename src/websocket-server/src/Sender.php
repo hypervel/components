@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\WebSocket\Response as WsResponse;
 use Hypervel\WebSocketServer\Exception\InvalidMethodException;
 use Psr\Log\LoggerInterface;

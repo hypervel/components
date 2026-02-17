@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -12,6 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;

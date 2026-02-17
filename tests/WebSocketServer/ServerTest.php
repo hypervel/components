@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hyperf\Support\Reflection\ClassInvoker;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;

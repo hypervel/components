@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer\Listener;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Framework\Events\OnPipeMessage;

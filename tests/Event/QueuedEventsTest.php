@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;

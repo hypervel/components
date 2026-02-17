@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Framework;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Framework\Logger\StdoutLogger;
 use Hypervel\Tests\Framework\Stub\TestObject;
 use Hypervel\Tests\TestCase;

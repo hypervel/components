@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Engine\Http;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Engine\Http\ServerFactoryInterface;
 use Hypervel\Contracts\Engine\Http\ServerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 
 class ServerFactory implements ServerFactoryInterface
 {

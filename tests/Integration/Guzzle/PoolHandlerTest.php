@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Guzzle;
 
 use GuzzleHttp\Client;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Pool\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Pool\SimplePool\Connection;
