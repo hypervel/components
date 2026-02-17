@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hyperf\Contract\SessionInterface;
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
 
@@ -16,7 +15,6 @@ class ConfigProvider
             'dependencies' => [
                 Factory::class => SessionManager::class,
                 SessionContract::class => StoreFactory::class,
-                SessionInterface::class => AdapterFactory::class,
             ],
             'publish' => [
                 [
