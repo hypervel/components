@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class ChannelCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:channel');
-    }
+    protected ?string $name = 'make:channel';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new channel class');
+    protected string $description = 'Create a new channel class';
 
-        parent::configure();
-    }
+    protected string $type = 'Channel';
 
     /**
      * Replace the class name for the given stub.

@@ -4,23 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 
 class ObserverCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:observer');
-    }
+    protected ?string $name = 'make:observer';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new model observer class');
+    protected string $description = 'Create a new model observer class';
 
-        parent::configure();
-    }
+    protected string $type = 'Observer';
 
     /**
      * Replace the class name for the given stub.
@@ -28,7 +22,7 @@ class ObserverCommand extends GeneratorCommand
     protected function replaceClass(string $stub, string $name): string
     {
         $stub = parent::replaceClass($stub, $name);
-        if (! $model = trim($this->input->getOption('model') ?? '')) {
+        if (! $model = trim($this->option('model') ?? '')) {
             $modelParts = explode('\\', $name);
             $model = end($modelParts);
             $model = Str::ucfirst(Str::before($model, 'Observer'));

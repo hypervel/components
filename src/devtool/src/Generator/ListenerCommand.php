@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class ListenerCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:listener');
-    }
+    protected ?string $name = 'make:listener';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new event listener class');
+    protected string $description = 'Create a new event listener class';
 
-        parent::configure();
-    }
+    protected string $type = 'Listener';
 
     protected function getStub(): string
     {

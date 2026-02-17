@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class NotificationCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:notification');
-    }
+    protected ?string $name = 'make:notification';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new notification class');
+    protected string $description = 'Create a new notification class';
 
-        parent::configure();
-    }
+    protected string $type = 'Notification';
 
     protected function getStub(): string
     {
@@ -27,7 +21,7 @@ class NotificationCommand extends GeneratorCommand
             return $stub;
         }
 
-        if ($markdown = $this->input->getOption('markdown')) {
+        if ($markdown = $this->option('markdown')) {
             $this->writeMarkdownTemplate($markdown);
             return __DIR__ . '/stubs/markdown-notification.stub';
         }
@@ -62,6 +56,6 @@ class NotificationCommand extends GeneratorCommand
         }
         file_put_contents($path, file_get_contents(__DIR__ . '/stubs/markdown.stub'));
 
-        $this->output->writeln(sprintf('<info>%s [%s] created successfully.</info>', 'Markdown', $path));
+        $this->components->info(sprintf('%s [%s] created successfully.', 'Markdown', $path));
     }
 }

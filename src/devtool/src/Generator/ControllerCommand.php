@@ -4,39 +4,32 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
-use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputOption;
 
 class ControllerCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:controller');
-    }
+    protected ?string $name = 'make:controller';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new controller class');
+    protected string $description = 'Create a new controller class';
 
-        parent::configure();
-    }
+    protected string $type = 'Controller';
 
     protected function getStub(): string
     {
         $stub = null;
 
-        if ($type = $this->input->getOption('type')) {
+        if ($type = $this->option('type')) {
             $stub = "/stubs/controller.{$type}.stub";
-        } elseif ($this->input->getOption('model')) {
+        } elseif ($this->option('model')) {
             $stub = '/stubs/controller.model.stub';
-        } elseif ($this->input->getOption('resource')) {
+        } elseif ($this->option('resource')) {
             $stub = '/stubs/controller.stub';
         }
-        if ($this->input->getOption('api') && is_null($stub)) {
+        if ($this->option('api') && is_null($stub)) {
             $stub = '/stubs/controller.api.stub';
-        } elseif ($this->input->getOption('api')) {
+        } elseif ($this->option('api')) {
             $stub = str_replace('.stub', '.api.stub', $stub);
         }
 
@@ -66,7 +59,7 @@ class ControllerCommand extends GeneratorCommand
     protected function replaceClass(string $stub, string $name): string
     {
         $stub = parent::replaceClass($stub, $name);
-        if (! $model = $this->input->getOption('model')) {
+        if (! $model = $this->option('model')) {
             return $stub;
         }
         $modelNamespace = $this->qualifyModel($model);
@@ -77,7 +70,7 @@ class ControllerCommand extends GeneratorCommand
             'Hypervel\Http', 'Request', 'Request',
         ];
 
-        if ($this->input->getOption('requests')) {
+        if ($this->option('requests')) {
             $namespace = 'App\Http\Requests';
 
             [$storeRequest, $updateRequest] = $this->generateFormRequests($model);
@@ -94,7 +87,7 @@ class ControllerCommand extends GeneratorCommand
         );
     }
 
-    protected function generateFormRequests($modelClass): array
+    protected function generateFormRequests(string $modelClass): array
     {
         $storeRequestClass = 'Store' . $modelClass . 'Request';
 
@@ -111,15 +104,7 @@ class ControllerCommand extends GeneratorCommand
         return [$storeRequestClass, $updateRequestClass];
     }
 
-    protected function call(string $command, array $parameters = []): int
-    {
-        return $this->getApplication()->doRun(
-            new ArrayInput(array_merge(['command' => $command], $parameters)),
-            $this->output
-        );
-    }
-
-    protected function qualifyModel(string $model)
+    protected function qualifyModel(string $model): string
     {
         $model = ltrim($model, '\/');
 
