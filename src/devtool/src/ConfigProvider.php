@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Devtool\Commands\EventListCommand;
 use Hypervel\Devtool\Commands\WatchCommand;
 use Hypervel\Devtool\Generator\BatchesTableCommand;
@@ -40,10 +39,6 @@ class ConfigProvider
 {
     public function __invoke(): array
     {
-        if (! class_exists(GeneratorCommand::class)) {
-            return [];
-        }
-
         return [
             'commands' => [
                 WatchCommand::class,
