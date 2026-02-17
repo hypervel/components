@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
 use Hyperf\Di\Definition\PriorityDefinition;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Composer;
