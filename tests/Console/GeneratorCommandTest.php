@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Command\GeneratorCommandStub;
 use Mockery as m;
+use ReflectionProperty;
 use Symfony\Component\Console\Input\InputInterface;
 
 /**
@@ -93,7 +94,7 @@ class GeneratorCommandTest extends TestCase
     public function testGetPathDefaultUsesAppPath()
     {
         // Pre-set the namespace to avoid composer.json lookup in the test environment
-        $reflection = new \ReflectionProperty($this->app, 'namespace');
+        $reflection = new ReflectionProperty($this->app, 'namespace');
         $reflection->setValue($this->app, 'App\\');
 
         $command = new GeneratorCommandStub();
