@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server\Listener;
 
-use Hyperf\Config\Config;
 use Hyperf\Process\Event\BeforeProcessHandle;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Framework\Events\AfterWorkerStart;
@@ -64,7 +64,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('make')->with(Repository::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
             'app_name' => $name,
         ]));
 
@@ -86,7 +86,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
-        $container->shouldReceive('make')->with(Repository::class)->andReturn(new Config([
+        $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
             'app_name' => $name,
         ]));
 
