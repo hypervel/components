@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Hashing\Hasher;
 
 /**
  * @method static \Hypervel\Hashing\BcryptHasher createBcryptDriver()
@@ -19,15 +19,15 @@ use Hypervel\Hashing\Contracts\Hasher;
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Hashing\HashManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Hashing\HashManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Hashing\HashManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Hashing\HashManager forgetDrivers()
  *
  * @see \Hypervel\Hashing\HashManager
  */
 class Hash extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Hasher::class;
     }

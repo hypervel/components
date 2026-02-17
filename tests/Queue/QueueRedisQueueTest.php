@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Di\Container;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
-use Hyperf\Stringable\Str;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -28,8 +28,6 @@ class QueueRedisQueueTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
-
         Uuid::setFactory(new UuidFactory());
     }
 
@@ -42,12 +40,12 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'id' => 'foo', 'attempts' => 0]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testPushProperlyPushesJobOntoRedisWithCustomPayloadHook()
@@ -59,7 +57,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -68,7 +66,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
 
         Queue::createPayloadUsing(null);
     }
@@ -82,7 +80,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -95,7 +93,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
 
         Queue::createPayloadUsing(null);
     }
@@ -120,7 +118,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->later(1, 'foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis()
@@ -143,7 +141,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         $queue->later($date, 'foo', ['data']);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     protected function mockUuid(): UuidInterface

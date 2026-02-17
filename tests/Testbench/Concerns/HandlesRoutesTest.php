@@ -67,7 +67,7 @@ class HandlesRoutesTest extends TestCase
 
     public function testRouterIsPassedToDefineRoutes(): void
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $this->assertInstanceOf(Router::class, $router);
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\DeferQueue;
 
 class DeferConnector implements ConnectorInterface

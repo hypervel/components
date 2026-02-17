@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Listeners;
 
-use Hyperf\Framework\Event\OnManagerStart;
+use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Support\Facades\Cache;
 use Swoole\Timer;
 

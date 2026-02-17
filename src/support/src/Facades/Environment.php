@@ -24,7 +24,7 @@ use Hypervel\Support\Environment as Accessor;
  */
 class Environment extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Accessor::class;
     }

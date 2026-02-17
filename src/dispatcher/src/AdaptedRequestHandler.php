@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Dispatcher;
 
 use Closure;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;

@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
-use Hypervel\Auth\Contracts\Guard as GuardContract;
-use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\Guards\GuardHelpers;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Guard as GuardContract;
+use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\Traits\Macroable;
 
 class SanctumGuard implements GuardContract
 {
@@ -35,7 +35,7 @@ class SanctumGuard implements GuardContract
         protected string $name,
         protected UserProvider $provider,
         protected RequestInterface $request,
-        protected ?EventDispatcherInterface $events = null,
+        protected ?Dispatcher $events = null,
         protected ?int $expiration = null
     ) {
     }
@@ -51,12 +51,14 @@ class SanctumGuard implements GuardContract
         }
 
         // Check stateful guards first (like 'web')
-        $authFactory = ApplicationContext::getContainer()->get(AuthFactory::class);
+        $authFactory = Container::getInstance()->make(AuthFactory::class);
         foreach (Arr::wrap(config('sanctum.guard', 'web')) as $guard) {
             if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
                 $user = $authFactory->guard($guard)->user();
                 if ($this->supportsTokens($user)) {
-                    $user = $user->withAccessToken(new TransientToken());
+                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
+                    $tokenUser = $user;
+                    $user = $tokenUser->withAccessToken(new TransientToken());
                 }
                 Context::set($contextKey, $user);
                 return $user;
@@ -72,7 +74,7 @@ class SanctumGuard implements GuardContract
                 $tokenable = $model::findTokenable($accessToken);
 
                 if ($this->supportsTokens($tokenable)) {
-                    /** @var \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
+                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
                     $user = $tokenable->withAccessToken($accessToken);
 
                     // Dispatch event if event dispatcher is available
@@ -97,7 +99,7 @@ class SanctumGuard implements GuardContract
     {
         $token = $this->getTokenFromRequest();
         $suffix = $token ? md5($token) : 'default';
-        return "auth.guards.{$this->name}.result:{$suffix}";
+        return "__auth.guards.{$this->name}.result.{$suffix}";
     }
 
     /**

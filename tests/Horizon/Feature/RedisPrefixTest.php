@@ -19,6 +19,6 @@ class RedisPrefixTest extends IntegrationTestCase
 
         Horizon::use('default');
 
-        $this->assertSame('custom:', config('redis.horizon.options.prefix'));
+        $this->assertSame('custom:', config('database.redis.horizon.options.prefix'));
     }
 }

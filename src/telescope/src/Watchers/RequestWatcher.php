@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Event\RequestHandled;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\HttpServer\Server as HttpServer;
-use Hyperf\Server\Event;
-use Hyperf\Stringable\Str;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Server as HttpServer;
+use Hypervel\Server\Event;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
@@ -48,20 +47,20 @@ class RequestWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $this->request = $app->get(RequestContract::class);
-        $this->entriesRepository = $app->get(EntriesRepository::class);
+        $this->request = $app->make(RequestContract::class);
+        $this->entriesRepository = $app->make(EntriesRepository::class);
 
         $this->enableRequestEvents($app);
 
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(RequestHandled::class, [$this, 'recordRequest']);
     }
 
-    protected function enableRequestEvents(ContainerInterface $app): void
+    protected function enableRequestEvents(Container $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->make('config');
         $servers = $config->get('server.servers', []);
 
         foreach ($servers as &$server) {
@@ -101,7 +100,7 @@ class RequestWatcher extends Watcher
             'uri' => str_replace($this->request->root(), '', $this->request->fullUrl()) ?: '/',
             'method' => $this->request->method(),
             'controller_action' => $dispatched->handler ? $dispatched->handler->callback : '',
-            'middleware' => Context::get('request.middleware', []),
+            'middleware' => Context::get('__request.middleware', []),
             'headers' => $this->headers($this->request->getHeaders()),
             'payload' => $this->payload($this->input()),
             'session' => $this->payload($this->sessionVariables()),

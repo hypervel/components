@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Redis\Redis;
-use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\RedisLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\Redis;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -54,7 +54,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner()], 1)
+            ->with(m::type('string'), 1, 'foo', $lock->owner())
             ->andReturn(1);
 
         $this->assertTrue($lock->release());
@@ -78,7 +78,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 10], 1)
+            ->with(m::type('string'), 1, 'foo', $lock->owner(), 10)
             ->andReturn(1);
 
         $this->assertTrue($lock->refresh());
@@ -90,7 +90,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 30], 1)
+            ->with(m::type('string'), 1, 'foo', $lock->owner(), 30)
             ->andReturn(1);
 
         $this->assertTrue($lock->refresh(30));
@@ -102,7 +102,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 10], 1)
+            ->with(m::type('string'), 1, 'foo', $lock->owner(), 10)
             ->andReturn(0);
 
         $this->assertFalse($lock->refresh());

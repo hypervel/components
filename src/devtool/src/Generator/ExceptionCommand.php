@@ -4,31 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class ExceptionCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:exception');
-    }
+    protected ?string $name = 'make:exception';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new Exception class');
+    protected string $description = 'Create a new Exception class';
 
-        parent::configure();
-    }
+    protected string $type = 'Exception';
 
     protected function getStub(): string
     {
-        if ($this->input->getOption('render')) {
-            $stub = $this->input->getOption('report')
+        if ($this->option('render')) {
+            $stub = $this->option('report')
                 ? '/stubs/exception-render-report.stub'
                 : '/stubs/exception-render.stub';
         } else {
-            $stub = $this->input->getOption('report')
+            $stub = $this->option('report')
                 ? '/stubs/exception-report.stub'
                 : '/stubs/exception.stub';
         }

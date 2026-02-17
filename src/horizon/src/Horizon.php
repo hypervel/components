@@ -83,7 +83,7 @@ class Horizon
 
         $config['options']['prefix'] = config('horizon.prefix') ?: 'horizon:';
 
-        config(['redis.horizon' => $config]);
+        config(['database.redis.horizon' => $config]);
     }
 
     /**

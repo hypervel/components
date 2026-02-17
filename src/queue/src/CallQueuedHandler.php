@@ -6,18 +6,18 @@ namespace Hypervel\Queue;
 
 use __PHP_Incomplete_Class;
 use Exception;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\ShouldBeUnique;
-use Hypervel\Queue\Contracts\ShouldBeUniqueUntilProcessing;
-use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use RuntimeException;
 use Throwable;
@@ -29,7 +29,7 @@ class CallQueuedHandler
      */
     public function __construct(
         protected Dispatcher $dispatcher,
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -81,7 +81,7 @@ class CallQueuedHandler
 
         if ($this->container->has(Encrypter::class)) {
             return unserialize(
-                $this->container->get(Encrypter::class)->decrypt($data['command'])
+                $this->container->make(Encrypter::class)->decrypt($data['command'])
             );
         }
 
@@ -167,7 +167,7 @@ class CallQueuedHandler
     protected function ensureUniqueJobLockIsReleased(mixed $command): void
     {
         if ($command instanceof ShouldBeUnique) {
-            (new UniqueLock($this->container->get(CacheFactory::class)))->release($command);
+            (new UniqueLock($this->container->make(CacheFactory::class)))->release($command);
         }
     }
 

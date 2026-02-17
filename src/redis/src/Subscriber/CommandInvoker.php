@@ -1,0 +1,184 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Redis\Subscriber;
+
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
+use Hypervel\Redis\Subscriber\Exceptions\SocketException;
+use Throwable;
+
+class CommandInvoker
+{
+    protected Channel $resultChannel;
+
+    protected Channel $messageChannel;
+
+    private Channel $pingChannel;
+
+    private Timer $timer;
+
+    public function __construct(protected Connection $connection, protected ?StdoutLoggerInterface $logger = null)
+    {
+        $this->resultChannel = new Channel();
+        $this->pingChannel = new Channel();
+        $this->messageChannel = new Channel(100);
+        $this->timer = new Timer();
+        $this->loop();
+        $this->watchForShutdown();
+    }
+
+    public function invoke(int|string|array|null $command, int $number): array
+    {
+        try {
+            $this->connection->send(CommandBuilder::build($command));
+        } catch (Throwable $e) {
+            $this->interrupt();
+            throw $e;
+        }
+
+        $result = [];
+
+        for ($i = 0; $i < $number; ++$i) {
+            $result[] = $this->resultChannel->pop();
+        }
+
+        return $result;
+    }
+
+    public function channel(): Channel
+    {
+        return $this->messageChannel;
+    }
+
+    public function interrupt(): bool
+    {
+        $this->connection->close();
+        $this->resultChannel->close();
+        $this->messageChannel->close();
+
+        return true;
+    }
+
+    public function ping(float $timeout = 1): string|bool
+    {
+        $this->connection->send(CommandBuilder::build('ping'));
+        return $this->pingChannel->pop($timeout);
+    }
+
+    /**
+     * @throws SocketException
+     */
+    protected function receive(Connection $connection): void
+    {
+        /** @var null|array $buffer */
+        $buffer = null;
+
+        while (true) {
+            $line = $connection->recv();
+
+            if ($line === false || $line === '') {
+                $this->interrupt();
+                break;
+            }
+
+            $line = substr($line, 0, -strlen(Constants::CRLF));
+
+            if ($line === '+OK') {
+                $this->resultChannel->push($line);
+                continue;
+            }
+
+            if ($line === '*3') {
+                if (! empty($buffer)) {
+                    $this->resultChannel->push($buffer);
+                    $buffer = null;
+                }
+                $buffer[] = $line;
+                continue;
+            }
+
+            $buffer[] = $line;
+            $type = $buffer[2] ?? false;
+
+            if ($type === 'subscribe' && count($buffer) === 6) {
+                $this->resultChannel->push($buffer);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'unsubscribe' && count($buffer) === 6) {
+                $this->resultChannel->push($buffer);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'message' && count($buffer) === 7) {
+                $message = new Message(channel: $buffer[4], payload: $buffer[6]);
+                $timerID = $this->timer->after(30.0, function () use ($message) {
+                    $this->logger?->error(sprintf('Message channel (%s) is 30 seconds full, disconnected', $message->channel));
+                    $this->interrupt();
+                });
+                $this->messageChannel->push($message);
+                $this->timer->clear($timerID);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'psubscribe' && count($buffer) === 6) {
+                $this->resultChannel->push($buffer);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'punsubscribe' && count($buffer) === 6) {
+                $this->resultChannel->push($buffer);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'pmessage' && count($buffer) === 9) {
+                $message = new Message(pattern: $buffer[4], channel: $buffer[6], payload: $buffer[8]);
+                $timerID = $this->timer->after(30.0, function () use ($message) {
+                    $this->logger?->error(sprintf('Message channel (%s) is 30 seconds full, disconnected', $message->channel));
+                    $this->interrupt();
+                });
+                $this->messageChannel->push($message);
+                $this->timer->clear($timerID);
+                $buffer = null;
+                continue;
+            }
+
+            if ($type === 'pong' && count($buffer) === 5) {
+                $this->pingChannel->push('pong');
+                $buffer = null;
+                continue;
+            }
+        }
+    }
+
+    /**
+     * Watch for worker shutdown and interrupt the connection.
+     *
+     * Without this, the receive loop's socket recv blocks indefinitely
+     * and Swoole's coroutine scheduler cannot detect the deadlock (active
+     * I/O keeps the event loop alive). This provides a deterministic
+     * shutdown path that doesn't depend on coroutine scheduling order.
+     */
+    protected function watchForShutdown(): void
+    {
+        $this->timer->until(function () {
+            $this->interrupt();
+        });
+    }
+
+    protected function loop(): void
+    {
+        Coroutine::create(function () {
+            $this->receive($this->connection);
+        });
+    }
+}

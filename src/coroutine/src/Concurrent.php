@@ -4,15 +4,84 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Coroutine\Concurrent as BaseConcurrent;
-use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coroutine\Exception\InvalidArgumentException;
+use Hypervel\Engine\Channel;
 use Throwable;
 
-class Concurrent extends BaseConcurrent
+/**
+ * @method bool isFull()
+ * @method bool isEmpty()
+ */
+class Concurrent
 {
+    protected Channel $channel;
+
+    public function __construct(
+        protected int $limit,
+    ) {
+        $this->channel = new Channel($limit);
+    }
+
+    /**
+     * Proxy isFull() and isEmpty() to the channel.
+     *
+     * @return mixed
+     * @throws InvalidArgumentException When method is not supported
+     */
+    public function __call(string $name, array $arguments)
+    {
+        if (in_array($name, ['isFull', 'isEmpty'])) {
+            return $this->channel->{$name}(...$arguments);
+        }
+
+        throw new InvalidArgumentException(sprintf('The method %s is not supported.', $name));
+    }
+
+    /**
+     * Get the concurrency limit.
+     */
+    public function getLimit(): int
+    {
+        return $this->limit;
+    }
+
+    /**
+     * Get the current number of running coroutines.
+     */
+    public function length(): int
+    {
+        return $this->channel->getLength();
+    }
+
+    /**
+     * Get the current number of running coroutines.
+     */
+    public function getLength(): int
+    {
+        return $this->channel->getLength();
+    }
+
+    /**
+     * Get the current number of running coroutines.
+     */
+    public function getRunningCoroutineCount(): int
+    {
+        return $this->getLength();
+    }
+
+    /**
+     * Get the underlying channel.
+     */
+    public function getChannel(): Channel
+    {
+        return $this->channel;
+    }
+
+    /**
+     * Create a new coroutine with concurrency limiting.
+     */
     public function create(callable $callable): void
     {
         $this->channel->push(true);
@@ -28,24 +97,16 @@ class Concurrent extends BaseConcurrent
         });
     }
 
+    /**
+     * Report an exception through the exception handler.
+     */
     protected function reportException(Throwable $throwable): void
     {
-        if (! ApplicationContext::hasContainer()) {
-            return;
-        }
-
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         if ($container->has(ExceptionHandlerContract::class)) {
-            $container->get(ExceptionHandlerContract::class)
+            $container->make(ExceptionHandlerContract::class)
                 ->report($throwable);
-            return;
-        }
-
-        if ($container->has(StdoutLoggerInterface::class) && $container->has(FormatterInterface::class)) {
-            $logger = $container->get(StdoutLoggerInterface::class);
-            $formatter = $container->get(FormatterInterface::class);
-            $logger->error($formatter->format($throwable));
         }
     }
 }

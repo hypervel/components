@@ -6,22 +6,22 @@ namespace Hypervel\Tests\Foundation\Testing\Attributes;
 
 use Attribute;
 use Closure;
-use Hypervel\Foundation\Testing\Attributes\Define;
-use Hypervel\Foundation\Testing\Attributes\DefineDatabase;
-use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
-use Hypervel\Foundation\Testing\Attributes\DefineRoute;
-use Hypervel\Foundation\Testing\Attributes\RequiresEnv;
-use Hypervel\Foundation\Testing\Attributes\ResetRefreshDatabaseState;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
-use Hypervel\Foundation\Testing\Attributes\WithMigration;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterAll;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeAll;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Resolvable;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
+use Hypervel\Testbench\Attributes\Define;
+use Hypervel\Testbench\Attributes\DefineDatabase;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\DefineRoute;
+use Hypervel\Testbench\Attributes\RequiresEnv;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
+use Hypervel\Testbench\Contracts\Attributes\AfterAll;
+use Hypervel\Testbench\Contracts\Attributes\AfterEach;
+use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
+use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
+use Hypervel\Testbench\Contracts\Attributes\Invokable;
+use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\TestCase;
 use ReflectionClass;
 
@@ -72,7 +72,7 @@ class AttributesTest extends TestCase
 
         $attribute($this->app);
 
-        $this->assertSame('test_value', $this->app->get('config')->get('testing.attributes.key'));
+        $this->assertSame('test_value', $this->app->make('config')->get('testing.attributes.key'));
     }
 
     public function testDefineRouteImplementsActionable(): void
@@ -150,17 +150,51 @@ class AttributesTest extends TestCase
 
     public function testWithMigrationImplementsInvokable(): void
     {
-        $attribute = new WithMigration('/path/to/migrations');
+        $attribute = new WithMigration('laravel');
 
         $this->assertInstanceOf(Invokable::class, $attribute);
-        $this->assertSame(['/path/to/migrations'], $attribute->paths);
+        $this->assertSame(['laravel'], $attribute->types);
     }
 
-    public function testWithMigrationMultiplePaths(): void
+    public function testWithMigrationDefaultsToLaravel(): void
     {
-        $attribute = new WithMigration('/path/one', '/path/two');
+        $attribute = new WithMigration();
 
-        $this->assertSame(['/path/one', '/path/two'], $attribute->paths);
+        $this->assertSame(['laravel'], $attribute->types);
+    }
+
+    public function testWithMigrationAliasesMapToLaravel(): void
+    {
+        // cache, queue, session all map to 'laravel'
+        $cacheAttr = new WithMigration('cache');
+        $queueAttr = new WithMigration('queue');
+        $sessionAttr = new WithMigration('session');
+
+        $this->assertSame(['laravel'], $cacheAttr->types);
+        $this->assertSame(['laravel'], $queueAttr->types);
+        $this->assertSame(['laravel'], $sessionAttr->types);
+    }
+
+    public function testWithMigrationDeduplicatesTypes(): void
+    {
+        // Multiple aliases that map to 'laravel' should dedupe
+        $attribute = new WithMigration('cache', 'queue', 'session', 'laravel');
+
+        $this->assertSame(['laravel'], $attribute->types);
+    }
+
+    public function testWithMigrationPreservesLiteralPaths(): void
+    {
+        $attribute = new WithMigration('/path/to/migrations');
+
+        $this->assertSame(['/path/to/migrations'], $attribute->types);
+    }
+
+    public function testWithMigrationMixedTypesAndPaths(): void
+    {
+        $attribute = new WithMigration('cache', '/custom/path');
+
+        $this->assertSame(['laravel', '/custom/path'], $attribute->types);
     }
 
     public function testRequiresEnvImplementsActionable(): void

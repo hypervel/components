@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Query\Builder;
-use Hyperf\HttpServer\Request;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Support\Traits\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
+use Hypervel\HttpServer\Request;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
-
-use function Hyperf\Tappable\tap;
 
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
 {
@@ -37,7 +35,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         protected ?string $connection,
         protected string $table,
         protected int $minutes,
-        protected ?ContainerInterface $container = null
+        protected ?Container $container = null
     ) {
     }
 
@@ -161,7 +159,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userId(): mixed
     {
-        return $this->container->get(Guard::class)->id();
+        return $this->container->make(Guard::class)->id();
     }
 
     /**
@@ -188,7 +186,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
             return '127.0.0.1';
         }
 
-        $request = $this->container->get(Request::class);
+        $request = $this->container->make(Request::class);
 
         return $request->getHeaderLine('x-real-ip')
             ?: $request->server('remote_addr');
@@ -199,7 +197,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userAgent(): string
     {
-        return substr((string) $this->container->get(Request::class)->header('User-Agent'), 0, 500);
+        return substr((string) $this->container->make(Request::class)->header('User-Agent'), 0, 500);
     }
 
     public function destroy(string $sessionId): bool
@@ -243,7 +241,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     /**
      * Set the application instance used by the handler.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 
@@ -255,7 +253,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function setExists(bool $value): static
     {
-        Context::set('_session.database.exists', $value);
+        Context::set('__session.database.exists', $value);
 
         return $this;
     }
@@ -265,6 +263,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return Context::get('_session.database.exists', false);
+        return Context::get('__session.database.exists', false);
     }
 }

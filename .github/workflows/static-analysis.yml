@@ -5,35 +5,36 @@ on:
   pull_request:
 
 jobs:
-  linux_tests:
+  types:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
 
     strategy:
       fail-fast: true
       matrix:
         include:
-          - php: "8.2"
-            swoole: "5.1.6"
-          - php: "8.3"
-            swoole: "5.1.6"
-          - php: "8.4"
-            swoole: "6.0.2"
+          - name: Source Code
+            config: phpstan.neon.dist
+          - name: Types
+            config: phpstan.types.neon.dist
 
-    name: PHP ${{ matrix.php }} (swoole-${{ matrix.swoole }})
+    name: ${{ matrix.name }}
 
     container:
-      image: phpswoole/swoole:${{ matrix.swoole }}-php${{ matrix.php }}
+      image: phpswoole/swoole:6.1.4-php8.4
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
 
       - name: Install dependencies
-        run: |
-            COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist --no-interaction --no-progress
 
-      - name: Execute static analysis
-        run: |
-          vendor/bin/phpstan --configuration="phpstan.neon.dist" --memory-limit=-1
-          vendor/bin/phpstan --configuration="phpstan.types.neon.dist" --memory-limit=-1
+      - name: Execute type checking
+        run: vendor/bin/phpstan --configuration="${{ matrix.config }}" --memory-limit=-1 --no-progress

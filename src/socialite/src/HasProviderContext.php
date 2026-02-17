@@ -25,6 +25,6 @@ trait HasProviderContext
 
     protected function getContextKey(string $key): string
     {
-        return 'socialite.providers.' . static::class . '.' . $key;
+        return '__socialite.providers.' . static::class . '.' . $key;
     }
 }

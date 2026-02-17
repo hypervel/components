@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
@@ -28,7 +27,7 @@ class SocialiteManagerTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -38,7 +37,7 @@ class SocialiteManagerTest extends TestCase
 
     public function testItCanInstantiateTheGithubDriver()
     {
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
 
         $provider = $factory->driver('github');
 
@@ -47,8 +46,8 @@ class SocialiteManagerTest extends TestCase
 
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray()
     {
-        $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(ConfigInterface::class)
+        $factory = $this->app->make(SocialiteManager::class);
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -61,15 +60,15 @@ class SocialiteManagerTest extends TestCase
 
     public function testItCanInstantiateTheGithubDriverWithScopesWithoutArrayFromConfig()
     {
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
         $provider = $factory->driver('github');
         $this->assertSame(['user:email'], $provider->getScopes());
     }
 
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayMergedByProgrammaticScopesUsingScopesMethod()
     {
-        $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(ConfigInterface::class)
+        $factory = $this->app->make(SocialiteManager::class);
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -82,8 +81,8 @@ class SocialiteManagerTest extends TestCase
 
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayOverwrittenByProgrammaticScopesUsingSetScopesMethod()
     {
-        $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(ConfigInterface::class)
+        $factory = $this->app->make(SocialiteManager::class);
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -99,9 +98,9 @@ class SocialiteManagerTest extends TestCase
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_secret] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'redirect' => 'http://your-callback-url',
@@ -115,9 +114,9 @@ class SocialiteManagerTest extends TestCase
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_id] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('services.github', [
                 'client_secret' => 'github-client-secret',
                 'redirect' => 'http://your-callback-url',
@@ -131,9 +130,9 @@ class SocialiteManagerTest extends TestCase
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -147,9 +146,9 @@ class SocialiteManagerTest extends TestCase
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_id, client_secret, redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
 
-        $factory = $this->app->get(SocialiteManager::class);
+        $factory = $this->app->make(SocialiteManager::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('services.github', null);
 
         $factory->driver('github');

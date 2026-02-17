@@ -6,14 +6,13 @@ namespace Hypervel\Tests\Queue;
 
 use Aws\Result;
 use Aws\Sqs\SqsClient;
-use Hyperf\Di\Container;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -52,11 +51,6 @@ class QueueSqsQueueTest extends TestCase
     protected $mockedReceiveEmptyMessageResponseModel;
 
     protected $mockedQueueAttributesResponseModel;
-
-    protected function tearDown(): void
-    {
-        m::close();
-    }
 
     protected function setUp(): void
     {
@@ -111,7 +105,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyPopsJobOffOfSqs()
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerInterface::class));
+        $queue->setContainer(m::mock(Container::class));
         $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->shouldReceive('receiveMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'AttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveMessageResponseModel);
@@ -122,7 +116,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyHandlesEmptyMessage()
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerInterface::class));
+        $queue->setContainer(m::mock(Container::class));
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->shouldReceive('receiveMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'AttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveEmptyMessageResponseModel);
         $result = $queue->pop($this->queueName);
@@ -140,7 +134,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload, 'DelaySeconds' => 5])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->later($now->addSeconds(5), $this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testDelayedPushProperlyPushesJobOntoSqs()
@@ -153,7 +147,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload, 'DelaySeconds' => $this->mockedDelay])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testPushProperlyPushesJobOntoSqs()
@@ -165,7 +159,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testSizeProperlyReadsSqsQueueSize()

@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hyperf\Event\ListenerData as BaseListenerData;
-
-class ListenerData extends BaseListenerData
+class ListenerData
 {
+    public const DEFAULT_PRIORITY = 0;
+
     /**
-     * @var callable(): mixed
+     * @var callable
      */
     public $listener;
 
-    public function __construct(string $event, array|callable|string $listener, int $priority)
+    /**
+     * Create a new listener data instance.
+     */
+    public function __construct(public string $event, callable $listener, public int $priority)
     {
-        $this->event = $event;
         $this->listener = $listener;
-        $this->priority = $priority;
     }
 }

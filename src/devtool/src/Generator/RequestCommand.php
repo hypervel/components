@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class RequestCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:request');
-    }
+    protected ?string $name = 'make:request';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new form request class');
+    protected string $description = 'Create a new form request class';
 
-        parent::configure();
-    }
+    protected string $type = 'Request';
 
     protected function getStub(): string
     {

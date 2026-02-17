@@ -26,9 +26,8 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/config": "~3.1.0",
-        "hyperf/context": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/context": "^0.4",
         "hyperf/support": "~3.1.0"
     },
     "config": {
@@ -39,7 +38,7 @@
             "config": "Hypervel\\Hashing\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

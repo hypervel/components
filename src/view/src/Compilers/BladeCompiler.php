@@ -7,9 +7,9 @@ namespace Hypervel\View\Compilers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
@@ -264,7 +264,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         };
 
         $view = Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->make($component->resolveView(), $data);
 
         return tap($view->render(), function () use ($view, $deleteCachedView) {
@@ -290,7 +290,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             return $view->toHtml();
         }
         return Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->make($view, $data)
             ->render();
     }
@@ -698,7 +698,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         ];
 
         Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->addNamespace($prefixHash, $path);
     }
 

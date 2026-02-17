@@ -7,21 +7,18 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Queue\Contracts\ShouldBeEncrypted;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Exceptions\InvalidPayloadException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
-
-use function Hyperf\Tappable\tap;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
 
 use const JSON_UNESCAPED_UNICODE;
 
@@ -32,7 +29,7 @@ abstract class Queue
     /**
      * The IoC container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The connection name for the queue.
@@ -144,7 +141,7 @@ abstract class Queue
         ]);
 
         $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)
-            ? $this->container->get(Encrypter::class)->encrypt(serialize(clone $job))
+            ? $this->container->make(Encrypter::class)->encrypt(serialize(clone $job))
             : serialize(clone $job);
 
         return array_merge($payload, [
@@ -279,9 +276,9 @@ abstract class Queue
     protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has(TransactionManager::class)
+            && $this->container->has('db.transactions')
         ) {
-            return $this->container->get(TransactionManager::class)
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     function () use ($queue, $job, $payload, $delay, $callback) {
                         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
@@ -325,10 +322,10 @@ abstract class Queue
      */
     protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
+        if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(EventDispatcherInterface::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
         }
     }
@@ -340,10 +337,10 @@ abstract class Queue
      */
     protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
+        if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(EventDispatcherInterface::class)
+            $this->container->make(Dispatcher::class)
                 ->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
     }
@@ -387,7 +384,7 @@ abstract class Queue
     /**
      * Get the container instance being used by the connection.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }
@@ -395,7 +392,7 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

@@ -4,27 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class MiddlewareCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:middleware');
-    }
+    protected ?string $name = 'make:middleware';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new HTTP middleware class');
+    protected string $description = 'Create a new HTTP middleware class';
 
-        parent::configure();
-    }
+    protected string $type = 'Middleware';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . (
-            $this->input->getOption('psr15')
+            $this->option('psr15')
             ? '/stubs/middleware.psr15.stub'
             : '/stubs/middleware.stub'
         );

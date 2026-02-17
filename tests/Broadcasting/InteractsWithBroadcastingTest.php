@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use TypeError;
@@ -38,7 +38,6 @@ class InteractsWithBroadcastingTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 

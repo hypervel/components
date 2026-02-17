@@ -53,7 +53,7 @@ use Hypervel\View\Compilers\CompilerInterface;
  */
 class Blade extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return CompilerInterface::class;
     }

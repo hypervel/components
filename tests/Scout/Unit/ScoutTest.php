@@ -23,7 +23,6 @@ class ScoutTest extends ScoutTestCase
     protected function tearDown(): void
     {
         Scout::resetJobClasses();
-        m::close();
         parent::tearDown();
     }
 

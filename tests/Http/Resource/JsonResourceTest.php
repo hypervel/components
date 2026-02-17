@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Resource;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\AnonymousResourceCollection;
 use Hypervel\Http\Resources\Json\JsonResource;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -24,8 +26,9 @@ class JsonResourceTest extends TestCase
         };
 
         $collection = JsonResource::collection([$resource]);
+        $request = m::mock(Request::class);
 
         $this->assertInstanceOf(AnonymousResourceCollection::class, $collection);
-        $this->assertSame([['foo' => 'bar']], $collection->toArray());
+        $this->assertSame([['foo' => 'bar']], $collection->toArray($request));
     }
 }

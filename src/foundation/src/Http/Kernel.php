@@ -4,32 +4,32 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
-use Hyperf\Engine\Http\WritableConnection;
-use Hyperf\HttpMessage\Server\Request;
-use Hyperf\HttpMessage\Server\Response;
-use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
-use Hyperf\HttpServer\Event\RequestHandled;
-use Hyperf\HttpServer\Event\RequestReceived;
-use Hyperf\HttpServer\Event\RequestTerminated;
-use Hyperf\HttpServer\Server as HyperfServer;
-use Hyperf\Support\SafeCaller;
-use Hypervel\Context\ResponseContext;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Hypervel\Http\UploadedFile;
+use Hypervel\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Server\Response;
+use Hypervel\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
+use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Server as HttpServer;
+use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use Swoole\Http\Request as SwooleRequest;
+use Swoole\Http\Response as SwooleResponse;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function Hypervel\Coroutine\defer;
 
-class Kernel extends HyperfServer implements MiddlewareContract
+class Kernel extends HttpServer implements MiddlewareContract
 {
     use HasMiddleware;
 
@@ -44,6 +44,20 @@ class Kernel extends HyperfServer implements MiddlewareContract
         $this->initOption();
     }
 
+    /**
+     * Create the core middleware instance.
+     *
+     * Overrides parent to use named parameters, since the Laravel container
+     * does not support positional parameter arrays.
+     */
+    protected function createCoreMiddleware(): CoreMiddlewareInterface
+    {
+        return $this->container->make(\Hypervel\Http\CoreMiddleware::class, [
+            'container' => $this->container,
+            'serverName' => $this->serverName,
+        ]);
+    }
+
     protected function initExceptionHandlers(): void
     {
         /* @phpstan-ignore-next-line */
@@ -52,7 +66,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
             : [ExceptionHandler::class];
     }
 
-    public function onRequest($swooleRequest, $swooleResponse): void
+    public function onRequest(SwooleRequest $swooleRequest, SwooleResponse $swooleResponse): void
     {
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
@@ -160,9 +174,9 @@ class Kernel extends HyperfServer implements MiddlewareContract
         ));
     }
 
-    protected function getResponseForException(Throwable $throwable): Response
+    protected function getResponseForException(Throwable $throwable): ResponseInterface
     {
-        return $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
+        return $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
             return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
         }, static function () {
             return (new Response())->withStatus(400);
@@ -171,38 +185,35 @@ class Kernel extends HyperfServer implements MiddlewareContract
 
     /**
      * Initialize PSR-7 Request and Response objects.
-     * @param mixed $request swoole request or psr server request
-     * @param mixed $response swoole response or swow connection
      */
-    protected function initRequestAndResponse($request, $response): array
+    protected function initRequestAndResponse(SwooleRequest $request, SwooleResponse $response): array
     {
-        ResponseContext::set($psr7Response = new Response());
-
-        $psr7Response->setConnection(new WritableConnection($response));
-
-        $psr7Request = $request instanceof ServerRequestInterface
-            ? $request
-            : Request::loadFromSwooleRequest($request);
+        [$psr7Request, $psr7Response] = parent::initRequestAndResponse($request, $response);
 
         if ($this->enableHttpMethodParameterOverride()) {
             $this->overrideHttpMethod($psr7Request);
         }
 
-        RequestContext::set($psr7Request);
-
         return [$psr7Request, $psr7Response];
     }
 
+    /**
+     * Determine if HTTP method parameter override is enabled.
+     */
     protected function enableHttpMethodParameterOverride(): bool
     {
         if (isset($this->enableHttpMethodParameterOverride)) {
             return $this->enableHttpMethodParameterOverride;
         }
 
-        return $this->enableHttpMethodParameterOverride = $this->container->get(ConfigInterface::class)->get('view.enable_override_http_method', false);
+        return $this->enableHttpMethodParameterOverride = $this->container->make(Repository::class)
+            ->get('view.enable_override_http_method', false);
     }
 
-    protected function overrideHttpMethod($psr7Request): void
+    /**
+     * Override the HTTP method if the request contains a _method field.
+     */
+    protected function overrideHttpMethod(Request $psr7Request): void
     {
         if ($psr7Request->getMethod() === 'POST' && $method = $psr7Request->getParsedBody()['_method'] ?? null) {
             $psr7Request->setMethod(strtoupper($method));

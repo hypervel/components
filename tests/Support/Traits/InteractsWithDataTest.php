@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -42,7 +42,7 @@ class InteractsWithDataTest extends TestCase
     {
         parent::setUp();
 
-        ApplicationContext::setContainer($this->getApplication());
+        Container::setInstance($this->getApplication());
         Date::clearResolvedInstances();
     }
 

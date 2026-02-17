@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Ably\AblyRest;
-use Hyperf\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\HttpServer\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 
 /**
  * @internal
@@ -23,13 +23,13 @@ class AblyBroadcasterTest extends TestCase
 
     protected AblyRest $ably;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
         $this->broadcaster = m::mock(AblyBroadcaster::class, [$this->container, $this->ably])->makePartial();
     }
@@ -37,8 +37,6 @@ class AblyBroadcasterTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -130,7 +128,7 @@ class AblyBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn($user);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 
@@ -145,7 +143,7 @@ class AblyBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn(null);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 

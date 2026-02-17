@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Support\Collection;
 
 class AutoScaler
@@ -81,6 +81,7 @@ class AutoScaler
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {
+        /** @var float $timeToClearAll */
         $timeToClearAll = $queues->sum('time');
         $totalJobs = $queues->sum('size');
 

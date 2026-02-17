@@ -6,15 +6,13 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use DateTime;
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\Contracts\RecycleStrategy;
 use Hypervel\ObjectPool\Strategies\TimeStrategy;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;
-
-use function Hyperf\Support\make;
 
 /**
  * @template T of object
@@ -60,13 +58,13 @@ abstract class ObjectPool implements ObjectPoolContract
      * Initialize the object pool with the given configuration.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         array $config = []
     ) {
         $this->initOption($config);
         $this->destroyCallback = fn () => null;
 
-        $this->channel = make(Channel::class, ['size' => $this->option->getMaxObjects()]);
+        $this->channel = new Channel($this->option->getMaxObjects());
     }
 
     /**
@@ -230,7 +228,7 @@ abstract class ObjectPool implements ObjectPoolContract
             return null;
         }
 
-        return $this->container->get(StdoutLoggerInterface::class);
+        return $this->container->make(StdoutLoggerInterface::class);
     }
 
     /**

@@ -5,21 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Core;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\Events\Created;
-use Hyperf\Database\Model\SoftDeletes;
-use Hyperf\Database\Schema\Blueprint;
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Broadcasting\Contracts\Broadcaster;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Broadcasting\Broadcaster;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
 use Hypervel\Database\Eloquent\BroadcastsEvents;
+use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -217,13 +217,13 @@ class EloquentBroadcastingTest extends TestCase
 
     private function assertHandldedBroadcastableEvent(BroadcastableModelEventOccurred $event, Closure $closure)
     {
-        $broadcaster = Mockery::mock(Broadcaster::class);
+        $broadcaster = m::mock(Broadcaster::class);
         $broadcaster->shouldReceive('broadcast')->once()
             ->withArgs(function (array $channels, string $eventName, array $payload) use ($closure) {
                 return $closure($channels, $eventName, $payload);
             });
 
-        $manager = Mockery::mock(BroadcastingFactory::class);
+        $manager = m::mock(BroadcastingFactory::class);
         $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);

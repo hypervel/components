@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class SeederCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:seeder');
-    }
+    protected ?string $name = 'make:seeder';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new seeder class');
+    protected string $description = 'Create a new seeder class';
 
-        parent::configure();
-    }
+    protected string $type = 'Seeder';
 
     protected function getStub(): string
     {

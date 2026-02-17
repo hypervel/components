@@ -6,12 +6,12 @@ namespace Hypervel\Telescope\Watchers;
 
 use GuzzleHttp\TransferStats;
 use Hyperf\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -23,7 +23,7 @@ class HttpClientWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         // This watcher does not need to register any events.
         // The hook is applied via AOP aspect.

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Access\Gate;
 
 trait Authorizable
 {
@@ -14,7 +14,7 @@ trait Authorizable
      */
     public function can(iterable|string $abilities, mixed $arguments = []): bool
     {
-        return ApplicationContext::getContainer()->get(Gate::class)->forUser($this)->check($abilities, $arguments);
+        return Container::getInstance()->make(Gate::class)->forUser($this)->check($abilities, $arguments);
     }
 
     /**
@@ -22,7 +22,7 @@ trait Authorizable
      */
     public function canAny(iterable|string $abilities, mixed $arguments = []): bool
     {
-        return ApplicationContext::getContainer()->get(Gate::class)->forUser($this)->any($abilities, $arguments);
+        return Container::getInstance()->make(Gate::class)->forUser($this)->any($abilities, $arguments);
     }
 
     /**

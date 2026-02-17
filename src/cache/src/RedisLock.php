@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Redis\Redis;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\Redis;
 use InvalidArgumentException;
 
 class RedisLock extends Lock implements RefreshableLock
@@ -42,7 +42,12 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function release(): bool
     {
-        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
+        return (bool) $this->redis->eval(
+            LuaScripts::releaseLock(),
+            1,
+            $this->name,
+            $this->owner,
+        );
     }
 
     /**
@@ -81,7 +86,13 @@ class RedisLock extends Lock implements RefreshableLock
             );
         }
 
-        return (bool) $this->redis->eval(LuaScripts::refreshLock(), [$this->name, $this->owner, $seconds], 1);
+        return (bool) $this->redis->eval(
+            LuaScripts::refreshLock(),
+            1,
+            $this->name,
+            $this->owner,
+            $seconds,
+        );
     }
 
     /**

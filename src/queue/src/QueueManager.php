@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Monitor as MonitorContract;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\ConnectorInterface;
@@ -19,15 +23,11 @@ use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Queue\Contracts\Monitor as MonitorContract;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @mixin \Hypervel\Queue\Contracts\Queue
+ * @mixin \Hypervel\Contracts\Queue\Queue
  */
 class QueueManager implements FactoryContract, MonitorContract
 {
@@ -36,7 +36,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * The config instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved queue connections.
@@ -62,9 +62,9 @@ class QueueManager implements FactoryContract, MonitorContract
      * Create a new queue manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->make('config');
 
         $this->registerConnectors();
     }
@@ -74,7 +74,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -83,7 +83,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -92,7 +92,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -101,7 +101,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -110,7 +110,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -119,7 +119,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -248,7 +248,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -256,7 +256,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 
@@ -318,7 +318,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('database', function () {
             return new DatabaseConnector(
-                $this->app->get(ConnectionResolverInterface::class)
+                $this->app->make(ConnectionResolverInterface::class)
             );
         });
     }
@@ -330,7 +330,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('redis', function () {
             return new RedisConnector(
-                $this->app->get(RedisFactory::class)
+                $this->app->make(RedisFactory::class)
             );
         });
     }
@@ -383,7 +383,7 @@ class QueueManager implements FactoryContract, MonitorContract
         $this->addConnector('failover', function () {
             return new FailoverConnector(
                 $this,
-                $this->app->get(EventDispatcherInterface::class)
+                $this->app->make(Dispatcher::class)
             );
         });
     }

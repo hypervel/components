@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cookie;
 
 use DateTimeInterface;
-use Hyperf\HttpMessage\Cookie\Cookie as HyperfCookie;
+use Hypervel\HttpMessage\Cookie\Cookie as BaseCookie;
 use InvalidArgumentException;
 
-class Cookie extends HyperfCookie
+class Cookie extends BaseCookie
 {
     /**
      * Creates a cookie copy with a new value.

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Router;
 
 use FastRoute\DataGenerator\GroupCountBased as DataGenerator;
 use FastRoute\RouteParser\Std;
-use Hyperf\HttpServer\MiddlewareManager;
+use Hypervel\HttpServer\MiddlewareManager;
 use Hypervel\Router\MiddlewareExclusionManager;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Tests\Router\Stub\RouteCollectorStub;

@@ -7,13 +7,13 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Filesystem\Contracts\Cloud;
-use Hypervel\Filesystem\Contracts\Factory as FactoryContract;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Filesystem\Cloud;
+use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
 use League\Flysystem\AwsS3V3\PortableVisibilityConverter as AwsS3PortableVisibilityConverter;
@@ -30,7 +30,6 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
-use Psr\Container\ContainerInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -67,7 +66,7 @@ class FilesystemManager implements FactoryContract
      * Create a new filesystem manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -419,7 +418,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get("filesystems.disks.{$name}", []);
     }
 
@@ -428,7 +427,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('filesystems.default');
     }
 
@@ -437,7 +436,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('filesystems.cloud', 's3');
     }
 
@@ -484,7 +483,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

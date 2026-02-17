@@ -5,25 +5,25 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use DateTimeImmutable;
-use Hyperf\Codec\Json;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\HttpMessage\Server\Chunk\Chunkable;
-use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Response as HyperfResponse;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Exceptions\FileNotFoundException;
+use Hypervel\HttpMessage\Server\Chunk\Chunkable;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpServer\Response as HttpServerResponse;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\MimeTypeExtensionGuesser;
 use Hypervel\View\Contracts\Factory as FactoryContract;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
-class Response extends HyperfResponse implements ResponseContract
+class Response extends HttpServerResponse implements ResponseContract
 {
     public const HTTP_CONTINUE = 100;
 
@@ -154,7 +154,7 @@ class Response extends HyperfResponse implements ResponseContract
     /**
      * The context key for range headers.
      */
-    public const RANGE_HEADERS_CONTEXT = '_response.withRangeHeaders';
+    public const RANGE_HEADERS_CONTEXT_KEY = '__http.response.range_headers';
 
     /**
      * Create a new response instance.
@@ -165,14 +165,18 @@ class Response extends HyperfResponse implements ResponseContract
         foreach ($headers as $name => $value) {
             $response->addHeader($name, $value);
         }
-        if (is_array($content) || $content instanceof Arrayable) {
+        if ($content instanceof Arrayable) {
+            $content = $content->toArray();
+        }
+
+        if (is_array($content)) {
             return $response->addHeader('Content-Type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($content)));
         }
 
         if ($content instanceof Jsonable) {
             return $response->addHeader('Content-Type', 'application/json')
-                ->setBody(new SwooleStream((string) $content));
+                ->setBody(new SwooleStream($content->toJson()));
         }
 
         if ($response->hasHeader('Content-Type')) {
@@ -201,8 +205,8 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function view(string $view, array $data = [], int $status = 200, array $headers = []): ResponseInterface
     {
-        $content = ApplicationContext::getContainer()
-            ->get(FactoryContract::class)
+        $content = Container::getInstance()
+            ->make(FactoryContract::class)
             ->make($view, $data)
             ->render();
 
@@ -216,14 +220,14 @@ class Response extends HyperfResponse implements ResponseContract
      *
      * @param array|Arrayable|Jsonable $data
      */
-    public function json($data, int $status = 200, array $headers = []): ResponseInterface
+    public function json($data, int $status = 200, array $headers = [], int $encodingOptions = 0): JsonResponse
     {
         $response = parent::json($data);
         foreach ($headers as $name => $value) {
             $response = $response->withHeader($name, $value);
         }
 
-        return $response->withStatus($status);
+        return new JsonResponse($response->withStatus($status), $data, $encodingOptions);
     }
 
     /**
@@ -231,8 +235,8 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function file(string $path, array $headers = []): ResponseInterface
     {
-        $filesystem = ApplicationContext::getContainer()
-            ->get(Filesystem::class);
+        $filesystem = Container::getInstance()
+            ->make(Filesystem::class);
         if (! $filesystem->isFile($path)) {
             throw new FileNotFoundException($path);
         }
@@ -242,8 +246,8 @@ class Response extends HyperfResponse implements ResponseContract
                 return strtolower($key) === 'content-type';
             })->first();
         if (! $mime) {
-            $mime = ApplicationContext::getContainer()
-                ->get(MimeTypeExtensionGuesser::class)
+            $mime = Container::getInstance()
+                ->make(MimeTypeExtensionGuesser::class)
                 ->guessMimeType(
                     pathinfo($path, PATHINFO_EXTENSION)
                 ) ?: 'application/octet-stream';
@@ -342,7 +346,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function withRangeHeaders(?int $fileSize = null): static
     {
-        Context::set(static::RANGE_HEADERS_CONTEXT, [
+        Context::set(static::RANGE_HEADERS_CONTEXT_KEY, [
             'fileSize' => $fileSize,
         ]);
 
@@ -354,7 +358,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function withoutRangeHeaders(): static
     {
-        Context::destroy(static::RANGE_HEADERS_CONTEXT);
+        Context::destroy(static::RANGE_HEADERS_CONTEXT_KEY);
 
         return $this;
     }
@@ -364,7 +368,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function shouldAppendRangeHeaders(): bool
     {
-        return Context::has(static::RANGE_HEADERS_CONTEXT);
+        return Context::has(static::RANGE_HEADERS_CONTEXT_KEY);
     }
 
     /**
@@ -372,7 +376,7 @@ class Response extends HyperfResponse implements ResponseContract
      */
     protected function pullRangeHeaders(): ?array
     {
-        $context = Context::get(static::RANGE_HEADERS_CONTEXT, null);
+        $context = Context::get(static::RANGE_HEADERS_CONTEXT_KEY, null);
 
         $this->withoutRangeHeaders();
 

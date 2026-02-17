@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Hyperf\Collection\LazyCollection;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\Container\ContainerInterface;
 
 /**
  * @internal
@@ -18,15 +18,15 @@ use Psr\Container\ContainerInterface;
 class EventsSubscriberTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var Container|MockInterface
      */
-    private ContainerInterface $container;
+    private Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
     }
 
     public function testEventSubscribers()
@@ -34,7 +34,7 @@ class EventsSubscriberTest extends TestCase
         $d = $this->getEventDispatcher();
         $subs = m::mock(ExampleSubscriber::class);
         $subs->shouldReceive('subscribe')->once()->with($d);
-        $this->container->shouldReceive('get')->once()->with(ExampleSubscriber::class)->andReturn($subs);
+        $this->container->shouldReceive('make')->once()->with(ExampleSubscriber::class)->andReturn($subs);
 
         $d->subscribe(ExampleSubscriber::class);
     }
@@ -51,7 +51,7 @@ class EventsSubscriberTest extends TestCase
     public function testEventSubscribeCanReturnMappings()
     {
         $d = $this->getEventDispatcher();
-        $this->container->shouldReceive('get')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber());
+        $this->container->shouldReceive('make')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber());
 
         $d->subscribe(DeclarativeSubscriber::class);
 

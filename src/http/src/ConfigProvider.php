@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\HttpServer\CoreMiddleware as HyperfCoreMiddleware;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\HttpServer\CoreMiddleware as HttpServerCoreMiddleware;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ConfigProvider
@@ -16,7 +16,7 @@ class ConfigProvider
             'dependencies' => [
                 ResponseContract::class => Response::class,
                 ServerRequestInterface::class => Request::class,
-                HyperfCoreMiddleware::class => CoreMiddleware::class,
+                HttpServerCoreMiddleware::class => CoreMiddleware::class,
             ],
             'publish' => [
                 [

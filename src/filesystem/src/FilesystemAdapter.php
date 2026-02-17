@@ -7,18 +7,18 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hypervel\Filesystem\Contracts\Cloud as CloudFilesystemContract;
-use Hypervel\Filesystem\Contracts\Filesystem as FilesystemContract;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
+use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Http\HeaderUtils;
 use Hypervel\Http\StreamOutput;
+use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
@@ -241,9 +241,9 @@ class FilesystemAdapter implements CloudFilesystemContract
      */
     public function response(string $path, ?string $name = null, array $headers = [], ?string $disposition = 'inline'): ResponseInterface
     {
-        $container = ApplicationContext::getContainer();
-        $request = $container->get(RequestContract::class);
-        $response = $container->get(ResponseContract::class);
+        $container = Container::getInstance();
+        $request = $container->make(RequestContract::class);
+        $response = $container->make(ResponseContract::class);
 
         $headers['Content-Type'] ??= $this->mimeType($path);
         $fileSize = $this->size($path);

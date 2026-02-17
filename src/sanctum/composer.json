@@ -16,15 +16,19 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/database": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
-        "hypervel/auth": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/support": "^0.3",
+        "php": "^8.4",
+        "hypervel/database": "^0.4",
+        "hypervel/http-server": "^0.4",
+        "hypervel/auth": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/support": "^0.4",
         "nesbot/carbon": "^2.72.6"
     },
     "autoload": {
@@ -34,7 +38,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

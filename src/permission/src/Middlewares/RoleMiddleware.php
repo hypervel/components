@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
-use Hyperf\Collection\Collection;
-use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -21,7 +21,7 @@ class RoleMiddleware implements MiddlewareInterface
     /**
      * Create a new middleware instance.
      */
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 
@@ -30,7 +30,7 @@ class RoleMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler,
         string ...$roles
     ): ResponseInterface {
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
         $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(

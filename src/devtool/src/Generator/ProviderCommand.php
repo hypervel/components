@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class ProviderCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:provider');
-    }
+    protected ?string $name = 'make:provider';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new service provider class');
+    protected string $description = 'Create a new service provider class';
 
-        parent::configure();
-    }
+    protected string $type = 'Provider';
 
     protected function getStub(): string
     {

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 use Throwable;
 
 class QueueManagerFactory
 {
-    public function __invoke(ContainerInterface $container): QueueManager
+    public function __invoke(Container $container): QueueManager
     {
         $manager = new QueueManager($container);
         if (! $container->has(ExceptionHandler::class)) {
@@ -19,7 +19,7 @@ class QueueManagerFactory
         }
 
         $connectors = ['coroutine', 'defer'];
-        $reportHandler = fn (Throwable $e) => $container->get(ExceptionHandler::class)->report($e);
+        $reportHandler = fn (Throwable $e) => $container->make(ExceptionHandler::class)->report($e);
         foreach ($connectors as $connector) {
             try {
                 $manager->connection($connector) // @phpstan-ignore-line

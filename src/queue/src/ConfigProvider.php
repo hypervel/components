@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Console\ClearCommand;
 use Hypervel\Queue\Console\FlushFailedCommand;
 use Hypervel\Queue\Console\ForgetFailedCommand;
@@ -16,12 +19,9 @@ use Hypervel\Queue\Console\RestartCommand;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Console\WorkCommand;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\Failed\FailedJobProviderFactory;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
 
 class ConfigProvider
 {
@@ -32,9 +32,9 @@ class ConfigProvider
         return [
             'dependencies' => [
                 FactoryContract::class => QueueManagerFactory::class,
-                Queue::class => fn (ContainerInterface $container) => $container->get(FactoryContract::class)->connection(),
+                Queue::class => fn (Container $container) => $container->make(FactoryContract::class)->connection(),
                 FailedJobProviderInterface::class => FailedJobProviderFactory::class,
-                Listener::class => fn (ContainerInterface $container) => new Listener($this->getBasePath($container)),
+                Listener::class => fn (Container $container) => new Listener($this->getBasePath($container)),
                 Worker::class => WorkerFactory::class,
             ],
             'commands' => [
@@ -86,7 +86,7 @@ class ConfigProvider
         });
     }
 
-    protected function getBasePath(ContainerInterface $container): string
+    protected function getBasePath(Container $container): string
     {
         return method_exists($container, 'basePath')
             ? $container->basePath()

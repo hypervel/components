@@ -6,9 +6,9 @@ namespace Hypervel\Queue\Middleware;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Support\InteractsWithTime;
 
 class WithoutOverlapping
 {
@@ -49,11 +49,14 @@ class WithoutOverlapping
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $lock = ApplicationContext::getContainer()
-            ->get(CacheFactory::class)->lock(
-                $this->getLockKey($job),
-                $this->expiresAfter
-            );
+        /** @var \Hypervel\Cache\CacheManager $cache */
+        $cache = Container::getInstance()
+            ->make(CacheFactory::class);
+
+        $lock = $cache->lock(
+            $this->getLockKey($job),
+            $this->expiresAfter
+        );
 
         if ($lock->get()) {
             try {

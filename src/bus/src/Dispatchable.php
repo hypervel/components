@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Support\Fluent;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Support\Fluent;
 
 use function Hyperf\Support\value;
 
@@ -64,8 +64,8 @@ trait Dispatchable
      */
     public static function dispatchSync(mixed ...$arguments): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        return Container::getInstance()
+            ->make(Dispatcher::class)
             ->dispatchSync(new static(...$arguments));
     }
 

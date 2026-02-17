@@ -10,10 +10,6 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Repository as CacheContract;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
@@ -28,14 +24,18 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Hypervel\Cache\Exceptions\InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Cache\Contracts\Store
+ * @mixin \Hypervel\Contracts\Cache\Store
  */
 class Repository implements ArrayAccess, CacheContract
 {
@@ -52,7 +52,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * The event dispatcher implementation.
      */
-    protected ?EventDispatcherInterface $events = null;
+    protected ?Dispatcher $events = null;
 
     /**
      * The default number of seconds to store items.
@@ -188,6 +188,116 @@ class Repository implements ArrayAccess, CacheContract
         return tap($this->get($key, $default), function () use ($key) {
             $this->forget($key);
         });
+    }
+
+    /**
+     * Retrieve a string item from the cache.
+     *
+     * @param null|(Closure(): (null|string))|string $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function string(UnitEnum|string $key, callable|string|null $default = null): string
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a string, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve an integer item from the cache.
+     *
+     * @param null|(Closure(): (null|int))|int $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function integer(UnitEnum|string $key, callable|int|null $default = null): int
+    {
+        $value = $this->get($key, $default);
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_INT) !== false) {
+            return (int) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be an integer, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * Retrieve a float item from the cache.
+     *
+     * @param null|(Closure(): (null|float))|float $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function float(UnitEnum|string $key, callable|float|null $default = null): float
+    {
+        $value = $this->get($key, $default);
+
+        if (is_float($value)) {
+            return $value;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_FLOAT) !== false) {
+            return (float) $value;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf('Cache value for key [%s] must be a float, %s given.', $key, gettype($value))
+        );
+    }
+
+    /**
+     * Retrieve a boolean item from the cache.
+     *
+     * @param null|bool|(Closure(): (null|bool)) $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function boolean(UnitEnum|string $key, callable|bool|null $default = null): bool
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_bool($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be a boolean, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve an array item from the cache.
+     *
+     * @param null|array<array-key, mixed>|(Closure(): (null|array<array-key, mixed>)) $default
+     *
+     * @return array<array-key, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    public function array(UnitEnum|string $key, callable|array|null $default = null): array
+    {
+        $value = $this->get($key, $default);
+
+        if (! is_array($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Cache value for key [%s] must be an array, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
     }
 
     /**
@@ -542,7 +652,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): ?EventDispatcherInterface
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->events;
     }
@@ -550,7 +660,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Set the event dispatcher instance.
      */
-    public function setEventDispatcher(EventDispatcherInterface $events): void
+    public function setEventDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
     }
@@ -602,108 +712,6 @@ class Repository implements ArrayAccess, CacheContract
     public function offsetUnset($key): void
     {
         $this->forget($key);
-    }
-
-    /**
-     * @param null|callable(): string|string $default
-     *
-     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
-     */
-    public function string(string $key, callable|string|null $default = null): string
-    {
-        $value = $this->get($key, $default);
-
-        if (! is_string($value)) {
-            throw new InvalidArgumentException(
-                sprintf('Cache value for key [%s] must be a string, %s given.', $key, gettype($value))
-            );
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param null|callable(): int|int $default
-     *
-     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
-     */
-    public function integer(string $key, callable|int|null $default = null): int
-    {
-        $value = $this->get($key, $default);
-
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (filter_var($value, FILTER_VALIDATE_INT) !== false) {
-            return (int) $value;
-        }
-
-        throw new InvalidArgumentException(
-            sprintf('Cache value for key [%s] must be an integer, %s given.', $key, gettype($value))
-        );
-    }
-
-    /**
-     * @param null|callable(): float|float $default
-     *
-     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
-     */
-    public function float(string $key, callable|float|null $default = null): float
-    {
-        $value = $this->get($key, $default);
-
-        if (is_float($value)) {
-            return $value;
-        }
-
-        if (filter_var($value, FILTER_VALIDATE_FLOAT) !== false) {
-            return (float) $value;
-        }
-
-        throw new InvalidArgumentException(
-            sprintf('Cache value for key [%s] must be an float, %s given.', $key, gettype($value))
-        );
-    }
-
-    /**
-     * @param null|bool|callable(): bool $default
-     *
-     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
-     */
-    public function boolean(string $key, callable|bool|null $default = null): bool
-    {
-        $value = $this->get($key, $default);
-
-        if (! is_bool($value)) {
-            throw new InvalidArgumentException(
-                sprintf('Cache value for key [%s] must be a boolean, %s given.', $key, gettype($value))
-            );
-        }
-
-        return $value;
-    }
-
-    /**
-     * @template TDefaultArray of array<array-key, mixed>
-     *
-     * @param null|callable(): TDefaultArray|TDefaultArray $default
-     *
-     * @return array<string, mixed>|TDefaultArray
-     *
-     * @throws \Hypervel\Cache\Exceptions\InvalidArgumentException
-     */
-    public function array(string $key, callable|array|null $default = null): array
-    {
-        $value = $this->get($key, $default);
-
-        if (! is_array($value)) {
-            throw new InvalidArgumentException(
-                sprintf('Cache value for key [%s] must be an array, %s given.', $key, gettype($value))
-            );
-        }
-
-        return $value;
     }
 
     /**

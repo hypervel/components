@@ -6,22 +6,20 @@ namespace Hypervel\Router\Middleware;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\Di\ReflectionType;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Http\RouteDependency;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Router\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Router\Exceptions\UrlRoutableNotFoundException;
 use Hypervel\Router\Router;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-
-use function Hyperf\Support\make;
 
 class SubstituteBindings implements MiddlewareInterface
 {
@@ -31,7 +29,7 @@ class SubstituteBindings implements MiddlewareInterface
     protected array $resolvedUrlRoutables = [];
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected RouteDependency $routeDependency,
         protected Router $router,
     ) {
@@ -126,7 +124,7 @@ class SubstituteBindings implements MiddlewareInterface
     protected function resolveUrlRoutable(string $class, string $routeKey): UrlRoutable
     {
         $urlRoutable = $this->resolvedUrlRoutables[$class]
-            ?? $this->resolvedUrlRoutables[$class] = make($class);
+            ?? $this->resolvedUrlRoutables[$class] = $this->container->make($class);
 
         if (! $result = $urlRoutable->resolveRouteBinding($routeKey)) {
             throw new UrlRoutableNotFoundException($class, $routeKey);
@@ -143,7 +141,7 @@ class SubstituteBindings implements MiddlewareInterface
     protected function resolveModel(string $class, string $routeKey): Model
     {
         /* @phpstan-ignore-next-line */
-        return $class::where(make($class)->getRouteKeyName(), $routeKey)->firstOrFail();
+        return $class::where($this->container->make($class)->getRouteKeyName(), $routeKey)->firstOrFail();
     }
 
     /**

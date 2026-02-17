@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Middleware;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Auth\Access\AuthorizationException;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

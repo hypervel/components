@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use stdClass;
 
 /**
@@ -17,15 +17,10 @@ use stdClass;
  */
 class QueueRedisJobTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testFireProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();
-        $job->getContainer()->shouldReceive('get')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
+        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
         $handler->shouldReceive('fire')->once()->with($job, ['data']);
 
         $job->fire();
@@ -52,7 +47,7 @@ class QueueRedisJobTest extends TestCase
     protected function getJob()
     {
         return new RedisJob(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(RedisQueue::class),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1]),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2]),

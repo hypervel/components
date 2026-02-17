@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
-use Hyperf\HttpServer\Router\Handler;
+use Hypervel\HttpServer\Router\Handler;
 use RuntimeException;
 
 class RouteHandler extends Handler

@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hyperf\Command\Command;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
 class ClearCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
@@ -32,7 +29,7 @@ class ClearCommand extends Command
      */
     public function handle(): ?int
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
 
         if (! $this->cache()->getStore()->flush()) {
@@ -42,7 +39,7 @@ class ClearCommand extends Command
 
         $this->flushRuntime();
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
 
         $this->info('Application cache cleared successfully.');
@@ -55,9 +52,10 @@ class ClearCommand extends Command
      */
     protected function cache(): Repository
     {
-        $cache = $this->app->get(CacheContract::class)
+        $cache = $this->app->make(CacheContract::class)
             ->store($this->argument('store'));
 
+        /** @var \Hypervel\Cache\Repository $cache */
         return empty($this->tags()) ? $cache : $cache->tags($this->tags());
     }
 
@@ -66,7 +64,7 @@ class ClearCommand extends Command
      */
     protected function flushRuntime(): void
     {
-        $this->app->get(Filesystem::class)
+        $this->app->make(Filesystem::class)
             ->deleteDirectory(BASE_PATH . '/runtime/container');
     }
 

@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\QueueingDispatcher;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Collection;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
@@ -37,11 +37,11 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Create a new command dispatcher instance.
      *
-     * @param ContainerInterface $container the container implementation
+     * @param Container $container the container implementation
      * @param null|Closure $queueResolver the queue resolver callback
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected ?Closure $queueResolver = null
     ) {
         $this->pipeline = new Pipeline($container);
@@ -94,13 +94,10 @@ class Dispatcher implements QueueingDispatcher
 
                 return $handler->{$method}($command);
             };
-        } elseif (! method_exists($this->container, 'call')) {
-            throw new RuntimeException('The container must implement the `call` method.');
         } else {
             $callback = function ($command) {
                 $method = method_exists($command, 'handle') ? 'handle' : '__invoke';
 
-                /* @phpstan-ignore-next-line */
                 return $this->container->call([$command, $method]);
             };
         }
@@ -158,7 +155,7 @@ class Dispatcher implements QueueingDispatcher
     public function getCommandHandler(mixed $command): mixed
     {
         if ($this->hasCommandHandler($command)) {
-            return $this->container->get($this->handlers[get_class($command)]);
+            return $this->container->make($this->handlers[get_class($command)]);
         }
 
         return false;

@@ -5,28 +5,28 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hyperf\Codec\Json;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\HttpMessage\Server\ResponsePlusProxy;
-use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\HttpServer\Router\DispatcherFactory;
-use Hyperf\Server\Exception\ServerException;
+use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\Support\Renderable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\HttpMessage\Server\ResponsePlusProxy;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
+use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\HttpServer\Router\DispatcherFactory;
+use Hypervel\Server\Exceptions\ServerException;
+use Hypervel\Support\Json;
 use Hypervel\View\Contracts\View as ViewContract;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Swow\Psr7\Message\ResponsePlusInterface;
 
 class CoreMiddleware implements CoreMiddlewareInterface
 {
@@ -35,11 +35,11 @@ class CoreMiddleware implements CoreMiddlewareInterface
     protected RouteDependency $routeDependency;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected string $serverName
     ) {
         $this->dispatcher = $this->createDispatcher($serverName);
-        $this->routeDependency = $container->get(RouteDependency::class);
+        $this->routeDependency = $container->make(RouteDependency::class);
     }
 
     /**
@@ -58,7 +58,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Htmlable) {
             return $this->response()
                 ->addHeader('content-type', 'text/html')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toHtml()));
         }
 
         if (is_string($response)) {
@@ -69,7 +69,11 @@ class CoreMiddleware implements CoreMiddlewareInterface
             return new ResponsePlusProxy($response);
         }
 
-        if (is_array($response) || $response instanceof Arrayable) {
+        if ($response instanceof Arrayable) {
+            $response = $response->toArray();
+        }
+
+        if (is_array($response)) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($response)));
@@ -78,7 +82,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Jsonable) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toJson()));
         }
 
         if ($this->response()->hasHeader('content-type')) {
@@ -100,7 +104,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
 
     protected function createDispatcher(string $serverName): Dispatcher
     {
-        return $this->container->get(DispatcherFactory::class)
+        return $this->container->make(DispatcherFactory::class)
             ->getDispatcher($serverName);
     }
 
@@ -131,7 +135,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         }
 
         [$controller, $action] = $route->getControllerCallback();
-        $controllerInstance = $this->container->get($controller);
+        $controllerInstance = $this->container->make($controller);
         if (! method_exists($controllerInstance, $action)) {
             throw new ServerErrorHttpException("{$controller}@{$action} does not exist.");
         }

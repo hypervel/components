@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -16,7 +17,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
 use Typesense\Client as TypesenseClient;
 
 /**
@@ -30,7 +30,7 @@ class EngineManagerTest extends TestCase
         parent::tearDown();
 
         // Reset static engines cache between tests
-        (new EngineManager(m::mock(ContainerInterface::class)))->forgetEngines();
+        (new EngineManager(m::mock(Container::class)))->forgetEngines();
     }
 
     public function testResolveNullEngine()
@@ -61,7 +61,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
@@ -79,7 +79,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
@@ -107,7 +107,7 @@ class EngineManagerTest extends TestCase
         ]);
 
         $typesenseClient = m::mock(TypesenseClient::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(TypesenseClient::class)
             ->andReturn($typesenseClient);
 
@@ -274,11 +274,11 @@ class EngineManagerTest extends TestCase
         $this->assertSame($engine1, $engine2);
     }
 
-    protected function createMockContainer(array $config): m\MockInterface&ContainerInterface
+    protected function createMockContainer(array $config): m\MockInterface&Container
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
 
-        $configService = m::mock(ConfigInterface::class);
+        $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
@@ -286,18 +286,18 @@ class EngineManagerTest extends TestCase
             ->with('scout.soft_delete', m::any())
             ->andReturn($config['soft_delete'] ?? false);
 
-        $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+        $container->shouldReceive('make')
+            ->with('config')
             ->andReturn($configService);
 
         return $container;
     }
 
-    protected function createMockContainerWithTypesense(array $config): m\MockInterface&ContainerInterface
+    protected function createMockContainerWithTypesense(array $config): m\MockInterface&Container
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
 
-        $configService = m::mock(ConfigInterface::class);
+        $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
@@ -308,8 +308,8 @@ class EngineManagerTest extends TestCase
             ->with('scout.typesense.max_total_results', m::any())
             ->andReturn($config['max_total_results'] ?? 1000);
 
-        $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+        $container->shouldReceive('make')
+            ->with('config')
             ->andReturn($configService);
 
         return $container;

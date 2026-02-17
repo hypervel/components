@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LogLevel;
 use Throwable;
 
@@ -32,9 +32,9 @@ class LogWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordLog']);
     }
 

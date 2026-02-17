@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Messages;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Markdown;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Conditionable;
 
 class MailMessage extends SimpleMessage implements Renderable
 {
@@ -306,18 +306,18 @@ class MailMessage extends SimpleMessage implements Renderable
     public function render(): string
     {
         if (isset($this->view)) {
-            return ApplicationContext::getContainer()
-                ->get('mailer')
+            return Container::getInstance()
+                ->make('mailer')
                 ->render(
                     $this->view,
                     $this->data()
                 );
         }
 
-        $markdown = ApplicationContext::getContainer()
-            ->get(Markdown::class);
+        $markdown = Container::getInstance()
+            ->make(Markdown::class);
 
-        return $markdown->theme($this->theme ?: $markdown->getTheme())
+        return (string) $markdown->theme($this->theme ?: $markdown->getTheme())
             ->render($this->markdown, $this->data());
     }
 

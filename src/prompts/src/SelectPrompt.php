@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 class SelectPrompt extends Prompt

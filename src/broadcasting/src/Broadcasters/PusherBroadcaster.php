@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Psr\Container\ContainerInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
 
@@ -21,7 +21,7 @@ class PusherBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Pusher $pusher
     ) {
     }

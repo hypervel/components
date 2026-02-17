@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Jobs;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Throwable;
 
 class FakeJob extends Job

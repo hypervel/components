@@ -6,16 +6,16 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
-use Hypervel\Broadcasting\Contracts\Broadcaster as BroadcasterContract;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
-use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
@@ -25,7 +25,7 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * The container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The callback to resolve the authenticated user information.
@@ -233,7 +233,7 @@ abstract class Broadcaster implements BroadcasterContract
     protected function normalizeChannelHandlerToCallable($callback)
     {
         return is_callable($callback) ? $callback : function (...$args) use ($callback) {
-            return $this->container->get($callback)->join(...$args);
+            return $this->container->make($callback)->join(...$args);
         };
     }
 
@@ -245,7 +245,7 @@ abstract class Broadcaster implements BroadcasterContract
         $options = $this->retrieveChannelOptions($channel);
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
 
         if (is_null($guards)) {
             return $auth->user();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use Hyperf\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Blueprint;
 
 class NestedSet
 {

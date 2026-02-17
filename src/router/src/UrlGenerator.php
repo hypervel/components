@@ -9,20 +9,20 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpMessage\Uri\Uri;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Router\DispatcherFactory;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Router\DispatcherFactory;
+use Hypervel\Session\Store;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 
 class UrlGenerator implements UrlGeneratorContract
@@ -56,7 +56,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     protected ?string $forceScheme = null;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 
@@ -67,7 +67,9 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http'): string
     {
-        $namedRoutes = $this->container->get(DispatcherFactory::class)->getRouter($server)->getNamedRoutes();
+        /** @var \Hypervel\Router\RouteCollector $router */
+        $router = $this->container->make(DispatcherFactory::class)->getRouter($server);
+        $namedRoutes = $router->getNamedRoutes();
 
         if (! array_key_exists($name, $namedRoutes)) {
             throw new InvalidArgumentException("Route [{$name}] not defined.");
@@ -320,7 +322,7 @@ class UrlGenerator implements UrlGeneratorContract
                 ?: ($fallback ? $this->to($fallback) : $this->to('/'));
         }
 
-        $referrer = $this->container->get(RequestInterface::class)
+        $referrer = $this->container->make(RequestInterface::class)
             ->header('referer');
         $url = $referrer ? $this->to($referrer) : $this->getPreviousUrlFromSession();
 
@@ -344,11 +346,11 @@ class UrlGenerator implements UrlGeneratorContract
      */
     protected function getPreviousUrlFromSession(): ?string
     {
-        if (! Context::has(SessionInterface::class)) {
+        if (! Context::has(Store::CONTEXT_KEY)) {
             return null;
         }
 
-        return $this->container->get(SessionInterface::class)
+        return $this->container->make(SessionContract::class)
             ->previousUrl();
     }
 
@@ -480,7 +482,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->signedKey;
         }
 
-        return $this->container->get(ConfigInterface::class)
+        return $this->container->make('config')
             ->get('app.key');
     }
 
@@ -511,9 +513,9 @@ class UrlGenerator implements UrlGeneratorContract
     protected function getRequestUri(): Uri
     {
         if (RequestContext::has()) {
-            return $this->container->get(RequestInterface::class)->getUri();
+            return $this->container->make(RequestInterface::class)->getUri(); // @phpstan-ignore return.type (getUri() returns UriInterface but is always Uri in practice)
         }
 
-        return new Uri($this->container->get(ConfigInterface::class)->get('app.url'));
+        return new Uri($this->container->make('config')->get('app.url'));
     }
 }

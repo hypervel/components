@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Contracts;
 
-use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Contracts\Cache\Repository;
 
 interface Factory
 {

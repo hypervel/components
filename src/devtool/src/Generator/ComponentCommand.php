@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 
 class ComponentCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:component');
-    }
+    protected ?string $name = 'make:component';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new view component class');
+    protected string $description = 'Create a new view component class';
 
-        parent::configure();
-    }
+    protected string $type = 'Component';
 
     protected function getStub(): string
     {

@@ -16,8 +16,8 @@ use Hypervel\Support\Facades\Facade;
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Socialite\SocialiteManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Psr\Http\Message\ResponseInterface redirect()
  * @method static \Hypervel\Socialite\Two\User user()
  * @method static \Hypervel\Socialite\Two\User userFromToken(string $token)
@@ -27,7 +27,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Socialite\Two\AbstractProvider setScopes(array|string $scopes)
  * @method static array getScopes()
  * @method static \Hypervel\Socialite\Two\AbstractProvider redirectUrl(string $url)
- * @method static \Hypervel\Socialite\Two\AbstractProvider setRequest(\Hypervel\Http\Contracts\RequestContract $request)
+ * @method static \Hypervel\Socialite\Two\AbstractProvider setRequest(\Hypervel\Contracts\Http\Request $request)
  * @method static \Hypervel\Socialite\Two\AbstractProvider stateless()
  * @method static \Hypervel\Socialite\Two\AbstractProvider enablePKCE()
  * @method static mixed getContext(string $key, mixed $default = null)
@@ -39,7 +39,7 @@ use Hypervel\Support\Facades\Facade;
  */
 class Socialite extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 
 /**
  * @method static string route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http')
@@ -17,10 +17,10 @@ use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
  * @method static string formatScheme(bool|null $secure = null)
  * @method static string signedRoute(\BackedEnum|string $name, array $parameters = [], \DateInterval|\DateTimeInterface|int|null $expiration = null, bool $absolute = true, string $server = 'http')
  * @method static string temporarySignedRoute(\BackedEnum|string $name, \DateInterval|\DateTimeInterface|int|null $expiration, array $parameters = [], bool $absolute = true, string $server = 'http')
- * @method static bool hasValidSignature(\Hyperf\HttpServer\Contract\RequestInterface $request, bool $absolute = true, array $ignoreQuery = [])
- * @method static bool hasValidRelativeSignature(\Hyperf\HttpServer\Contract\RequestInterface $request, array $ignoreQuery = [])
- * @method static bool hasCorrectSignature(\Hyperf\HttpServer\Contract\RequestInterface $request, bool $absolute = true, array $ignoreQuery = [])
- * @method static bool signatureHasNotExpired(\Hyperf\HttpServer\Contract\RequestInterface $request)
+ * @method static bool hasValidSignature(\Hypervel\HttpServer\Contracts\RequestInterface $request, bool $absolute = true, array $ignoreQuery = [])
+ * @method static bool hasValidRelativeSignature(\Hypervel\HttpServer\Contracts\RequestInterface $request, array $ignoreQuery = [])
+ * @method static bool hasCorrectSignature(\Hypervel\HttpServer\Contracts\RequestInterface $request, bool $absolute = true, array $ignoreQuery = [])
+ * @method static bool signatureHasNotExpired(\Hypervel\HttpServer\Contracts\RequestInterface $request)
  * @method static string full()
  * @method static string current()
  * @method static string previous(string|bool $fallback = false)
@@ -41,7 +41,7 @@ use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
  */
 class URL extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return UrlGeneratorContract::class;
     }

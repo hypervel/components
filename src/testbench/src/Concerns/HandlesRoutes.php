@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Router\Router;
 use ReflectionMethod;
 
@@ -34,7 +34,7 @@ trait HandlesRoutes
      */
     protected function setUpApplicationRoutes(ApplicationContract $app): void
     {
-        $router = $app->get(Router::class);
+        $router = $app->make(Router::class);
 
         $this->defineRoutes($router);
 

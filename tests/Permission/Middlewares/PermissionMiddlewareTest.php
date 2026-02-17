@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middlewares;
 
-use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middlewares\PermissionMiddleware;
@@ -32,7 +32,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
     protected ResponseInterface $response;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected AuthManager $authManager;
 
@@ -40,9 +40,9 @@ class PermissionMiddlewareTest extends PermissionTestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $this->authManager = m::mock(AuthManager::class);
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($this->authManager);
 
@@ -54,7 +54,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 
@@ -109,7 +108,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');
@@ -132,7 +130,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');

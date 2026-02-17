@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Guards;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
 class RequestGuard implements Guard
@@ -33,8 +33,8 @@ class RequestGuard implements Guard
         callable $callback
     ) {
         $this->callback = $callback;
-        $this->request = ApplicationContext::getContainer()
-            ->get(RequestInterface::class);
+        $this->request = Container::getInstance()
+            ->make(RequestInterface::class);
     }
 
     public function user(): ?Authenticatable
@@ -70,6 +70,6 @@ class RequestGuard implements Guard
 
     protected function getContextKey(): string
     {
-        return 'auth.guards.request';
+        return '__auth.guards.request';
     }
 }

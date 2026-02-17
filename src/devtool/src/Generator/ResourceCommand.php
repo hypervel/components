@@ -4,28 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 class ResourceCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:resource');
-    }
+    protected ?string $name = 'make:resource';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new resource');
+    protected string $description = 'Create a new resource';
 
-        parent::configure();
-    }
+    protected string $type = 'Resource';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . (
-            str_ends_with($this->input->getArgument('name'), 'Collection')
-            || $this->input->getOption('collection')
+            str_ends_with($this->argument('name'), 'Collection')
+            || $this->option('collection')
             ? '/stubs/resource-collection.stub'
             : '/stubs/resource.stub'
         );

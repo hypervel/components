@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\Attributes\DefineDatabase;
+use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -26,7 +26,7 @@ class DeferredAttributeExecutionTest extends TestCase
     protected function defineDatabaseSetup($app): void
     {
         static::$deferredMethodWasCalled = true;
-        $app->get('config')->set('testing.deferred_executed', true);
+        $app->make('config')->set('testing.deferred_executed', true);
     }
 
     #[DefineDatabase('defineDatabaseSetup', defer: true)]
@@ -39,7 +39,7 @@ class DeferredAttributeExecutionTest extends TestCase
             'Deferred DefineDatabase method should be called during setUp'
         );
         $this->assertTrue(
-            $this->app->get('config')->get('testing.deferred_executed', false),
+            $this->app->make('config')->get('testing.deferred_executed', false),
             'Deferred DefineDatabase should have set config value'
         );
     }
@@ -53,7 +53,7 @@ class DeferredAttributeExecutionTest extends TestCase
             'Immediate DefineDatabase method should be called during setUp'
         );
         $this->assertTrue(
-            $this->app->get('config')->get('testing.deferred_executed', false),
+            $this->app->make('config')->get('testing.deferred_executed', false),
             'Immediate DefineDatabase should have set config value'
         );
     }

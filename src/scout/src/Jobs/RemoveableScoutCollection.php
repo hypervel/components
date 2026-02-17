@@ -32,7 +32,7 @@ class RemoveableScoutCollection extends Collection
             return [];
         }
 
-        /** @var Model $first */
+        /** @var Model&SearchableInterface $first */
         $first = $this->first();
 
         if (in_array(Searchable::class, class_uses_recursive($first))) {

@@ -10,7 +10,7 @@ use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Support\Environment;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -22,7 +22,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $environment = Mockery::mock(Environment::class);
+        $environment = m::mock(Environment::class);
         $environment->shouldReceive('isTesting')->andReturn(false);
         $this->app->instance(Environment::class, $environment);
     }
@@ -31,7 +31,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorSupervisorMemory();
 
-        $supervisor = Mockery::mock(Supervisor::class);
+        $supervisor = m::mock(Supervisor::class);
         $supervisor->options = new SupervisorOptions('redis', 'default');
 
         $supervisor->shouldReceive('memoryUsage')->andReturn(192);
@@ -44,7 +44,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorSupervisorMemory();
 
-        $supervisor = Mockery::mock(Supervisor::class);
+        $supervisor = m::mock(Supervisor::class);
         $supervisor->options = new SupervisorOptions('redis', 'default');
 
         $supervisor->shouldReceive('memoryUsage')->andReturn(64);

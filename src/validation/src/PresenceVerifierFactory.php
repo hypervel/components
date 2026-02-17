@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionResolverInterface;
 
 class PresenceVerifierFactory
 {
-    public function __invoke(ContainerInterface $container): DatabasePresenceVerifier
+    public function __invoke(Container $container): DatabasePresenceVerifier
     {
         return new DatabasePresenceVerifier(
-            $container->get(ConnectionResolverInterface::class)
+            $container->make(ConnectionResolverInterface::class)
         );
     }
 }

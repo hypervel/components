@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hyperf\Contract\CanBeEscapedWhenCastToString;
-use Hyperf\DbConnection\Model\Model;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
 use Hypervel\View\ComponentAttributeBag;
@@ -199,7 +198,7 @@ unset(\$__defined_vars); ?>";
         }
 
         return is_string($value)
-               || (is_object($value) && ! $value instanceof Model && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
+               || (is_object($value) && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
                         ? e($value)
                         : $value;
     }

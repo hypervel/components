@@ -6,15 +6,15 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Response;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
@@ -25,7 +25,6 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Runtime;
 
@@ -59,7 +58,6 @@ class FilesystemAdapterTest extends TestCase
             $this->adapter = new LocalFilesystemAdapter(dirname($this->tempDir))
         );
         $filesystem->deleteDirectory(basename($this->tempDir));
-        m::close();
 
         unset($this->tempDir, $this->filesystem, $this->adapter);
     }
@@ -452,7 +450,7 @@ class FilesystemAdapterTest extends TestCase
             $this->markTestSkipped('league/flysystem-ftp is not installed.');
         }
 
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
 
         $driver = $filesystem->createFtpDriver([
             'host' => 'ftp.example.com',
@@ -610,7 +608,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testProvidesTemporaryUrlsForS3Adapter()
     {
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
             'bucket' => 'laravel',
@@ -644,19 +642,15 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(string $content): void
     {
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(ResponseContract::class)
-            ->andReturn(new Response());
+        $container = new Container();
+        $container->instance(ResponseContract::class, new Response());
         $request = m::mock(RequestContract::class);
         $request->shouldReceive('isRange')
             ->andReturn(false);
-        $container->shouldReceive('get')
-            ->with(RequestContract::class)
-            ->andReturn($request);
-        ApplicationContext::setContainer($container);
+        $container->instance(RequestContract::class, $request);
+        Container::setInstance($container);
 
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
+        $psrResponse = m::mock(\Hypervel\HttpMessage\Server\Response::class)->makePartial();
         $psrResponse->shouldReceive('write')
             ->with($content)
             ->once()

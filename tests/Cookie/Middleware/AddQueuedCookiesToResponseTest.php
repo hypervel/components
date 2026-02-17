@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie\Middleware;
 
-use Hypervel\Cookie\Contracts\Cookie as ContractsCookie;
+use Hypervel\Contracts\Cookie\Cookie as ContractsCookie;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

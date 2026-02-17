@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 
 /**
  * @method static bool has(\UnitEnum|string $key)
@@ -21,7 +21,7 @@ use Hypervel\Cookie\Contracts\Cookie as CookieContract;
  */
 class Cookie extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return CookieContract::class;
     }

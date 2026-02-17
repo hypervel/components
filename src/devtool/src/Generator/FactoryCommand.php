@@ -4,23 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 
 class FactoryCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:factory');
-    }
+    protected ?string $name = 'make:factory';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new model factory');
+    protected string $description = 'Create a new model factory';
 
-        parent::configure();
-    }
+    protected string $type = 'Factory';
 
     protected function getStub(): string
     {
@@ -41,9 +35,7 @@ class FactoryCommand extends GeneratorCommand
     {
         $factory = Str::ucfirst(str_replace('Factory', '', $name));
 
-        $model = $this->input->getOption('model')
-            ? $this->input->getOption('model')
-            : $factory;
+        $model = $this->option('model') ?: $factory;
 
         $replace = [
             '%MODEL%' => $model,

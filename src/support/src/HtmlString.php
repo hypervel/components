@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Stringable;
 
 class HtmlString implements Htmlable, Stringable
@@ -17,9 +17,9 @@ class HtmlString implements Htmlable, Stringable
     /**
      * Create a new HTML string instance.
      */
-    public function __construct(string $html = '')
+    public function __construct(?string $html = '')
     {
-        $this->html = $html;
+        $this->html = $html ?? '';
     }
 
     /**

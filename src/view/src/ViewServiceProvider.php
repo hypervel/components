@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\CompilerInterface;
@@ -37,9 +37,9 @@ class ViewServiceProvider extends ServiceProvider
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
-            $resolver = $app->get(EngineResolver::class);
+            $resolver = $app->make(EngineResolver::class);
 
-            $finder = $app->get(ViewFinderInterface::class);
+            $finder = $app->make(ViewFinderInterface::class);
 
             $factory = $this->createFactory($resolver, $finder, $app['events']);
 
@@ -115,7 +115,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerFileEngine(EngineResolver $resolver): void
     {
         $resolver->register('file', function () {
-            return new FileEngine(Container::getInstance()->get('files'));
+            return new FileEngine(Container::getInstance()->make('files'));
         });
     }
 
@@ -125,7 +125,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerPhpEngine(EngineResolver $resolver): void
     {
         $resolver->register('php', function () {
-            return new PhpEngine(Container::getInstance()->get('files'));
+            return new PhpEngine(Container::getInstance()->make('files'));
         });
     }
 
@@ -138,8 +138,8 @@ class ViewServiceProvider extends ServiceProvider
             $app = Container::getInstance();
 
             return new CompilerEngine(
-                $app->get(CompilerInterface::class),
-                $app->get('files'),
+                $app->make(CompilerInterface::class),
+                $app->make('files'),
             );
         });
     }

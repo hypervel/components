@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notification;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -23,7 +22,7 @@ class NotificationWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 NotificationWatcher::class => true,
             ]);
@@ -42,7 +41,7 @@ class NotificationWatcherTest extends FeatureTestCase
             'response'
         );
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

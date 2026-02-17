@@ -6,9 +6,9 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
 use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;
@@ -38,7 +38,7 @@ trait InteractsWithContainer
     protected function instance(string $abstract, mixed $instance): mixed
     {
         /* @phpstan-ignore-next-line */
-        $this->app->set($abstract, $instance);
+        $this->app->instance($abstract, $instance);
 
         return $instance;
     }
@@ -88,12 +88,12 @@ trait InteractsWithContainer
     {
         $this->app = $this->createApplication();
         /* @phpstan-ignore-next-line */
-        $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
-        $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+        $this->app->singleton(HttpDispatcher::class, TestingHttpDispatcher::class);
+        $this->app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
 
         $this->defineEnvironment($this->app);
 
-        $this->app->get(ApplicationInterface::class);
+        $this->app->make(ApplicationInterface::class);
     }
 
     /**

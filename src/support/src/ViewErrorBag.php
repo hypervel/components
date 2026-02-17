@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Countable;
-use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
+use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Stringable;
 
 /**

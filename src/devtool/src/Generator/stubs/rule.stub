@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace %NAMESPACE%;
 
 use Closure;
-use Hypervel\Validation\Contracts\ValidationRule;
+use Hypervel\Contracts\Validation\ValidationRule;
 
 class %CLASS% implements ValidationRule
 {

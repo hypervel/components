@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class DatabaseNotification extends Model
 {

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Http;
 
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
@@ -49,11 +49,11 @@ class AuthorizationTest extends FeatureTestCase
     public function testGuestsGetsUnauthorizedByGate()
     {
         Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function ($user) {
                 return false;
             });
@@ -67,11 +67,11 @@ class AuthorizationTest extends FeatureTestCase
         $this->actingAs(new Authenticated());
 
         Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function (Authenticatable $user) {
                 return $user->getAuthIdentifier() === 'telescope-test';
             });
@@ -83,11 +83,11 @@ class AuthorizationTest extends FeatureTestCase
     public function testGuestsCanBeAuthorized()
     {
         Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function (?Authenticatable $user) {
                 return true;
             });
@@ -122,7 +122,7 @@ class AuthorizationTest extends FeatureTestCase
             return new Authenticated('email@foo.bar');
         });
 
-        $this->app->set(GateContract::class, $gate);
+        $this->app->instance(GateContract::class, $gate);
     }
 }
 

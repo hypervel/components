@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 
 class EventCommand extends GeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:event');
-    }
+    protected ?string $name = 'make:event';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new event class');
+    protected string $description = 'Create a new event class';
 
-        parent::configure();
-    }
+    protected string $type = 'Event';
 
     protected function getStub(): string
     {

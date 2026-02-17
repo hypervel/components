@@ -14,16 +14,14 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\HttpClient\PendingRequest
@@ -70,6 +68,11 @@ class Factory
      */
     protected bool $preventStrayRequests = false;
 
+    /**
+     * The URL patterns that are allowed as stray requests.
+     */
+    protected array $allowedStrayRequestUrls = [];
+
     protected string $poolProxyClass = ClientPoolProxy::class;
 
     /**
@@ -90,7 +93,7 @@ class Factory
     /**
      * Create a new factory instance.
      */
-    public function __construct(protected ?EventDispatcherInterface $dispatcher = null)
+    public function __construct(protected ?Dispatcher $dispatcher = null)
     {
         $this->stubCallbacks = new Collection();
     }
@@ -239,7 +242,10 @@ class Factory
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
         return $this->fake(function ($request, $options) use ($url, $callback) {
-            if (! Str::is(Str::start($url, '*'), $request->url())) {
+            $pattern = Str::start($url, '*');
+            $requestUrl = $request->url();
+
+            if (! Str::is($pattern, $requestUrl) && ! Str::is($pattern, Str::finish($requestUrl, '/'))) {
                 return;
             }
 
@@ -280,9 +286,16 @@ class Factory
     /**
      * Indicate that an exception should not be thrown if any request is not faked.
      */
-    public function allowStrayRequests(): static
+    public function allowStrayRequests(?array $only = null): static
     {
-        return $this->preventStrayRequests(false);
+        if (is_null($only)) {
+            $this->preventStrayRequests(false);
+            $this->allowedStrayRequestUrls = [];
+        } else {
+            $this->allowedStrayRequestUrls = array_values($only);
+        }
+
+        return $this;
     }
 
     /**
@@ -404,7 +417,10 @@ class Factory
     public function createPendingRequest(): PendingRequest
     {
         return tap($this->newPendingRequest(), function (PendingRequest $request) {
-            $request->stub($this->stubCallbacks)->preventStrayRequests($this->preventStrayRequests);
+            $request
+                ->stub($this->stubCallbacks)
+                ->preventStrayRequests($this->preventStrayRequests)
+                ->allowStrayRequests($this->allowedStrayRequestUrls);
         });
     }
 
@@ -419,7 +435,7 @@ class Factory
     /**
      * Get the current event dispatcher implementation.
      */
-    public function getDispatcher(): ?EventDispatcherInterface
+    public function getDispatcher(): ?Dispatcher
     {
         return $this->dispatcher;
     }

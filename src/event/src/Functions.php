@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * Dispatch an event and call the listeners.
@@ -19,8 +19,8 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 function event(object $event)
 {
-    return ApplicationContext::getContainer()
-        ->get(EventDispatcherInterface::class)
+    return Container::getInstance()
+        ->make(Dispatcher::class)
         ->dispatch($event);
 }
 

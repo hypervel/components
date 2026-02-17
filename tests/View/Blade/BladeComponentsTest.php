@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View\Blade;
 
 use Closure;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\View\Component;
 use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;

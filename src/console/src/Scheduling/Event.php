@@ -13,20 +13,20 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hyperf\Collection\Arr;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Stringable;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Tappable\Tappable;
 use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Container\Contracts\Container;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Mail\Mailer;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\Tappable;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\Process\Process;
@@ -175,7 +175,7 @@ class Event
             return $this->runProcess($container);
         }
 
-        return $container->get(KernelContract::class)
+        return $container->make(KernelContract::class)
             ->call($this->command);
     }
 
@@ -184,13 +184,13 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
-        /** @var \Hypervel\Foundation\Contracts\Application $container */
+        /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath()
         );
 
-        Context::set("scheduling_process:{$this->mutexName()}", $process);
+        Context::set("__console.scheduling_process.{$this->mutexName()}", $process);
 
         return $process->run();
     }
@@ -200,7 +200,7 @@ class Event
      */
     protected function getProcessOutput(): ?string
     {
-        if (! $process = Context::get("scheduling_process:{$this->mutexName()}")) {
+        if (! $process = Context::get("__console.scheduling_process.{$this->mutexName()}")) {
             return null;
         }
 
@@ -335,7 +335,7 @@ class Event
      */
     public function writeOutput(Container $container): void
     {
-        $filesystem = $container->get(Filesystem::class);
+        $filesystem = $container->make(Filesystem::class);
         if (! $this->ensureOutputIsBeingCaptured
             && (! $this->output || (! $this->isSystem && ! $filesystem->isFile($this->output)))
         ) {
@@ -358,7 +358,7 @@ class Event
             return $this->getProcessOutput();
         }
 
-        return $container->get(KernelContract::class)->output();
+        return $container->make(KernelContract::class)->output();
     }
 
     /**
@@ -525,7 +525,7 @@ class Event
             try {
                 $this->getHttpClient($container)->request('GET', $url);
             } catch (ClientExceptionInterface|TransferException $e) {
-                $container->get(ExceptionHandler::class)->report($e);
+                $container->make(ExceptionHandler::class)->report($e);
             }
         };
     }

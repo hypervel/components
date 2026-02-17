@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Psr\Container\ContainerInterface;
+use Closure;
+use Hypervel\Contracts\Container\Container;
 
 class UserResolver
 {
-    public function __invoke(ContainerInterface $container): array
+    public function __invoke(Container $container): Closure
     {
-        return $container->get(AuthFactoryContract::class)
+        return $container->make(AuthManager::class)
             ->userResolver();
     }
 }

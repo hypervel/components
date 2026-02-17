@@ -32,15 +32,15 @@ use Hypervel\Database\Schema\SchemaProxy;
  * @method static bool enableForeignKeyConstraints()
  * @method static bool disableForeignKeyConstraints()
  * @method static array getForeignKeys(string $table)
- * @method static \Hyperf\Database\Connection getConnection()
- * @method static \Hyperf\Database\Schema\Builder setConnection(\Hyperf\Database\Connection $connection)
+ * @method static \Hypervel\Database\Connection getConnection()
+ * @method static \Hypervel\Database\Schema\Builder setConnection(\Hypervel\Database\Connection $connection)
  * @method static void blueprintResolver(\Closure $resolver)
  *
- * @see \Hyperf\Database\Schema\Builder
+ * @see \Hypervel\Database\Schema\Builder
  */
 class Schema extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return SchemaProxy::class;
     }

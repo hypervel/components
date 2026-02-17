@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Middleware;
 
 use Closure;
-use Hyperf\Contract\SessionInterface;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 
@@ -16,7 +16,7 @@ class ShareErrorsFromSession
      */
     public function __construct(
         protected ViewFactory $view,
-        protected SessionInterface $session,
+        protected Session $session,
     ) {
     }
 

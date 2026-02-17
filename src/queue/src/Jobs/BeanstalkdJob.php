@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
+use Hypervel\Contracts\Container\Container;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Pheanstalk;
-use Psr\Container\ContainerInterface;
 
 class BeanstalkdJob extends Job
 {
@@ -15,7 +15,7 @@ class BeanstalkdJob extends Job
      * Create a new job instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected PheanstalkManagerInterface $pheanstalk,
         protected JobIdInterface $job,
         protected string $connectionName,

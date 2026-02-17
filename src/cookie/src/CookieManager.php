@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Support\InteractsWithTime;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -90,12 +90,12 @@ class CookieManager implements CookieContract
 
     public function getQueuedCookies(): array
     {
-        return Context::get('http.cookies.queue', []);
+        return Context::get('__cookie.queue', []);
     }
 
     protected function setQueueCookies(array $cookies): array
     {
-        return Context::set('http.cookies.queue', $cookies);
+        return Context::set('__cookie.queue', $cookies);
     }
 
     public function forever(UnitEnum|string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie

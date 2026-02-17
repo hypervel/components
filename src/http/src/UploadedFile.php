@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\HttpMessage\Stream\StandardStream;
-use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Container\Container;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
 use Hypervel\Http\Exceptions\ExtensionFileException;
@@ -21,8 +16,13 @@ use Hypervel\Http\Exceptions\NoFileException;
 use Hypervel\Http\Exceptions\NoTmpDirFileException;
 use Hypervel\Http\Exceptions\PartialFileException;
 use Hypervel\Http\Testing\FileFactory;
+use Hypervel\HttpMessage\Stream\StandardStream;
+use Hypervel\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
+use Hypervel\Support\Arr;
 use Hypervel\Support\FileinfoMimeTypeGuesser;
 use Hypervel\Support\MimeTypeExtensionGuesser;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use Psr\Http\Message\StreamInterface;
 
 class UploadedFile extends HyperfUploadedFile
@@ -151,8 +151,8 @@ class UploadedFile extends HyperfUploadedFile
     public function guessClientExtension(): ?string
     {
         $clientExtension = $this->getClientOriginalExtension();
-        $extensions = ApplicationContext::getContainer()
-            ->get(MimeTypeExtensionGuesser::class)
+        $extensions = Container::getInstance()
+            ->make(MimeTypeExtensionGuesser::class)
             ->guessExtensions($this->getClientMediaType());
 
         return in_array($clientExtension, $extensions)
@@ -201,8 +201,8 @@ class UploadedFile extends HyperfUploadedFile
         // A file extension should not rely on unsafe client data
         // and it's not mandatory for a file.
         $clientExtension = $this->getClientOriginalExtension();
-        $extensions = ApplicationContext::getContainer()
-            ->get(MimeTypeExtensionGuesser::class)
+        $extensions = Container::getInstance()
+            ->make(MimeTypeExtensionGuesser::class)
             ->guessExtensions($this->getMimeType());
 
         return in_array($clientExtension, $extensions)
@@ -241,8 +241,8 @@ class UploadedFile extends HyperfUploadedFile
             return $this->mimeType;
         }
 
-        $fileInfoGuesser = ApplicationContext::getContainer()
-            ->get(FileinfoMimeTypeGuesser::class);
+        $fileInfoGuesser = Container::getInstance()
+            ->make(FileinfoMimeTypeGuesser::class);
 
         $mimeType = $fileInfoGuesser->isGuesserSupported()
             ? $fileInfoGuesser->guessMimeType($this->getPathname())
@@ -315,8 +315,8 @@ class UploadedFile extends HyperfUploadedFile
 
         $disk = Arr::pull($options, 'disk');
 
-        return ApplicationContext::getContainer()
-            ->get(FilesystemManager::class)
+        return Container::getInstance()
+            ->make(FilesystemManager::class)
             ->disk($disk)
             ->putFileAs($path, $this, $name, $options);
     }

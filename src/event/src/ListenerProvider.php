@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Stdlib\SplPriorityQueue;
-use Hyperf\Stringable\Str;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
-
-use function Hyperf\Collection\collect;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 class ListenerProvider implements ListenerProviderContract
 {
@@ -21,56 +18,49 @@ class ListenerProvider implements ListenerProviderContract
 
     /**
      * Get all of the listeners for a given event name.
+     *
+     * @return iterable<array{listener: mixed, isWildcard: bool}>
      */
     public function getListenersForEvent(object|string $event): iterable
     {
         $eventName = is_string($event) ? $event : get_class($event);
 
-        $listeners = [];
-        if (! is_null($cache = $this->listenersCache[$eventName] ?? null)) {
-            $listeners = $cache;
-        } else {
-            $listeners = $this->getListenersUsingCondition(
-                $this->listeners,
-                fn ($_, $key) => is_string($event) ? $event === $key : $event instanceof $key
-            );
-
-            $wildcards = $this->getListenersUsingCondition(
-                $this->wildcards,
-                fn ($_, $key) => Str::is($key, $eventName)
-            );
-
-            $listeners = $listeners->merge($wildcards)->toArray();
-            $this->listenersCache[$eventName] = $listeners;
+        if (isset($this->listenersCache[$eventName])) {
+            return $this->listenersCache[$eventName];
         }
 
-        $queue = new SplPriorityQueue();
+        $listeners = $this->getListenersUsingCondition(
+            $this->listeners,
+            fn ($_, $key) => is_string($event) ? $event === $key : $event instanceof $key,
+            isWildcard: false
+        );
 
-        foreach ($listeners as $index => $listener) {
-            $queue->insert($listener, $index * -1);
-        }
+        $wildcards = $this->getListenersUsingCondition(
+            $this->wildcards,
+            fn ($_, $key) => Str::is($key, $eventName),
+            isWildcard: true
+        );
 
-        return $queue;
+        $result = $listeners->merge($wildcards)->values()->all();
+        $this->listenersCache[$eventName] = $result;
+
+        return $result;
     }
 
     /**
      * Register an event listener with the listener provider.
      */
-    public function on(
-        string $event,
-        array|callable|string $listener,
-        int $priority = ListenerData::DEFAULT_PRIORITY
-    ): void {
+    public function on(string $event, array|callable|string $listener): void
+    {
         $this->listenersCache = [];
 
-        $listenerData = new ListenerData($event, $listener, $priority);
         if ($this->isWildcardEvent($event)) {
-            $this->wildcards[$event][] = $listenerData;
+            $this->wildcards[$event][] = $listener;
 
             return;
         }
 
-        $this->listeners[$event][] = $listenerData;
+        $this->listeners[$event][] = $listener;
     }
 
     /**
@@ -123,24 +113,15 @@ class ListenerProvider implements ListenerProviderContract
 
     /**
      * Get listeners using condition.
+     *
+     * @return Collection<int, array{listener: mixed, isWildcard: bool}>
      */
-    protected function getListenersUsingCondition(array $listeners, callable $filter): Collection
+    protected function getListenersUsingCondition(array $listeners, callable $filter, bool $isWildcard = false): Collection
     {
         return collect($listeners)
             ->filter($filter)
             ->flatten(1)
-            ->map(function ($listener, $index) {
-                return [
-                    'listener' => $listener->listener,
-                    'priority' => $listener->priority,
-                    'index' => $index,
-                ];
-            })
-            ->sortBy([
-                ['priority', 'desc'],
-                ['index', 'asc'],
-            ])
-            ->pluck('listener');
+            ->map(fn ($listener) => ['listener' => $listener, 'isWildcard' => $isWildcard]);
     }
 
     /**
