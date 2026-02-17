@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler\Handler;
 
-use Hyperf\Contract\SessionInterface;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\Session\Store;
 use Hypervel\Support\Str;
 use Throwable;
 use Whoops\Handler\JsonResponseHandler;
@@ -94,7 +94,7 @@ class WhoopsExceptionHandler extends ExceptionHandler
             $handler->addDataTableCallback('PSR7 File', [$request, 'getUploadedFiles']);
             $handler->addDataTableCallback('PSR7 Attribute', [$request, 'getAttributes']);
 
-            $session = Context::get(SessionInterface::class);
+            $session = Context::get(Store::CONTEXT_KEY);
             if ($session) {
                 $handler->addDataTableCallback('Hypervel Session', [$session, 'all']);
             }

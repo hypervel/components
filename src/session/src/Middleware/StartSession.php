@@ -6,7 +6,6 @@ namespace Hypervel\Session\Middleware;
 
 use Carbon\Carbon;
 use DateTimeInterface;
-use Hyperf\Contract\SessionInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -15,6 +14,7 @@ use Hypervel\Cookie\Cookie;
 use Hypervel\HttpServer\Request;
 use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Session\SessionManager;
+use Hypervel\Session\Store;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -105,7 +105,7 @@ class StartSession implements MiddlewareInterface
             // If a session driver has been configured, we will need to start the session here
             // so that the data is ready for an application. Note that the Hypervel sessions
             // do not make use of PHP "native" sessions in any way since they are crappy.
-            Context::set(SessionInterface::class, $session);
+            Context::set(Store::CONTEXT_KEY, $session);
             $session->start();
 
             $this->collectGarbage($session);

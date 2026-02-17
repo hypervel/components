@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Exceptions;
 
 use Closure;
 use Exception;
-use Hyperf\Contract\SessionInterface;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Context\Context;
@@ -29,6 +28,7 @@ use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Session\Store;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
@@ -580,7 +580,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function withErrors(Request $request, mixed $provider, string $key = 'default'): void
     {
-        if (! Context::get(SessionInterface::class)) {
+        if (! Context::get(Store::CONTEXT_KEY)) {
             return;
         }
 

@@ -9,15 +9,16 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Contract\SessionInterface;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\HttpMessage\Uri\Uri;
 use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\HttpServer\Router\DispatcherFactory;
+use Hypervel\Session\Store;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -345,11 +346,11 @@ class UrlGenerator implements UrlGeneratorContract
      */
     protected function getPreviousUrlFromSession(): ?string
     {
-        if (! Context::has(SessionInterface::class)) {
+        if (! Context::has(Store::CONTEXT_KEY)) {
             return null;
         }
 
-        return $this->container->make(SessionInterface::class)
+        return $this->container->make(SessionContract::class)
             ->previousUrl();
     }
 

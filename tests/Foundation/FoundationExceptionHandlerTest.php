@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Contract\SessionInterface;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hypervel\Config\Repository;
@@ -27,6 +26,7 @@ use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Server\Response as Psr7Response;
 use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\Session\Store;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\MessageBag;
@@ -82,7 +82,7 @@ class FoundationExceptionHandlerTest extends TestCase
         ResponseContext::set(new Psr7Response());
         Container::setInstance($this->container);
         View::shouldReceive('replaceNamespace')->once();
-        Context::destroy(SessionInterface::class);
+        Context::destroy(Store::CONTEXT_KEY);
 
         $this->handler = new Handler($this->container);
     }
@@ -347,7 +347,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
         $session->shouldReceive('flash')->with('errors', m::type(ViewErrorBag::class))->once();
         $session->shouldReceive('flashInput')->with(['foo' => 'bar'])->once();
-        Context::set(SessionInterface::class, $session);
+        Context::set(Store::CONTEXT_KEY, $session);
         $this->container->instance(SessionContract::class, $session);
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);
