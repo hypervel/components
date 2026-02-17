@@ -23,6 +23,11 @@ class Store implements Session
     use Macroable;
 
     /**
+     * The context key used to store the active session for the current request.
+     */
+    public const CONTEXT_KEY = '__session.store';
+
+    /**
      * Create a new session instance.
      *
      * @param string $name the session name
