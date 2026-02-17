@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Event\Contracts\ListenerProvider;

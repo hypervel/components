@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer\Exception\Handler;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;

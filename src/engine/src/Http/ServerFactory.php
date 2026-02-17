@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Engine\Http;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Engine\Http\ServerFactoryInterface;
 use Hypervel\Contracts\Engine\Http\ServerInterface;
 

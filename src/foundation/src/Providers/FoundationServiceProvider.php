@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;

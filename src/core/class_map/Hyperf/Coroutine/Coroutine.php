@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hyperf\Coroutine;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hyperf\Engine\Coroutine as Co;
 use Hyperf\Engine\Exception\CoroutineDestroyedException;
 use Hyperf\Engine\Exception\RunningInNonCoroutineException;

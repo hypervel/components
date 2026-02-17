@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use Hyperf\Contract\ResponseEmitterInterface;
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\HttpMessage\Stream\FileInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Response;

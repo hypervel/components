@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Subscriber;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;

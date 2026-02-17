@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Framework\Logger\StdoutLogger;
 
 class ConfigProvider

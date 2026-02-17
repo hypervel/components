@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Listener;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Constant\SocketType;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;

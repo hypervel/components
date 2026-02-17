@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Logger;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Symfony\Component\Console\Logger\ConsoleLogger as SymfonyConsoleLogger;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;

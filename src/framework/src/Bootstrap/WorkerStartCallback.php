@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Bootstrap;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Framework\Events\AfterWorkerStart;

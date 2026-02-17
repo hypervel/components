@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;

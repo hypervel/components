@@ -6,7 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use DateTime;
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\Contracts\RecycleStrategy;
