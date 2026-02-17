@@ -20,8 +20,7 @@
         }
     ],
     "require": {
-        "php": "^8.4",
-        "hyperf/devtool": "~3.1.0"
+        "php": "^8.4"
     },
     "autoload": {
         "psr-4": {

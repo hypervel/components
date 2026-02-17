@@ -54,10 +54,6 @@ class ConfigProviderRegister
 
     public static function get(): array
     {
-        if (class_exists($devtoolClass = \Hyperf\Devtool\ConfigProvider::class)) {
-            return array_merge(static::$configProviders, [$devtoolClass]);
-        }
-
         return static::$configProviders;
     }
 
