@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hyperf\Pool\PoolOption;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
