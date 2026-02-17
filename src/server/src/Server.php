@@ -9,7 +9,7 @@ use Hypervel\Framework\Bootstrap;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\Framework\Events\BeforeServerStart;
 use Hypervel\Server\Exceptions\RuntimeException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Swoole\Http\Server as SwooleHttpServer;
@@ -27,7 +27,7 @@ class Server implements ServerInterface
 
     protected array $onRequestCallbacks = [];
 
-    public function __construct(protected ContainerInterface $container, protected LoggerInterface $logger, protected EventDispatcherInterface $eventDispatcher)
+    public function __construct(protected Container $container, protected LoggerInterface $logger, protected EventDispatcherInterface $eventDispatcher)
     {
     }
 

@@ -6,7 +6,7 @@ namespace Hypervel\Server;
 
 use Hypervel\Server\Entry\EventDispatcher;
 use Hypervel\Server\Entry\Logger;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
@@ -20,7 +20,7 @@ class ServerFactory
 
     protected ?ServerConfig $config = null;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 

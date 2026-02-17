@@ -26,7 +26,7 @@ use Hypervel\HttpServer\Router\DispatcherFactory;
 use Hypervel\Server\Exceptions\ServerException;
 use Hypervel\Support\Json;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -47,7 +47,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
 
     private NormalizerInterface $normalizer;
 
-    public function __construct(protected ContainerInterface $container, private string $serverName)
+    public function __construct(protected Container $container, private string $serverName)
     {
         $this->dispatcher = $this->createDispatcher($serverName);
         $this->normalizer = $this->container->make(NormalizerInterface::class);

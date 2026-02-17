@@ -10,7 +10,7 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,7 +20,7 @@ use function Hypervel\Support\swoole_hook_flags;
 
 class StartServer extends Command
 {
-    public function __construct(private ContainerInterface $container)
+    public function __construct(private Container $container)
     {
         parent::__construct('start');
         $this->setDescription('Start hypervel servers.');

@@ -27,7 +27,7 @@ use Hypervel\HttpServer\Router\DispatcherFactory;
 use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Request as SwooleRequest;
@@ -51,7 +51,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
     protected ?Option $option = null;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected HttpDispatcher $dispatcher,
         protected ExceptionHandlerDispatcher $exceptionHandlerDispatcher,
         protected ResponseEmitter $responseEmitter

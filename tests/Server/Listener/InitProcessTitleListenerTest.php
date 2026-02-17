@@ -17,7 +17,7 @@ use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub;
 use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub2;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -28,7 +28,7 @@ class InitProcessTitleListenerTest extends TestCase
 {
     public function testInitProcessTitleListenerListen()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(m::any())->andReturn(false);
 
         $listener = new InitProcessTitleListener($container);
@@ -43,7 +43,7 @@ class InitProcessTitleListenerTest extends TestCase
 
     public function testProcessDefaultName()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(m::any())->andReturn(false);
 
         $listener = new InitProcessTitleListenerStub($container);
@@ -61,7 +61,7 @@ class InitProcessTitleListenerTest extends TestCase
     public function testProcessName()
     {
         $name = 'hyperf-skeleton.' . uniqid();
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
         $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
@@ -83,7 +83,7 @@ class InitProcessTitleListenerTest extends TestCase
     public function testUserDefinedDot()
     {
         $name = 'hyperf-skeleton.' . uniqid();
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
         $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([

@@ -10,7 +10,7 @@ use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class InitProcessTitleListener implements ListenerInterface
 {
@@ -18,7 +18,7 @@ class InitProcessTitleListener implements ListenerInterface
 
     protected string $dot = '.';
 
-    public function __construct(ContainerInterface $container)
+    public function __construct(Container $container)
     {
         if ($container->has(Repository::class)) {
             if ($name = $container->make(Repository::class)->get('app_name')) {
