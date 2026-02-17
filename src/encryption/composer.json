@@ -29,8 +29,7 @@
         "php": "^8.4",
         "ext-hash": "*",
         "ext-mbstring": "*",
-        "ext-openssl": "*",
-        "hyperf/config": "~3.1.0"
+        "ext-openssl": "*"
     },
     "config": {
         "sort-packages": true
