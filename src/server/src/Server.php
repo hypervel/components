@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Framework\Bootstrap;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\Framework\Events\BeforeServerStart;
 use Hypervel\Server\Exceptions\RuntimeException;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Swoole\Http\Server as SwooleHttpServer;

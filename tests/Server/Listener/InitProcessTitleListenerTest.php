@@ -8,6 +8,7 @@ use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;
@@ -17,7 +18,6 @@ use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub;
 use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub2;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**

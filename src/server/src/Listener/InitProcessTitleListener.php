@@ -6,11 +6,11 @@ namespace Hypervel\Server\Listener;
 
 use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;
-use Hypervel\Contracts\Container\Container;
 
 class InitProcessTitleListener implements ListenerInterface
 {

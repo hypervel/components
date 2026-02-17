@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Server\Command;
 
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;
 use InvalidArgumentException;
-use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
