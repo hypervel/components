@@ -389,7 +389,7 @@ class PendingCommand
         $this->verifyExpectations();
         $this->flushExpectations();
 
-        $this->app->unbind(OutputInterface::class);
+        $this->app->forgetInstance(OutputInterface::class);
 
         return $exitCode;
     }

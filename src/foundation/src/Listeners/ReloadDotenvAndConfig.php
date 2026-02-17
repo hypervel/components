@@ -48,7 +48,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function reloadConfig(): void
     {
-        $this->container->unbind('config');
+        $this->container->forgetInstance('config');
     }
 
     protected function reloadDotenv(): void

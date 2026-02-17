@@ -46,8 +46,6 @@ namespace Hypervel\Support\Facades;
  * @method static string getNamespace()
  * @method static mixed make(string $name, array $parameters = [])
  * @method static mixed get(string $id)
- * @method static void set(string $name, mixed $entry)
- * @method static void unbind(string $name)
  * @method static void remove(string $name)
  * @method static bool bound(string $abstract)
  * @method static bool has(mixed|string $id)

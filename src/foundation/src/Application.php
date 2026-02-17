@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
-use Hyperf\Contract\ContainerInterface as HyperfContainerInterface;
 use Hypervel\Config\ProviderConfig;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -21,7 +20,7 @@ use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 
-class Application extends Container implements ApplicationContract, HyperfContainerInterface
+class Application extends Container implements ApplicationContract
 {
     use Macroable;
 
@@ -114,7 +113,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->instance(ContainerContract::class, $this);
         $this->instance(ApplicationContract::class, $this);
         $this->instance(\Psr\Container\ContainerInterface::class, $this);
-        $this->instance(HyperfContainerInterface::class, $this);
     }
 
     /**
@@ -127,39 +125,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
     public function has(string $id): bool
     {
         return parent::has($id) || class_exists($id);
-    }
-
-    /**
-     * Bind an arbitrary resolved entry to an identifier.
-     *
-     * Bridge method for Hyperf\Contract\ContainerInterface compatibility.
-     */
-    public function set(string $name, mixed $entry): void
-    {
-        $this->instance($name, $entry);
-    }
-
-    /**
-     * Unbind an arbitrary resolved entry.
-     *
-     * Bridge method for Hyperf\Contract\ContainerInterface compatibility.
-     */
-    public function unbind(string $name): void
-    {
-        $this->forgetInstance($name);
-    }
-
-    /**
-     * Bind an arbitrary definition to an identifier.
-     *
-     * Bridge method for Hyperf\Contract\ContainerInterface compatibility.
-     * Registers as a singleton since Hyperf's container always cached resolved entries.
-     *
-     * @param array|callable|string $definition
-     */
-    public function define(string $name, $definition): void
-    {
-        $this->singleton($name, $definition);
     }
 
     /**
@@ -685,7 +650,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
         foreach ([
             \Psr\Container\ContainerInterface::class => [
                 'app',
-                \Hyperf\Contract\ContainerInterface::class,
                 \Hypervel\Contracts\Container\Container::class,
                 \Hypervel\Container\Container::class,
                 \Hypervel\Contracts\Foundation\Application::class,
