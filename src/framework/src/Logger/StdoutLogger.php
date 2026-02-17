@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Logger;
 
-use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Config\Repository;
 use Psr\Log\LogLevel;
 use Stringable;
