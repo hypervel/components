@@ -20,7 +20,8 @@
         }
     ],
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/console": "^0.4"
     },
     "autoload": {
         "psr-4": {
