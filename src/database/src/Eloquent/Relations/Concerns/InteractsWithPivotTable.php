@@ -469,9 +469,8 @@ trait InteractsWithPivotTable
             $this->using
         );
 
-        /* @phpstan-ignore method.notFound (AsPivot trait provides setPivotKeys/setRelatedModel) */
         return $pivot
-            ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
+            ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey) // @phpstan-ignore method.notFound (AsPivot trait provides setPivotKeys)
             ->setRelatedModel($this->related);
     }
 

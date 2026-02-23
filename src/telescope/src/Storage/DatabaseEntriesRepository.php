@@ -72,9 +72,8 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function get(?string $type, EntryQueryOptions $options): Collection
     {
-        /* @phpstan-ignore-next-line */
         return EntryModel::on($this->connection)
-            ->withTelescopeOptions($type, $options)
+            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound (scope method registered at runtime)
             ->take($options->limit)
             ->orderByDesc('sequence')
             ->get()->reject(function ($entry) {

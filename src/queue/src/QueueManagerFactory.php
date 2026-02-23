@@ -22,8 +22,8 @@ class QueueManagerFactory
         $reportHandler = fn (Throwable $e) => $container->make(ExceptionHandler::class)->report($e);
         foreach ($connectors as $connector) {
             try {
-                $manager->connection($connector) // @phpstan-ignore-line
-                    ->setExceptionCallback($reportHandler);
+                $manager->connection($connector)
+                    ->setExceptionCallback($reportHandler); // @phpstan-ignore method.notFound (setExceptionCallback is on concrete Queue, not contract)
             } catch (InvalidArgumentException) {
                 // Ignore exception when the connector is not configured.
             }

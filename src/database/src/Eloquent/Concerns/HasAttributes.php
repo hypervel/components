@@ -2220,7 +2220,6 @@ trait HasAttributes
     {
         $instance = is_object($class) ? $class : new $class();
 
-        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         return (new Collection((new ReflectionClass($instance))->getMethods()))->filter(function ($method) use ($instance) {
             $returnType = $method->getReturnType();
 
@@ -2232,6 +2231,6 @@ trait HasAttributes
             }
 
             return false;
-        })->map->name->values()->all();
+        })->map->name->values()->all(); // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
     }
 }

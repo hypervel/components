@@ -847,11 +847,10 @@ trait QueriesRelationships
             );
 
             if ($function === 'exists') {
-                // @phpstan-ignore method.notFound (selectRaw returns $this, not Query\Builder)
                 $this->selectRaw(
                     sprintf('exists(%s) as %s', $query->toSql(), $this->getQuery()->grammar->wrap($alias)),
                     $query->getBindings()
-                )->withCasts([$alias => 'bool']);
+                )->withCasts([$alias => 'bool']); // @phpstan-ignore method.notFound (selectRaw returns Eloquent\Builder $this, not Query\Builder)
             } else {
                 $this->selectSub(
                     $function ? $query : $query->limit(1),

@@ -120,11 +120,10 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this;
         }
 
-        // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
         $models = $this->first()->newModelQuery()
             ->whereKey($this->modelKeys())
             ->select($this->first()->getKeyName())
-            ->withAggregate($relations, $column, $function)
+            ->withAggregate($relations, $column, $function) // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
             ->get()
             ->keyBy($this->first()->getKeyName());
 
@@ -455,12 +454,11 @@ class Collection extends BaseCollection implements QueueableCollection
 
         $model = $this->first();
 
-        // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
         $freshModels = $model->newQueryWithoutScopes()
             ->with(is_string($with) ? func_get_args() : $with)
             ->whereIn($model->getKeyName(), $this->modelKeys())
             ->get()
-            ->getDictionary();
+            ->getDictionary(); // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
 
         // @phpstan-ignore return.type (filter/map chain returns correct type at runtime)
         return $this->filter(fn ($model) => $model->exists && isset($freshModels[$model->getKey()]))
