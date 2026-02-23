@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Traits;
+namespace Hypervel\Console\Concerns;
 
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;

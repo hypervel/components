@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Traits;
+namespace Hypervel\Console\Concerns;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;

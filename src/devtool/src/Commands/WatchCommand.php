@@ -7,7 +7,7 @@ namespace Hypervel\Devtool\Commands;
 use Hyperf\Watcher\Option;
 use Hyperf\Watcher\Watcher;
 use Hypervel\Console\Command;
-use Hypervel\Console\Traits\NullDisableEventDispatcher;
+use Hypervel\Console\Concerns\NullDisableEventDispatcher;
 use Hypervel\Contracts\Container\Container;
 use Symfony\Component\Console\Input\InputOption;
 

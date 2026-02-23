@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Traits;
+namespace Hypervel\Console\Concerns;
 
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;

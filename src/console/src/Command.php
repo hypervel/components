@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use FriendsOfHyperf\CommandSignals\Traits\InteractsWithSignals;
 use FriendsOfHyperf\PrettyConsole\Traits\Prettyable;
 use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Console\Events\AfterExecute;
@@ -29,12 +28,12 @@ use function Hypervel\Support\swoole_hook_flags;
 
 abstract class Command extends SymfonyCommand
 {
-    use InteractsWithSignals;
+    use Concerns\CallsCommands;
+    use Concerns\DisableEventDispatcher;
+    use Concerns\HasParameters;
+    use Concerns\InteractsWithIO;
+    use Concerns\InteractsWithSignals;
     use Prettyable;
-    use Traits\CallsCommands;
-    use Traits\DisableEventDispatcher;
-    use Traits\HasParameters;
-    use Traits\InteractsWithIO;
 
     /**
      * The name of the command.
