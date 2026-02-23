@@ -18,7 +18,6 @@ class ConfigProviderRegister
         \Hypervel\Framework\ConfigProvider::class,
         \Hypervel\HttpMessage\ConfigProvider::class,
         \Hypervel\HttpServer\ConfigProvider::class,
-        \Hyperf\Memory\ConfigProvider::class,
         \Hyperf\ModelListener\ConfigProvider::class,
         \Hypervel\Serializer\ConfigProvider::class,
         \Hypervel\Server\ConfigProvider::class,
