@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Translation;
 
-use Hyperf\Contract\TranslatorLoaderInterface;
-
-interface Loader extends TranslatorLoaderInterface
+interface Loader
 {
     /**
      * Load the messages for the given locale.
