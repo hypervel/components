@@ -347,7 +347,10 @@
     },
     "scripts": {
         "test": "phpunit",
-        "analyse": "phpstan analyse",
+        "analyse": [
+            "phpstan analyse",
+            "phpstan analyse -c phpstan.types.neon.dist"
+        ],
         "lint": "php-cs-fixer fix --diff --dry-run",
         "lint:fix": "php-cs-fixer fix",
         "check": [
