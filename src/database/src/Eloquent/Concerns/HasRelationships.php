@@ -1003,8 +1003,6 @@ trait HasRelationships
 
     /**
      * Duplicate the instance and unset all the loaded relations.
-     *
-     * @return $this
      */
     public function withoutRelations(): static
     {
