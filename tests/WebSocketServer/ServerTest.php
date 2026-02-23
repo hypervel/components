@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hyperf\Support\Reflection\ClassInvoker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
@@ -12,6 +11,7 @@ use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\HttpServer\ResponseEmitter;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\WebSocketServer\Stub\WebSocketStub;
 use Hypervel\WebSocketServer\Server;
