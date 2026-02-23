@@ -14,7 +14,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 abstract class Assert extends PHPUnit
 {
     /**
-     * Asserts that an array has a specified subset.
+     * Assert that an array has a specified subset.
      */
     public static function assertArraySubset(
         ArrayAccess|array $subset,
