@@ -121,18 +121,18 @@ class MergeIntegrationTest extends TestCase
         $this->assertContains('App\Listeners\EventLoggerListener', $merged['listeners']);
         $this->assertContains('App\Listeners\AuditListener', $merged['listeners']);
         $this->assertContains('Hyperf\Command\Listener\RegisterCommandListener', $merged['listeners']);
-        $this->assertContains('Hyperf\ModelListener\Listener\ModelEventListener', $merged['listeners']);
+        $this->assertContains('App\Listeners\ModelEventListener', $merged['listeners']);
         $this->assertContains('Hypervel\ServerProcess\Listeners\BootProcessListener', $merged['listeners']);
 
         // Priority listeners MUST have their string keys preserved
         $this->assertArrayHasKey(
-            'Hyperf\ModelListener\Listener\ModelHookEventListener',
+            'App\Listeners\ModelHookEventListener',
             $merged['listeners'],
             'ModelHookEventListener string key must be preserved'
         );
         $this->assertSame(
             99,
-            $merged['listeners']['Hyperf\ModelListener\Listener\ModelHookEventListener'],
+            $merged['listeners']['App\Listeners\ModelHookEventListener'],
             'ModelHookEventListener priority must be 99'
         );
 

@@ -18,10 +18,10 @@ return [
     2 => 'Hyperf\Command\Listener\RegisterCommandListener',
 
     // From override (numeric keys - appended)
-    3 => 'Hyperf\ModelListener\Listener\ModelEventListener',
+    3 => 'App\Listeners\ModelEventListener',
     4 => 'Hypervel\ServerProcess\Listeners\BootProcessListener',
 
     // From override (string keys with priority - MUST be preserved)
-    'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,
+    'App\Listeners\ModelHookEventListener' => 99,
     'Hyperf\Signal\Listener\SignalRegisterListener' => PHP_INT_MAX,
 ];

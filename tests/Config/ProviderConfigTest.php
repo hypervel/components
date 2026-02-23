@@ -150,8 +150,8 @@ class ProviderConfigTest extends TestCase
 
         $configB = [
             'listeners' => [
-                'Hyperf\ModelListener\Listener\ModelEventListener',
-                'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,
+                'App\Listeners\ModelEventListener',
+                'App\Listeners\ModelHookEventListener' => 99,
             ],
         ];
 
@@ -160,17 +160,17 @@ class ProviderConfigTest extends TestCase
         // All simple listeners should be present
         $this->assertContains('App\Listeners\ListenerA', $result['listeners']);
         $this->assertContains('App\Listeners\ListenerB', $result['listeners']);
-        $this->assertContains('Hyperf\ModelListener\Listener\ModelEventListener', $result['listeners']);
+        $this->assertContains('App\Listeners\ModelEventListener', $result['listeners']);
 
         // Priority listener should have its string key preserved with the priority value
         $this->assertArrayHasKey(
-            'Hyperf\ModelListener\Listener\ModelHookEventListener',
+            'App\Listeners\ModelHookEventListener',
             $result['listeners'],
             'Priority listener class name should be preserved as a string key'
         );
         $this->assertSame(
             99,
-            $result['listeners']['Hyperf\ModelListener\Listener\ModelHookEventListener'],
+            $result['listeners']['App\Listeners\ModelHookEventListener'],
             'Priority value should be preserved'
         );
 
