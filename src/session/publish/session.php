@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use Hypervel\Support\Str;
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------
