@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hyperf\Coroutine;
 
-use Hyperf\Engine\Coroutine as Co;
-use Hyperf\Engine\Exception\CoroutineDestroyedException;
-use Hyperf\Engine\Exception\RunningInNonCoroutineException;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Engine\Coroutine as Co;
+use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Engine\Exception\RunningInNonCoroutineException;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Throwable;
 
