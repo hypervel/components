@@ -18,7 +18,7 @@ use Hypervel\Support\Enumerable;
 use JsonSerializable;
 use Throwable;
 
-use function Hyperf\Support\with;
+use function with;
 
 class Batch implements Arrayable, JsonSerializable
 {

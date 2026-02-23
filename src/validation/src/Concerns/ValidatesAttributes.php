@@ -32,7 +32,7 @@ use InvalidArgumentException;
 use SplFileInfo;
 use ValueError;
 
-use function Hyperf\Support\with;
+use function with;
 
 trait ValidatesAttributes
 {

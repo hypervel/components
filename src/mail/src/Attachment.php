@@ -12,7 +12,7 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 
-use function Hyperf\Support\with;
+use function with;
 
 class Attachment
 {

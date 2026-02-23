@@ -12,7 +12,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 
-use function Hyperf\Support\with;
+use function with;
 
 class EloquentUserProvider implements UserProvider
 {
