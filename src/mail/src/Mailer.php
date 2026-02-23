@@ -27,7 +27,7 @@ use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
 
-use function Hyperf\Support\value;
+use function value;
 
 class Mailer implements MailerContract, MailQueueContract
 {

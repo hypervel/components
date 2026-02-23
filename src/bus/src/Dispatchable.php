@@ -9,7 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Support\Fluent;
 
-use function Hyperf\Support\value;
+use function value;
 
 trait Dispatchable
 {

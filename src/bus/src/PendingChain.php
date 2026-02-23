@@ -14,8 +14,8 @@ use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
 use UnitEnum;
 
-use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;
+use function value;
 
 class PendingChain
 {

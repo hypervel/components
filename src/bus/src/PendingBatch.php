@@ -18,8 +18,8 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Throwable;
 use UnitEnum;
 
-use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;
+use function value;
 
 class PendingBatch
 {

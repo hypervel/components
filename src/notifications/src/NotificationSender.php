@@ -16,7 +16,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
 
-use function Hyperf\Support\value;
+use function value;
 
 class NotificationSender
 {

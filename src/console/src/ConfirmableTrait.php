@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
-use function Hyperf\Support\value;
+use function value;
 
 trait ConfirmableTrait
 {

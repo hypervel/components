@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Middleware;
 
 use Closure;
 
-use function Hyperf\Support\value;
+use function value;
 
 class Skip
 {
