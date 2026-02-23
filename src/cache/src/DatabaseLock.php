@@ -10,7 +10,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\QueryException;
 use InvalidArgumentException;
 
-use function Hyperf\Support\optional;
+use function optional;
 
 class DatabaseLock extends Lock implements RefreshableLock
 {

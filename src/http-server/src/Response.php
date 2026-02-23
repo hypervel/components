@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use BadMethodCallException;
-use Hyperf\Support\MimeTypeExtensionGuesser;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
@@ -23,6 +22,7 @@ use Hypervel\HttpServer\Contracts\ResponseInterface;
 use Hypervel\HttpServer\Exceptions\Http\EncodingException;
 use Hypervel\Support\ClearStatCache;
 use Hypervel\Support\Json;
+use Hypervel\Support\MimeTypeExtensionGuesser;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Xml;
