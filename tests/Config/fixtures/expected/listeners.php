@@ -19,7 +19,7 @@ return [
 
     // From override (numeric keys - appended)
     3 => 'Hyperf\ModelListener\Listener\ModelEventListener',
-    4 => 'Hyperf\Process\Listener\BootProcessListener',
+    4 => 'Hypervel\ServerProcess\Listeners\BootProcessListener',
 
     // From override (string keys with priority - MUST be preserved)
     'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,

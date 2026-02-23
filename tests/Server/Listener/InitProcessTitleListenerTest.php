@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server\Listener;
 
-use Hyperf\Process\Event\BeforeProcessHandle;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
@@ -13,6 +12,7 @@ use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;
 use Hypervel\Server\Listener\InitProcessTitleListener;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\Server\Stub\DemoProcess;
 use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub;
 use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub2;

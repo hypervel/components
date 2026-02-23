@@ -15,7 +15,7 @@ declare(strict_types=1);
 return [
     // Regular listeners (numeric keys - should be appended)
     'Hyperf\ModelListener\Listener\ModelEventListener',
-    'Hyperf\Process\Listener\BootProcessListener',
+    'Hypervel\ServerProcess\Listeners\BootProcessListener',
 
     // Priority listeners (string keys - MUST be preserved)
     'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,
