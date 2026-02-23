@@ -41,6 +41,10 @@ parameters:
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
+    # NodeTrait methods - mixed in at app level, not on base Model class
+    - message: '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
+      path: src/nested-set/*
+
     # SoftDeletes trait methods - optionally mixed in, can't be statically verified
     - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'
 

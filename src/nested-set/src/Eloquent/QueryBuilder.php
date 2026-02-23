@@ -281,7 +281,6 @@ class QueryBuilder extends EloquentBuilder
         $alias = '_d';
         $wrappedAlias = $this->query->getGrammar()->wrapTable($alias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newScopedQuery('_d')
             ->toBase()
@@ -521,7 +520,6 @@ class QueryBuilder extends EloquentBuilder
 
     protected function getOdnessQuery(): BaseQueryBuilder
     {
-        /* @phpstan-ignore-next-line */
         return $this->model
             ->newNestedSetQuery()
             ->toBase()
@@ -544,7 +542,6 @@ class QueryBuilder extends EloquentBuilder
         $waFirst = $this->query->getGrammar()->wrapTable($firstAlias);
         $waSecond = $this->query->getGrammar()->wrapTable($secondAlias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newNestedSetQuery($firstAlias)
             ->toBase()
@@ -581,7 +578,6 @@ class QueryBuilder extends EloquentBuilder
         $waChild = $grammar->wrapTable($childAlias);
         $waInterm = $grammar->wrapTable($intermAlias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newNestedSetQuery('c')
             ->toBase()
@@ -607,7 +603,6 @@ class QueryBuilder extends EloquentBuilder
 
     protected function getMissingParentQuery(): BaseQueryBuilder
     {
-        /* @phpstan-ignore-next-line */
         return $this->model
             ->newNestedSetQuery()
             ->toBase()
@@ -666,7 +661,6 @@ class QueryBuilder extends EloquentBuilder
             $this->model->getRgtName(), /* @phpstan-ignore-line */
         ];
 
-        /* @phpstan-ignore-next-line */
         $dictionary = $this->model
             ->newNestedSetQuery()
             ->when($root, function (self $query) use ($root) {
@@ -778,7 +772,6 @@ class QueryBuilder extends EloquentBuilder
         if (! empty($existing)) {
             /* @phpstan-ignore-next-line */
             if ($delete && ! $this->model->usesSoftDelete()) {
-                /* @phpstan-ignore-next-line */
                 $this->model
                     ->newScopedQuery()
                     ->whereIn($this->model->getKeyName(), array_keys($existing))
