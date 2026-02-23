@@ -256,11 +256,11 @@ if (! function_exists('value')) {
      * Return the default value of the given value.
      *
      * @template TValue
-     * @template TReturn
+     * @template TArgs
      *
-     * @param (\Closure(TValue): TReturn)|TValue $value
-     * @param TValue ...$args
-     * @return ($value is \Closure ? TReturn : TValue)
+     * @param \Closure(TArgs): TValue|TValue $value
+     * @param TArgs ...$args
+     * @return TValue
      */
     function value($value, ...$args)
     {

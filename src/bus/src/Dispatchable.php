@@ -29,7 +29,7 @@ trait Dispatchable
         if ($boolean instanceof Closure) {
             $dispatchable = new static(...$arguments);
 
-            return value($boolean, $dispatchable)
+            return value($boolean, $dispatchable) // @phpstan-ignore ternary.alwaysTrue (phpstan over-narrows TValue from conditional return PHPDoc)
                 ? new PendingDispatch($dispatchable)
                 : new Fluent();
         }
@@ -47,7 +47,7 @@ trait Dispatchable
         if ($boolean instanceof Closure) {
             $dispatchable = new static(...$arguments);
 
-            return ! value($boolean, $dispatchable)
+            return ! value($boolean, $dispatchable) // @phpstan-ignore booleanNot.alwaysFalse
                 ? new PendingDispatch($dispatchable)
                 : new Fluent();
         }
