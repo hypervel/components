@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use DateTimeInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Cookie\Cookie;
@@ -82,8 +83,9 @@ class StartSession implements MiddlewareInterface
         $waitFor = ($blockingOptions['wait']
             ?? $this->manager->defaultRouteBlockWaitSeconds());
 
-        /* @phpstan-ignore-next-line */
-        $lock = $this->cache->store($this->manager->blockDriver())
+        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */ // @phpstan-ignore varTag.nativeType
+        $store = $this->cache->store($this->manager->blockDriver());
+        $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)
             ->betweenBlockedAttemptsSleepFor(50);
 
@@ -92,7 +94,7 @@ class StartSession implements MiddlewareInterface
 
             return $this->handleStatefulRequest($request, $session, $handler);
         } finally {
-            $lock?->release();
+            $lock->release();
         }
     }
 
