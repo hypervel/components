@@ -71,6 +71,7 @@
             "Hypervel\\Scout\\": "src/scout/src/",
             "Hypervel\\Serializer\\": "src/serializer/src/",
             "Hypervel\\Server\\": "src/server/src/",
+            "Hypervel\\ServerProcess\\": "src/server-process/src/",
             "Hypervel\\Session\\": "src/session/src/",
             "Hypervel\\Socialite\\": "src/socialite/src/",
             "Hypervel\\Support\\": ["src/collections/src/", "src/conditionable/src/", "src/macroable/src/", "src/reflection/src/", "src/support/src/"],
@@ -235,6 +236,7 @@
         "hypervel/view": "self.version",
         "hypervel/http-server": "self.version",
         "hypervel/server": "self.version",
+        "hypervel/server-process": "self.version",
         "hypervel/websocket-server": "self.version"
     },
     "suggest": {
@@ -319,6 +321,7 @@
                 "Hypervel\\Serializer\\ConfigProvider",
                 "Hypervel\\HttpServer\\ConfigProvider",
                 "Hypervel\\Server\\ConfigProvider",
+                "Hypervel\\ServerProcess\\ConfigProvider",
                 "Hypervel\\Session\\ConfigProvider",
                 "Hypervel\\Socialite\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
