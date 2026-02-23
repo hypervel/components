@@ -42,7 +42,6 @@
         "hyperf/signal": "~3.1.0",
         "hypervel/engine": "^0.4",
         "friendsofhyperf/pretty-console": "~3.1.0",
-        "friendsofhyperf/command-signals": "~3.1.0",
         "symfony/error-handler": "^6.3"
     },
     "require-dev": {
