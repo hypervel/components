@@ -24,7 +24,7 @@ class ExceptionHandlerDispatcher extends AbstractDispatcher
      *
      * Expects: Throwable $throwable, string[] $handlers.
      */
-    public function dispatch(...$params)
+    public function dispatch(mixed ...$params): mixed
     {
         [$throwable, $handlers] = $params;
         $response = ResponseContext::get();

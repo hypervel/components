@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Serializer\NormalizerInterface;
 use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\RouteDependency;
 use InvalidArgumentException;

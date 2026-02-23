@@ -744,14 +744,8 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Session\SessionManager::class,
             ],
             \Hypervel\Contracts\Session\Session::class => ['session.store'],
-            \Hypervel\Contracts\Translation\Translator::class => [
-                'translator',
-                \Hyperf\Contract\TranslatorInterface::class,
-            ],
-            \Hypervel\Contracts\Translation\Loader::class => [
-                'translator.loader',
-                \Hyperf\Contract\TranslatorLoaderInterface::class,
-            ],
+            \Hypervel\Contracts\Translation\Translator::class => ['translator'],
+            \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
             \Hypervel\Contracts\Bus\Dispatcher::class => [
                 \Hypervel\Contracts\Bus\QueueingDispatcher::class,
                 \Hypervel\Bus\Dispatcher::class,

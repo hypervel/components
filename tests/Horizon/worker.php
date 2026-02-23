@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-use Hyperf\Contract\ApplicationInterface;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -28,7 +28,7 @@ $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
 Container::setInstance($app);
-$app->make(ApplicationInterface::class);
+$app->make(ConsoleApplicationContract::class);
 
 $config = $app->make('config');
 $config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);

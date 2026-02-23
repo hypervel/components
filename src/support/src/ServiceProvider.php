@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\TranslatorLoaderInterface;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Translation\Loader as TranslationLoader;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
@@ -147,7 +147,7 @@ abstract class ServiceProvider
      */
     protected function loadTranslationsFrom(string $path, string $namespace): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path, $namespace) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path, $namespace) {
             $translator->addNamespace($namespace, $path);
         });
     }
@@ -157,7 +157,7 @@ abstract class ServiceProvider
      */
     protected function loadJsonTranslationsFrom(string $path): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path) {
             $translator->addJsonPath($path);
         });
     }

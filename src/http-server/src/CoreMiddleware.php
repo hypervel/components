@@ -6,7 +6,6 @@ namespace Hypervel\HttpServer;
 
 use Closure;
 use FastRoute\Dispatcher;
-use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
@@ -14,6 +13,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Hypervel\Contracts\Serializer\NormalizerInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;

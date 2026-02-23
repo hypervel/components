@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Closure;
-use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Serializer\NormalizerInterface;
 use Hypervel\HttpServer\Router\Dispatched;
 use InvalidArgumentException;
 

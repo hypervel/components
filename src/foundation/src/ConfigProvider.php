@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
-use Hyperf\Contract\ApplicationInterface;
 use Hypervel\Console\ApplicationFactory;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
@@ -21,7 +21,7 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                ApplicationInterface::class => ApplicationFactory::class,
+                ApplicationContract::class => ApplicationFactory::class,
                 InitProcessTitleListener::class => SetProcessTitle::class,
             ],
             'listeners' => [

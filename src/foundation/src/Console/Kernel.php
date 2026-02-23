@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hypervel\Console\Annotations\Command as AnnotationCommand;
@@ -405,7 +404,7 @@ class Kernel implements KernelContract
             ->resolveCommands($this->commands)
             ->setContainerCommandLoader();
 
-        $this->app->instance(ApplicationInterface::class, $this->artisan);
+        $this->app->instance(ApplicationContract::class, $this->artisan);
 
         $this->bootstrap();
 

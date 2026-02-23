@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
-use Hyperf\Contract\ApplicationInterface;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Dispatcher\HttpDispatcher;
@@ -93,7 +93,7 @@ trait InteractsWithContainer
 
         $this->defineEnvironment($this->app);
 
-        $this->app->make(ApplicationInterface::class);
+        $this->app->make(ConsoleApplicationContract::class);
     }
 
     /**
