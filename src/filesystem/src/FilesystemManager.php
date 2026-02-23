@@ -81,7 +81,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): FileSystem
+    public function disk(UnitEnum|string|null $name = null): Filesystem
     {
         $name = enum_value($name) ?: $this->getDefaultDriver();
 
@@ -102,7 +102,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): FileSystem
+    public function build(array|string $config): Filesystem
     {
         return $this->resolve('ondemand', is_array($config) ? $config : [
             'driver' => 'local',
@@ -113,7 +113,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): FileSystem
+    protected function get(string $name): Filesystem
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -123,7 +123,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): FileSystem
+    protected function resolve(string $name, ?array $config = null): Filesystem
     {
         $config ??= $this->getConfig($name);
 
@@ -165,7 +165,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): FileSystem
+    protected function callCustomCreator(array $config): Filesystem
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
@@ -173,7 +173,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the local driver.
      */
-    public function createLocalDriver(array $config, string $name = 'local'): FileSystem
+    public function createLocalDriver(array $config, string $name = 'local'): Filesystem
     {
         $visibility = PortableVisibilityConverter::fromArray(
             $config['permissions'] ?? [],
@@ -206,7 +206,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the ftp driver.
      */
-    public function createFtpDriver(array $config): FileSystem
+    public function createFtpDriver(array $config): Filesystem
     {
         if (! isset($config['root'])) {
             $config['root'] = '';
@@ -221,7 +221,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the sftp driver.
      */
-    public function createSftpDriver(array $config): FileSystem
+    public function createSftpDriver(array $config): Filesystem
     {
         /* @phpstan-ignore-next-line */
         $provider = SftpConnectionProvider::fromArray($config);
@@ -355,7 +355,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create a scoped driver.
      */
-    public function createScopedDriver(array $config): FileSystem
+    public function createScopedDriver(array $config): Filesystem
     {
         if (empty($config['disk'])) {
             throw new InvalidArgumentException('Scoped disk is missing "disk" configuration option.');
