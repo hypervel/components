@@ -17,7 +17,7 @@ trait Fallback
     /**
      * The fallback implementations.
      *
-     * @var array<class-string, Closure($this): mixed>
+     * @var array<class-string, Closure(static): mixed>
      */
     protected static array $fallbacks = [];
 
@@ -40,7 +40,7 @@ trait Fallback
     /**
      * Set the fallback implementation.
      *
-     * @param Closure($this): mixed $fallback
+     * @param Closure(static): mixed $fallback
      */
     public static function fallbackUsing(Closure $fallback): void
     {
