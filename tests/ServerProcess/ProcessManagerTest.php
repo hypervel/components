@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
-use Hypervel\Contracts\ServerProcess\ServerProcessInterface;
+use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -44,7 +44,7 @@ class ProcessManagerTest extends TestCase
 
     public function testRegisterProcess()
     {
-        $process = m::mock(ServerProcessInterface::class);
+        $process = m::mock(ProcessInterface::class);
 
         ProcessManager::register($process);
 
@@ -54,8 +54,8 @@ class ProcessManagerTest extends TestCase
 
     public function testRegisterMultipleProcesses()
     {
-        $process1 = m::mock(ServerProcessInterface::class);
-        $process2 = m::mock(ServerProcessInterface::class);
+        $process1 = m::mock(ProcessInterface::class);
+        $process2 = m::mock(ProcessInterface::class);
 
         ProcessManager::register($process1);
         ProcessManager::register($process2);
@@ -67,7 +67,7 @@ class ProcessManagerTest extends TestCase
 
     public function testClear()
     {
-        ProcessManager::register(m::mock(ServerProcessInterface::class));
+        ProcessManager::register(m::mock(ProcessInterface::class));
         $this->assertCount(1, ProcessManager::all());
 
         ProcessManager::clear();
@@ -81,7 +81,7 @@ class ProcessManagerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Processes are running');
 
-        ProcessManager::register(m::mock(ServerProcessInterface::class));
+        ProcessManager::register(m::mock(ProcessInterface::class));
     }
 
     public function testRegisterWorksAfterStoppingAndClearing()
@@ -89,7 +89,7 @@ class ProcessManagerTest extends TestCase
         ProcessManager::setRunning(true);
         ProcessManager::setRunning(false);
 
-        $process = m::mock(ServerProcessInterface::class);
+        $process = m::mock(ProcessInterface::class);
         ProcessManager::register($process);
 
         $this->assertCount(1, ProcessManager::all());

@@ -6,7 +6,7 @@ namespace Hypervel\ServerProcess;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\ServerProcess\ServerProcessInterface;
+use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
@@ -22,7 +22,7 @@ use Swoole\Server;
 use Swoole\Timer;
 use Throwable;
 
-abstract class AbstractProcess implements ServerProcessInterface
+abstract class AbstractProcess implements ProcessInterface
 {
     public string $name = 'process';
 

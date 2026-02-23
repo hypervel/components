@@ -6,7 +6,7 @@ namespace Hypervel\ServerProcess\Listeners;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\ServerProcess\ServerProcessInterface;
+use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\ProcessManager;
@@ -53,7 +53,7 @@ class BootProcessListener implements ListenerInterface
             } else {
                 $instance = $process;
             }
-            if ($instance instanceof ServerProcessInterface) {
+            if ($instance instanceof ProcessInterface) {
                 $instance->isEnable($server) && $instance->bind($server);
             }
         }

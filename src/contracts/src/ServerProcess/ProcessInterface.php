@@ -6,7 +6,7 @@ namespace Hypervel\Contracts\ServerProcess;
 
 use Swoole\Server;
 
-interface ServerProcessInterface
+interface ProcessInterface
 {
     /**
      * Create process objects and bind them to the server.
