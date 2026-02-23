@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server\Stub;
 
-use Hyperf\Process\AbstractProcess;
+use Hypervel\ServerProcess\AbstractProcess;
 
 class DemoProcess extends AbstractProcess
 {
