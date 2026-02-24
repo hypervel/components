@@ -10,8 +10,10 @@ use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'migrate')]
 class MigrateCommand extends BaseCommand implements Isolatable
 {
     use ConfirmableTrait;

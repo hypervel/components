@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:failed')]
 class ListFailedCommand extends Command
 {
     /**

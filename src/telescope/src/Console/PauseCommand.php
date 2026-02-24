@@ -6,7 +6,9 @@ namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'telescope:pause')]
 class PauseCommand extends Command
 {
     /**

@@ -8,11 +8,13 @@ use Hypervel\Console\Command;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Support\Collection;
 use Psr\Container\ContainerExceptionInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Display information about an Eloquent model.
  */
+#[AsCommand(name: 'model:show')]
 class ShowModelCommand extends Command
 {
     protected ?string $signature = 'model:show

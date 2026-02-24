@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\ConnectionResolverInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'db:wipe')]
 class WipeCommand extends Command
 {
     use ConfirmableTrait;

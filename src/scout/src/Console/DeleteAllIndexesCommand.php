@@ -7,10 +7,12 @@ namespace Hypervel\Scout\Console;
 use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Scout\EngineManager;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Delete all search indexes.
  */
+#[AsCommand(name: 'scout:delete-all-indexes')]
 class DeleteAllIndexesCommand extends Command
 {
     /**

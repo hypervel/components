@@ -11,7 +11,9 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'about')]
 class AboutCommand extends Command
 {
     protected ?string $signature = 'about {--only= : The section to display}

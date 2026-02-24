@@ -8,10 +8,12 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Delete a search index.
  */
+#[AsCommand(name: 'scout:delete-index')]
 class DeleteIndexCommand extends Command
 {
     /**

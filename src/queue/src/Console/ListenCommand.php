@@ -9,7 +9,9 @@ use Hypervel\Console\Command;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:listen')]
 class ListenCommand extends Command
 {
     /**

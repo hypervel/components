@@ -7,7 +7,9 @@ namespace Hypervel\Database\Console\Migrations;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Migrations\Migrator;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'migrate:reset')]
 class ResetCommand extends BaseCommand
 {
     use ConfirmableTrait;

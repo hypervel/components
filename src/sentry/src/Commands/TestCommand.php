@@ -12,8 +12,10 @@ use Sentry\State\Hub;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\TransactionContext;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'sentry:test')]
 class TestCommand extends Command
 {
     protected ?string $signature = 'sentry:test {--dsn= : Sentry DSN} {--transaction= : Transaction}';

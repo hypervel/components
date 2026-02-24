@@ -10,7 +10,9 @@ use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:monitor')]
 class MonitorCommand extends Command
 {
     /**

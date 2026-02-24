@@ -6,7 +6,9 @@ namespace Hypervel\Console\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\Schedule;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'schedule:clear-cache')]
 class ScheduleClearCacheCommand extends Command
 {
     /**

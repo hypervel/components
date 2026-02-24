@@ -11,7 +11,9 @@ use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\ProcessInspector;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:purge')]
 class PurgeCommand extends Command
 {
     /**

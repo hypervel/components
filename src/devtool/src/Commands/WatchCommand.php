@@ -9,8 +9,10 @@ use Hyperf\Watcher\Watcher;
 use Hypervel\Console\Command;
 use Hypervel\Console\Concerns\NullDisableEventDispatcher;
 use Hypervel\Contracts\Container\Container;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'watch')]
 class WatchCommand extends Command
 {
     use NullDisableEventDispatcher;

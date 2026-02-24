@@ -6,7 +6,9 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\Command;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'migrate:install')]
 class InstallCommand extends Command
 {
     protected ?string $signature = 'migrate:install

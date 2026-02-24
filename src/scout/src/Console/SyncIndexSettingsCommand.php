@@ -10,10 +10,12 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Sync configured index settings with the search engine.
  */
+#[AsCommand(name: 'scout:sync-index-settings')]
 class SyncIndexSettingsCommand extends Command
 {
     /**

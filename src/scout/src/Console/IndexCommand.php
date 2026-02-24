@@ -11,10 +11,12 @@ use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Create a search index.
  */
+#[AsCommand(name: 'scout:index')]
 class IndexCommand extends Command
 {
     /**

@@ -7,9 +7,11 @@ namespace Hypervel\Console\Commands;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Schedule;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\select;
 
+#[AsCommand(name: 'schedule:test')]
 class ScheduleTestCommand extends Command
 {
     /**

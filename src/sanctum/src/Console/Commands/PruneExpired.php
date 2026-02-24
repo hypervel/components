@@ -6,7 +6,9 @@ namespace Hypervel\Sanctum\Console\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Sanctum\Sanctum;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'sanctum:prune-expired')]
 class PruneExpired extends Command
 {
     /**

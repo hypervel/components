@@ -12,7 +12,9 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'vendor:publish')]
 class VendorPublishCommand extends Command
 {
     protected ?string $signature = 'vendor:publish {package?}

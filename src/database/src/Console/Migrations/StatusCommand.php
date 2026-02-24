@@ -7,7 +7,9 @@ namespace Hypervel\Database\Console\Migrations;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'migrate:status')]
 class StatusCommand extends BaseCommand
 {
     protected ?string $signature = 'migrate:status

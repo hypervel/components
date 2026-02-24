@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Failed\PrunableFailedJobProvider;
 use Hypervel\Support\Carbon;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:prune-failed')]
 class PruneFailedJobsCommand extends Command
 {
     /**

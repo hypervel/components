@@ -8,10 +8,12 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Import model records into the search index.
  */
+#[AsCommand(name: 'scout:import')]
 class ImportCommand extends Command
 {
     /**

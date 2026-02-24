@@ -16,7 +16,9 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use stdClass;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:retry')]
 class RetryCommand extends Command
 {
     /**

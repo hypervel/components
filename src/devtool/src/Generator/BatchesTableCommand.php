@@ -6,8 +6,10 @@ namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
 use Hypervel\Console\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'make:queue-batches-table|queue:batches-table')]
 class BatchesTableCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:queue-batches-table|queue:batches-table';

@@ -7,7 +7,9 @@ namespace Hypervel\Horizon\Console;
 use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:forget')]
 class ForgetFailedCommand extends Command
 {
     /**

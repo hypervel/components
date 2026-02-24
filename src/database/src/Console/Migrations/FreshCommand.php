@@ -10,7 +10,9 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'migrate:fresh')]
 class FreshCommand extends Command
 {
     use ConfirmableTrait;

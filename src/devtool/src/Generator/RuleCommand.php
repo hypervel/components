@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Console\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'make:rule')]
 class RuleCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:rule';

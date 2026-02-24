@@ -6,8 +6,10 @@ namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'make:controller')]
 class ControllerCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:controller';

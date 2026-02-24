@@ -7,7 +7,9 @@ namespace Hypervel\Queue\Console;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\InteractsWithTime;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:restart')]
 class RestartCommand extends Command
 {
     use InteractsWithTime;

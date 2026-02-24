@@ -6,7 +6,9 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'make:migration')]
 class MakeMigrationCommand extends BaseCommand
 {
     protected ?string $signature = 'make:migration

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Console\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'make:listener')]
 class ListenerCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:listener';

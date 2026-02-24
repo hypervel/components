@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Console\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'make:notification')]
 class NotificationCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:notification';

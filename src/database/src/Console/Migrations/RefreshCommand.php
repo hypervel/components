@@ -9,7 +9,9 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'migrate:refresh')]
 class RefreshCommand extends Command
 {
     use ConfirmableTrait;

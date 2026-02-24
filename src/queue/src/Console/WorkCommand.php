@@ -20,11 +20,13 @@ use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 
 use function Termwind\terminal;
 
+#[AsCommand(name: 'queue:work')]
 class WorkCommand extends Command
 {
     use InteractsWithTime;

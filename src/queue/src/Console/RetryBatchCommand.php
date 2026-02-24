@@ -6,7 +6,9 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Bus\BatchRepository;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:retry-batch')]
 class RetryBatchCommand extends Command
 {
     /**

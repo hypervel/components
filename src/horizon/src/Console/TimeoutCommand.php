@@ -7,7 +7,9 @@ namespace Hypervel\Horizon\Console;
 use Hypervel\Console\Command;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\ProvisioningPlan;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:timeout')]
 class TimeoutCommand extends Command
 {
     /**

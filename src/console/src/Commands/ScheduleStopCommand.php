@@ -7,7 +7,9 @@ namespace Hypervel\Console\Commands;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\Facades\Date;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'schedule:stop')]
 class ScheduleStopCommand extends Command
 {
     /**

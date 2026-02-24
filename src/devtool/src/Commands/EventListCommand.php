@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputOption;
@@ -16,6 +17,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Lists all registered events and their listeners.
  */
+#[AsCommand(name: 'event:list')]
 class EventListCommand extends Command
 {
     public function __construct(private Container $container)

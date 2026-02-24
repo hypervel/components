@@ -16,8 +16,10 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionFunction;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
 
+#[AsCommand(name: 'schedule:list')]
 class ScheduleListCommand extends Command
 {
     /**

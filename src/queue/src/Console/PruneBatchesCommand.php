@@ -9,7 +9,9 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Hypervel\Support\Carbon;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:prune-batches')]
 class PruneBatchesCommand extends Command
 {
     /**

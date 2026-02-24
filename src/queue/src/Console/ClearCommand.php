@@ -10,9 +10,11 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Support\Str;
 use ReflectionClass;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'queue:clear')]
 class ClearCommand extends Command
 {
     use ConfirmableTrait;

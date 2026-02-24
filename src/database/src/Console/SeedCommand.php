@@ -10,9 +10,11 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'db:seed')]
 class SeedCommand extends Command
 {
     use ConfirmableTrait;

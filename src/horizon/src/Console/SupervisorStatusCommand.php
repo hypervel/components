@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:supervisor-status')]
 class SupervisorStatusCommand extends Command
 {
     /**

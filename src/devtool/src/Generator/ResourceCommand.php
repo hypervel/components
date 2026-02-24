@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Console\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'make:resource')]
 class ResourceCommand extends GeneratorCommand
 {
     protected ?string $name = 'make:resource';

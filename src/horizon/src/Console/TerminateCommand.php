@@ -11,7 +11,9 @@ use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:terminate')]
 class TerminateCommand extends Command
 {
     use InteractsWithTime;

@@ -9,7 +9,9 @@ use Hypervel\Sentry\Version;
 use Hypervel\Support\Collection;
 use Sentry\Client;
 use Sentry\State\HubInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'sentry:about')]
 class AboutCommand extends Command
 {
     protected ?string $name = 'sentry:about';

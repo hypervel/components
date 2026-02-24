@@ -9,8 +9,10 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'server:reload')]
 class ServerReloadCommand extends Command
 {
     protected ?string $signature = 'server:reload';
