@@ -26,11 +26,13 @@ class BusServiceProvider extends ServiceProvider
         $this->registerBatchServices();
 
         $this->app->alias(
-            Dispatcher::class, DispatcherContract::class
+            Dispatcher::class,
+            DispatcherContract::class
         );
 
         $this->app->alias(
-            Dispatcher::class, QueueingDispatcherContract::class
+            Dispatcher::class,
+            QueueingDispatcherContract::class
         );
     }
 

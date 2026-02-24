@@ -22,7 +22,8 @@ class BroadcastServiceProvider extends ServiceProvider
         });
 
         $this->app->alias(
-            BroadcastManager::class, BroadcastingFactory::class
+            BroadcastManager::class,
+            BroadcastingFactory::class
         );
     }
 }
