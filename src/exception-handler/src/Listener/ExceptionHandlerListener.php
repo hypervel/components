@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler\Listener;
 
-use Hyperf\Di\Annotation\AnnotationCollector;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Event\Contracts\ListenerInterface;
-use Hypervel\ExceptionHandler\Annotation\ExceptionHandler;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\SplPriorityQueue;
 
@@ -47,15 +45,6 @@ class ExceptionHandlerListener implements ListenerInterface
                 }
                 $queue->insert([$server, $handler], $priority);
             }
-        }
-
-        $annotations = AnnotationCollector::getClassesByAnnotation(ExceptionHandler::class);
-        /**
-         * @var string $handler
-         * @var ExceptionHandler $annotation
-         */
-        foreach ($annotations as $handler => $annotation) {
-            $queue->insert([$annotation->server, $handler], $annotation->priority);
         }
 
         $this->config->set(self::HANDLER_KEY, $this->formatExceptionHandlers($queue));
