@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Database\DatabaseManager;
-
 /**
  * @method static \Hypervel\Database\Connection connection(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Database\ConnectionInterface build(array $config)
@@ -48,6 +46,6 @@ class DB extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return DatabaseManager::class;
+        return 'db';
     }
 }

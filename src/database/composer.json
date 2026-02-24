@@ -41,8 +41,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Database\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Database\\DatabaseServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
