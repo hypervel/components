@@ -334,6 +334,7 @@
             ],
             "providers": [
                 "Hypervel\\Auth\\AuthServiceProvider",
+                "Hypervel\\Broadcasting\\BroadcastServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Pipeline\\PipelineServiceProvider",

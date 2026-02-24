@@ -18,6 +18,7 @@ class DefaultProviders
     {
         $this->providers = $providers ?: [
             \Hypervel\Auth\AuthServiceProvider::class,
+            \Hypervel\Broadcasting\BroadcastServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
