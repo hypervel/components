@@ -169,6 +169,11 @@ trait HasAttributes
     protected static array $setAttributeMutatorCache = [];
 
     /**
+     * The cache of the resolved custom caster class instances.
+     */
+    protected static array $casterCache = [];
+
+    /**
      * The cache of the converted cast types.
      */
     protected static array $castTypeCache = [];
@@ -1634,24 +1639,38 @@ trait HasAttributes
     {
         $castType = $this->getCasts()[$key];
 
+        if ($caster = static::$casterCache[static::class][$castType] ?? null) {
+            return $caster;
+        }
+
         $arguments = [];
 
-        if (is_string($castType) && str_contains($castType, ':')) {
-            $segments = explode(':', $castType, 2);
+        $castClass = $castType;
 
-            $castType = $segments[0];
+        if (is_string($castClass) && str_contains($castClass, ':')) {
+            $segments = explode(':', $castClass, 2);
+
+            $castClass = $segments[0];
             $arguments = explode(',', $segments[1]);
         }
 
-        if (is_subclass_of($castType, Castable::class)) {
-            $castType = $castType::castUsing($arguments);
+        if (is_subclass_of($castClass, Castable::class)) {
+            $castClass = $castClass::castUsing($arguments);
         }
 
-        if (is_object($castType)) {
-            return $castType;
+        if (is_object($castClass)) {
+            return static::$casterCache[static::class][$castType] = $castClass;
         }
 
-        return new $castType(...$arguments);
+        return static::$casterCache[static::class][$castType] = new $castClass(...$arguments);
+    }
+
+    /**
+     * Flush the caster cache for the model.
+     */
+    public static function flushCasterCache(): void
+    {
+        static::$casterCache = [];
     }
 
     /**
