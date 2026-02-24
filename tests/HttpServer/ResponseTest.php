@@ -34,6 +34,7 @@ class ResponseTest extends TestCase
     {
         parent::tearDown();
         Context::set(PsrResponseInterface::class, null);
+        RequestContext::destroy();
     }
 
     public function testRedirect()

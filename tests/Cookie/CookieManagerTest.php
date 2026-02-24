@@ -36,6 +36,13 @@ enum CookieManagerTestNameIntEnum: int
  */
 class CookieManagerTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        RequestContext::destroy();
+    }
+
     public function testHas()
     {
         $request = m::mock(RequestInterface::class);
