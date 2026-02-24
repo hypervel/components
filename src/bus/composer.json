@@ -43,9 +43,6 @@
         ]
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Bus\\ConfigProvider"
-        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
