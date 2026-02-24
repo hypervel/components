@@ -182,14 +182,18 @@ You cannot simply copy the ConfigProvider's `dependencies` array into a service 
 
 Find the equivalent Laravel service provider in the Laravel source reference. For example, `Illuminate\Auth\AuthServiceProvider` for the auth package. Read it completely — understand the binding keys, binding types (`singleton` vs `bind`), and how it constructs services.
 
+For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array, using closure-based singletons. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
+
 ##### 2. Read the Hypervel ConfigProvider
 
 Read the existing ConfigProvider to understand what's currently registered. Categorise each entry:
-- **`dependencies`** — container bindings. These move to the service provider.
-- **`listeners`** — Hyperf-style `ListenerInterface` classes. These move to the service provider's `boot()` method using `$dispatcher->listen()`.
-- **`commands`** — artisan commands. These stay in config for now (loaded by Kernel via `config('commands')`).
-- **`publish`** — publishable files. These stay in the ConfigProvider for now (consumed by `VendorPublishCommand`).
+- **`dependencies`** — container bindings. These move to the service provider's `register()` method.
+- **`listeners`** — Hyperf-style `ListenerInterface` classes. These move to the service provider's `boot()` method (see "Listener registration" below).
+- **`commands`** — artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
+- **`publish`** — publishable files. These move to the service provider's `boot()` method via `$this->publishes([source => destination])`. `VendorPublishCommand` reads from both systems, so the service provider approach works.
 - **`aspects`** — Hyperf DI AOP aspects. Leave as-is.
+
+Since everything except `aspects` moves to the service provider, the ConfigProvider should be **deleted entirely** once migrated (unless it still has `aspects`).
 
 ##### 3. Check registerCoreContainerAliases
 
@@ -214,6 +218,8 @@ Look up the package's entries in `Application::registerCoreContainerAliases()`. 
 ```
 
 If any of the package's concrete classes appear as aliases for their own abstract, you **must** use closure-based bindings in the service provider (see "Binding patterns" below). Otherwise `singleton(Interface::class, Concrete::class)` creates a circular resolution cycle: the container tries to resolve the concrete, the alias redirects back to the interface, infinite loop.
+
+**If Laravel has no entry for this package in `registerCoreContainerAliases`:** Remove the entry from Hypervel's aliases entirely. Use `$this->app->alias()` in the service provider instead, matching how Laravel handles it. For example, Laravel's `BusServiceProvider` uses `$this->app->alias(Dispatcher::class, DispatcherContract::class)` rather than having a bus entry in `registerCoreContainerAliases`.
 
 ##### 4. Create the service provider
 
@@ -247,17 +253,19 @@ $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 
 ##### 6. Register the service provider
 
-Three places need updating:
+Four places need updating:
 
-1. **`composer.json`** — Add to `extra.hypervel.providers` array. This is how apps discover the provider.
+1. **Root `composer.json` `extra.hypervel.providers`** — Add the service provider. This is how apps discover providers from the components monorepo.
 
-2. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Add to the providers list. This is how the testbench and default app configs load the provider. Without this, tests using `Testbench\TestCase` won't have the bindings available.
+2. **Package `composer.json` `extra.hypervel.providers`** — Replace `extra.hyperf.config` with `extra.hypervel.providers` listing the new service provider. This is how apps discover providers when the package is installed as a standalone dependency.
 
-3. **`composer.json` `extra.hyperf.config`** — The ConfigProvider stays listed here (for commands/publish/aspects that haven't been migrated yet). Only remove it from this list once the ConfigProvider is completely empty and deleted.
+3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Add to the providers list (alphabetical order). This is how the testbench and default app configs load the provider. Without this, tests using `Testbench\TestCase` won't have the bindings available.
 
-##### 7. Remove migrated entries from ConfigProvider
+4. **Remove from `extra.hyperf.config`** — Remove the ConfigProvider from both the root `composer.json` and the package `composer.json` `extra.hyperf.config` entries (since the ConfigProvider is deleted).
 
-Remove the `dependencies` array (and `listeners` if migrated) from the ConfigProvider. Keep `commands`, `publish`, and `aspects` — those are separate migrations. If the ConfigProvider now returns only `publish` or `commands`, that's fine — it stays until those are migrated too.
+##### 7. Delete the ConfigProvider
+
+Since all entries (dependencies, listeners, commands, publish) move to the service provider, the ConfigProvider should be deleted entirely. The only exception is if the ConfigProvider still has `aspects` entries — in that case, remove everything else and keep only the `aspects` array until those are migrated separately.
 
 ##### 8. Run tests
 
@@ -272,31 +280,49 @@ Run the package's tests first, then the full suite. Circular dependency errors o
 
 **Packages with existing service providers:** Some packages already have service providers (e.g., `MailServiceProvider`, `NotificationServiceProvider`, `PermissionServiceProvider`). Add the ConfigProvider's dependency bindings to the existing provider's `register()` method rather than creating a new one.
 
-**Packages with listeners:** Listeners registered via the `listeners` config key use the Hyperf `ListenerInterface` pattern (`listen()` + `process()` methods). When migrating, register them in the service provider's `boot()` method using `$dispatcher->listen($event, [$instance, 'process'])`. These listener classes will later be converted to standard Laravel listeners as part of the illuminate/events port.
+**Packages with listeners:** Listeners registered via the `listeners` config key use the Hyperf `ListenerInterface` pattern (`listen()` + `process()` methods). When migrating, register them in the service provider's `boot()` method. The event dispatcher calls listeners directly as callables (`$listener($eventName, $payload)`), so you must use closures that resolve from the container — do **not** pass `[ClassName::class, 'method']` arrays since `process()` is not static:
 
-#### Completed example: auth
+```php
+public function boot(): void
+{
+    $events = $this->app->make('events');
 
-The auth package migration demonstrates the full pattern:
+    $events->listen(BeforeServerStart::class, function (BeforeServerStart $event) {
+        $this->app->make(CreateSwooleTable::class)->process($event);
+    });
+}
+```
 
-- **Laravel reference:** `Illuminate\Auth\AuthServiceProvider` — uses `singleton('auth', closure)`, `singleton('auth.driver', closure)`, `bind(Authenticatable, closure)`, `singleton(Gate, closure)`
-- **Deleted:** `GateFactory` (replaced by inline closure), `UserResolver` (replaced by inline closure)
-- **Alias flip:** `Contracts\Auth\Factory => ['auth', AuthManager]` became `'auth' => [AuthManager, Contracts\Auth\Factory]`
-- **Created:** `Hypervel\Auth\AuthServiceProvider` matching Laravel's structure
-- **Registered in:** `composer.json` providers, `DefaultProviders`
-- **ConfigProvider:** dependencies removed, `publish` entries retained
+These listener classes will later be converted to standard Laravel listeners as part of the illuminate/events port.
+
+**`BootApplication` listeners:** Some ConfigProviders registered listeners on `BootApplication` (which fires in the Kernel constructor, before bootstrap). These should be replaced with direct calls in the service provider's `boot()` — e.g., the database package's `RegisterConnectionResolverListener` became a direct `Model::setConnectionResolver()` call in `DatabaseServiceProvider::boot()`.
+
+#### Completed example
+
+**database** — alias flip, factory deletion, `BootApplication` listener replacement, commands:
+
+- **Deleted:** `DatabaseMigrationRepositoryFactory` (replaced by inline closure), `ConfigProvider`
+- **Alias flip:** `DatabaseManager::class => ['db']` became `'db' => [DatabaseManager::class]` (also `db.schema`, `db.transactions`)
+- **Listener replacement:** `RegisterConnectionResolverListener` (fired on `BootApplication`) replaced by direct `Model::setConnectionResolver()` and `Model::setEventDispatcher()` in `boot()`
+- **DB facade:** Changed accessor from `DatabaseManager::class` to `'db'`
 
 #### Quick checklist
 
-1. Read the Laravel service provider for the package
-2. Read the Hypervel ConfigProvider
-3. Check and fix `registerCoreContainerAliases` — flip to string-canonical if needed
+1. Read the Laravel service provider for the package (or design one if no Laravel equivalent)
+2. Read the Hypervel ConfigProvider — categorise all entries
+3. Check `registerCoreContainerAliases` — flip to string-canonical if needed, or remove if Laravel doesn't have it
 4. Create service provider matching Laravel's binding keys, types, and closures
-5. Delete any Hyperf factory/resolver classes replaced by inline closures
-6. Add to `composer.json` `extra.hypervel.providers`
-7. Add to `DefaultProviders`
-8. Remove `dependencies` (and `listeners` if applicable) from ConfigProvider
-9. Run package tests, then full suite
-10. Investigate any circular dependency errors — usually an alias direction issue
+5. Move commands to `register()` via `$this->commands([...])`
+6. Move listeners to `boot()` via closure-based `$events->listen()`
+7. Move publish entries to `boot()` via `$this->publishes([...])`
+8. Delete any Hyperf factory/resolver classes replaced by inline closures
+9. Delete the ConfigProvider (unless it still has `aspects`)
+10. Add provider to root `composer.json` `extra.hypervel.providers`
+11. Update package `composer.json` — replace `extra.hyperf.config` with `extra.hypervel.providers`
+12. Add to `DefaultProviders` (alphabetical order)
+13. Remove ConfigProvider from root `composer.json` `extra.hyperf.config`
+14. Run phpstan, then full test suite
+15. Investigate any circular dependency errors — usually an alias direction issue
 
 ## Porting Tests
 
