@@ -290,7 +290,6 @@
                 "Hypervel\\ConfigProvider",
                 "Hypervel\\Auth\\ConfigProvider",
                 "Hypervel\\Broadcasting\\ConfigProvider",
-                "Hypervel\\Bus\\ConfigProvider",
                 "Hypervel\\Cache\\ConfigProvider",
                 "Hypervel\\Cookie\\ConfigProvider",
                 "Hypervel\\Database\\ConfigProvider",
@@ -335,6 +334,7 @@
             "providers": [
                 "Hypervel\\Auth\\AuthServiceProvider",
                 "Hypervel\\Broadcasting\\BroadcastServiceProvider",
+                "Hypervel\\Bus\\BusServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Pipeline\\PipelineServiceProvider",

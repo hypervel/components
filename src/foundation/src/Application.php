@@ -801,10 +801,6 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Contracts\Session\Session::class => ['session.store'],
             \Hypervel\Contracts\Translation\Translator::class => ['translator'],
             \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
-            \Hypervel\Contracts\Bus\Dispatcher::class => [
-                \Hypervel\Contracts\Bus\QueueingDispatcher::class,
-                \Hypervel\Bus\Dispatcher::class,
-            ],
             \Hypervel\Contracts\Notifications\Dispatcher::class => [
                 \Hypervel\Contracts\Notifications\Factory::class,
             ],
