@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Hypervel\Console\SignalRegistry;
-use Hypervel\Container\Container;
 
 use function Hypervel\Coroutine\defer;
 
@@ -22,7 +21,7 @@ trait InteractsWithSignals
     protected function trap(array|int $signo, callable $callback): void
     {
         if (! $this->signalRegistry) {
-            $this->signalRegistry = Container::getInstance()->make(SignalRegistry::class);
+            $this->signalRegistry = new SignalRegistry();
             defer(fn () => $this->signalRegistry->unregister());
         }
 

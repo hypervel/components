@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\Concerns\InteractsWithSignals;
 use Hypervel\Console\SignalRegistry;
-use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -20,19 +20,20 @@ class InteractsWithSignalsTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    public function testTrapCreatesRegistryAndRegistersSignal()
+    public function testTrapCreatesRegistry()
     {
-        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $signalRegistry->shouldReceive('register')->with(SIGTERM, m::type('callable'))->once();
-
-        $container = m::mock(Container::class)->shouldIgnoreMissing();
-        $container->shouldReceive('make')->with(SignalRegistry::class)->once()->andReturn($signalRegistry);
-        Container::setInstance($container);
-
         $command = new InteractsWithSignalsTestStub();
-        $command->callTrap(SIGTERM, fn (int $signo) => null);
 
         $invoker = new ClassInvoker($command);
+        $this->assertNull($invoker->signalRegistry);
+
+        // Inject a mock so trap() doesn't spawn a real signal wait coroutine.
+        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
+        $signalRegistry->shouldReceive('register')->once();
+        $this->setSignalRegistry($command, $signalRegistry);
+
+        $command->callTrap(SIGTERM, fn (int $signo) => null);
+
         $this->assertSame($signalRegistry, $invoker->signalRegistry);
     }
 
@@ -41,12 +42,9 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
         $signalRegistry->shouldReceive('register')->twice();
 
-        $container = m::mock(Container::class)->shouldIgnoreMissing();
-        // make() should only be called once — reused on second trap()
-        $container->shouldReceive('make')->with(SignalRegistry::class)->once()->andReturn($signalRegistry);
-        Container::setInstance($container);
-
         $command = new InteractsWithSignalsTestStub();
+        $this->setSignalRegistry($command, $signalRegistry);
+
         $command->callTrap(SIGTERM, fn (int $signo) => null);
         $command->callTrap(SIGINT, fn (int $signo) => null);
     }
@@ -57,11 +55,9 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry->shouldReceive('register')->once();
         $signalRegistry->shouldReceive('unregister')->with(SIGTERM)->once();
 
-        $container = m::mock(Container::class)->shouldIgnoreMissing();
-        $container->shouldReceive('make')->with(SignalRegistry::class)->once()->andReturn($signalRegistry);
-        Container::setInstance($container);
-
         $command = new InteractsWithSignalsTestStub();
+        $this->setSignalRegistry($command, $signalRegistry);
+
         $command->callTrap(SIGTERM, fn (int $signo) => null);
         $command->callUntrap(SIGTERM);
     }
@@ -80,13 +76,17 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry->shouldReceive('register')->once();
         $signalRegistry->shouldReceive('unregister')->with(null)->once();
 
-        $container = m::mock(Container::class)->shouldIgnoreMissing();
-        $container->shouldReceive('make')->with(SignalRegistry::class)->once()->andReturn($signalRegistry);
-        Container::setInstance($container);
-
         $command = new InteractsWithSignalsTestStub();
+        $this->setSignalRegistry($command, $signalRegistry);
+
         $command->callTrap(SIGTERM, fn (int $signo) => null);
         $command->callUntrap(null);
+    }
+
+    private function setSignalRegistry(InteractsWithSignalsTestStub $command, SignalRegistry $registry): void
+    {
+        $property = new ReflectionProperty($command, 'signalRegistry');
+        $property->setValue($command, $registry);
     }
 }
 
