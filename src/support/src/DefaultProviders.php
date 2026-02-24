@@ -21,6 +21,7 @@ class DefaultProviders
             \Hypervel\Broadcasting\BroadcastServiceProvider::class,
             \Hypervel\Bus\BusServiceProvider::class,
             \Hypervel\Cache\CacheServiceProvider::class,
+            \Hypervel\Console\ConsoleServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
