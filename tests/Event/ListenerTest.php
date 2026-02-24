@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Event;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Event\Annotation\Listener as ListenerAnnotation;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
@@ -97,45 +96,5 @@ class ListenerTest extends TestCase
         $this->assertSame(1, $betaListener->value);
         $dispatcher->dispatch(new Beta());
         $this->assertSame(2, $betaListener->value);
-    }
-
-    public function testListenerInvokeByFactoryWithAnnotationConfig()
-    {
-        $listenerAnnotation = new ListenerAnnotation();
-        $listenerAnnotation->collectClass(AlphaListener::class, ListenerAnnotation::class);
-        $listenerAnnotation->collectClass(BetaListener::class, ListenerAnnotation::class);
-
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('config')->andReturn(new Repository([]));
-        $container->shouldReceive('make')
-            ->with(AlphaListener::class)
-            ->andReturn($alphaListener = new AlphaListener());
-        $container->shouldReceive('make')
-            ->with(BetaListener::class)
-            ->andReturn($betaListener = new BetaListener());
-        $container->shouldReceive('make')
-            ->once()
-            ->with(ListenerProviderContract::class)
-            ->andReturn((new ListenerProviderFactory())($container));
-
-        $listenerProvider = $container->make(ListenerProviderContract::class);
-        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
-        $this->assertSame(2, count($listenerProvider->listeners));
-
-        $dispatcher = new EventDispatcher($listenerProvider);
-        $this->assertSame(1, $alphaListener->value);
-        $dispatcher->dispatch(new Alpha());
-        $this->assertSame(2, $alphaListener->value);
-        $this->assertSame(1, $betaListener->value);
-        $dispatcher->dispatch(new Beta());
-        $this->assertSame(2, $betaListener->value);
-    }
-
-    public function testListenerAnnotationExists(): void
-    {
-        // Hyperf's Listener annotation still exists (for compatibility)
-        // but priority is ignored in Hypervel's Laravel-style event system
-        $listenerAnnotation = new ListenerAnnotation();
-        $this->assertInstanceOf(ListenerAnnotation::class, $listenerAnnotation);
     }
 }

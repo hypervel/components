@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hyperf\Di\Annotation\AnnotationCollector;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Event\Annotation\Listener;
 use Hypervel\Event\Contracts\ListenerInterface;
 
 /**
  * Factory for creating and configuring the ListenerProvider.
  *
- * Registers listeners from two sources:
- * 1. Config-based: Classes listed in the 'listeners' config array
- * 2. Annotation-based: Classes with #[Listener] attribute
- *
- * Both sources support Hyperf's ListenerInterface pattern where listeners
- * declare which events they handle via listen() and process them via process().
+ * Registers listeners from the 'listeners' config array. Supports Hyperf's
+ * ListenerInterface pattern where listeners declare which events they handle
+ * via listen() and process them via process().
  */
 class ListenerProviderFactory
 {
@@ -26,7 +21,6 @@ class ListenerProviderFactory
         $listenerProvider = new ListenerProvider();
 
         $this->registerConfig($listenerProvider, $container);
-        $this->registerAnnotations($listenerProvider, $container);
 
         return $listenerProvider;
     }
@@ -44,18 +38,6 @@ class ListenerProviderFactory
 
             if (is_string($listener)) {
                 $this->register($provider, $container, $listener);
-            }
-        }
-    }
-
-    /**
-     * Register listeners with #[Listener] annotation.
-     */
-    protected function registerAnnotations(ListenerProvider $provider, Container $container): void
-    {
-        foreach (AnnotationCollector::list() as $className => $values) {
-            if (isset($values['_c'][Listener::class])) {
-                $this->register($provider, $container, $className);
             }
         }
     }
