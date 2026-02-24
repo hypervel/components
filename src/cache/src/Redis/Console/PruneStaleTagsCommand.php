@@ -7,8 +7,10 @@ namespace Hypervel\Cache\Redis\Console;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 
+#[AsCommand(name: 'cache:prune-redis-stale-tags')]
 class PruneStaleTagsCommand extends Command
 {
     /**

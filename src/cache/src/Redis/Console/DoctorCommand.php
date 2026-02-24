@@ -37,8 +37,10 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'cache:redis-doctor')]
 class DoctorCommand extends Command
 {
     use DetectsRedisStore;

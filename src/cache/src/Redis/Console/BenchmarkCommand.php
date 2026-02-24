@@ -26,8 +26,10 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'cache:redis-benchmark')]
 class BenchmarkCommand extends Command
 {
     use DetectsRedisStore;
