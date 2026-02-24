@@ -20,6 +20,7 @@ class DefaultProviders
             \Hypervel\Auth\AuthServiceProvider::class,
             \Hypervel\Broadcasting\BroadcastServiceProvider::class,
             \Hypervel\Bus\BusServiceProvider::class,
+            \Hypervel\Cache\CacheServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,

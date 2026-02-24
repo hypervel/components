@@ -716,13 +716,13 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Contracts\Auth\Factory::class,
             ],
             'auth.driver' => [\Hypervel\Contracts\Auth\Guard::class],
-            \Hypervel\Contracts\Cache\Factory::class => [
-                'cache',
+            'cache' => [
                 \Hypervel\Cache\CacheManager::class,
+                \Hypervel\Contracts\Cache\Factory::class,
             ],
-            \Hypervel\Contracts\Cache\Store::class => [
-                'cache.store',
+            'cache.store' => [
                 \Hypervel\Cache\Repository::class,
+                \Hypervel\Contracts\Cache\Repository::class,
             ],
             \Hypervel\Contracts\Config\Repository::class => [
                 'config',

@@ -46,8 +46,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Cache\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Cache\\CacheServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
