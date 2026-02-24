@@ -6,12 +6,9 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hyperf\Di\Annotation\AnnotationCollector;
-use Hyperf\Di\ReflectionManager;
-use Hypervel\Console\Annotations\Command as AnnotationCommand;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
-use Hypervel\Console\HasPendingCommand;
+use Hypervel\Console\CommandReplacer;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
@@ -20,14 +17,15 @@ use Hypervel\Contracts\Foundation\Application as ContainerContract;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use ReflectionClass;
+use SplFileInfo;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Finder\Finder;
 
 class Kernel implements KernelContract
 {
-    use HasPendingCommand;
-
     protected ApplicationContract $artisan;
 
     /**
@@ -143,38 +141,33 @@ class Kernel implements KernelContract
      */
     protected function collectCommands(): array
     {
-        // Load commands from the given directory.
-        $loadedPathReflections = [];
-        if ($loadedPaths = $this->getLoadedPaths()) {
-            $loadedPathReflections = ReflectionManager::getAllClasses($loadedPaths);
-        }
-
-        // Load commands from Hyperf config for compatibility.
-        $configReflections = array_map(function (string $class) {
-            return ReflectionManager::reflectClass($class);
-        }, $this->app->make('config')->get('commands', []));
-
-        // Load commands that defined by annotation.
-        $annotationReflections = [];
-        if (class_exists(AnnotationCollector::class) && class_exists(AnnotationCommand::class)) {
-            $annotationAnnotationCommands = AnnotationCollector::getClassesByAnnotation(AnnotationCommand::class);
-            $annotationReflections = array_map(function (string $class) {
-                return ReflectionManager::reflectClass($class);
-            }, array_keys($annotationAnnotationCommands));
-        }
-
-        $reflections = array_merge($loadedPathReflections, $configReflections, $annotationReflections);
         $commands = [];
-        // Filter valid command classes.
-        foreach ($reflections as $reflection) {
-            $command = $reflection->getName();
-            if (! is_subclass_of($command, SymfonyCommand::class)) {
-                continue;
+
+        // Discover commands from loaded paths (directories registered via load()).
+        if ($loadedPaths = $this->getLoadedPaths()) {
+            $namespace = $this->app->getNamespace();
+
+            foreach ($this->findCommands($loadedPaths) as $file) {
+                $className = $this->commandClassFromFile($file, $namespace);
+                $command = rescue(fn () => new ReflectionClass($className), null, false);
+
+                if ($command instanceof ReflectionClass
+                    && $command->isSubclassOf(SymfonyCommand::class)
+                    && ! $command->isAbstract()
+                ) {
+                    $commands[] = $className;
+                }
             }
-            $commands[] = $command;
         }
 
-        // Load commands from registered closures
+        // Load commands from config.
+        foreach ($this->app->make('config')->get('commands', []) as $class) {
+            if (is_subclass_of($class, SymfonyCommand::class)) {
+                $commands[] = $class;
+            }
+        }
+
+        // Load commands from registered closures.
         foreach ($this->closureCommands as $command) {
             $closureId = spl_object_hash($command);
             $this->app->instance($commandId = "commands.{$closureId}", $command);
@@ -183,6 +176,26 @@ class Kernel implements KernelContract
 
         return array_unique(
             array_merge($this->commands, $commands)
+        );
+    }
+
+    /**
+     * Get the Finder instance for discovering command files.
+     */
+    protected function findCommands(array $paths): Finder
+    {
+        return Finder::create()->in($paths)->name('*.php')->files();
+    }
+
+    /**
+     * Extract the command class name from the given file path.
+     */
+    protected function commandClassFromFile(SplFileInfo $file, string $namespace): string
+    {
+        return $namespace . str_replace(
+            ['/', '.php'],
+            ['\\', ''],
+            Str::after($file->getRealPath(), realpath($this->app->path()) . DIRECTORY_SEPARATOR)
         );
     }
 
@@ -213,7 +226,7 @@ class Kernel implements KernelContract
      */
     public function registerCommand(string $command): void
     {
-        if (! $command = $this->pendingCommand($this->app->make($command))) {
+        if (! $command = CommandReplacer::replace($this->app->make($command))) {
             return;
         }
 
