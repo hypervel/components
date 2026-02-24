@@ -333,6 +333,7 @@
                 "hyperf/command"
             ],
             "providers": [
+                "Hypervel\\Auth\\AuthServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Pipeline\\PipelineServiceProvider",
