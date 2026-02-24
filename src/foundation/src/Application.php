@@ -711,11 +711,11 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Foundation\Application::class,
             ],
             \Hypervel\Contracts\Console\Kernel::class => ['artisan'],
-            \Hypervel\Contracts\Auth\Factory::class => [
-                'auth',
+            'auth' => [
                 \Hypervel\Auth\AuthManager::class,
+                \Hypervel\Contracts\Auth\Factory::class,
             ],
-            \Hypervel\Contracts\Auth\Guard::class => ['auth.driver'],
+            'auth.driver' => [\Hypervel\Contracts\Auth\Guard::class],
             \Hypervel\Contracts\Cache\Factory::class => [
                 'cache',
                 \Hypervel\Cache\CacheManager::class,
