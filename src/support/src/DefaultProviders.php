@@ -20,6 +20,9 @@ class DefaultProviders
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
+            \Hypervel\Notifications\NotificationServiceProvider::class,
+            \Hypervel\Pagination\PaginationServiceProvider::class,
+            \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
     }

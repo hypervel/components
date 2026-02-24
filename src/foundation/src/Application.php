@@ -9,13 +9,16 @@ use Hypervel\Config\ProviderConfig;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Traits\Macroable;
+use ReflectionClass;
 use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
@@ -382,16 +385,68 @@ class Application extends Container implements ApplicationContract
 
     /**
      * Register all of the configured providers.
+     *
+     * Providers are loaded in three tiers:
+     * 1. Framework providers (Hypervel\* from app.providers) — always first
+     * 2. Discovered providers (from composer packages) — sorted by priority
+     * 3. Application providers (non-Hypervel\* from app.providers) — always last
      */
     public function registerConfiguredProviders(): void
     {
-        $providers = $this->make('config')->get('app.providers', []);
+        $providers = (new Collection($this->make('config')->get('app.providers', [])))
+            ->partition(fn (string $provider) => str_starts_with($provider, 'Hypervel\\'));
 
-        foreach ($providers as $provider) {
+        $discovered = static::sortByPriority($this->discoverProviders());
+
+        $providers->splice(1, 0, [$discovered]);
+
+        foreach ($providers->collapse()->unique()->all() as $provider) {
             $this->register($provider);
         }
 
         $this->fireAppCallbacks($this->registeredCallbacks);
+    }
+
+    /**
+     * Discover service providers from installed composer packages.
+     *
+     * @return array<int, class-string>
+     */
+    protected function discoverProviders(): array
+    {
+        return RegisterProviders::discoveredProviders();
+    }
+
+    /**
+     * Sort providers by their priority property in descending order.
+     *
+     * Higher priority values are loaded first. Providers with the same
+     * priority preserve their original order (stable sort).
+     *
+     * @param array<int, class-string> $providers
+     * @return array<int, class-string>
+     */
+    protected static function sortByPriority(array $providers): array
+    {
+        if (empty($providers)) {
+            return [];
+        }
+
+        // Read priority from each provider's default property value without instantiation
+        $prioritized = array_map(function (string $provider) {
+            $priority = 0;
+
+            if (class_exists($provider) && is_subclass_of($provider, ServiceProvider::class)) {
+                $priority = (new ReflectionClass($provider))->getDefaultProperties()['priority'] ?? 0;
+            }
+
+            return ['provider' => $provider, 'priority' => $priority];
+        }, $providers);
+
+        // Stable sort: higher priority first, original order preserved within same priority
+        usort($prioritized, fn (array $a, array $b) => $b['priority'] <=> $a['priority']);
+
+        return array_column($prioritized, 'provider');
     }
 
     /**

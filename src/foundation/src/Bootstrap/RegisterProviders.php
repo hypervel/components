@@ -36,6 +36,11 @@ class RegisterProviders
 
     /**
      * Merge the additional configured providers into the configuration.
+     *
+     * Merges only explicit providers (config defaults, programmatic merge,
+     * bootstrap file). Discovered providers are handled separately in
+     * Application::registerConfiguredProviders() where they are sandwiched
+     * between framework and application providers.
      */
     protected function mergeAdditionalProviders(ApplicationContract $app): void
     {
@@ -52,26 +57,25 @@ class RegisterProviders
 
         $app->make('config')->set(
             'app.providers',
-            array_values(array_unique(array_merge(
+            array_merge(
                 $app->make('config')->get('app.providers') ?? ServiceProvider::defaultProviders()->toArray(),
-                $this->discoveredProviders(),
                 static::$merge,
                 array_values($bootstrapProviders ?? []),
-            ))),
+            ),
         );
     }
 
     /**
-     * Discover providers from installed packages via composer.lock.
+     * Discover providers from installed packages via composer metadata.
      *
      * This is the Hypervel equivalent of Laravel's PackageManifest::providers().
      * It reads `extra.hypervel.providers` from each installed package's metadata.
      *
      * @return array<int, class-string>
      */
-    protected function discoveredProviders(): array
+    public static function discoveredProviders(): array
     {
-        $packagesToIgnore = $this->packagesToIgnore();
+        $packagesToIgnore = static::packagesToIgnore();
 
         if (in_array('*', $packagesToIgnore)) {
             return [];
@@ -96,7 +100,7 @@ class RegisterProviders
      *
      * @return array<int, string>
      */
-    protected function packagesToIgnore(): array
+    protected static function packagesToIgnore(): array
     {
         $packages = Composer::getMergedExtra('hypervel')['dont-discover'] ?? [];
 

@@ -16,6 +16,16 @@ use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 abstract class ServiceProvider
 {
     /**
+     * The registration priority for this provider.
+     *
+     * Higher values are registered first among discovered/merged providers.
+     * Core framework providers (DefaultProviders) always load first regardless
+     * of priority. Use gaps between values (10, 20, 30) to allow future
+     * insertion without renumbering.
+     */
+    public int $priority = 0;
+
+    /**
      * All of the registered booting callbacks.
      */
     protected array $bootingCallbacks = [];
