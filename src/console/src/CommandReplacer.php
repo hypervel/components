@@ -47,6 +47,32 @@ class CommandReplacer
         'describe:listeners' => null,
     ];
 
+    /**
+     * Resolve a command name through the replacement map without instantiation.
+     *
+     * Returns [newName, alias] for renamed commands, [originalName, null] for
+     * unaffected commands, or false if the command should be suppressed.
+     *
+     * @return array{0: string, 1: ?string}|false
+     */
+    public static function resolveCommandName(string $commandName): array|false
+    {
+        if (! array_key_exists($commandName, static::$commands)) {
+            return [$commandName, null];
+        }
+
+        $replace = static::$commands[$commandName] ?? null;
+
+        if ($replace === null) {
+            return false;
+        }
+
+        return [is_array($replace) ? $replace['name'] : $replace, $commandName];
+    }
+
+    /**
+     * Apply command replacements to an instantiated command.
+     */
     public static function replace(Command $command, bool $remainAlias = true): ?Command
     {
         $commandName = $command->getName();
