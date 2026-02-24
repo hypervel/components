@@ -11,7 +11,9 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\ProcessUtils;
 use Override;
+use ReflectionClass;
 use Symfony\Component\Console\Application as SymfonyApplication;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -44,6 +46,11 @@ class Application extends SymfonyApplication implements ApplicationContract
      * A map of command names to classes.
      */
     protected array $commandMap = [];
+
+    /**
+     * Whether the container command loader has been set.
+     */
+    protected bool $commandLoaderSet = false;
 
     public function __construct(
         protected ContainerContract $container,
@@ -172,24 +179,98 @@ class Application extends SymfonyApplication implements ApplicationContract
 
     /**
      * Add a command, resolving through the application.
+     *
+     * Commands whose name can be determined statically (#[AsCommand], $signature,
+     * or $name property) are added to the commandMap for lazy resolution via
+     * ContainerCommandLoader. Commands without a static name fall back to eager
+     * resolution through the container.
      */
     public function resolve(SymfonyCommand|string $command): ?SymfonyCommand
     {
-        if (is_subclass_of($command, SymfonyCommand::class) && ($commandName = $command::getDefaultName())) {
-            foreach (explode('|', $commandName) as $name) {
-                $this->commandMap[$name] = $command;
-            }
+        if (is_subclass_of($command, SymfonyCommand::class)) {
+            $commandName = static::extractCommandName($command);
 
-            return null;
+            if ($commandName !== null) {
+                $names = explode('|', $commandName);
+
+                // Check if CommandReplacer suppresses or renames the primary name.
+                $replacement = CommandReplacer::resolveCommandName($names[0]);
+
+                if ($replacement === false) {
+                    return null;
+                }
+
+                [$primaryName, $alias] = $replacement;
+
+                // Register the primary name (possibly renamed by CommandReplacer).
+                $this->commandMap[$primaryName] = $command;
+
+                // Register pipe-delimited aliases (e.g., 'name|alias1|alias2').
+                for ($i = 1, $count = count($names); $i < $count; ++$i) {
+                    $this->commandMap[$names[$i]] = $command;
+                }
+
+                // Preserve the old name as an alias when CommandReplacer renames.
+                if ($alias !== null) {
+                    $this->commandMap[$alias] = $command;
+                }
+
+                // Refresh the loader so it sees the new commandMap entries.
+                if ($this->commandLoaderSet) {
+                    $this->setContainerCommandLoader();
+                }
+
+                return null;
+            }
         }
 
         if ($command instanceof SymfonyCommand) {
             return $this->add($command);
         }
 
-        return $this->add(
-            $this->container->make($command)
-        );
+        // Eager fallback for commands whose name cannot be determined statically.
+        $resolved = $this->container->make($command);
+
+        if (! $resolved = CommandReplacer::replace($resolved)) {
+            return null;
+        }
+
+        return $this->add($resolved);
+    }
+
+    /**
+     * Extract the command name from a class without instantiation.
+     *
+     * Checks (in order): #[AsCommand] attribute, $signature property default,
+     * $name property default. Returns null if the name can only be determined
+     * at construction time.
+     */
+    protected static function extractCommandName(string $command): ?string
+    {
+        $reflection = new ReflectionClass($command);
+
+        // 1. #[AsCommand] attribute (Symfony standard, used by Laravel).
+        $attributes = $reflection->getAttributes(AsCommand::class);
+
+        if (! empty($attributes)) {
+            return $attributes[0]->newInstance()->name;
+        }
+
+        $defaults = $reflection->getDefaultProperties();
+
+        // 2. $signature property (Laravel convention) — name is the first token.
+        if (! empty($defaults['signature'])) {
+            return preg_match('/^\S+/', trim($defaults['signature']), $matches)
+                ? $matches[0]
+                : null;
+        }
+
+        // 3. $name property.
+        if (! empty($defaults['name'])) {
+            return $defaults['name'];
+        }
+
+        return null;
     }
 
     /**
@@ -219,6 +300,8 @@ class Application extends SymfonyApplication implements ApplicationContract
         $this->setCommandLoader(
             new ContainerCommandLoader($this->container, $this->commandMap)
         );
+
+        $this->commandLoaderSet = true;
 
         return $this;
     }
