@@ -76,4 +76,32 @@ class CommandReplacerTest extends TestCase
         $this->assertSame('List all registered routes', $result->getDescription());
         $this->assertEmpty($result->getAliases());
     }
+
+    public function testResolveCommandNameReturnsOriginalForUnmappedCommand()
+    {
+        $result = CommandReplacer::resolveCommandName('my:custom-command');
+
+        $this->assertSame(['my:custom-command', null], $result);
+    }
+
+    public function testResolveCommandNameReturnsFalseForSuppressedCommand()
+    {
+        $result = CommandReplacer::resolveCommandName('info');
+
+        $this->assertFalse($result);
+    }
+
+    public function testResolveCommandNameReturnsNewNameAndAliasForStringRename()
+    {
+        $result = CommandReplacer::resolveCommandName('gen:command');
+
+        $this->assertSame(['make:command', 'gen:command'], $result);
+    }
+
+    public function testResolveCommandNameReturnsNewNameAndAliasForArrayRename()
+    {
+        $result = CommandReplacer::resolveCommandName('start');
+
+        $this->assertSame(['serve', 'start'], $result);
+    }
 }
