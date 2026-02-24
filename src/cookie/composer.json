@@ -35,8 +35,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Cookie\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Cookie\\CookieServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

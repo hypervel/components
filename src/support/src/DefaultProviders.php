@@ -22,6 +22,7 @@ class DefaultProviders
             \Hypervel\Bus\BusServiceProvider::class,
             \Hypervel\Cache\CacheServiceProvider::class,
             \Hypervel\Console\ConsoleServiceProvider::class,
+            \Hypervel\Cookie\CookieServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,

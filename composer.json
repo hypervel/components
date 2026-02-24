@@ -288,7 +288,6 @@
         "hyperf": {
             "config": [
                 "Hypervel\\ConfigProvider",
-                "Hypervel\\Cookie\\ConfigProvider",
                 "Hypervel\\Database\\ConfigProvider",
                 "Hypervel\\Config\\ConfigProvider",
                 "Hypervel\\Devtool\\ConfigProvider",
@@ -333,6 +332,7 @@
                 "Hypervel\\Bus\\BusServiceProvider",
                 "Hypervel\\Cache\\CacheServiceProvider",
                 "Hypervel\\Console\\ConsoleServiceProvider",
+                "Hypervel\\Cookie\\CookieServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Pipeline\\PipelineServiceProvider",

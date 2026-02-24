@@ -728,7 +728,10 @@ class Application extends Container implements ApplicationContract
                 'config',
                 \Hypervel\Config\Repository::class,
             ],
-            \Hypervel\Cookie\CookieManager::class => ['cookie'],
+            'cookie' => [
+                \Hypervel\Cookie\CookieManager::class,
+                \Hypervel\Contracts\Cookie\Cookie::class,
+            ],
             \Hypervel\Database\DatabaseManager::class => ['db'],
             \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
             \Hypervel\Database\DatabaseTransactionsManager::class => ['db.transactions'],
