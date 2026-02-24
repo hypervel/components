@@ -49,8 +49,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Broadcasting\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Broadcasting\\BroadcastServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

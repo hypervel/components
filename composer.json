@@ -288,8 +288,6 @@
         "hyperf": {
             "config": [
                 "Hypervel\\ConfigProvider",
-                "Hypervel\\Auth\\ConfigProvider",
-                "Hypervel\\Broadcasting\\ConfigProvider",
                 "Hypervel\\Cookie\\ConfigProvider",
                 "Hypervel\\Database\\ConfigProvider",
                 "Hypervel\\Config\\ConfigProvider",

@@ -48,4 +48,14 @@ class AuthServiceProvider extends ServiceProvider
             return new Gate($app, fn () => call_user_func($app['auth']->userResolver()));
         });
     }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../publish/auth.php' => BASE_PATH . '/config/autoload/auth.php',
+        ]);
+    }
 }

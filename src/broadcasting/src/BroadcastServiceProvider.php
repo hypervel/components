@@ -26,4 +26,14 @@ class BroadcastServiceProvider extends ServiceProvider
             BroadcastingFactory::class
         );
     }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../publish/broadcasting.php' => BASE_PATH . '/config/autoload/broadcasting.php',
+        ]);
+    }
 }

@@ -43,6 +43,11 @@
         ]
     },
     "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Bus\\BusServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }

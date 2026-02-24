@@ -42,8 +42,10 @@
         ]
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Auth\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Auth\\AuthServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
