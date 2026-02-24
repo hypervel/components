@@ -215,9 +215,12 @@ class Kernel implements KernelContract
         }
         $commands = array_merge($hyperfCommands, $otherCommands);
 
-        // Register commands to application.
+        // Resolve commands through the console application. Commands with a
+        // statically determinable name (#[AsCommand], $signature, $name) are
+        // registered lazily via the command map. Others fall back to eager
+        // resolution through the container.
         foreach ($commands as $command) {
-            $this->registerCommand($command);
+            $this->getArtisan()->resolve($command);
         }
     }
 
@@ -414,12 +417,15 @@ class Kernel implements KernelContract
         }
 
         $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
-            ->resolveCommands($this->commands)
-            ->setContainerCommandLoader();
+            ->resolveCommands($this->commands);
 
         $this->app->instance(ApplicationContract::class, $this->artisan);
 
         $this->bootstrap();
+
+        // Set the container command loader AFTER bootstrap so all commands
+        // discovered during bootstrap are in the command map for lazy resolution.
+        $this->artisan->setContainerCommandLoader();
 
         return $this->artisan;
     }
