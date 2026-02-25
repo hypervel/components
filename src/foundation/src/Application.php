@@ -735,9 +735,10 @@ class Application extends Container implements ApplicationContract
             'db' => [\Hypervel\Database\DatabaseManager::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
-            \Hypervel\Contracts\Encryption\Encrypter::class => [
-                'encrypter',
+            'encrypter' => [
                 \Hypervel\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\StringEncrypter::class,
             ],
             \Psr\EventDispatcher\EventDispatcherInterface::class => [
                 'events',

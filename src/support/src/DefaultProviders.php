@@ -24,6 +24,7 @@ class DefaultProviders
             \Hypervel\Console\ConsoleServiceProvider::class,
             \Hypervel\Cookie\CookieServiceProvider::class,
             \Hypervel\Database\DatabaseServiceProvider::class,
+            \Hypervel\Encryption\EncryptionServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,

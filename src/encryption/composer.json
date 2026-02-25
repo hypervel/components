@@ -35,8 +35,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Encryption\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Encryption\\EncryptionServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
