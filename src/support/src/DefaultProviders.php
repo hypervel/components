@@ -39,6 +39,7 @@ class DefaultProviders
             \Hypervel\Notifications\NotificationServiceProvider::class,
             \Hypervel\ObjectPool\ObjectPoolServiceProvider::class,
             \Hypervel\Pagination\PaginationServiceProvider::class,
+            \Hypervel\Queue\QueueServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];

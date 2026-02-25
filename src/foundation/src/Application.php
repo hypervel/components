@@ -777,15 +777,15 @@ class Application extends Container implements ApplicationContract
             ],
             \Hypervel\Contracts\Mail\Mailer::class => ['mailer'],
             \Hypervel\Database\Migrations\Migrator::class => ['migrator'],
-            \Hypervel\Contracts\Queue\Factory::class => [
-                'queue',
+            'queue' => [
                 \Hypervel\Queue\QueueManager::class,
+                \Hypervel\Contracts\Queue\Factory::class,
                 \Hypervel\Contracts\Queue\Monitor::class,
             ],
-            \Hypervel\Contracts\Queue\Queue::class => ['queue.connection'],
-            \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
-            \Hypervel\Queue\Listener::class => ['queue.listener'],
-            \Hypervel\Queue\Worker::class => ['queue.worker'],
+            'queue.connection' => [\Hypervel\Contracts\Queue\Queue::class],
+            'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
+            'queue.listener' => [\Hypervel\Queue\Listener::class],
+            'queue.worker' => [\Hypervel\Queue\Worker::class],
             \Hypervel\Redis\Redis::class => ['redis'],
             'request' => [
                 \Psr\Http\Message\ServerRequestInterface::class,

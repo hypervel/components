@@ -40,8 +40,10 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Queue\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Queue\\QueueServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
