@@ -24,7 +24,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->singleton(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             return new Translator(
                 new ArrayLoader(),
                 'en'

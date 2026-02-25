@@ -18,7 +18,6 @@ class ConfigProviderRegister
         \Hypervel\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,
-        \Hypervel\Validation\ConfigProvider::class,
     ];
 
     public static function get(): array

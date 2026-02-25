@@ -805,8 +805,11 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Contracts\Router\UrlGenerator::class,
                 \Hypervel\Router\UrlGenerator::class,
             ],
-            \Hypervel\Contracts\Validation\Factory::class => ['validator'],
-            \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
+            'validator' => [
+                \Hypervel\Validation\Factory::class,
+                \Hypervel\Contracts\Validation\Factory::class,
+            ],
+            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             \Hypervel\View\Contracts\Factory::class => ['view'],
             \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
             'session' => [
