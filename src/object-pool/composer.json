@@ -35,8 +35,10 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ObjectPool\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\ObjectPool\\ObjectPoolServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

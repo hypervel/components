@@ -332,6 +332,7 @@
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
+                "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
                 "Hypervel\\Pipeline\\PipelineServiceProvider",
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
