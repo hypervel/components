@@ -34,44 +34,46 @@ use Hypervel\Devtool\Generator\RuleCommand;
 use Hypervel\Devtool\Generator\SeederCommand;
 use Hypervel\Devtool\Generator\SessionTableCommand;
 use Hypervel\Devtool\Generator\TestCommand;
+use Hypervel\Support\ServiceProvider;
 
-class ConfigProvider
+class DevtoolServiceProvider extends ServiceProvider
 {
-    public function __invoke(): array
+    /**
+     * Register the service provider.
+     */
+    public function register(): void
     {
-        return [
-            'commands' => [
-                WatchCommand::class,
-                ProviderCommand::class,
-                EventCommand::class,
-                ListenerCommand::class,
-                ComponentCommand::class,
-                TestCommand::class,
-                SessionTableCommand::class,
-                CacheTableCommand::class,
-                CacheLocksTableCommand::class,
-                RuleCommand::class,
-                ConsoleCommand::class,
-                ModelCommand::class,
-                FactoryCommand::class,
-                SeederCommand::class,
-                EventListCommand::class,
-                RequestCommand::class,
-                NotificationTableCommand::class,
-                BatchesTableCommand::class,
-                QueueTableCommand::class,
-                QueueFailedTableCommand::class,
-                JobCommand::class,
-                ChannelCommand::class,
-                ObserverCommand::class,
-                NotificationCommand::class,
-                MailCommand::class,
-                PolicyCommand::class,
-                MiddlewareCommand::class,
-                ControllerCommand::class,
-                ResourceCommand::class,
-                ExceptionCommand::class,
-            ],
-        ];
+        $this->commands([
+            BatchesTableCommand::class,
+            CacheLocksTableCommand::class,
+            CacheTableCommand::class,
+            ChannelCommand::class,
+            ComponentCommand::class,
+            ConsoleCommand::class,
+            ControllerCommand::class,
+            EventCommand::class,
+            EventListCommand::class,
+            ExceptionCommand::class,
+            FactoryCommand::class,
+            JobCommand::class,
+            ListenerCommand::class,
+            MailCommand::class,
+            MiddlewareCommand::class,
+            ModelCommand::class,
+            NotificationCommand::class,
+            NotificationTableCommand::class,
+            ObserverCommand::class,
+            PolicyCommand::class,
+            ProviderCommand::class,
+            QueueFailedTableCommand::class,
+            QueueTableCommand::class,
+            RequestCommand::class,
+            ResourceCommand::class,
+            RuleCommand::class,
+            SeederCommand::class,
+            SessionTableCommand::class,
+            TestCommand::class,
+            WatchCommand::class,
+        ]);
     }
 }

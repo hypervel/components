@@ -24,6 +24,7 @@ class DefaultProviders
             \Hypervel\Console\ConsoleServiceProvider::class,
             \Hypervel\Cookie\CookieServiceProvider::class,
             \Hypervel\Database\DatabaseServiceProvider::class,
+            \Hypervel\Devtool\DevtoolServiceProvider::class,
             \Hypervel\Encryption\EncryptionServiceProvider::class,
             \Hypervel\Engine\EngineServiceProvider::class,
             \Hypervel\ExceptionHandler\ExceptionHandlerServiceProvider::class,
