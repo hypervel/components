@@ -296,7 +296,7 @@
                 "Hypervel\\Mail\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
-                "Hypervel\\Permission\\ConfigProvider",
+                "Hypervel\\Permission\\ConfigProvider"
             ]
         },
         "hypervel": {
