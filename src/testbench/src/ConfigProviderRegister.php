@@ -22,7 +22,6 @@ class ConfigProviderRegister
         \Hypervel\WebSocketServer\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
-        \Hypervel\Http\ConfigProvider::class,
         \Hypervel\JWT\ConfigProvider::class,
         \Hypervel\Log\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,

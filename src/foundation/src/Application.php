@@ -787,16 +787,18 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Queue\Listener::class => ['queue.listener'],
             \Hypervel\Queue\Worker::class => ['queue.worker'],
             \Hypervel\Redis\Redis::class => ['redis'],
-            \Psr\Http\Message\ServerRequestInterface::class => [
-                'request',
+            'request' => [
+                \Psr\Http\Message\ServerRequestInterface::class,
                 \Hypervel\HttpServer\Contracts\RequestInterface::class,
                 \Hypervel\HttpServer\Request::class,
                 \Hypervel\Contracts\Http\Request::class,
+                \Hypervel\Http\Request::class,
             ],
-            \Hypervel\Contracts\Http\Response::class => [
-                'response',
+            'response' => [
+                \Hypervel\Contracts\Http\Response::class,
                 \Hypervel\HttpServer\Contracts\ResponseInterface::class,
                 \Hypervel\HttpServer\Response::class,
+                \Hypervel\Http\Response::class,
             ],
             \Hypervel\HttpServer\Router\DispatcherFactory::class => ['router'],
             \Hypervel\Router\Router::class => ['router'],

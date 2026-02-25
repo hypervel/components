@@ -30,6 +30,7 @@ class DefaultProviders
             \Hypervel\Filesystem\FilesystemServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Hashing\HashingServiceProvider::class,
+            \Hypervel\Http\HttpServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
             \Hypervel\Notifications\NotificationServiceProvider::class,
