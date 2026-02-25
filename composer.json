@@ -294,7 +294,6 @@
                 "Hypervel\\Event\\ConfigProvider",
                 "Hypervel\\Framework\\ConfigProvider",
                 "Hypervel\\Mail\\ConfigProvider",
-                "Hypervel\\Notifications\\ConfigProvider",
                 "Hypervel\\Queue\\ConfigProvider",
                 "Hypervel\\Redis\\ConfigProvider",
                 "Hypervel\\Router\\ConfigProvider",

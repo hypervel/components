@@ -817,9 +817,6 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Contracts\Session\Session::class => ['session.store'],
             \Hypervel\Contracts\Translation\Translator::class => ['translator'],
             \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
-            \Hypervel\Contracts\Notifications\Dispatcher::class => [
-                \Hypervel\Contracts\Notifications\Factory::class,
-            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

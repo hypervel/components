@@ -42,9 +42,6 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Notifications\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider"
