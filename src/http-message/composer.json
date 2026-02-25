@@ -41,8 +41,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\HttpMessage\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\HttpMessage\\HttpMessageServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

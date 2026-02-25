@@ -13,7 +13,6 @@ class ConfigProviderRegister
         \Hypervel\Dispatcher\ConfigProvider::class,
         \Hypervel\Event\ConfigProvider::class,
         \Hypervel\Framework\ConfigProvider::class,
-        \Hypervel\HttpMessage\ConfigProvider::class,
         \Hypervel\HttpServer\ConfigProvider::class,
         \Hypervel\Serializer\ConfigProvider::class,
         \Hypervel\Server\ConfigProvider::class,
