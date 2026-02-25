@@ -123,6 +123,13 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Contracts\Console\Application::class,
             fn ($app) => $app->make(\Hypervel\Contracts\Console\Kernel::class)->getArtisan()
         );
+
+        // StdoutLogger is resolved during Kernel bootstrap before service
+        // providers run, so the binding must exist here.
+        $this->singleton(
+            \Hypervel\Contracts\Log\StdoutLoggerInterface::class,
+            \Hypervel\Framework\Logger\StdoutLogger::class
+        );
     }
 
     /**

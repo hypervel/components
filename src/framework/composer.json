@@ -45,9 +45,6 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Framework\\ConfigProvider"
-        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }

@@ -289,7 +289,6 @@
             "config": [
                 "Hypervel\\Config\\ConfigProvider",
                 "Hypervel\\Event\\ConfigProvider",
-                "Hypervel\\Framework\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Permission\\ConfigProvider"
