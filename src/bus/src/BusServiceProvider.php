@@ -41,9 +41,7 @@ class BusServiceProvider extends ServiceProvider
      */
     protected function registerBatchServices(): void
     {
-        $this->app->singleton(BatchRepository::class, function ($app) {
-            return $app->make(DatabaseBatchRepository::class);
-        });
+        $this->app->singleton(BatchRepository::class, DatabaseBatchRepository::class);
 
         $this->app->singleton(DatabaseBatchRepository::class, function ($app) {
             return new DatabaseBatchRepository(

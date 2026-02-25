@@ -182,7 +182,7 @@ You cannot simply copy the ConfigProvider's `dependencies` array into a service 
 
 Find the equivalent Laravel service provider in the Laravel source reference. For example, `Illuminate\Auth\AuthServiceProvider` for the auth package. Read it completely — understand the binding keys, binding types (`singleton` vs `bind`), and how it constructs services.
 
-For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array, using closure-based singletons. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
+For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array. Use the binding patterns described in section 5 below. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
 
 ##### 2. Read the Hypervel ConfigProvider
 
@@ -229,13 +229,31 @@ Create the service provider in the package's `src/` directory, matching the Lara
 
 Match the binding pattern from the Laravel service provider. Key rules:
 
-**Always use closures for singleton bindings**, not string concretes:
-```php
-// WRONG — string concrete can cause circular dependency with aliases
-$this->app->singleton(AuthFactoryContract::class, AuthManager::class);
+**Choose the right binding form based on whether the abstract/concrete participate in `registerCoreContainerAliases()`:**
 
-// CORRECT — closure with direct instantiation, matches Laravel
+The container's `bind()`/`singleton()` stores bindings under the exact abstract key passed — it does NOT resolve aliases first. But `resolve()` DOES call `getAlias()` before looking up bindings. So if the abstract you pass is an alias for a canonical key, your binding is orphaned (never found). The `registerConfigProviderDependencies()` method works around this by explicitly calling `getAlias()` before storing, but regular service providers don't.
+
+**1. Abstract is a canonical alias key (e.g., `'auth'`, `'cache'`, `'hash'`, `'request'`) — use closure with `new`:**
+```php
+// The concrete (AuthManager) is listed as an alias for 'auth', so
+// singleton('auth', AuthManager::class) would create a circular resolution cycle:
+// 'auth' → build AuthManager → getAlias(AuthManager) → 'auth' → infinite loop
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
+```
+
+**2. Abstract is NOT in the alias table — use string concrete:**
+```php
+// Neither FormatterInterface nor DefaultFormatter are aliases for anything,
+// so the container can resolve this directly without cycles.
+$this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
+```
+
+**3. Abstract and concrete are the same class — don't bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+```php
+// WRONG — redundant, auto-singleton handles this
+$this->app->singleton(BroadcastManager::class);
+
+// CORRECT — just don't bind it. First make(BroadcastManager::class) auto-singletons it.
 ```
 
 **Use the same binding type as Laravel** — `singleton()` vs `bind()` matters:

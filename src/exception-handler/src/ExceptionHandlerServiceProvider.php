@@ -17,7 +17,7 @@ class ExceptionHandlerServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(FormatterInterface::class, fn () => new DefaultFormatter());
+        $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
     }
 
     /**

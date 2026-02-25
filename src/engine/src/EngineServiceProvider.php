@@ -20,12 +20,12 @@ class EngineServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(SocketFactoryInterface::class, fn () => new SocketFactory());
+        $this->app->singleton(SocketFactoryInterface::class, SocketFactory::class);
 
         $this->app->singleton(ServerFactoryInterface::class, fn ($app) => new ServerFactory(
             $app->make(StdoutLoggerInterface::class)
         ));
 
-        $this->app->singleton(ClientFactoryInterface::class, fn () => new ClientFactory());
+        $this->app->singleton(ClientFactoryInterface::class, ClientFactory::class);
     }
 }

@@ -81,7 +81,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->registerDumper();
 
-        $this->app->singleton(InitProcessTitleListener::class, fn ($app) => new SetProcessTitle($app));
+        $this->app->singleton(InitProcessTitleListener::class, SetProcessTitle::class);
 
         $this->commands([
             AboutCommand::class,
