@@ -39,8 +39,10 @@
         "psr/event-dispatcher": "^1.0"
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ServerProcess\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\ServerProcess\\ServerProcessServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

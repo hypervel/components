@@ -44,6 +44,7 @@ class DefaultProviders
             \Hypervel\Router\RouterServiceProvider::class,
             \Hypervel\Serializer\SerializerServiceProvider::class,
             \Hypervel\Server\ServerServiceProvider::class,
+            \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
