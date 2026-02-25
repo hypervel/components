@@ -56,10 +56,7 @@
         ]
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Foundation\\ConfigProvider"
-        },
-        "hypervel" : {
+        "hypervel": {
             "providers": [
                 "Hypervel\\Foundation\\Providers\\FoundationServiceProvider"
             ]

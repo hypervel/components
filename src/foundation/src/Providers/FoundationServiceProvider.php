@@ -16,11 +16,21 @@ use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
+use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Console\Commands\AboutCommand;
+use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
+use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
+use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
+use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\Listeners\SetProcessTitle;
+use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Framework\Events\BootApplication;
 use Hypervel\HttpServer\MiddlewareManager;
+use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -50,6 +60,14 @@ class FoundationServiceProvider extends ServiceProvider
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
         $this->setDatabaseConnection();
+
+        $this->app->make(ErrorExceptionHandler::class)->process(new BootApplication());
+
+        $events = $this->app->make('events');
+
+        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
+            $this->app->make(ReloadDotenvAndConfig::class)->process($event);
+        });
     }
 
     /**
@@ -62,6 +80,15 @@ class FoundationServiceProvider extends ServiceProvider
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
+
+        $this->app->singleton(InitProcessTitleListener::class, fn ($app) => new SetProcessTitle($app));
+
+        $this->commands([
+            AboutCommand::class,
+            ConfigShowCommand::class,
+            ServerReloadCommand::class,
+            VendorPublishCommand::class,
+        ]);
 
         $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
             $request->setUserResolver(function (?string $guard = null) {

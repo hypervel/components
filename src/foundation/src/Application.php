@@ -116,6 +116,13 @@ class Application extends Container implements ApplicationContract
         $this->instance(ContainerContract::class, $this);
         $this->instance(ApplicationContract::class, $this);
         $this->instance(\Psr\Container\ContainerInterface::class, $this);
+
+        // Console application must be bound before service providers because
+        // resolving it triggers Kernel::getArtisan() which calls bootstrap().
+        $this->singleton(
+            \Hypervel\Contracts\Console\Application::class,
+            fn ($app) => $app->make(\Hypervel\Contracts\Console\Kernel::class)->getArtisan()
+        );
     }
 
     /**

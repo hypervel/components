@@ -292,7 +292,6 @@
                 "Hypervel\\Devtool\\ConfigProvider",
                 "Hypervel\\Dispatcher\\ConfigProvider",
                 "Hypervel\\Event\\ConfigProvider",
-                "Hypervel\\Foundation\\ConfigProvider",
                 "Hypervel\\Framework\\ConfigProvider",
                 "Hypervel\\Hashing\\ConfigProvider",
                 "Hypervel\\Http\\ConfigProvider",
