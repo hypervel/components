@@ -26,6 +26,7 @@ class DefaultProviders
             \Hypervel\Database\DatabaseServiceProvider::class,
             \Hypervel\Encryption\EncryptionServiceProvider::class,
             \Hypervel\Engine\EngineServiceProvider::class,
+            \Hypervel\ExceptionHandler\ExceptionHandlerServiceProvider::class,
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,

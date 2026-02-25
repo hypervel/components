@@ -45,8 +45,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ExceptionHandler\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\ExceptionHandler\\ExceptionHandlerServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

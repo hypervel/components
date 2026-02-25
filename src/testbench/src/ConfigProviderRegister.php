@@ -12,7 +12,6 @@ class ConfigProviderRegister
         \Hyperf\Di\ConfigProvider::class,
         \Hypervel\Dispatcher\ConfigProvider::class,
         \Hypervel\Event\ConfigProvider::class,
-        \Hypervel\ExceptionHandler\ConfigProvider::class,
         \Hypervel\Framework\ConfigProvider::class,
         \Hypervel\HttpMessage\ConfigProvider::class,
         \Hypervel\HttpServer\ConfigProvider::class,
