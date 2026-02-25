@@ -46,8 +46,10 @@
         "ext-swoole": "<5.0"
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Engine\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Engine\\EngineServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
