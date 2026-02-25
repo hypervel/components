@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-
 /**
  * @method static bool hasForLocale(string $key, string|null $locale = null)
  * @method static bool has(string $key, string|null $locale = null, bool $fallback = true)
@@ -44,6 +42,6 @@ class Lang extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return TranslatorContract::class;
+        return 'translator';
     }
 }

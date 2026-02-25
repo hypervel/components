@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
@@ -38,7 +37,7 @@ class FoundationApplicationTest extends TestCase
             ->once();
 
         $app = $this->getApplication([
-            TranslatorContract::class => fn () => $trans,
+            'translator' => fn () => $trans,
             'events' => fn () => $events,
         ]);
 

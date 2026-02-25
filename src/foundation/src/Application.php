@@ -814,8 +814,14 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Contracts\Session\Factory::class,
             ],
             'session.store' => [\Hypervel\Contracts\Session\Session::class],
-            \Hypervel\Contracts\Translation\Translator::class => ['translator'],
-            \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
+            'translator' => [
+                \Hypervel\Translation\Translator::class,
+                \Hypervel\Contracts\Translation\Translator::class,
+            ],
+            'translator.loader' => [
+                \Hypervel\Translation\FileLoader::class,
+                \Hypervel\Contracts\Translation\Loader::class,
+            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

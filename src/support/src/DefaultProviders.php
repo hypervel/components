@@ -47,6 +47,7 @@ class DefaultProviders
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
             \Hypervel\Session\SessionServiceProvider::class,
             \Hypervel\Socialite\SocialiteServiceProvider::class,
+            \Hypervel\Translation\TranslationServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];

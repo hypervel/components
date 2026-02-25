@@ -38,8 +38,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Translation\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Translation\\TranslationServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

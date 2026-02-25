@@ -334,6 +334,7 @@
                 "Hypervel\\ServerProcess\\ServerProcessServiceProvider",
                 "Hypervel\\Session\\SessionServiceProvider",
                 "Hypervel\\Socialite\\SocialiteServiceProvider",
+                "Hypervel\\Translation\\TranslationServiceProvider",
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider",
