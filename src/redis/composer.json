@@ -41,8 +41,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Redis\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Redis\\RedisServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

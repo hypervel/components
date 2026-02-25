@@ -786,7 +786,7 @@ class Application extends Container implements ApplicationContract
             'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
             'queue.listener' => [\Hypervel\Queue\Listener::class],
             'queue.worker' => [\Hypervel\Queue\Worker::class],
-            \Hypervel\Redis\Redis::class => ['redis'],
+            'redis' => [\Hypervel\Redis\Redis::class],
             'request' => [
                 \Psr\Http\Message\ServerRequestInterface::class,
                 \Hypervel\HttpServer\Contracts\RequestInterface::class,

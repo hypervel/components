@@ -40,6 +40,7 @@ class DefaultProviders
             \Hypervel\ObjectPool\ObjectPoolServiceProvider::class,
             \Hypervel\Pagination\PaginationServiceProvider::class,
             \Hypervel\Queue\QueueServiceProvider::class,
+            \Hypervel\Redis\RedisServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];

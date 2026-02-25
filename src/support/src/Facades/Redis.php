@@ -314,6 +314,6 @@ class Redis extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return RedisClient::class;
+        return 'redis';
     }
 }

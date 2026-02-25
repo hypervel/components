@@ -21,7 +21,6 @@ class ConfigProviderRegister
         \Hypervel\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,
-        \Hypervel\Redis\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,
         \Hypervel\Translation\ConfigProvider::class,
