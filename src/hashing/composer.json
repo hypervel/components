@@ -34,8 +34,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Hashing\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Hashing\\HashingServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Hashing\Hasher;
-
 /**
  * @method static \Hypervel\Hashing\BcryptHasher createBcryptDriver()
  * @method static \Hypervel\Hashing\ArgonHasher createArgonDriver()
@@ -29,6 +27,6 @@ class Hash extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return Hasher::class;
+        return 'hash';
     }
 }
