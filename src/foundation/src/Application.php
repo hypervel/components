@@ -763,9 +763,9 @@ class Application extends Container implements ApplicationContract
             'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
             'hash' => [\Hypervel\Hashing\HashManager::class, \Hypervel\Contracts\Hashing\Hasher::class],
             'hash.driver' => [],
-            \Hypervel\JWT\Contracts\ManagerContract::class => [
-                'jwt',
+            'jwt' => [
                 \Hypervel\JWT\JWTManager::class,
+                \Hypervel\JWT\Contracts\ManagerContract::class,
             ],
             \Psr\Log\LoggerInterface::class => [
                 'log',

@@ -34,8 +34,10 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\JWT\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\JWT\\JWTServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
