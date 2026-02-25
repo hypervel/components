@@ -44,8 +44,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Session\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Session\\SessionServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

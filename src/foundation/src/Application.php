@@ -809,11 +809,11 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
             \Hypervel\View\Contracts\Factory::class => ['view'],
             \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
-            \Hypervel\Contracts\Session\Factory::class => [
-                'session',
+            'session' => [
                 \Hypervel\Session\SessionManager::class,
+                \Hypervel\Contracts\Session\Factory::class,
             ],
-            \Hypervel\Contracts\Session\Session::class => ['session.store'],
+            'session.store' => [\Hypervel\Contracts\Session\Session::class],
             \Hypervel\Contracts\Translation\Translator::class => ['translator'],
             \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
         ] as $key => $aliases) {

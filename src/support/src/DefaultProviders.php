@@ -45,6 +45,7 @@ class DefaultProviders
             \Hypervel\Serializer\SerializerServiceProvider::class,
             \Hypervel\Server\ServerServiceProvider::class,
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
+            \Hypervel\Session\SessionServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
