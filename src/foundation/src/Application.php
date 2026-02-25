@@ -800,10 +800,9 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\HttpServer\Response::class,
                 \Hypervel\Http\Response::class,
             ],
-            \Hypervel\HttpServer\Router\DispatcherFactory::class => ['router'],
-            \Hypervel\Router\Router::class => ['router'],
-            \Hypervel\Contracts\Router\UrlGenerator::class => [
-                'url',
+            'router' => [\Hypervel\Router\Router::class],
+            'url' => [
+                \Hypervel\Contracts\Router\UrlGenerator::class,
                 \Hypervel\Router\UrlGenerator::class,
             ],
             \Hypervel\Contracts\Validation\Factory::class => ['validator'],

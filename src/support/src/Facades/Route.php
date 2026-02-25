@@ -41,6 +41,6 @@ class Route extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return Router::class;
+        return 'router';
     }
 }

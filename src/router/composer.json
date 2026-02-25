@@ -44,8 +44,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Router\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Router\\RouterServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

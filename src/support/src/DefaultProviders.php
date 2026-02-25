@@ -41,6 +41,7 @@ class DefaultProviders
             \Hypervel\Pagination\PaginationServiceProvider::class,
             \Hypervel\Queue\QueueServiceProvider::class,
             \Hypervel\Redis\RedisServiceProvider::class,
+            \Hypervel\Router\RouterServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
