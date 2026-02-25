@@ -33,6 +33,7 @@ class DefaultProviders
             \Hypervel\Http\HttpServiceProvider::class,
             \Hypervel\HttpMessage\HttpMessageServiceProvider::class,
             \Hypervel\JWT\JWTServiceProvider::class,
+            \Hypervel\Log\LogServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
             \Hypervel\Notifications\NotificationServiceProvider::class,

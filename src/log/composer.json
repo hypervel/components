@@ -36,8 +36,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Log\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Log\\LogServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

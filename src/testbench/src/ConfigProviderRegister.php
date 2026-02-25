@@ -20,7 +20,6 @@ class ConfigProviderRegister
         \Hypervel\WebSocketServer\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
-        \Hypervel\Log\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,
         \Hypervel\Notifications\ConfigProvider::class,
         \Hypervel\ObjectPool\ConfigProvider::class,

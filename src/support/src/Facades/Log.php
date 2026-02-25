@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Psr\Log\LoggerInterface;
-
 /**
  * @method static \Psr\Log\LoggerInterface build(array $config)
  * @method static \Psr\Log\LoggerInterface stack(array $channels, string|null $channel = null)
@@ -43,6 +41,6 @@ class Log extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return LoggerInterface::class;
+        return 'log';
     }
 }

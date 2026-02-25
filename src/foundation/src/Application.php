@@ -767,9 +767,9 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\JWT\JWTManager::class,
                 \Hypervel\JWT\Contracts\ManagerContract::class,
             ],
-            \Psr\Log\LoggerInterface::class => [
-                'log',
+            'log' => [
                 \Hypervel\Log\LogManager::class,
+                \Psr\Log\LoggerInterface::class,
             ],
             \Hypervel\Contracts\Mail\Factory::class => [
                 'mail.manager',
