@@ -12,17 +12,19 @@ use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Support\swoole_hook_flags;
 
+#[AsCommand(name: 'start', description: 'Start hypervel servers.')]
 class StartServer extends Command
 {
     public function __construct(private Container $container)
     {
-        parent::__construct('start');
+        parent::__construct();
         $this->setDescription('Start hypervel servers.');
     }
 

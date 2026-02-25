@@ -46,8 +46,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Server\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Server\\ServerServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
