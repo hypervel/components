@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Redis\Redis as RedisClient;
-
 /**
  * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string $name = 'default')
  * @method static mixed withConnection(callable $callback)

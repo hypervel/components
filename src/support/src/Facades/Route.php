@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Router\Router;
-
 /**
  * @method static void addServer(string $serverName, callable $callback)
  * @method static void group(string $prefix, callable|string $source, array $options = [])
