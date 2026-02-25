@@ -747,11 +747,13 @@ class Application extends Container implements ApplicationContract
             \Psr\EventDispatcher\ListenerProviderInterface::class => [
                 \Hypervel\Event\Contracts\ListenerProvider::class,
             ],
-            \Hypervel\Filesystem\Filesystem::class => ['files'],
-            \Hypervel\Contracts\Filesystem\Factory::class => [
-                'filesystem',
+            'files' => [\Hypervel\Filesystem\Filesystem::class],
+            'filesystem' => [
                 \Hypervel\Filesystem\FilesystemManager::class,
+                \Hypervel\Contracts\Filesystem\Factory::class,
             ],
+            'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
+            'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
             \Hypervel\Contracts\Hashing\Hasher::class => ['hash'],
             \Hypervel\JWT\Contracts\ManagerContract::class => [
                 'jwt',

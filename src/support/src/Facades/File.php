@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Filesystem\Filesystem;
-
 /**
  * @method static void ensureDirectoryExists(string $path, int $mode = 0755, bool $recursive = true)
  * @method static bool exists(string $path)
@@ -57,6 +55,6 @@ class File extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return Filesystem::class;
+        return 'files';
     }
 }
