@@ -25,4 +25,18 @@ class MailServiceProvider extends ServiceProvider
             $app->make('config')->get('mail.markdown', []),
         ));
     }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../publish/mail.php' => BASE_PATH . '/config/autoload/mail.php',
+        ]);
+
+        $this->publishes([
+            __DIR__ . '/../publish/resources/views/' => BASE_PATH . '/storage/view/mail/',
+        ]);
+    }
 }

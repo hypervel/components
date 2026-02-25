@@ -43,9 +43,6 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Mail\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Mail\\MailServiceProvider"

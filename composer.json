@@ -291,7 +291,6 @@
                 "Hypervel\\Devtool\\ConfigProvider",
                 "Hypervel\\Event\\ConfigProvider",
                 "Hypervel\\Framework\\ConfigProvider",
-                "Hypervel\\Mail\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Permission\\ConfigProvider"
