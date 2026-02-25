@@ -49,6 +49,7 @@ class DefaultProviders
             \Hypervel\Socialite\SocialiteServiceProvider::class,
             \Hypervel\Translation\TranslationServiceProvider::class,
             \Hypervel\Validation\ValidationServiceProvider::class,
+            \Hypervel\WebSocketServer\WebSocketServerServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];

@@ -49,8 +49,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\WebSocketServer\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\WebSocketServer\\WebSocketServerServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

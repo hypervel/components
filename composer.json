@@ -297,7 +297,6 @@
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Permission\\ConfigProvider",
-                "Hypervel\\WebSocketServer\\ConfigProvider"
             ]
         },
         "hypervel": {
@@ -335,6 +334,7 @@
                 "Hypervel\\Socialite\\SocialiteServiceProvider",
                 "Hypervel\\Translation\\TranslationServiceProvider",
                 "Hypervel\\Validation\\ValidationServiceProvider",
+                "Hypervel\\WebSocketServer\\WebSocketServerServiceProvider",
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider",

@@ -14,7 +14,6 @@ class ConfigProviderRegister
         \Hypervel\Event\ConfigProvider::class,
         \Hypervel\Framework\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
-        \Hypervel\WebSocketServer\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,
