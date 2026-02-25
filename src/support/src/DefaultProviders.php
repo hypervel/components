@@ -42,6 +42,7 @@ class DefaultProviders
             \Hypervel\Queue\QueueServiceProvider::class,
             \Hypervel\Redis\RedisServiceProvider::class,
             \Hypervel\Router\RouterServiceProvider::class,
+            \Hypervel\Serializer\SerializerServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
