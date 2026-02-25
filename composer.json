@@ -302,7 +302,6 @@
                 "Hypervel\\Router\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Serializer\\ConfigProvider",
-                "Hypervel\\HttpServer\\ConfigProvider",
                 "Hypervel\\Server\\ConfigProvider",
                 "Hypervel\\ServerProcess\\ConfigProvider",
                 "Hypervel\\Session\\ConfigProvider",
