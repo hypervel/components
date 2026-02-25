@@ -287,10 +287,8 @@
     "extra": {
         "hyperf": {
             "config": [
-                "Hypervel\\ConfigProvider",
                 "Hypervel\\Config\\ConfigProvider",
                 "Hypervel\\Devtool\\ConfigProvider",
-                "Hypervel\\Dispatcher\\ConfigProvider",
                 "Hypervel\\Event\\ConfigProvider",
                 "Hypervel\\Framework\\ConfigProvider",
                 "Hypervel\\Mail\\ConfigProvider",
