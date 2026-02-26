@@ -9,7 +9,7 @@ use Symfony\Component\Console\Input\InputInterface;
 
 class GeneratorCommandStub extends DevtoolGeneratorCommand
 {
-    protected ?string $name = 'gen:test-stub';
+    protected ?string $name = 'make:test-stub';
 
     protected string $description = 'Test stub command';
 
