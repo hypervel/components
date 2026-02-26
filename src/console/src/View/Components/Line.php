@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\View\Components;
 
+use Hypervel\Console\Contracts\NewLineAware;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class Line extends Component
@@ -48,7 +49,7 @@ class Line extends Component
         ]);
 
         $this->renderView('line', array_merge(static::$styles[$style], [
-            'marginTop' => max(0, 2 - $this->output->newLinesWritten()),
+            'marginTop' => $this->output instanceof NewLineAware ? max(0, 2 - $this->output->newLinesWritten()) : 1,
             'content' => $string,
         ]), $verbosity);
     }

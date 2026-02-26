@@ -131,6 +131,11 @@ parameters:
     - '#Access to an undefined property (Hyperf\\Collection|Hypervel\\Support)\\HigherOrderCollectionProxy#'
     - '#Call to an undefined method Hypervel\\Support\\HigherOrderTapProxy#'
 
+    # View Component base class uses OutputInterface for flexibility, but interactive
+    # subclasses (Ask, Choice, Confirm, Secret) call OutputStyle methods via the Factory
+    - message: '#Call to an undefined method Symfony\\Component\\Console\\Output\\OutputInterface::(askQuestion|confirm)\(\)#'
+      path: src/console/src/View/Components/*
+
     # Optional class uses magic __get to proxy property access to wrapped value
     - '#Access to an undefined property Hypervel\\Support\\Optional::\$#'
 

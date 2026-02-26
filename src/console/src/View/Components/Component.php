@@ -8,6 +8,7 @@ use Hypervel\Console\OutputStyle;
 use Hypervel\Console\QuestionHelper;
 use ReflectionClass;
 use Symfony\Component\Console\Helper\SymfonyQuestionHelper;
+use Symfony\Component\Console\Output\OutputInterface;
 
 use function Termwind\render;
 use function Termwind\renderUsing;
@@ -25,7 +26,7 @@ abstract class Component
      * Create a new component instance.
      */
     public function __construct(
-        protected OutputStyle $output,
+        protected OutputInterface $output,
     ) {
     }
 
