@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 use DateTimeInterface;
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Store;
 
 class CacheSchedulingMutex implements SchedulingMutex, CacheAware
 {
@@ -31,8 +31,19 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
      */
     public function create(Event $event, DateTimeInterface $time): bool
     {
+        $mutexName = $event->mutexName() . $time->format('Hi');
+
+        $store = $this->cache->store($this->store)->getStore();
+
+        if ($this->shouldUseLocks($store)) {
+            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
+            return $store
+                ->lock($mutexName, 3600)
+                ->acquire();
+        }
+
         return $this->cache->store($this->store)->add(
-            $event->mutexName() . $time->format('Hi'),
+            $mutexName,
             true,
             3600
         );
@@ -43,9 +54,26 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
      */
     public function exists(Event $event, DateTimeInterface $time): bool
     {
-        return $this->cache->store($this->store)->has(
-            $event->mutexName() . $time->format('Hi')
-        );
+        $mutexName = $event->mutexName() . $time->format('Hi');
+
+        $store = $this->cache->store($this->store)->getStore();
+
+        if ($this->shouldUseLocks($store)) {
+            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
+            return ! $store
+                ->lock($mutexName, 3600)
+                ->get(fn () => true);
+        }
+
+        return $this->cache->store($this->store)->has($mutexName);
+    }
+
+    /**
+     * Determine if the given store should use locks for cache scheduling mutexes.
+     */
+    protected function shouldUseLocks(Store $store): bool
+    {
+        return $store instanceof LockProvider;
     }
 
     /**
