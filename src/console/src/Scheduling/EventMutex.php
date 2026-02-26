@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Contracts;
-
-use Hypervel\Console\Scheduling\Event;
+namespace Hypervel\Console\Scheduling;
 
 interface EventMutex
 {

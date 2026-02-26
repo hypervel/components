@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Contracts;
+namespace Hypervel\Console\Scheduling;
 
 use DateTimeInterface;
-use Hypervel\Console\Scheduling\Event;
 
 interface SchedulingMutex
 {
