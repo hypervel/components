@@ -28,6 +28,7 @@ class ScheduleListCommand extends Command
     protected ?string $signature = 'schedule:list
         {--timezone= : The timezone that times should be displayed in}
         {--next : Sort the listed tasks by their next due date}
+        {--json : Output the scheduled tasks as JSON}
     ';
 
     /**
@@ -56,20 +57,76 @@ class ScheduleListCommand extends Command
         $events = new Collection($this->schedule->events());
 
         if ($events->isEmpty()) {
-            $this->info('No scheduled tasks have been defined.');
+            if ($this->option('json')) {
+                $this->output->writeln('[]');
+            } else {
+                $this->info('No scheduled tasks have been defined.');
+            }
 
             return;
         }
 
+        $timezone = new DateTimeZone($this->option('timezone') ?? config('app.timezone'));
+
+        $events = $this->sortEvents($events, $timezone);
+
+        $this->display($events, $timezone);
+    }
+
+    /**
+     * Render the scheduled tasks information.
+     */
+    protected function display(Collection $events, DateTimeZone $timezone): void
+    {
+        $this->option('json') ? $this->displayJson($events, $timezone) : $this->displayForCli($events, $timezone);
+    }
+
+    /**
+     * Render the scheduled tasks information as JSON.
+     */
+    protected function displayJson(Collection $events, DateTimeZone $timezone): void
+    {
+        $this->output->writeln($events->map(function ($event) use ($timezone) {
+            $nextDueDate = $this->getNextDueDateForEvent($event, $timezone);
+
+            $command = $event->command ?? '';
+
+            if (! $this->output->isVerbose()) {
+                $command = Event::normalizeCommand($command);
+            }
+
+            if ($event instanceof CallbackEvent) {
+                $command = $event->getSummaryForDisplay();
+
+                if (in_array($command, ['Closure', 'Callback'])) {
+                    $command = 'Closure at: ' . $this->getClosureLocation($event);
+                }
+            }
+
+            return [
+                'expression' => $event->expression,
+                'command' => $command,
+                'description' => $event->description ?? null,
+                'next_due_date' => $nextDueDate->format('Y-m-d H:i:s P'),
+                'next_due_date_human' => $nextDueDate->diffForHumans(),
+                'timezone' => $timezone->getName(),
+                'has_mutex' => $event->mutex->exists($event),
+                'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
+                'environments' => $event->environments,
+            ];
+        })->values()->toJson());
+    }
+
+    /**
+     * Render the scheduled tasks information formatted for the CLI.
+     */
+    protected function displayForCli(Collection $events, DateTimeZone $timezone): void
+    {
         $terminalWidth = self::getTerminalWidth();
 
         $expressionSpacing = $this->getCronExpressionSpacing($events);
 
         $repeatExpressionSpacing = $this->getRepeatExpressionSpacing($events);
-
-        $timezone = new DateTimeZone($this->option('timezone') ?? config('app.timezone'));
-
-        $events = $this->sortEvents($events, $timezone);
 
         $events = $events->map(function ($event) use ($terminalWidth, $expressionSpacing, $repeatExpressionSpacing, $timezone) {
             return $this->listEvent($event, $terminalWidth, $expressionSpacing, $repeatExpressionSpacing, $timezone);
@@ -112,6 +169,10 @@ class ScheduleListCommand extends Command
         $command = $event->command ?? '';
 
         $description = $event->description ?? '';
+
+        if (! $this->output->isVerbose()) {
+            $command = Event::normalizeCommand($command);
+        }
 
         if ($event instanceof CallbackEvent) {
             $command = $event->getSummaryForDisplay();
