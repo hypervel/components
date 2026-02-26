@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console;
+namespace Hypervel\Foundation\Console;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Console\Command;
+use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\Facades\Schedule;
 use Hypervel\Support\Traits\ForwardsCalls;
 use ReflectionFunction;
@@ -23,7 +24,6 @@ class ClosureCommand extends Command
      * Create a new command instance.
      */
     public function __construct(
-        protected ContainerContract $container,
         string $signature,
         protected Closure $callback
     ) {
@@ -48,7 +48,7 @@ class ClosureCommand extends Command
         }
 
         try {
-            return (int) $this->container->call(
+            return (int) $this->app->call(
                 $this->callback->bindTo($this, $this),
                 $parameters
             );
@@ -90,7 +90,7 @@ class ClosureCommand extends Command
      *
      * @throws BadMethodCallException
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardCallTo($this->schedule(), $method, $parameters);
     }
