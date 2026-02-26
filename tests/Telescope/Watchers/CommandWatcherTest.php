@@ -31,7 +31,7 @@ class CommandWatcherTest extends FeatureTestCase
     public function testCommandWatcherRegisterEntry()
     {
         $this->app->make(KernelContract::class)
-            ->registerCommand(MyCommand::class);
+            ->registerCommand($this->app->make(MyCommand::class));
 
         $this->app->make(KernelContract::class)
             ->call('telescope:test-command');
