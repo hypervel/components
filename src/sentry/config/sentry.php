@@ -99,7 +99,6 @@ return [
     'ignore_commands' => [
         'crontab:run',
         'make:*',
-        'gen:*',
         'migrate*',
         'tinker',
         'vendor:publish',
