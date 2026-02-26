@@ -131,7 +131,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      *
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
+    public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
         [$command, $input] = $this->parseCommand($command, $parameters);
 
@@ -148,10 +148,14 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Parse the incoming Artisan command and its input.
      */
-    protected function parseCommand(string $command, array $parameters): array
+    protected function parseCommand(string|SymfonyCommand $command, array $parameters): array
     {
         if (is_subclass_of($command, SymfonyCommand::class)) {
             $callingClass = true;
+
+            if (is_object($command)) {
+                $command = get_class($command);
+            }
 
             $command = $this->container->make($command)->getName();
         }
@@ -217,32 +221,16 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     public function resolve(SymfonyCommand|string $command): ?SymfonyCommand
     {
+        if ($command instanceof SymfonyCommand) {
+            return $this->addCommand($command);
+        }
+
         if (is_subclass_of($command, SymfonyCommand::class)) {
             $commandName = static::extractCommandName($command);
 
             if ($commandName !== null) {
-                $names = explode('|', $commandName);
-
-                // Check if CommandReplacer suppresses or renames the primary name.
-                $replacement = CommandReplacer::resolveCommandName($names[0]);
-
-                if ($replacement === false) {
-                    return null;
-                }
-
-                [$primaryName, $alias] = $replacement;
-
-                // Register the primary name (possibly renamed by CommandReplacer).
-                $this->commandMap[$primaryName] = $command;
-
-                // Register pipe-delimited aliases (e.g., 'name|alias1|alias2').
-                for ($i = 1, $count = count($names); $i < $count; ++$i) {
-                    $this->commandMap[$names[$i]] = $command;
-                }
-
-                // Preserve the old name as an alias when CommandReplacer renames.
-                if ($alias !== null) {
-                    $this->commandMap[$alias] = $command;
+                foreach (explode('|', $commandName) as $name) {
+                    $this->commandMap[$name] = $command;
                 }
 
                 // Refresh the loader so it sees the new commandMap entries.
@@ -254,18 +242,8 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
             }
         }
 
-        if ($command instanceof SymfonyCommand) {
-            return $this->addCommand($command);
-        }
-
         // Eager fallback for commands whose name cannot be determined statically.
-        $resolved = $this->container->make($command);
-
-        if (! $resolved = CommandReplacer::replace($resolved)) {
-            return null;
-        }
-
-        return $this->addCommand($resolved);
+        return $this->addCommand($this->container->make($command));
     }
 
     /**
