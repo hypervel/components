@@ -32,11 +32,8 @@
         "hypervel/foundation": "^0.4",
         "hypervel/queue": "^0.4",
         "dragonmantank/cron-expression": "^3.3.2",
-        "symfony/console": "^5.4|^6.4|^7.0"
-    },
-    "suggest": {
-        "hypervel/prompt": "Required to run schedule:test command.",
-        "friendsofhyperf/pretty-console": "Required to run schedule:run command. (~3.1.0)"
+        "hypervel/prompts": "^0.4",
+        "symfony/console": "^6.2|^7.0"
     },
     "config": {
         "sort-packages": true
