@@ -4,23 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use FriendsOfHyperf\PrettyConsole\Traits\Prettyable;
-use Hypervel\Console\Contracts\CommandMutex;
+use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Console\View\Components\Factory;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Traits\Macroable;
+use ReflectionClass;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -29,21 +31,55 @@ use function Hypervel\Support\swoole_hook_flags;
 abstract class Command extends SymfonyCommand
 {
     use Concerns\CallsCommands;
+    use Concerns\ConfiguresPrompts;
     use Concerns\DisableEventDispatcher;
     use Concerns\HasParameters;
     use Concerns\InteractsWithIO;
     use Concerns\InteractsWithSignals;
-    use Prettyable;
+    use Concerns\PromptsForMissingInput;
+    use Macroable;
 
     /**
-     * The name of the command.
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = null;
+
+    /**
+     * The console command name.
      */
     protected ?string $name = null;
 
     /**
-     * The description of the command.
+     * The console command description.
      */
     protected string $description = '';
+
+    /**
+     * The console command help text.
+     */
+    protected string $help = '';
+
+    /**
+     * Indicates whether the command should be shown in the Artisan command list.
+     */
+    protected bool $hidden = false;
+
+    /**
+     * Indicates whether only one instance of the command can run at any given time.
+     */
+    protected bool $isolated = false;
+
+    /**
+     * The default exit code for isolated commands.
+     */
+    protected int $isolatedExitCode = self::SUCCESS;
+
+    /**
+     * The console command name aliases.
+     *
+     * @var string[]
+     */
+    protected array $aliases = [];
 
     /**
      * Whether to execute in a coroutine environment.
@@ -61,26 +97,11 @@ abstract class Command extends SymfonyCommand
     protected int $hookFlags = -1;
 
     /**
-     * The name and signature of the command.
-     */
-    protected ?string $signature = null;
-
-    /**
      * The exit code of the command.
      */
     protected int $exitCode = self::SUCCESS;
 
     protected ApplicationContract $app;
-
-    /**
-     * Indicates whether only one instance of the command can run at any given time.
-     */
-    protected bool $isolated = false;
-
-    /**
-     * The default exit code for isolated commands.
-     */
-    protected int $isolatedExitCode = self::SUCCESS;
 
     public function __construct(?string $name = null)
     {
@@ -90,6 +111,11 @@ abstract class Command extends SymfonyCommand
             $this->hookFlags = swoole_hook_flags();
         }
 
+        $this->configureFromAttributes();
+
+        // We will go ahead and set the name, description, and parameters on console
+        // commands just to make things a little easier on the developer. This is
+        // so they don't have to all be manually specified in the constructors.
         if (isset($this->signature)) {
             $this->configureUsingFluentDefinition();
         } else {
@@ -98,8 +124,21 @@ abstract class Command extends SymfonyCommand
 
         $this->addDisableDispatcherOption();
 
+        // Once we have constructed the command, we'll set the description and other
+        // related properties of the command. If a signature wasn't used to build
+        // the command we'll set the arguments and the options on this command.
         if (! empty($this->description)) {
             $this->setDescription($this->description);
+        }
+
+        if (! empty($this->help)) {
+            $this->setHelp($this->help);
+        }
+
+        $this->setHidden($this->isHidden());
+
+        if (! empty($this->aliases)) {
+            $this->setAliases($this->aliases);
         }
 
         if (! isset($this->signature)) {
@@ -119,11 +158,22 @@ abstract class Command extends SymfonyCommand
      */
     public function run(InputInterface $input, OutputInterface $output): int
     {
-        $this->output = new SymfonyStyle($input, $output);
+        $this->output = $output instanceof OutputStyle ? $output : $this->app->make(
+            OutputStyle::class,
+            ['input' => $input, 'output' => $output]
+        );
+
+        $this->components = $this->app->make(Factory::class, ['output' => $this->output]);
+
+        $this->configurePrompts($input);
 
         $this->setUpTraits($this->input = $input, $this->output);
 
-        return parent::run($this->input, $this->output);
+        try {
+            return parent::run($this->input, $this->output);
+        } finally {
+            $this->untrap();
+        }
     }
 
     /**
@@ -138,6 +188,32 @@ abstract class Command extends SymfonyCommand
             'Do not run the command if another instance of the command is already running',
             $this->isolated
         ));
+    }
+
+    /**
+     * Configure the command from class attributes.
+     */
+    protected function configureFromAttributes(): void
+    {
+        $reflection = new ReflectionClass($this);
+
+        $signature = $reflection->getAttributes(Signature::class);
+
+        if (count($signature) > 0) {
+            $signatureInstance = $signature[0]->newInstance();
+
+            $this->signature = $signatureInstance->signature;
+
+            if ($signatureInstance->aliases !== null) {
+                $this->aliases = $signatureInstance->aliases;
+            }
+        }
+
+        $description = $reflection->getAttributes(Description::class);
+
+        if (count($description) > 0) {
+            $this->description = $description[0]->newInstance()->description;
+        }
     }
 
     /**
@@ -244,8 +320,8 @@ abstract class Command extends SymfonyCommand
 
     protected function replaceOutput(): void
     {
-        if ($this->app->bound(OutputInterface::class)) {
-            $this->output = $this->app->make(OutputInterface::class); // @phpstan-ignore assign.propertyType (PendingCommand binds a SymfonyStyle mock)
+        if ($this->app->bound(OutputStyle::class)) {
+            $this->output = $this->app->make(OutputStyle::class);
         }
     }
 
@@ -284,16 +360,37 @@ abstract class Command extends SymfonyCommand
             $command->setApplication($this->getApplication());
         }
 
+        if ($command instanceof self) {
+            $command->app = $this->app;
+        }
+
         return $command;
     }
 
     /**
-     * Restore the prompts output.
-     *
-     * @TODO Port ConfiguresPrompts trait from Laravel for full prompt support.
+     * Determine if the command is hidden.
      */
-    protected function restorePrompts(): void
+    public function isHidden(): bool
     {
+        return $this->hidden;
+    }
+
+    /**
+     * Set whether the command is hidden.
+     */
+    public function setHidden(bool $hidden = true): static
+    {
+        parent::setHidden($this->hidden = $hidden);
+
+        return $this;
+    }
+
+    /**
+     * Set the application instance.
+     */
+    public function setApp(ApplicationContract $app): void
+    {
+        $this->app = $app;
     }
 
     /**
