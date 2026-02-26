@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Closure;
 use Exception;
 use Hypervel\Console\Application as ConsoleApplication;
-use Hypervel\Console\CommandReplacer;
 use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Console\Scheduling\Schedule;
@@ -28,6 +27,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Finder\Finder;
+use WeakMap;
 
 class Kernel implements KernelContract
 {
@@ -42,11 +42,6 @@ class Kernel implements KernelContract
      * The Artisan commands provided by the application.
      */
     protected array $commands = [];
-
-    /**
-     * Registered closure commands.
-     */
-    protected array $closureCommands = [];
 
     /**
      * The paths where Artisan commands should be automatically discovered.
@@ -146,8 +141,6 @@ class Kernel implements KernelContract
                 $this->discoverCommands();
             }
 
-            $this->loadCommands();
-
             $this->commandsLoaded = true;
         }
     }
@@ -177,49 +170,6 @@ class Kernel implements KernelContract
     }
 
     /**
-     * Collect commands from all possible sources.
-     */
-    protected function collectCommands(): array
-    {
-        $commands = [];
-
-        // Discover commands from loaded paths (directories registered via load()).
-        if ($loadedPaths = $this->getLoadedPaths()) {
-            $namespace = $this->app->getNamespace();
-
-            foreach ($this->findCommands($loadedPaths) as $file) {
-                $className = $this->commandClassFromFile($file, $namespace);
-                $command = rescue(fn () => new ReflectionClass($className), null, false);
-
-                if ($command instanceof ReflectionClass
-                    && $command->isSubclassOf(SymfonyCommand::class)
-                    && ! $command->isAbstract()
-                ) {
-                    $commands[] = $className;
-                }
-            }
-        }
-
-        // Load commands from config.
-        foreach ($this->app->make('config')->get('commands', []) as $class) {
-            if (is_subclass_of($class, SymfonyCommand::class)) {
-                $commands[] = $class;
-            }
-        }
-
-        // Load commands from registered closures.
-        foreach ($this->closureCommands as $command) {
-            $closureId = spl_object_hash($command);
-            $this->app->instance($commandId = "commands.{$closureId}", $command);
-            $commands[] = $commandId;
-        }
-
-        return array_unique(
-            array_merge($this->commands, $commands)
-        );
-    }
-
-    /**
      * Get the Finder instance for discovering command files.
      */
     protected function findCommands(array $paths): Finder
@@ -239,40 +189,11 @@ class Kernel implements KernelContract
         );
     }
 
-    protected function loadCommands(): void
-    {
-        $commands = $this->collectCommands();
-        // Split and merge commands by namespace to make sure override commands work.
-        $hyperfCommands = [];
-        $otherCommands = [];
-
-        foreach ($commands as $key => $command) {
-            if (Str::startsWith($command, 'Hyperf\\')) {
-                $hyperfCommands[] = $command;
-                continue;
-            }
-            $otherCommands[] = $command;
-        }
-        $commands = array_merge($hyperfCommands, $otherCommands);
-
-        // Resolve commands through the console application. Commands with a
-        // statically determinable name (#[AsCommand], $signature, $name) are
-        // registered lazily via the command map. Others fall back to eager
-        // resolution through the container.
-        foreach ($commands as $command) {
-            $this->getArtisan()->resolve($command);
-        }
-    }
-
     /**
      * Register the given command with the console application.
      */
-    public function registerCommand(string $command): void
+    public function registerCommand(SymfonyCommand $command): void
     {
-        if (! $command = CommandReplacer::replace($this->app->make($command))) {
-            return;
-        }
-
         $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
     }
 
@@ -363,22 +284,17 @@ class Kernel implements KernelContract
     {
         $command = new ClosureCommand($signature, $callback);
 
-        // If the commands have already been loaded, we will register it
-        // with the console right away. If not, we will defer the call
-        // to this registration by storing the commands closures.
         if ($this->commandsLoaded) {
-            $closureId = spl_object_hash($command);
-            $this->app->instance($commandId = "commands.{$closureId}", $command);
-            $this->registerCommand($commandId);
+            $this->getArtisan()->add($command);
         } else {
-            $this->closureCommands[] = $command;
+            ConsoleApplication::starting(fn (ConsoleApplication $artisan) => $artisan->add($command));
         }
 
         return $command;
     }
 
     /**
-     * Add loadedPaths in the given directory.
+     * Register all of the commands in the given directory.
      */
     public function load(array|string $paths): void
     {
@@ -395,14 +311,28 @@ class Kernel implements KernelContract
         $this->loadedPaths = array_values(
             array_unique(array_merge($this->loadedPaths, $paths))
         );
-    }
 
-    /**
-     * Get loadedPaths for the application.
-     */
-    public function getLoadedPaths(): array
-    {
-        return $this->loadedPaths;
+        $namespace = $this->app->getNamespace();
+
+        $possibleCommands = new WeakMap();
+
+        $filterCommands = function (SplFileInfo $file) use ($namespace, $possibleCommands) {
+            $commandClassName = $this->commandClassFromFile($file, $namespace);
+
+            $possibleCommands[$file] = $commandClassName;
+
+            $command = rescue(fn () => new ReflectionClass($commandClassName), null, false);
+
+            return $command instanceof ReflectionClass
+                && $command->isSubclassOf(SymfonyCommand::class)
+                && ! $command->isAbstract();
+        };
+
+        foreach ($this->findCommands($paths)->filter($filterCommands) as $file) {
+            ConsoleApplication::starting(function (ConsoleApplication $artisan) use ($file, $possibleCommands) {
+                $artisan->resolve($possibleCommands[$file]);
+            });
+        }
     }
 
     /**
@@ -456,16 +386,16 @@ class Kernel implements KernelContract
             return $this->artisan;
         }
 
-        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
-            ->resolveCommands($this->commands);
-
-        $this->app->instance(ApplicationContract::class, $this->artisan);
-
+        // Bootstrap first so that commands(), discoverCommands(), and load()
+        // can register Artisan::starting() callbacks before the Application
+        // constructor fires them.
         $this->bootstrap();
 
-        // Set the container command loader AFTER bootstrap so all commands
-        // discovered during bootstrap are in the command map for lazy resolution.
-        $this->artisan->setContainerCommandLoader();
+        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
+            ->resolveCommands($this->commands)
+            ->setContainerCommandLoader();
+
+        $this->app->instance(ApplicationContract::class, $this->artisan);
 
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
             $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */

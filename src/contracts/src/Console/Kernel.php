@@ -7,6 +7,7 @@ namespace Hypervel\Contracts\Console;
 use Closure;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Console\ClosureCommand;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 
 interface Kernel
@@ -58,14 +59,9 @@ interface Kernel
     public function addCommandRoutePaths(array $paths): static;
 
     /**
-     * Get loadedPaths for the application.
-     */
-    public function getLoadedPaths(): array;
-
-    /**
      * Register the given command with the console application.
      */
-    public function registerCommand(string $command);
+    public function registerCommand(SymfonyCommand $command): void;
 
     /**
      * Run an Artisan console command by name.
