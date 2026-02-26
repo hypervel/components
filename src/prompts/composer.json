@@ -22,6 +22,8 @@
         "php": "^8.4",
         "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
+        "hypervel/context": "^0.4",
+        "hypervel/coroutine": "^0.4",
         "symfony/console": "^6.2|^7.0",
         "nunomaduro/termwind": "^2.0"
     },

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Prompts\Concerns;
 
 use Closure;
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 
 trait Fallback
@@ -26,7 +28,12 @@ trait Fallback
      */
     public static function fallbackWhen(bool $condition): void
     {
-        static::$shouldFallback = $condition || static::$shouldFallback;
+        if (Coroutine::inCoroutine()) {
+            $current = Context::get('__prompt.should_fallback', false);
+            Context::set('__prompt.should_fallback', $condition || $current);
+        } else {
+            static::$shouldFallback = $condition || static::$shouldFallback;
+        }
     }
 
     /**
@@ -34,6 +41,13 @@ trait Fallback
      */
     public static function shouldFallback(): bool
     {
+        if (Coroutine::inCoroutine()) {
+            $shouldFallback = Context::get('__prompt.should_fallback') ?? static::$shouldFallback;
+            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+
+            return $shouldFallback && isset($fallbacks[static::class]);
+        }
+
         return static::$shouldFallback && isset(static::$fallbacks[static::class]);
     }
 
@@ -44,7 +58,13 @@ trait Fallback
      */
     public static function fallbackUsing(Closure $fallback): void
     {
-        static::$fallbacks[static::class] = $fallback;
+        if (Coroutine::inCoroutine()) {
+            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+            $fallbacks[static::class] = $fallback;
+            Context::set('__prompt.fallbacks', $fallbacks);
+        } else {
+            static::$fallbacks[static::class] = $fallback;
+        }
     }
 
     /**
@@ -52,7 +72,13 @@ trait Fallback
      */
     public function fallback(): mixed
     {
-        $fallback = static::$fallbacks[static::class] ?? null;
+        if (Coroutine::inCoroutine()) {
+            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+        } else {
+            $fallbacks = static::$fallbacks;
+        }
+
+        $fallback = $fallbacks[static::class] ?? null;
 
         if ($fallback === null) {
             throw new RuntimeException('No fallback implementation registered for [' . static::class . ']');

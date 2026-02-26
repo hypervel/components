@@ -67,7 +67,7 @@ class SelectPrompt extends Prompt
      */
     public function value(): int|string|null
     {
-        if (static::$interactive === false) {
+        if (static::isInteractive() === false) {
             return $this->default;
         }
 
