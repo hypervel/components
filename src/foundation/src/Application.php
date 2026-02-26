@@ -390,6 +390,16 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Determine if the application is currently down for maintenance.
+     *
+     * @TODO Implement properly once maintenance mode is ported.
+     */
+    public function isDownForMaintenance(): bool
+    {
+        return false;
+    }
+
+    /**
      * Register a new registered listener.
      */
     public function registered(callable $callback): void
