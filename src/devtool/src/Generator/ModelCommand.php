@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:model')]
-class ModelCommand extends GeneratorCommand
+class ModelCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:model';
 
@@ -78,7 +77,7 @@ class ModelCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/model.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Models';
     }

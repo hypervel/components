@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:factory')]
-class FactoryCommand extends GeneratorCommand
+class FactoryCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:factory';
 
@@ -69,7 +68,7 @@ class FactoryCommand extends GeneratorCommand
         return BASE_PATH . "/{$path}/{$name}.php";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

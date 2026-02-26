@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:provider')]
-class ProviderCommand extends GeneratorCommand
+class ProviderCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:provider';
 
@@ -21,7 +20,7 @@ class ProviderCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/provider.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Providers';
     }

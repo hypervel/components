@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:test')]
-class TestCommand extends GeneratorCommand
+class TestCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:test';
 
@@ -26,7 +25,7 @@ class TestCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . "/stubs/{$stub}";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         $namespace = $this->option('unit')
             ? 'Tests\Unit'
@@ -54,7 +53,7 @@ class TestCommand extends GeneratorCommand
     {
         $namespace = $this->option('namespace');
         if (empty($namespace)) {
-            $namespace = $this->getDefaultNamespace();
+            $namespace = $this->getDefaultNamespace($this->rootNamespace());
         }
 
         $filename = str_replace($namespace . '\\', '', "{$name}.php");

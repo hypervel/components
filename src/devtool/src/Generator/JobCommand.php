@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:job')]
-class JobCommand extends GeneratorCommand
+class JobCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:job';
 
@@ -28,7 +27,7 @@ class JobCommand extends GeneratorCommand
         return __DIR__ . "/stubs/{$stubName}.stub";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Jobs';
     }

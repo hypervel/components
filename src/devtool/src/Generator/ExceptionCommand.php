@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:exception')]
-class ExceptionCommand extends GeneratorCommand
+class ExceptionCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:exception';
 
@@ -31,7 +30,7 @@ class ExceptionCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . $stub;
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Exceptions';
     }

@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:middleware')]
-class MiddlewareCommand extends GeneratorCommand
+class MiddlewareCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:middleware';
 
@@ -26,7 +25,7 @@ class MiddlewareCommand extends GeneratorCommand
         );
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Http\Middleware';
     }
