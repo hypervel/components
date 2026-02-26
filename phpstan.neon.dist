@@ -16,6 +16,7 @@ parameters:
   excludePaths:
     - %currentWorkingDirectory%/src/helper/*
     - %currentWorkingDirectory%/tests/*
+    - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
     - %currentWorkingDirectory%/src/*/class_map/*
     - %currentWorkingDirectory%/src/foundation/src/helpers.php
