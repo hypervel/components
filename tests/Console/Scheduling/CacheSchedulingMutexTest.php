@@ -9,6 +9,7 @@ use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -35,6 +36,7 @@ class CacheSchedulingMutexTest extends TestCase
 
         $this->cacheFactory = m::mock(CacheFactory::class);
         $this->cacheRepository = m::mock(Repository::class);
+        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
         $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
         $this->cacheMutex = new CacheSchedulingMutex($this->cacheFactory);
         $this->event = new Event(new CacheEventMutex($this->cacheFactory), 'command');

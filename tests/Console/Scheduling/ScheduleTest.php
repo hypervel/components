@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Console\Contracts\SchedulingMutex;
+use Hypervel\Console\Scheduling\CacheAware;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;

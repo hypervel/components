@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,9 +20,9 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
  */
 class ConsoleApplicationResolveTest extends TestCase
 {
-    private function createApp(?Container $container = null): ConsoleApplication
+    private function createApp(?Application $container = null): ConsoleApplication
     {
-        $container ??= $this->createMock(Container::class);
+        $container ??= $this->createMock(Application::class);
         $dispatcher = $this->createMock(Dispatcher::class);
 
         return new ConsoleApplication($container, $dispatcher, '1.0');
@@ -84,7 +84,7 @@ class ConsoleApplicationResolveTest extends TestCase
     public function testResolveEagerlyResolvesCommandWithoutStaticName()
     {
         $command = new SymfonyCommand('test:dynamic');
-        $container = $this->createMock(Container::class);
+        $container = $this->createMock(Application::class);
         $container->expects($this->once())
             ->method('make')
             ->with(StubDynamicCommand::class)

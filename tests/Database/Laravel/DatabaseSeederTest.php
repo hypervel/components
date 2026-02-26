@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel;
 
 use Hypervel\Console\Command;
+use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Seeder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\Mock;
-use Symfony\Component\Console\Output\OutputInterface;
 
 class TestSeeder extends Seeder
 {
@@ -36,7 +36,7 @@ class DatabaseSeederTest extends TestCase
     {
         $seeder = new TestSeeder();
         $seeder->setContainer($container = m::mock(Container::class));
-        $output = m::mock(OutputInterface::class);
+        $output = m::mock(OutputStyle::class);
         $output->shouldReceive('writeln')->times(3);
         $command = m::mock(Command::class);
         $command->shouldReceive('getOutput')->times(3)->andReturn($output);

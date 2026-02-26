@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeZone;
-use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;

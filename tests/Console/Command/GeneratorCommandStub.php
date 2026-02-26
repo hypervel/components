@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Command;
 
-use Hypervel\Console\GeneratorCommand;
+use Hypervel\Devtool\Generator\DevtoolGeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
 
-class GeneratorCommandStub extends GeneratorCommand
+class GeneratorCommandStub extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'gen:test-stub';
 
@@ -61,12 +61,17 @@ class GeneratorCommandStub extends GeneratorCommand
         return $this->rootNamespace();
     }
 
+    protected function rootNamespace(): string
+    {
+        return 'App\\';
+    }
+
     protected function getStub(): string
     {
         return __DIR__ . '/stubs/class.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return 'App';
     }

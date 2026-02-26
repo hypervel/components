@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ManuallyFailedException;
+use Hypervel\Console\OutputStyle;
+use Hypervel\Console\View\Components\Factory;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Command\DefaultSwooleFlagsCommand;
@@ -20,7 +22,6 @@ use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * @internal
@@ -39,7 +40,7 @@ class CommandTest extends TestCase
 
     public function testExitCodeWhenThrowException()
     {
-        $output = m::mock(OutputInterface::class)->shouldIgnoreMissing();
+        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
 
@@ -70,7 +71,7 @@ class CommandTest extends TestCase
 
     public function testSetUpTraits()
     {
-        $output = m::mock(OutputInterface::class)->shouldIgnoreMissing();
+        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
         $input = m::mock(InputInterface::class);
@@ -93,7 +94,7 @@ class CommandTest extends TestCase
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
 
-        $output = m::mock(OutputInterface::class)->shouldIgnoreMissing();
+        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $command = new ClassInvoker(new FooProhibitableCommand());
         $command->setApplication($application);
         $command->setOutput($output);
@@ -104,11 +105,12 @@ class CommandTest extends TestCase
 
         FooProhibitableCommand::prohibit(true);
 
-        $output = m::mock(OutputInterface::class)->shouldIgnoreMissing();
-        $command = new ClassInvoker(new FooProhibitableCommand());
-        $command->setApplication($application);
-        $command->setOutput($output);
-        $command->setUpPrettyable(null, $output);
+        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $instance = new FooProhibitableCommand();
+        $instance->setApplication($application);
+        $instance->setOutput($output);
+        (fn () => $this->components = new Factory($output))->call($instance);
+        $command = new ClassInvoker($instance);
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')->andReturn(true);
         $result = $command->execute($input, $output);
