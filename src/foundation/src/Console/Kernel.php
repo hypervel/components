@@ -7,8 +7,9 @@ namespace Hypervel\Foundation\Console;
 use Closure;
 use Exception;
 use Hypervel\Console\Application as ConsoleApplication;
-use Hypervel\Console\ClosureCommand;
 use Hypervel\Console\CommandReplacer;
+use Hypervel\Console\Events\CommandFinished;
+use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
@@ -20,13 +21,22 @@ use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\ConsoleEvents;
+use Symfony\Component\Console\Event\ConsoleCommandEvent;
+use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Finder\Finder;
 
 class Kernel implements KernelContract
 {
     protected ApplicationContract $artisan;
+
+    /**
+     * The Symfony event dispatcher implementation.
+     */
+    protected ?EventDispatcher $symfonyDispatcher = null;
 
     /**
      * The Artisan commands provided by the application.
@@ -78,8 +88,38 @@ class Kernel implements KernelContract
         $events->dispatch(new BootApplication());
 
         $this->app->booted(function () {
+            if (! $this->app->runningUnitTests()) {
+                $this->rerouteSymfonyCommandEvents();
+            }
+
             $this->defineConsoleSchedule();
         });
+    }
+
+    /**
+     * Re-route the Symfony command events to their Hypervel counterparts.
+     *
+     * @internal
+     */
+    public function rerouteSymfonyCommandEvents(): static
+    {
+        if (is_null($this->symfonyDispatcher)) {
+            $this->symfonyDispatcher = new EventDispatcher();
+
+            $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event) {
+                $this->events->dispatch(
+                    new CommandStarting($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput())
+                );
+            });
+
+            $this->symfonyDispatcher->addListener(ConsoleEvents::TERMINATE, function (ConsoleTerminateEvent $event) {
+                $this->events->dispatch(
+                    new CommandFinished($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput(), $event->getExitCode())
+                );
+            });
+        }
+
+        return $this;
     }
 
     /**
@@ -321,7 +361,7 @@ class Kernel implements KernelContract
      */
     public function command(string $signature, Closure $callback): ClosureCommand
     {
-        $command = new ClosureCommand($this->app, $signature, $callback);
+        $command = new ClosureCommand($signature, $callback);
 
         // If the commands have already been loaded, we will register it
         // with the console right away. If not, we will defer the call
@@ -426,6 +466,11 @@ class Kernel implements KernelContract
         // Set the container command loader AFTER bootstrap so all commands
         // discovered during bootstrap are in the command map for lazy resolution.
         $this->artisan->setContainerCommandLoader();
+
+        if ($this->symfonyDispatcher instanceof EventDispatcher) {
+            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
+            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
+        }
 
         return $this->artisan;
     }
