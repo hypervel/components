@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Commands;
 
 use Hypervel\Console\Command;
+use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskSkipped;
@@ -33,6 +34,7 @@ class ScheduleRunCommand extends Command
     protected ?string $signature = 'schedule:run
         {--once : Run only once without looping}
         {--concurrency=60 : The number of background tasks to process at once}
+        {--whisper : Do not output message indicating that no commands were ready to run}
     ';
 
     /**
@@ -97,7 +99,7 @@ class ScheduleRunCommand extends Command
                 Date::now()
             );
 
-            if (! $this->eventsRan && ! $noEventsAlerted) {
+            if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
                 $this->info('No scheduled commands are ready to run, waiting...');
                 $noEventsAlerted = true;
             }
@@ -131,7 +133,7 @@ class ScheduleRunCommand extends Command
             )
         );
 
-        if (! $this->eventsRan) {
+        if (! $this->eventsRan && ! $this->option('whisper')) {
             $this->info('No scheduled commands are ready to run.');
         }
     }
@@ -154,7 +156,10 @@ class ScheduleRunCommand extends Command
                 : $this->runEvent($event);
 
             if ($event->runInBackground) {
-                $this->concurrent->create($runEvent);
+                $this->concurrent->create(function () use ($runEvent, $event) {
+                    $runEvent();
+                    $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+                });
                 continue;
             }
 
