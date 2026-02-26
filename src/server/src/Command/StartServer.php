@@ -19,13 +19,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Support\swoole_hook_flags;
 
-#[AsCommand(name: 'start', description: 'Start hypervel servers.')]
+#[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class StartServer extends Command
 {
     public function __construct(private Container $container)
     {
         parent::__construct();
-        $this->setDescription('Start hypervel servers.');
+        $this->setDescription('Start Hypervel servers.');
     }
 
     /**
