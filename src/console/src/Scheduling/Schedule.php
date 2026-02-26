@@ -21,6 +21,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -136,8 +137,12 @@ class Schedule
     /**
      * Add a new Artisan command event to the schedule.
      */
-    public function command(string $command, array $parameters = []): Event
+    public function command(SymfonyCommand|string $command, array $parameters = []): Event
     {
+        if ($command instanceof SymfonyCommand) {
+            $command = get_class($command);
+        }
+
         if (class_exists($command)) {
             $command = Container::getInstance()->make($command);
 
@@ -318,11 +323,11 @@ class Schedule
             return ProcessUtils::escapeArgument($value);
         });
 
-        if (str_starts_with($key, '--')) {
+        if (is_string($key) && str_starts_with($key, '--')) {
             $value = $value->map(function ($value) use ($key) {
                 return "{$key}={$value}";
             });
-        } elseif (str_starts_with($key, '-')) {
+        } elseif (is_string($key) && str_starts_with($key, '-')) {
             $value = $value->map(function ($value) use ($key) {
                 return "{$key} {$value}";
             });
