@@ -9,9 +9,6 @@ use Closure;
 use DateTimeInterface;
 use DateTimeZone;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
@@ -269,6 +266,7 @@ class Schedule
         }
 
         $this->groupStack[] = $this->attributes;
+        $this->attributes = null;
 
         $events($this);
 
@@ -280,16 +278,16 @@ class Schedule
      */
     protected function mergePendingAttributes(Event $event): void
     {
-        if (isset($this->attributes)) {
-            $this->attributes->mergeAttributes($event);
-
-            $this->attributes = null;
-        }
-
         if (! empty($this->groupStack)) {
             $group = end($this->groupStack);
 
             $group->mergeAttributes($event);
+        }
+
+        if (isset($this->attributes)) {
+            $this->attributes->mergeAttributes($event);
+
+            $this->attributes = null;
         }
     }
 
@@ -413,7 +411,7 @@ class Schedule
         }
 
         if (method_exists(PendingEventAttributes::class, $method)) {
-            $this->attributes ??= end($this->groupStack) ?: new PendingEventAttributes($this);
+            $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);
         }
