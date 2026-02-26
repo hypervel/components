@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Console;
 
-use Closure;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -13,16 +12,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 interface Application
 {
     /**
-     * Register a console "starting" bootstrapper.
+     * Get the application instance.
      */
-    public function starting(Closure $callback): void;
-
-    /**
-     * Clear the console application bootstrappers.
-     */
-    public function forgetBootstrappers(): void;
-
-    public function getContainer(): ContainerContract;
+    public function getApp(): ApplicationContract;
 
     public function add(SymfonyCommand $command);
 

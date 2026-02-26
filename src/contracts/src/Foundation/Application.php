@@ -119,6 +119,11 @@ interface Application extends Container
     public function hasDebugModeEnabled(): bool;
 
     /**
+     * Determine if the application is currently down for maintenance.
+     */
+    public function isDownForMaintenance(): bool;
+
+    /**
      * Register all of the configured providers.
      */
     public function registerConfiguredProviders(): void;
