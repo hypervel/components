@@ -19,6 +19,7 @@ use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
+use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Framework\Events\BeforeWorkerStart;
@@ -46,6 +47,10 @@ class DatabaseServiceProvider extends ServiceProvider
                 $app->make(ConnectionResolverInterface::class),
                 $table,
             );
+        });
+
+        $this->app->singleton('migration.creator', function ($app) {
+            return new MigrationCreator($app['files'], $app->basePath('stubs'));
         });
 
         $this->commands([

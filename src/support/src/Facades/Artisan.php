@@ -10,7 +10,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
  * @method static void bootstrap()
  * @method static void schedule(\Hypervel\Console\Scheduling\Schedule $schedule)
  * @method static void commands()
- * @method static \Hypervel\Console\ClosureCommand command(string $signature, \Closure $callback)
+ * @method static \Hypervel\Foundation\Console\ClosureCommand command(string $signature, \Closure $callback)
  * @method static void load(array|string $paths)
  * @method static \Hypervel\Contracts\Console\Kernel addCommands(array $commands)
  * @method static \Hypervel\Contracts\Console\Kernel addCommandPaths(array $paths)
