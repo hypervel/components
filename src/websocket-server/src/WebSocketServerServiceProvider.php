@@ -20,11 +20,11 @@ class WebSocketServerServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
-            $this->app->make(InitSenderListener::class)->process($event);
+            $this->app->make(InitSenderListener::class)->handle($event);
         });
 
         $events->listen(OnPipeMessage::class, function (OnPipeMessage $event) {
-            $this->app->make(OnPipeMessageListener::class)->process($event);
+            $this->app->make(OnPipeMessageListener::class)->handle($event);
         });
     }
 }

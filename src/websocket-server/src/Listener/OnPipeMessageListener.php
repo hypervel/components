@@ -6,36 +6,24 @@ namespace Hypervel\WebSocketServer\Listener;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Framework\Events\OnPipeMessage;
 use Hypervel\WebSocketServer\Sender;
 use Hypervel\WebSocketServer\SenderPipeMessage;
 use Throwable;
 
-class OnPipeMessageListener implements ListenerInterface
+class OnPipeMessageListener
 {
     public function __construct(private Container $container, private StdoutLoggerInterface $logger, private Sender $sender)
     {
     }
 
     /**
-     * @return string[] returns the events that you want to listen
+     * Handle a pipe message event for WebSocket sender messages.
      */
-    public function listen(): array
+    public function handle(OnPipeMessage $event): void
     {
-        return [
-            OnPipeMessage::class,
-        ];
-    }
-
-    /**
-     * Handle the Event when the event is triggered, all listeners will
-     * complete before the event is returned to the EventDispatcher.
-     */
-    public function process(object $event): void
-    {
-        if ($event instanceof OnPipeMessage && $event->data instanceof SenderPipeMessage) {
+        if ($event->data instanceof SenderPipeMessage) {
             /** @var SenderPipeMessage $message */
             $message = $event->data;
 

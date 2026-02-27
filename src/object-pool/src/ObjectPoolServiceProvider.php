@@ -30,7 +30,7 @@ class ObjectPoolServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
-            $this->app->make(StartRecycler::class)->process($event);
+            $this->app->make(StartRecycler::class)->handle($event);
         });
     }
 }

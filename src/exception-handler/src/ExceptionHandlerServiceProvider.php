@@ -25,6 +25,6 @@ class ExceptionHandlerServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->app->make(ExceptionHandlerListener::class)->process(new BootApplication());
+        $this->app->make(ExceptionHandlerListener::class)->handle(new BootApplication());
     }
 }

@@ -97,7 +97,7 @@ class DatabaseServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
-            $this->app->make(UnsetContextInTaskWorkerListener::class)->process($event);
+            $this->app->make(UnsetContextInTaskWorkerListener::class)->handle($event);
         });
     }
 }

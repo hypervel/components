@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Listeners;
 
 use Hypervel\Config\Repository;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Foundation\Application;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\DotenvManager;
 
-class ReloadDotenvAndConfig implements ListenerInterface
+class ReloadDotenvAndConfig
 {
     protected static array $modifiedItems = [];
 
@@ -33,14 +32,10 @@ class ReloadDotenvAndConfig implements ListenerInterface
         });
     }
 
-    public function listen(): array
-    {
-        return [
-            BeforeWorkerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
+    /**
+     * Reload dotenv and config before a worker starts.
+     */
+    public function handle(BeforeWorkerStart $event): void
     {
         $this->reloadDotenv();
         $this->reloadConfig();
