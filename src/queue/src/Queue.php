@@ -12,10 +12,15 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\FailOnTimeout;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Exceptions\InvalidPayloadException;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -25,6 +30,7 @@ use const JSON_UNESCAPED_UNICODE;
 abstract class Queue
 {
     use InteractsWithTime;
+    use ReadsQueueAttributes;
 
     /**
      * The IoC container instance.
@@ -129,10 +135,10 @@ abstract class Queue
             'displayName' => $this->getDisplayName($job),
             'job' => 'Illuminate\Queue\CallQueuedHandler@call',
             'maxTries' => $this->getJobTries($job),
-            'maxExceptions' => $job->maxExceptions ?? null,
-            'failOnTimeout' => $job->failOnTimeout ?? false,
+            'maxExceptions' => $this->getAttributeValue($job, MaxExceptions::class, 'maxExceptions'),
+            'failOnTimeout' => $this->getAttributeValue($job, FailOnTimeout::class, 'failOnTimeout') ?? false,
             'backoff' => $this->getJobBackoff($job),
-            'timeout' => $job->timeout ?? null,
+            'timeout' => $this->getAttributeValue($job, Timeout::class, 'timeout'),
             'retryUntil' => $this->getJobExpiration($job),
             'data' => [
                 'commandName' => $job,
@@ -166,12 +172,10 @@ abstract class Queue
      */
     public function getJobTries(mixed $job): mixed
     {
-        if (! method_exists($job, 'tries') && ! isset($job->tries)) {
-            return null;
-        }
+        $tries = $this->getAttributeValue($job, Tries::class, 'tries');
 
-        if (is_null($tries = $job->tries ?? $job->tries())) {
-            return null;
+        if (method_exists($job, 'tries')) {
+            $tries = $job->tries();
         }
 
         return $tries;
@@ -182,19 +186,19 @@ abstract class Queue
      */
     public function getJobBackoff(mixed $job): mixed
     {
-        if (! method_exists($job, 'backoff') && ! isset($job->backoff)) {
+        $backoff = $this->getAttributeValue($job, Backoff::class, 'backoff');
+
+        if (method_exists($job, 'backoff')) {
+            $backoff = $job->backoff();
+        }
+
+        if (is_null($backoff)) {
             return null;
         }
 
-        if (is_null($backoff = $job->backoff ?? $job->backoff())) {
-            return null;
-        }
-
-        return Collection::make(Arr::wrap($backoff))
-            ->map(function ($backoff) {
-                return $backoff instanceof DateTimeInterface
-                    ? $this->secondsUntil($backoff) : $backoff;
-            })->implode(',');
+        return Collection::wrap($backoff)
+            ->map(fn ($backoff) => $backoff instanceof DateTimeInterface ? $this->secondsUntil($backoff) : $backoff)
+            ->implode(',');
     }
 
     /**
