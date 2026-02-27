@@ -9,8 +9,7 @@ use ErrorException;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
-use Hypervel\Event\EventDispatcher;
-use Hypervel\Event\ListenerProvider;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
@@ -67,11 +66,7 @@ class ViewFactoryTest extends TestCase
 
     private function createEventDispatcher()
     {
-        return new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $this->getApplication()
-        );
+        return new EventDispatcher($this->getApplication());
     }
 
     private function createContainer()
