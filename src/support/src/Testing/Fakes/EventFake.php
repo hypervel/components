@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Event\QueuedClosure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -15,7 +18,7 @@ use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use ReflectionFunction;
 
-class EventFake implements Fake, Dispatcher
+class EventFake implements Fake, DispatcherContract
 {
     use ForwardsCalls;
     use ReflectsClosures;
@@ -23,7 +26,7 @@ class EventFake implements Fake, Dispatcher
     /**
      * The original event dispatcher.
      */
-    protected Dispatcher $dispatcher;
+    public Dispatcher $dispatcher;
 
     /**
      * The event types that should be intercepted instead of dispatched.
@@ -46,6 +49,7 @@ class EventFake implements Fake, Dispatcher
     public function __construct(Dispatcher $dispatcher, array|string $eventsToFake = [])
     {
         $this->dispatcher = $dispatcher;
+
         $this->eventsToFake = Arr::wrap($eventsToFake);
     }
 
@@ -65,20 +69,32 @@ class EventFake implements Fake, Dispatcher
     /**
      * Assert if an event has a listener attached to it.
      */
-    public function assertListening(string $expectedEvent, string $expectedListener): void
+    public function assertListening(string $expectedEvent, array|string $expectedListener): void
     {
-        /* @phpstan-ignore-next-line */
         foreach ($this->dispatcher->getListeners($expectedEvent) as $listenerClosure) {
             $actualListener = (new ReflectionFunction($listenerClosure))
                 ->getStaticVariables()['listener'];
 
-            if (is_string($actualListener) && Str::endsWith($actualListener, '@handle')) {
-                $actualListener = Str::parseCallback($actualListener)[0];
+            $normalizedListener = $expectedListener;
+
+            if (is_string($actualListener) && Str::contains($actualListener, '@')) {
+                $actualListener = Str::parseCallback($actualListener);
+
+                if (is_string($expectedListener)) {
+                    if (Str::contains($expectedListener, '@')) {
+                        $normalizedListener = Str::parseCallback($expectedListener);
+                    } else {
+                        $normalizedListener = [
+                            $expectedListener,
+                            method_exists($expectedListener, 'handle') ? 'handle' : '__invoke',
+                        ];
+                    }
+                }
             }
 
-            if ($actualListener === $expectedListener
+            if ($actualListener === $normalizedListener
                 || ($actualListener instanceof Closure
-                && $expectedListener === Closure::class)) {
+                    && $normalizedListener === Closure::class)) {
                 PHPUnit::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (intentional for assertion count)
 
                 return;
@@ -116,6 +132,14 @@ class EventFake implements Fake, Dispatcher
     }
 
     /**
+     * Assert if an event was dispatched exactly once.
+     */
+    public function assertDispatchedOnce(string $event): void
+    {
+        $this->assertDispatchedTimes($event, 1);
+    }
+
+    /**
      * Assert if an event was dispatched a number of times.
      */
     public function assertDispatchedTimes(string $event, int $times = 1): void
@@ -125,7 +149,11 @@ class EventFake implements Fake, Dispatcher
         PHPUnit::assertSame(
             $times,
             $count,
-            "The expected [{$event}] event was dispatched {$count} times instead of {$times} times."
+            sprintf(
+                "The expected [{$event}] event was dispatched {$count} %s instead of {$times} %s.",
+                Str::plural('time', $count),
+                Str::plural('time', $times)
+            )
         );
     }
 
@@ -152,10 +180,19 @@ class EventFake implements Fake, Dispatcher
     {
         $count = count(Arr::flatten($this->events));
 
+        $eventNames = (new Collection($this->events))
+            ->map(fn ($events, $eventName) => sprintf(
+                '%s dispatched %s %s',
+                $eventName,
+                count($events),
+                Str::plural('time', count($events)),
+            ))
+            ->join("\n- ");
+
         PHPUnit::assertSame(
             0,
             $count,
-            "{$count} unexpected events were dispatched."
+            "{$count} unexpected events were dispatched:\n\n- {$eventNames}\n"
         );
     }
 
@@ -204,30 +241,6 @@ class EventFake implements Fake, Dispatcher
     }
 
     /**
-     * Determine if the given event has any wildcard listeners.
-     */
-    public function hasWildcardListeners(string $eventName): bool
-    {
-        return $this->dispatcher->hasWildcardListeners($eventName);
-    }
-
-    /**
-     * Get all of the listeners for a given event name.
-     */
-    public function getListeners(object|string $eventName): iterable
-    {
-        return $this->dispatcher->getListeners($eventName);
-    }
-
-    /**
-     * Gets the raw, unprepared listeners.
-     */
-    public function getRawListeners(): array
-    {
-        return $this->dispatcher->getRawListeners();
-    }
-
-    /**
      * Register an event and payload to be dispatched later.
      */
     public function push(string $event, mixed $payload = []): void
@@ -257,9 +270,9 @@ class EventFake implements Fake, Dispatcher
         $name = is_object($event) ? get_class($event) : (string) $event;
 
         if ($this->shouldFakeEvent($name, $payload)) {
-            $this->events[$name][] = func_get_args();
+            $this->fakeEvent($event, $name, func_get_args());
 
-            return is_object($event) ? $event : null;
+            return null;
         }
 
         return $this->dispatcher->dispatch($event, $payload, $halt);
@@ -270,15 +283,19 @@ class EventFake implements Fake, Dispatcher
      */
     protected function shouldFakeEvent(string $eventName, mixed $payload): bool
     {
+        if ($this->shouldDispatchEvent($eventName, $payload)) {
+            return false;
+        }
+
         if (empty($this->eventsToFake)) {
             return true;
         }
 
-        return Collection::make($this->eventsToFake)
+        return (new Collection($this->eventsToFake))
             ->filter(function ($event) use ($eventName, $payload) {
                 return $event instanceof Closure
-                            ? $event($eventName, $payload)
-                            : $event === $eventName;
+                    ? $event($eventName, $payload)
+                    : $event === $eventName;
             })
             ->isNotEmpty();
     }
@@ -288,6 +305,13 @@ class EventFake implements Fake, Dispatcher
      */
     protected function fakeEvent(object|string $event, string $name, array $arguments): void
     {
+        if ($event instanceof ShouldDispatchAfterCommit && Container::getInstance()->bound('db.transactions')) {
+            Container::getInstance()->make('db.transactions')
+                ->addCallback(fn () => $this->events[$name][] = $arguments);
+
+            return;
+        }
+
         $this->events[$name][] = $arguments;
     }
 
