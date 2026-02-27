@@ -24,6 +24,7 @@ use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Redis\RedisFactory;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 
 /**
@@ -32,6 +33,7 @@ use InvalidArgumentException;
 class QueueManager implements FactoryContract, MonitorContract
 {
     use HasPoolProxy;
+    use ResolvesQueueRoutes;
 
     /**
      * The config instance.

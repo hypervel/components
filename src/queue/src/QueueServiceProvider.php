@@ -43,6 +43,7 @@ class QueueServiceProvider extends ServiceProvider
         $this->registerConnection();
         $this->registerWorker();
         $this->registerListener();
+        $this->registerRoutes();
         $this->registerFailedJobServices();
 
         $this->commands([
@@ -139,6 +140,14 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerListener(): void
     {
         $this->app->singleton('queue.listener', fn ($app) => new Listener($app->basePath()));
+    }
+
+    /**
+     * Register the default queue routes binding.
+     */
+    protected function registerRoutes(): void
+    {
+        $this->app->singleton('queue.routes', fn () => new QueueRoutes());
     }
 
     /**
