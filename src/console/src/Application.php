@@ -233,6 +233,10 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
                     $this->commandMap[$name] = $command;
                 }
 
+                foreach (static::extractCommandAliases($command) as $alias) {
+                    $this->commandMap[$alias] = $command;
+                }
+
                 // Refresh the loader so it sees the new commandMap entries.
                 if ($this->commandLoaderSet) {
                     $this->setContainerCommandLoader();
@@ -279,6 +283,22 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         }
 
         return null;
+    }
+
+    /**
+     * Extract command aliases from a class without instantiation.
+     *
+     * Reads the $aliases property default. #[AsCommand] aliases are already
+     * baked into the name string as pipe-separated values by Symfony, so they
+     * are handled by extractCommandName() + the explode('|') in resolve().
+     *
+     * @return array<int, string>
+     */
+    protected static function extractCommandAliases(string $command): array
+    {
+        $defaults = (new ReflectionClass($command))->getDefaultProperties();
+
+        return $defaults['aliases'] ?? [];
     }
 
     /**

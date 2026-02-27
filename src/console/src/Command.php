@@ -28,7 +28,7 @@ use Throwable;
 use function Hypervel\Coroutine\run;
 use function Hypervel\Support\swoole_hook_flags;
 
-abstract class Command extends SymfonyCommand
+class Command extends SymfonyCommand
 {
     use Concerns\CallsCommands;
     use Concerns\ConfiguresPrompts;
