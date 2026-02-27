@@ -161,13 +161,14 @@ class ScheduleRunCommandTest extends TestCase
      */
     protected function makeCommand(): ScheduleRunCommand
     {
-        $command = new ScheduleRunCommand(
-            m::mock(Schedule::class),
-            $this->dispatcher,
-            m::mock(CacheFactory::class),
-            $this->handler,
-        );
+        $command = new ScheduleRunCommand();
         $command->setApp($this->app);
+
+        // Set dependencies that are normally injected via handle().
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));
+        (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
+        (new ReflectionProperty($command, 'cache'))->setValue($command, m::mock(CacheFactory::class));
+        (new ReflectionProperty($command, 'handler'))->setValue($command, $this->handler);
 
         return $command;
     }
