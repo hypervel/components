@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\CallCommandsTest;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -23,15 +23,15 @@ class CallCommandsTest extends TestCase
         });
 
         Artisan::command('test:caller-by-class', function () {
-            $this->call(CallCommandsTestCalleeCommand::class);
+            $this->call(CalleeCommand::class);
         });
 
         Artisan::command('test:caller-by-instance', function () {
-            $this->call($this->app->make(CallCommandsTestCalleeCommand::class));
+            $this->call($this->app->make(CalleeCommand::class));
         });
 
         $app->make(\Hypervel\Contracts\Console\Kernel::class)
-            ->registerCommand($app->make(CallCommandsTestCalleeCommand::class));
+            ->registerCommand($app->make(CalleeCommand::class));
     }
 
     public function testItCanCallCommandByName()
@@ -51,7 +51,7 @@ class CallCommandsTest extends TestCase
 }
 
 #[AsCommand(name: 'test:callee')]
-class CallCommandsTestCalleeCommand extends Command
+class CalleeCommand extends Command
 {
     protected ?string $signature = 'test:callee';
 

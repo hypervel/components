@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\ConsoleApplicationTest;
 
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Command;
@@ -23,8 +23,8 @@ class ConsoleApplicationTest extends TestCase
     {
         Artisan::starting(function ($artisan) {
             $artisan->resolveCommands([
-                ConsoleAppFooCommandStub::class,
-                ConsoleAppZondaCommandStub::class,
+                FooCommand::class,
+                ZondaCommand::class,
             ]);
         });
 
@@ -47,7 +47,7 @@ class ConsoleApplicationTest extends TestCase
 
     public function testArtisanCallUsingCommandClass()
     {
-        $this->artisan(ConsoleAppFooCommandStub::class, [
+        $this->artisan(FooCommand::class, [
             'id' => 1,
         ])->assertExitCode(0);
     }
@@ -93,7 +93,7 @@ class ConsoleApplicationTest extends TestCase
     {
         $this->assertFalse($this->app->resolved(Schedule::class));
 
-        $this->app[Kernel::class]->registerCommand(new ConsoleAppScheduleCommandStub());
+        $this->app[Kernel::class]->registerCommand(new ScheduleCommand());
 
         $this->assertFalse($this->app->resolved(Schedule::class));
 
@@ -116,7 +116,7 @@ class ConsoleApplicationTest extends TestCase
     }
 }
 
-class ConsoleAppFooCommandStub extends Command
+class FooCommand extends Command
 {
     protected ?string $signature = 'foo:bar {id}';
 
@@ -128,7 +128,7 @@ class ConsoleAppFooCommandStub extends Command
 }
 
 #[AsCommand(name: 'zonda', aliases: ['app:zonda'])]
-class ConsoleAppZondaCommandStub extends Command
+class ZondaCommand extends Command
 {
     protected ?string $signature = 'zonda {id}';
 
@@ -139,7 +139,7 @@ class ConsoleAppZondaCommandStub extends Command
     }
 }
 
-class ConsoleAppScheduleCommandStub extends Command
+class ScheduleCommand extends Command
 {
     protected ?string $signature = 'foo:schedule';
 

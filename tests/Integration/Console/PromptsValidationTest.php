@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\PromptsValidationTest;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel;
@@ -20,16 +20,16 @@ class PromptsValidationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app[Kernel::class]->registerCommand(new DummyPromptsValidationCommand());
-        $this->app[Kernel::class]->registerCommand(new DummyPromptsWithLaravelRulesCommand());
-        $this->app[Kernel::class]->registerCommand(new DummyPromptsWithLaravelRulesMessagesAndAttributesCommand());
-        $this->app[Kernel::class]->registerCommand(new DummyPromptsWithLaravelRulesCommandWithInlineMessagesAndAttributesCommand());
+        $this->app[Kernel::class]->registerCommand(new ClosureValidationCommand());
+        $this->app[Kernel::class]->registerCommand(new LaravelRulesCommand());
+        $this->app[Kernel::class]->registerCommand(new MethodMessagesCommand());
+        $this->app[Kernel::class]->registerCommand(new InlineMessagesCommand());
     }
 
     public function testValidationForPrompts(): void
     {
         $this
-            ->artisan(DummyPromptsValidationCommand::class)
+            ->artisan(ClosureValidationCommand::class)
             ->expectsQuestion('What is your name?', '')
             ->expectsOutputToContain('Required!');
     }
@@ -37,7 +37,7 @@ class PromptsValidationTest extends TestCase
     public function testValidationWithLaravelRulesAndNoCustomization(): void
     {
         $this
-            ->artisan(DummyPromptsWithLaravelRulesCommand::class)
+            ->artisan(LaravelRulesCommand::class)
             ->expectsQuestion('What is your name?', '')
             ->expectsOutputToContain('The answer field is required.');
     }
@@ -45,7 +45,7 @@ class PromptsValidationTest extends TestCase
     public function testValidationWithLaravelRulesInlineMessagesAndAttributes(): void
     {
         $this
-            ->artisan(DummyPromptsWithLaravelRulesCommandWithInlineMessagesAndAttributesCommand::class)
+            ->artisan(InlineMessagesCommand::class)
             ->expectsQuestion('What is your name?', '')
             ->expectsOutputToContain('Your full name is mandatory.');
     }
@@ -53,13 +53,13 @@ class PromptsValidationTest extends TestCase
     public function testValidationWithLaravelRulesMessagesAndAttributes(): void
     {
         $this
-            ->artisan(DummyPromptsWithLaravelRulesMessagesAndAttributesCommand::class)
+            ->artisan(MethodMessagesCommand::class)
             ->expectsQuestion('What is your name?', '')
             ->expectsOutputToContain('Your full name is mandatory.');
     }
 }
 
-class DummyPromptsValidationCommand extends Command
+class ClosureValidationCommand extends Command
 {
     protected ?string $signature = 'prompts-validation-test';
 
@@ -69,7 +69,7 @@ class DummyPromptsValidationCommand extends Command
     }
 }
 
-class DummyPromptsWithLaravelRulesCommand extends Command
+class LaravelRulesCommand extends Command
 {
     protected ?string $signature = 'prompts-laravel-rules-test';
 
@@ -79,7 +79,7 @@ class DummyPromptsWithLaravelRulesCommand extends Command
     }
 }
 
-class DummyPromptsWithLaravelRulesCommandWithInlineMessagesAndAttributesCommand extends Command
+class InlineMessagesCommand extends Command
 {
     protected ?string $signature = 'prompts-laravel-rules-inline-test';
 
@@ -93,7 +93,7 @@ class DummyPromptsWithLaravelRulesCommandWithInlineMessagesAndAttributesCommand 
     }
 }
 
-class DummyPromptsWithLaravelRulesMessagesAndAttributesCommand extends Command
+class MethodMessagesCommand extends Command
 {
     protected ?string $signature = 'prompts-laravel-rules-messages-attributes-test';
 

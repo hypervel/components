@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\CommandEventsTest;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\CommandFinished;
@@ -34,7 +34,7 @@ class CommandEventsTest extends TestCase
     #[DataProvider('foregroundCommandEventsProvider')]
     public function testCommandEventsReceiveParsedInput($callback)
     {
-        $this->app[ConsoleKernel::class]->registerCommand(new CommandEventsTestCommand());
+        $this->app[ConsoleKernel::class]->registerCommand(new TestCommand());
 
         $this->app[Dispatcher::class]->listen(function (CommandStarting $event) {
             $this->log[] = 'CommandStarting';
@@ -61,7 +61,7 @@ class CommandEventsTest extends TestCase
     public static function foregroundCommandEventsProvider()
     {
         yield 'Foreground with array' => [function ($testCase) {
-            $testCase->artisan(CommandEventsTestCommand::class, [
+            $testCase->artisan(TestCommand::class, [
                 'firstname' => 'taylor',
                 'lastname' => 'otwell',
                 '--occupation' => 'coding',
@@ -90,9 +90,9 @@ class CommandEventsTest extends TestCase
         });
 
         $kernel = $this->app[ConsoleKernel::class];
-        $kernel->registerCommand(new CommandEventsTestCommand());
+        $kernel->registerCommand(new TestCommand());
 
-        $kernel->call(CommandEventsTestCommand::class, [
+        $kernel->call(TestCommand::class, [
             'firstname' => 'taylor',
             'lastname' => 'otwell',
             '--occupation' => 'coding',
@@ -105,7 +105,7 @@ class CommandEventsTest extends TestCase
     }
 }
 
-class CommandEventsTestCommand extends Command
+class TestCommand extends Command
 {
     protected ?string $signature = 'command-events-test-command {firstname} {lastname} {--occupation=cook}';
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\CommandManualFailTest;
 
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Command;
