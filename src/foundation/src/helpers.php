@@ -392,16 +392,10 @@ if (! function_exists('dispatch_sync')) {
 if (! function_exists('event')) {
     /**
      * Dispatch an event and call the listeners.
-     *
-     * @template T of object
-     *
-     * @param T $event
-     *
-     * @return T
      */
-    function event(object $event)
+    function event(mixed ...$args): mixed
     {
-        return \Hypervel\Event\event($event);
+        return app('events')->dispatch(...$args);
     }
 }
 
