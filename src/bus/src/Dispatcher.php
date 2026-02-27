@@ -12,13 +12,20 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Pipeline\Pipeline;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
 {
+    use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
+
     /**
      * The pipeline instance for the bus.
      */
@@ -176,7 +183,9 @@ class Dispatcher implements QueueingDispatcher
      */
     public function dispatchToQueue(mixed $command): mixed
     {
-        $connection = $command->connection ?? null;
+        $connection = $this->getAttributeValue($command, Connection::class, 'connection')
+            ?? $this->resolveConnectionFromQueueRoute($command)
+            ?? null;
 
         $queue = call_user_func($this->queueResolver, $connection);
 
@@ -196,19 +205,15 @@ class Dispatcher implements QueueingDispatcher
      */
     protected function pushCommandToQueue(Queue $queue, mixed $command): mixed
     {
-        if (isset($command->queue, $command->delay)) {
-            return $queue->laterOn($command->queue, $command->delay, $command);
-        }
-
-        if (isset($command->queue)) {
-            return $queue->pushOn($command->queue, $command);
-        }
+        $queueName = $this->getAttributeValue($command, QueueAttribute::class, 'queue')
+            ?? $this->resolveQueueFromQueueRoute($command)
+            ?? null;
 
         if (isset($command->delay)) {
-            return $queue->later($command->delay, $command);
+            return $queue->later($command->delay, $command, queue: $queueName);
         }
 
-        return $queue->push($command);
+        return $queue->push($command, queue: $queueName);
     }
 
     /**
