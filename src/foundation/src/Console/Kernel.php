@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
+use Carbon\CarbonInterval;
 use Closure;
+use DateTimeInterface;
 use Exception;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\CommandFinished;
@@ -15,8 +17,12 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
 use Hypervel\Foundation\Bus\PendingDispatch;
+use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
@@ -32,6 +38,8 @@ use WeakMap;
 
 class Kernel implements KernelContract
 {
+    use InteractsWithTime;
+
     protected ApplicationContract $artisan;
 
     /**
@@ -43,6 +51,16 @@ class Kernel implements KernelContract
      * The Artisan commands provided by the application.
      */
     protected array $commands = [];
+
+    /**
+     * All of the registered command duration handlers.
+     */
+    protected array $commandLifecycleDurationHandlers = [];
+
+    /**
+     * When the currently handled command started.
+     */
+    protected ?Carbon $commandStartedAt = null;
 
     /**
      * The paths where Artisan commands should be automatically discovered.
@@ -130,7 +148,62 @@ class Kernel implements KernelContract
      */
     public function handle(InputInterface $input, ?OutputInterface $output = null): mixed
     {
+        $this->commandStartedAt = Date::now();
+
         return $this->getArtisan()->run($input, $output);
+    }
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(InputInterface $input, int $status): void
+    {
+        $this->events->dispatch(new Terminating());
+
+        if ($this->commandStartedAt === null) {
+            return;
+        }
+
+        $this->commandStartedAt->setTimezone(
+            $this->app['config']->get('app.timezone') ?? 'UTC'
+        );
+
+        foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+            $end ??= Date::now();
+
+            if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
+                $handler($this->commandStartedAt, $input, $status);
+            }
+        }
+
+        $this->commandStartedAt = null;
+    }
+
+    /**
+     * Register a callback to be invoked when the command lifecycle duration exceeds a given amount of time.
+     */
+    public function whenCommandLifecycleIsLongerThan(CarbonInterval|DateTimeInterface|float|int $threshold, callable $handler): void
+    {
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold) * 1000
+            : $threshold;
+
+        $threshold = $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : $threshold;
+
+        $this->commandLifecycleDurationHandlers[] = [
+            'threshold' => $threshold,
+            'handler' => $handler,
+        ];
+    }
+
+    /**
+     * When the command being handled started.
+     */
+    public function commandStartedAt(): ?Carbon
+    {
+        return $this->commandStartedAt;
     }
 
     /**
