@@ -43,6 +43,31 @@ class ScheduleRunCommand extends Command
     protected string $description = 'Run the scheduled commands';
 
     /**
+     * The schedule instance.
+     */
+    protected Schedule $schedule;
+
+    /**
+     * The event dispatcher.
+     */
+    protected Dispatcher $dispatcher;
+
+    /**
+     * The cache factory implementation.
+     */
+    protected CacheFactory $cache;
+
+    /**
+     * The exception handler.
+     */
+    protected ExceptionHandler $handler;
+
+    /**
+     * The timestamp this scheduler command started running.
+     */
+    protected ?Carbon $startedAt = null;
+
+    /**
      * Check if any events ran.
      */
     protected bool $eventsRan = false;
@@ -63,22 +88,19 @@ class ScheduleRunCommand extends Command
     protected ?Concurrent $concurrent = null;
 
     /**
-     * Create a new command instance.
-     */
-    public function __construct(
-        protected Schedule $schedule,
-        protected Dispatcher $dispatcher,
-        protected CacheFactory $cache,
-        protected ExceptionHandler $handler,
-    ) {
-        parent::__construct();
-    }
-
-    /**
      * Execute the console command.
      */
-    public function handle()
-    {
+    public function handle(
+        Schedule $schedule,
+        Dispatcher $dispatcher,
+        CacheFactory $cache,
+        ExceptionHandler $handler,
+    ) {
+        $this->schedule = $schedule;
+        $this->dispatcher = $dispatcher;
+        $this->cache = $cache;
+        $this->handler = $handler;
+
         $this->concurrent = new Concurrent(
             (int) $this->option('concurrency')
         );
@@ -124,17 +146,71 @@ class ScheduleRunCommand extends Command
         }
     }
 
+    /**
+     * Run the scheduled events once.
+     */
     protected function runOnce(): void
     {
-        (new Waiter(-1))->wait(
-            fn () => $this->runEvents(
-                $this->schedule->dueEvents($this->app),
-                Date::now()
-            )
-        );
+        $this->startedAt = Date::now();
+
+        $events = $this->schedule->dueEvents($this->app);
+
+        if ($events->contains->isRepeatable()) {
+            $this->clearShouldStop();
+        }
+
+        (new Waiter(-1))->wait(function () use ($events) {
+            $this->runEvents($events, $this->startedAt);
+
+            if ($events->contains->isRepeatable()) {
+                $this->repeatEvents($events->filter->isRepeatable());
+            }
+        });
 
         if (! $this->eventsRan && ! $this->option('whisper')) {
             $this->info('No scheduled commands are ready to run.');
+        }
+    }
+
+    /**
+     * Run the given repeating events for the remainder of the current minute.
+     */
+    protected function repeatEvents(Collection $events): void
+    {
+        $hasEnteredMaintenanceMode = false;
+
+        while (Date::now()->lte($this->startedAt->endOfMinute())) {
+            foreach ($events as $event) {
+                if ($this->shouldStop()) {
+                    return;
+                }
+
+                if (! $event->shouldRepeatNow()) {
+                    continue;
+                }
+
+                $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->app->isDownForMaintenance();
+
+                if ($hasEnteredMaintenanceMode && ! $event->runsInMaintenanceMode()) {
+                    continue;
+                }
+
+                if (! $event->filtersPass($this->app)) {
+                    $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+
+                    continue;
+                }
+
+                if ($event->onOneServer) {
+                    $this->runSingleServerEvent($event, $this->startedAt);
+                } else {
+                    $this->runEvent($event);
+                }
+
+                $this->eventsRan = true;
+            }
+
+            Sleep::usleep(100_000);
         }
     }
 
