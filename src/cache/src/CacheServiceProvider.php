@@ -45,11 +45,11 @@ class CacheServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(BeforeServerStart::class, function (BeforeServerStart $event) {
-            $this->app->make(CreateSwooleTable::class)->process($event);
+            $this->app->make(CreateSwooleTable::class)->handle($event);
         });
 
         $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
-            $this->app->make(CreateTimer::class)->process($event);
+            $this->app->make(CreateTimer::class)->handle($event);
         });
 
         $this->publishes([

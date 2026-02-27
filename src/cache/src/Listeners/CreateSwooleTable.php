@@ -9,14 +9,10 @@ use Hypervel\Framework\Events\BeforeServerStart;
 
 class CreateSwooleTable extends BaseListener
 {
-    public function listen(): array
-    {
-        return [
-            BeforeServerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
+    /**
+     * Create Swoole tables for all configured Swoole cache stores.
+     */
+    public function handle(BeforeServerStart $event): void
     {
         $this->swooleStores()->each(function (array $config) {
             $this->container->make(SwooleTableManager::class)->get($config['table']);
