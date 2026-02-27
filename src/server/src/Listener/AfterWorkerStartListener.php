@@ -6,14 +6,13 @@ namespace Hypervel\Server\Listener;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Constant\SocketType;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Server\ServerManager;
 use Psr\Log\LoggerInterface;
 use Swoole\Server\Port;
 
-class AfterWorkerStartListener implements ListenerInterface
+class AfterWorkerStartListener
 {
     private LoggerInterface $logger;
 
@@ -23,21 +22,10 @@ class AfterWorkerStartListener implements ListenerInterface
     }
 
     /**
-     * Get the events the listener should handle.
-     */
-    public function listen(): array
-    {
-        return [
-            AfterWorkerStart::class,
-        ];
-    }
-
-    /**
      * Log server listening information after the first worker starts.
      */
-    public function process(object $event): void
+    public function handle(AfterWorkerStart $event): void
     {
-        /** @var AfterWorkerStart $event */
         if ($event->workerId === 0) {
             /** @var Port $server */
             foreach (ServerManager::list() as [$type, $server]) {

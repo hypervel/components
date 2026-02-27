@@ -36,23 +36,23 @@ class ServerServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
-            $this->app->make(AfterWorkerStartListener::class)->process($event);
+            $this->app->make(AfterWorkerStartListener::class)->handle($event);
         });
 
         $events->listen(OnStart::class, function (OnStart $event) {
-            $this->app->make(InitProcessTitleListener::class)->process($event);
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
 
         $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
-            $this->app->make(InitProcessTitleListener::class)->process($event);
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
 
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
-            $this->app->make(InitProcessTitleListener::class)->process($event);
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
 
         $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
-            $this->app->make(InitProcessTitleListener::class)->process($event);
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
     }
 }
