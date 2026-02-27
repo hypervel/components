@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bus;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\UniqueLock;
@@ -44,6 +45,30 @@ class PendingDispatch
     public function onQueue(UnitEnum|string|null $queue): static
     {
         $this->job->onQueue($queue);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job message group.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public function onGroup(UnitEnum|string $group): static
+    {
+        $this->job->onGroup($group);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job deduplicator callback.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     */
+    public function withDeduplicator(?Closure $deduplicator): static
+    {
+        $this->job->withDeduplicator($deduplicator);
 
         return $this;
     }
@@ -126,6 +151,14 @@ class PendingDispatch
         $this->afterResponse = true;
 
         return $this;
+    }
+
+    /**
+     * Get the underlying job instance.
+     */
+    public function getJob(): mixed
+    {
+        return $this->job;
     }
 
     /**
