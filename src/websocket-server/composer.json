@@ -37,7 +37,7 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/dispatcher": "^0.4",
-        "hypervel/event": "^0.4",
+        "hypervel/events": "^0.4",
         "hypervel/exception-handler": "^0.4",
         "hypervel/framework": "^0.4",
         "hypervel/http-server": "^0.4",

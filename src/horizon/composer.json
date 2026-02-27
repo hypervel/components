@@ -26,7 +26,7 @@
         "hypervel/cache": "^0.4",
         "hypervel/core": "^0.4",
         "hypervel/console": "^0.4",
-        "hypervel/event": "^0.4",
+        "hypervel/events": "^0.4",
         "hypervel/queue": "^0.4"
     },
     "autoload": {

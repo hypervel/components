@@ -34,11 +34,10 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
-        "hypervel/event": "^0.4",
+        "hypervel/events": "^0.4",
         "hypervel/framework": "^0.4",
         "hypervel/support": "^0.4",
         "psr/container": "^1.0|^2.0",
-        "psr/event-dispatcher": "^1.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/console": "^7.0"
     },

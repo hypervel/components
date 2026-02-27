@@ -33,7 +33,7 @@
         "hyperf/contract": "~3.1.0",
         "hypervel/context": "^0.4",
         "hypervel/dispatcher": "^0.4",
-        "hypervel/event": "^0.4",
+        "hypervel/events": "^0.4",
         "hypervel/support": "^0.4",
         "psr/container": "^1.0|^2.0",
         "psr/http-message": "^2.0"

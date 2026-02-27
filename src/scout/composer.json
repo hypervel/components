@@ -38,7 +38,7 @@
         "hypervel/console": "^0.4",
         "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "hypervel/event": "^0.4",
+        "hypervel/events": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4"
     },
