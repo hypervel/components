@@ -22,15 +22,15 @@ class ServerProcessServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(BeforeMainServerStart::class, function (BeforeMainServerStart $event) {
-            $this->app->make(BootProcessListener::class)->process($event);
+            $this->app->make(BootProcessListener::class)->handle($event);
         });
 
         $events->listen(AfterProcessHandle::class, function (AfterProcessHandle $event) {
-            $this->app->make(LogAfterProcessStoppedListener::class)->process($event);
+            $this->app->make(LogAfterProcessStoppedListener::class)->handle($event);
         });
 
         $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
-            $this->app->make(LogBeforeProcessStartListener::class)->process($event);
+            $this->app->make(LogBeforeProcessStartListener::class)->handle($event);
         });
     }
 }
