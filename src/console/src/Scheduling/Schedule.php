@@ -204,6 +204,14 @@ class Schedule
             $job = CallQueuedClosure::create($job);
         }
 
+        // Clone the job to prevent mutation of the original instance. Hypervel's
+        // container caches unbound concretes (auto-singletons) for Swoole performance,
+        // so Container::make() may return the same object across multiple schedule
+        // callbacks. Without cloning, onConnection()/onQueue() would mutate a shared
+        // instance, causing state bleed between scheduled events and corrupting
+        // QueueFake assertions (which store object references, not snapshots).
+        $job = clone $job;
+
         if ($job instanceof ShouldBeUnique) {
             $this->dispatchUniqueJobToQueue($job, $queue, $connection);
             return;
