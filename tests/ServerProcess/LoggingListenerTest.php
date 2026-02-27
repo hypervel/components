@@ -20,26 +20,6 @@ use Mockery as m;
  */
 class LoggingListenerTest extends TestCase
 {
-    public function testLogBeforeProcessStartListenerListensForCorrectEvents()
-    {
-        $container = m::mock(ContainerContract::class);
-        $listener = new LogBeforeProcessStartListener($container);
-
-        $this->assertSame([
-            BeforeProcessHandle::class,
-        ], $listener->listen());
-    }
-
-    public function testLogAfterProcessStoppedListenerListensForCorrectEvents()
-    {
-        $container = m::mock(ContainerContract::class);
-        $listener = new LogAfterProcessStoppedListener($container);
-
-        $this->assertSame([
-            AfterProcessHandle::class,
-        ], $listener->listen());
-    }
-
     public function testLogBeforeProcessStartLogsViaStdoutLogger()
     {
         $logger = m::mock(StdoutLoggerInterface::class);
@@ -52,7 +32,7 @@ class LoggingListenerTest extends TestCase
         $listener = new LogBeforeProcessStartListener($container);
         $event = new BeforeProcessHandle($this->createProcess('my-worker'), 2);
 
-        $listener->process($event);
+        $listener->handle($event);
     }
 
     public function testLogAfterProcessStoppedLogsViaStdoutLogger()
@@ -67,7 +47,7 @@ class LoggingListenerTest extends TestCase
         $listener = new LogAfterProcessStoppedListener($container);
         $event = new AfterProcessHandle($this->createProcess('scheduler'), 0);
 
-        $listener->process($event);
+        $listener->handle($event);
     }
 
     public function testLogBeforeProcessStartFallsBackToEchoWhenNoLogger()
@@ -79,7 +59,7 @@ class LoggingListenerTest extends TestCase
         $event = new BeforeProcessHandle($this->createProcess('queue'), 1);
 
         ob_start();
-        $listener->process($event);
+        $listener->handle($event);
         $output = ob_get_clean();
 
         $this->assertSame("Process[queue.1] start.\n", $output);
@@ -94,7 +74,7 @@ class LoggingListenerTest extends TestCase
         $event = new AfterProcessHandle($this->createProcess('queue'), 1);
 
         ob_start();
-        $listener->process($event);
+        $listener->handle($event);
         $output = ob_get_clean();
 
         $this->assertSame("Process[queue.1] stopped.\n", $output);
