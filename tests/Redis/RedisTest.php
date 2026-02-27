@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Exception;
-use Hypervel\Pool\PoolOption;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;

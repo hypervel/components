@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Pool\PoolOption;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
