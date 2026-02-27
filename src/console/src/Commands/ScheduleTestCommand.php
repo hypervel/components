@@ -34,8 +34,14 @@ class ScheduleTestCommand extends Command
 
         $commandNames = [];
 
-        foreach ($commands as $command) {
-            $commandNames[] = $command->command ?? $command->getSummaryForDisplay();
+        foreach ($commands as $event) {
+            $eventName = $event->command ?? $event->getSummaryForDisplay();
+
+            if ($event->command !== null && ! $event instanceof CallbackEvent && ! $event->isSystem) {
+                $eventName = 'php artisan ' . $eventName;
+            }
+
+            $commandNames[] = $eventName;
         }
 
         if (empty($commandNames)) {
@@ -44,7 +50,7 @@ class ScheduleTestCommand extends Command
 
         if (! empty($name = $this->option('name'))) {
             $matches = array_filter($commandNames, function ($commandName) use ($name) {
-                return trim(Event::normalizeCommand($commandName)) === $name;
+                return trim(preg_replace('/^php artisan /', '', $commandName)) === $name;
             });
 
             if (count($matches) !== 1) {
@@ -65,6 +71,10 @@ class ScheduleTestCommand extends Command
         $command = $event instanceof CallbackEvent
             ? $summary
             : Event::normalizeCommand($event->command);
+
+        if (! $event instanceof CallbackEvent && ! $event->isSystem) {
+            $command = 'php artisan ' . $command;
+        }
 
         $description = sprintf(
             'Running [%s]%s',

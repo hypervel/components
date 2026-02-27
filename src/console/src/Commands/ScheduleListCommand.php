@@ -180,6 +180,8 @@ class ScheduleListCommand extends Command
             if (in_array($command, ['Closure', 'Callback'])) {
                 $command = 'Closure at: ' . $this->getClosureLocation($event);
             }
+        } elseif (! $event->isSystem) {
+            $command = 'php artisan ' . $command;
         }
 
         $command = mb_strlen($command) > 1 ? "{$command} " : '';
