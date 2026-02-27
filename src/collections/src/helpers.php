@@ -49,7 +49,7 @@ if (! function_exists('data_has')) {
             return false;
         }
 
-        $key = is_array($key) ? $key : explode('.', $key);
+        $key = is_array($key) ? $key : explode('.', (string) $key);
 
         foreach ($key as $segment) {
             if (Arr::accessible($target) && Arr::exists($target, $segment)) {
@@ -80,7 +80,7 @@ if (! function_exists('data_get')) {
             return $target;
         }
 
-        $key = is_array($key) ? $key : explode('.', $key);
+        $key = is_array($key) ? $key : explode('.', (string) $key);
 
         foreach ($key as $i => $segment) {
             unset($key[$i]);
@@ -139,7 +139,7 @@ if (! function_exists('data_set')) {
      */
     function data_set(&$target, $key, $value, $overwrite = true)
     {
-        $segments = is_array($key) ? $key : explode('.', $key);
+        $segments = is_array($key) ? $key : explode('.', (string) $key);
 
         if (($segment = array_shift($segments)) === '*') {
             if (! Arr::accessible($target)) {
@@ -199,7 +199,7 @@ if (! function_exists('data_forget')) {
      */
     function data_forget(&$target, $key)
     {
-        $segments = is_array($key) ? $key : explode('.', $key);
+        $segments = is_array($key) ? $key : explode('.', (string) $key);
 
         if (($segment = array_shift($segments)) === '*' && Arr::accessible($target)) {
             if ($segments) {
