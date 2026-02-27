@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Events;
 
 use Closure;
+use Error;
 use Exception;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
@@ -483,6 +484,10 @@ class Dispatcher implements DispatcherContract
         }
 
         $listener = $this->container->make($class);
+
+        if (! method_exists($listener, $method)) {
+            throw new Error("Call to undefined method {$class}::{$method}()");
+        }
 
         return $this->handlerShouldBeDispatchedAfterDatabaseTransactions($listener)
             ? $this->createCallbackForListenerRunningAfterCommits($listener, $method)
