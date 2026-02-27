@@ -33,9 +33,9 @@ class EventWatcher extends Watcher
     /**
      * Record an event was fired.
      */
-    public function recordEvent(object|string $event, ...$payload): void
+    public function recordEvent(string $event, array $payload): void
     {
-        $eventName = is_string($event) ? $event : get_class($event);
+        $eventName = $event;
         if (! Telescope::isRecording() || $this->shouldIgnore($eventName)) {
             return;
         }
