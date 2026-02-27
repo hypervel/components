@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
-use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
@@ -36,11 +35,6 @@ class QueueManager implements FactoryContract, MonitorContract
     use ResolvesQueueRoutes;
 
     /**
-     * The config instance.
-     */
-    protected Repository $config;
-
-    /**
      * The array of resolved queue connections.
      */
     protected array $connections = [];
@@ -66,8 +60,6 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __construct(
         protected Container $app
     ) {
-        $this->config = $app->make('config');
-
         $this->registerConnectors();
     }
 
@@ -216,7 +208,7 @@ class QueueManager implements FactoryContract, MonitorContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->config->get("queue.connections.{$name}");
+            return $this->app->make('config')->get("queue.connections.{$name}");
         }
 
         return ['driver' => 'null'];
@@ -227,7 +219,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('queue.default');
+        return $this->app->make('config')->get('queue.default');
     }
 
     /**
@@ -235,7 +227,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->config->set('queue.default', $name);
+        $this->app->make('config')->set('queue.default', $name);
     }
 
     /**
