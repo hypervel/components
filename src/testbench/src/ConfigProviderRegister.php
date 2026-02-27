@@ -10,7 +10,6 @@ class ConfigProviderRegister
 {
     protected static $configProviders = [
         \Hyperf\Di\ConfigProvider::class,
-        \Hypervel\Event\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
     ];
