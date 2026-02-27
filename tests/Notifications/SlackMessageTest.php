@@ -22,7 +22,7 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function Hyperf\Tappable\tap;
+use function tap;
 
 /**
  * @internal
