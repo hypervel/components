@@ -92,6 +92,7 @@ class Application extends Container implements ApplicationContract
         $this->setBasePath($basePath ?: (defined('BASE_PATH') ? BASE_PATH : ''));
 
         $this->registerBaseBindings();
+        $this->registerBaseServiceProviders();
         $this->registerCoreContainerAliases();
         $this->registerConfigProviderDependencies();
     }
@@ -130,6 +131,14 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Contracts\Log\StdoutLoggerInterface::class,
             \Hypervel\Framework\Logger\StdoutLogger::class
         );
+    }
+
+    /**
+     * Register all of the base service providers.
+     */
+    protected function registerBaseServiceProviders(): void
+    {
+        $this->register(new \Hypervel\Events\EventServiceProvider($this));
     }
 
     /**
@@ -764,12 +773,9 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Contracts\Encryption\Encrypter::class,
                 \Hypervel\Contracts\Encryption\StringEncrypter::class,
             ],
-            \Psr\EventDispatcher\EventDispatcherInterface::class => [
-                'events',
+            'events' => [
+                \Hypervel\Events\Dispatcher::class,
                 \Hypervel\Contracts\Event\Dispatcher::class,
-            ],
-            \Psr\EventDispatcher\ListenerProviderInterface::class => [
-                \Hypervel\Event\Contracts\ListenerProvider::class,
             ],
             'files' => [\Hypervel\Filesystem\Filesystem::class],
             'filesystem' => [
