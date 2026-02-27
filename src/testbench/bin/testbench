@@ -62,9 +62,11 @@ ApplicationContext::setContainer($app);
 // Get console kernel and run
 $kernel = $app->make(KernelContract::class);
 
-$status = $kernel->handle(
-    new ArgvInput(),
-    new ConsoleOutput()
-);
+$input = new ArgvInput();
+$output = new ConsoleOutput();
+
+$status = $kernel->handle($input, $output);
+
+$kernel->terminate($input, $status);
 
 exit($status);
