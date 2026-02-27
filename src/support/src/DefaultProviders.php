@@ -47,6 +47,7 @@ class DefaultProviders
             \Hypervel\Server\ServerServiceProvider::class,
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
             \Hypervel\Session\SessionServiceProvider::class,
+            \Hypervel\Signal\SignalServiceProvider::class,
             \Hypervel\Socialite\SocialiteServiceProvider::class,
             \Hypervel\Translation\TranslationServiceProvider::class,
             \Hypervel\Validation\ValidationServiceProvider::class,

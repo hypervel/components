@@ -19,5 +19,5 @@ return [
 
     // Priority listeners (string keys - MUST be preserved)
     'App\Listeners\ModelHookEventListener' => 99,
-    'Hyperf\Signal\Listener\SignalRegisterListener' => PHP_INT_MAX,
+    'App\Listeners\CriticalSecurityListener' => PHP_INT_MAX,
 ];
