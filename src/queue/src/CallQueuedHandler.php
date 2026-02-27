@@ -9,13 +9,14 @@ use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Bus\Dispatcher;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use ReflectionClass;
@@ -48,13 +49,9 @@ class CallQueuedHandler
             return;
         }
 
-        if ($command instanceof ShouldBeUniqueUntilProcessing) {
-            $this->ensureUniqueJobLockIsReleased($command);
-        }
-
         $this->dispatchThroughMiddleware($job, $command);
 
-        if (! $job->isReleased() && ! $command instanceof ShouldBeUniqueUntilProcessing) {
+        if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
             $this->ensureUniqueJobLockIsReleased($command);
         }
 
@@ -96,10 +93,24 @@ class CallQueuedHandler
         if ($command instanceof __PHP_Incomplete_Class) {
             throw new Exception('Job is incomplete class: ' . json_encode($command));
         }
+
+        $lockReleased = false;
+
         return (new Pipeline($this->container))
             ->send($command)
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
-            ->then(function ($command) use ($job) {
+            ->finally(function ($command) use (&$lockReleased) {
+                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $command->job->isReleased()) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
+                    $this->ensureUniqueJobLockIsReleased($command);
+                }
+            })
+            ->then(function ($command) use ($job, &$lockReleased) {
+                if ($this->commandShouldBeUniqueUntilProcessing($command)) {
+                    $this->ensureUniqueJobLockIsReleased($command);
+
+                    $lockReleased = true;
+                }
+
                 return $this->dispatcher->dispatchNow(
                     $command,
                     $this->resolveHandler($job, $command)
@@ -166,9 +177,27 @@ class CallQueuedHandler
      */
     protected function ensureUniqueJobLockIsReleased(mixed $command): void
     {
-        if ($command instanceof ShouldBeUnique) {
-            (new UniqueLock($this->container->make(CacheFactory::class)))->release($command);
+        if ($this->commandShouldBeUnique($command)) {
+            (new UniqueLock($this->container->make(Cache::class)))->release($command);
         }
+    }
+
+    /**
+     * Determine if the given command should be unique.
+     */
+    protected function commandShouldBeUnique(mixed $command): bool
+    {
+        return $command instanceof ShouldBeUnique
+            || ($command instanceof CallQueuedListener && $command->shouldBeUnique());
+    }
+
+    /**
+     * Determine if the given command should be unique until processing begins.
+     */
+    protected function commandShouldBeUniqueUntilProcessing(mixed $command): bool
+    {
+        return $command instanceof ShouldBeUniqueUntilProcessing
+            || ($command instanceof CallQueuedListener && $command->shouldBeUniqueUntilProcessing());
     }
 
     /**
@@ -204,7 +233,7 @@ class CallQueuedHandler
     {
         $command = $this->getCommand($data);
 
-        if (! $command instanceof ShouldBeUniqueUntilProcessing) {
+        if (! $this->commandShouldBeUniqueUntilProcessing($command)) {
             $this->ensureUniqueJobLockIsReleased($command);
         }
 
