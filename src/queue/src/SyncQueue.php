@@ -22,7 +22,7 @@ class SyncQueue extends Queue implements QueueContract
      * Create a new sync queue instance.
      */
     public function __construct(
-        protected bool $dispatchAfterCommit = false
+        protected ?bool $dispatchAfterCommit = false
     ) {
     }
 

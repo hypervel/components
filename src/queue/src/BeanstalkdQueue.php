@@ -31,7 +31,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
         protected string $default,
         protected int $timeToRun,
         protected int $blockFor = 0,
-        protected bool $dispatchAfterCommit = false
+        protected ?bool $dispatchAfterCommit = false
     ) {
         $this->default = $default;
         $this->blockFor = $blockFor;
@@ -119,7 +119,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $this->getQueue($queue), $data),
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
             function ($payload, $queue, $delay) {

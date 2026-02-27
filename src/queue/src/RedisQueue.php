@@ -39,7 +39,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
         protected ?string $connection = null,
         protected int $retryAfter = 60,
         protected ?int $blockFor = null,
-        protected bool $dispatchAfterCommit = false,
+        protected ?bool $dispatchAfterCommit = false,
         protected int $migrationBatchSize = -1
     ) {
     }
@@ -159,7 +159,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $this->getQueue($queue), $data),
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
             function ($payload, $queue, $delay) {
