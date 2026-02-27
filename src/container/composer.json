@@ -25,7 +25,8 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/context": "^0.4"
+        "hypervel/context": "^0.4",
+        "psr/container": "^2.0.2"
     },
     "autoload": {
         "psr-4": {

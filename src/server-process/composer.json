@@ -34,8 +34,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "hypervel/engine": "^0.4",
-        "psr/container": "^1.0|^2.0"
+        "hypervel/engine": "^0.4"
     },
     "extra": {
         "hypervel": {
