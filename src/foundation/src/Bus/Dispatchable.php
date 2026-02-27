@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Bus;
+namespace Hypervel\Foundation\Bus;
 
 use Closure;
 use Hypervel\Container\Container;

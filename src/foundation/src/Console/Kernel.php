@@ -14,6 +14,7 @@ use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -114,6 +115,13 @@ class Kernel implements KernelContract
             });
         }
 
+        // If the Artisan application was already created (e.g. during test
+        // bootstrap), wire the dispatcher to it now so events still fire.
+        if (isset($this->artisan) && $this->artisan instanceof \Symfony\Component\Console\Application) {
+            $this->artisan->setDispatcher($this->symfonyDispatcher);
+            $this->artisan->setSignalsToDispatchEvent();
+        }
+
         return $this;
     }
 
@@ -205,6 +213,14 @@ class Kernel implements KernelContract
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null)
     {
         return $this->getArtisan()->call($command, $parameters, $outputBuffer);
+    }
+
+    /**
+     * Queue the given console command.
+     */
+    public function queue(string $command, array $parameters = []): PendingDispatch
+    {
+        return QueuedCommand::dispatch(func_get_args());
     }
 
     /**

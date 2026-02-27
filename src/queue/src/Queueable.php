@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable as QueueableByBus;
+use Hypervel\Foundation\Bus\Dispatchable;
 
 trait Queueable
 {

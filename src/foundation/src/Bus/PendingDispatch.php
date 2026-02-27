@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Bus;
+namespace Hypervel\Foundation\Bus;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;

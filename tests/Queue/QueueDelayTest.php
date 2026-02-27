@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Bus\PendingDispatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

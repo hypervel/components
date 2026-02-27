@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use Carbon\Carbon;
 use Hypervel\Broadcasting\PendingBroadcast;
-use Hypervel\Bus\PendingClosureDispatch;
-use Hypervel\Bus\PendingDispatch;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -23,6 +21,8 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Bus\PendingClosureDispatch;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\HttpMessage\Cookie\Cookie;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;

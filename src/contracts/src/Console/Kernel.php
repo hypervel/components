@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Console;
 
 use Closure;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -69,6 +70,11 @@ interface Kernel
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null);
+
+    /**
+     * Queue the given console command.
+     */
+    public function queue(string $command, array $parameters = []): PendingDispatch;
 
     /**
      * Get all of the commands registered with the console.
