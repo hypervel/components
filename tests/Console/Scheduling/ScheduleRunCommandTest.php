@@ -156,6 +156,60 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
+    public function testNonRepeatableEventRunsOnConsecutiveLoopIterations()
+    {
+        $runCount = 0;
+
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturn(true);
+        $eventMutex->shouldReceive('forget');
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount) {
+            $runCount++;
+            return 0;
+        });
+
+        $command = $this->makeCommand();
+
+        // First loop iteration — event should run and set lastChecked.
+        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->assertSame(1, $runCount);
+        $this->assertNotNull($callbackEvent->lastChecked);
+
+        // Second loop iteration — non-repeatable event must still run
+        // despite lastChecked being set. This simulates the continuous
+        // loop calling runEvents() again in the next minute.
+        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->assertSame(2, $runCount);
+    }
+
+    public function testRepeatableEventIsThrottledByLastChecked()
+    {
+        $runCount = 0;
+
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturn(true);
+        $eventMutex->shouldReceive('forget');
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount) {
+            $runCount++;
+            return 0;
+        });
+        // Make it repeatable (every 10 seconds).
+        $callbackEvent->repeatSeconds = 10;
+
+        $command = $this->makeCommand();
+
+        // First call — event runs and sets lastChecked.
+        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->assertSame(1, $runCount);
+
+        // Immediately after — shouldRepeatNow() returns false because
+        // less than 10 seconds have passed. Event should be skipped.
+        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->assertSame(1, $runCount);
+    }
+
     /**
      * Create a ScheduleRunCommand with mocked dependencies.
      */

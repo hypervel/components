@@ -217,7 +217,7 @@ class ScheduleRunCommand extends Command
     protected function runEvents(Collection $events, Carbon $startedAt): void
     {
         foreach ($events as $event) {
-            if ($event->lastChecked && ! $event->shouldRepeatNow()) {
+            if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
                 continue;
             }
 
