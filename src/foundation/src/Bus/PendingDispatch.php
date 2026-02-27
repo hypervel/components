@@ -10,7 +10,7 @@ use DateTimeInterface;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use UnitEnum;
 
@@ -171,7 +171,7 @@ class PendingDispatch
         }
 
         $cache = Container::getInstance()
-            ->make(CacheFactory::class);
+            ->make(Cache::class);
 
         return (new UniqueLock($cache))
             ->acquire($this->job);

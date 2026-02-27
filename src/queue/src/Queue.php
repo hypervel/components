@@ -8,7 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Event\Dispatcher;

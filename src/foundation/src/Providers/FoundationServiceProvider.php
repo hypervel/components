@@ -61,12 +61,12 @@ class FoundationServiceProvider extends ServiceProvider
         $this->setInternalEncoding();
         $this->setDatabaseConnection();
 
-        $this->app->make(ErrorExceptionHandler::class)->process(new BootApplication());
+        $this->app->make(ErrorExceptionHandler::class)->handle(new BootApplication());
 
         $events = $this->app->make('events');
 
         $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
-            $this->app->make(ReloadDotenvAndConfig::class)->process($event);
+            $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
         });
     }
 

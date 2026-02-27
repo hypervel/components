@@ -21,10 +21,10 @@ use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Throwable;
 
+use function event;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
 use function Hypervel\Coroutine\defer;
-use function Hypervel\Event\event;
 
 class Telescope
 {

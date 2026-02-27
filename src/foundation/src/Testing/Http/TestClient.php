@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Http;
 
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Filesystem\Filesystem;
@@ -19,7 +20,6 @@ use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\ResponseEmitter;
 use Hypervel\Support\Arr;
 use Hypervel\Testing\HttpMessage\Upload\UploadedFile;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
@@ -29,7 +29,7 @@ class TestClient extends HttpKernel
 {
     protected bool $enableEvents = false;
 
-    protected ?EventDispatcherInterface $event = null;
+    protected ?DispatcherContract $event = null;
 
     protected float $waitTimeout = 10.0;
 
@@ -42,7 +42,7 @@ class TestClient extends HttpKernel
         $this->enableEvents = $container->make('config')
             ->get("server.servers.{$server}.options.enable_request_lifecycle", false);
         if ($this->enableEvents) {
-            $this->event = $container->make(EventDispatcherInterface::class);
+            $this->event = $container->make(DispatcherContract::class);
         }
 
         parent::__construct(

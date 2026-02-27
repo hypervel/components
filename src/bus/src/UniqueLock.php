@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 
 class UniqueLock
 {
@@ -12,7 +12,7 @@ class UniqueLock
      * Create a new unique lock manager instance.
      */
     public function __construct(
-        protected CacheFactory $cache
+        protected Cache $cache
     ) {
     }
 

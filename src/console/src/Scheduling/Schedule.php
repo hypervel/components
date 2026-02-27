@@ -11,7 +11,7 @@ use DateTimeZone;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -239,11 +239,11 @@ class Schedule
      */
     protected function dispatchUniqueJobToQueue(object $job, ?string $queue, ?string $connection): void
     {
-        if (! Container::getInstance()->has(CacheFactory::class)) {
+        if (! Container::getInstance()->has(Cache::class)) {
             throw new RuntimeException('Cache driver not available. Scheduling unique jobs not supported.');
         }
 
-        $cache = Container::getInstance()->make(CacheFactory::class);
+        $cache = Container::getInstance()->make(Cache::class);
         if (! (new UniqueLock($cache))->acquire($job)) {
             return;
         }
