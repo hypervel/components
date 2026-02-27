@@ -411,7 +411,11 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
      */
     function fake(?string $locale = null): \Faker\Generator
     {
-        $locale ??= config('app.faker_locale', 'en_US');
+        if (app()->bound('config')) {
+            $locale ??= app('config')->get('app.faker_locale');
+        }
+
+        $locale ??= 'en_US';
 
         $abstract = \Faker\Generator::class . ':' . $locale;
 
@@ -419,7 +423,7 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
             app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
         }
 
-        return app()->get($abstract);
+        return app()->make($abstract);
     }
 }
 
