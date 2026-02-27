@@ -9,10 +9,16 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 interface Kernel
 {
+    /**
+     * Handle an incoming console command.
+     */
+    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed;
+
     /**
      * Bootstrap the application for artisan commands.
      */
@@ -90,6 +96,11 @@ interface Kernel
      * Set the Artisan application instance.
      */
     public function setArtisan(Application $artisan): void;
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(InputInterface $input, int $status): void;
 
     /**
      * Get the Artisan application instance.
