@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Server;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Server\Entry\EventDispatcher;
 use Hypervel\Server\Entry\Logger;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 class ServerFactory
 {
     protected ?LoggerInterface $logger = null;
 
-    protected ?EventDispatcherInterface $eventDispatcher = null;
+    protected ?DispatcherContract $eventDispatcher = null;
 
     protected ?ServerInterface $server = null;
 
@@ -70,9 +70,9 @@ class ServerFactory
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): EventDispatcherInterface
+    public function getEventDispatcher(): DispatcherContract
     {
-        if ($this->eventDispatcher instanceof EventDispatcherInterface) {
+        if ($this->eventDispatcher instanceof DispatcherContract) {
             return $this->eventDispatcher;
         }
         return $this->getDefaultEventDispatcher();
@@ -81,7 +81,7 @@ class ServerFactory
     /**
      * Set the event dispatcher instance.
      */
-    public function setEventDispatcher(EventDispatcherInterface $eventDispatcher): static
+    public function setEventDispatcher(DispatcherContract $eventDispatcher): static
     {
         $this->eventDispatcher = $eventDispatcher;
         return $this;
@@ -118,7 +118,7 @@ class ServerFactory
     /**
      * Get the default no-op event dispatcher.
      */
-    private function getDefaultEventDispatcher(): EventDispatcherInterface
+    private function getDefaultEventDispatcher(): DispatcherContract
     {
         return new EventDispatcher();
     }

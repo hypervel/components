@@ -4,15 +4,51 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Entry;
 
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Closure;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Events\QueuedClosure;
 
-class EventDispatcher implements EventDispatcherInterface
+/**
+ * No-op fallback dispatcher used by ServerFactory when no real dispatcher is set.
+ */
+class EventDispatcher implements Dispatcher
 {
-    /**
-     * Dispatch an event (no-op fallback).
-     */
-    public function dispatch(object $event): object
+    public function listen(array|Closure|QueuedClosure|string $events, array|Closure|QueuedClosure|string|null $listener = null): void
     {
-        return $event;
+    }
+
+    public function hasListeners(string $eventName): bool
+    {
+        return false;
+    }
+
+    public function subscribe(object|string $subscriber): void
+    {
+    }
+
+    public function until(object|string $event, mixed $payload = []): mixed
+    {
+        return null;
+    }
+
+    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
+    {
+        return null;
+    }
+
+    public function push(string $event, mixed $payload = []): void
+    {
+    }
+
+    public function flush(string $event): void
+    {
+    }
+
+    public function forget(string $event): void
+    {
+    }
+
+    public function forgetPushed(): void
+    {
     }
 }

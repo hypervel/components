@@ -9,6 +9,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
@@ -28,7 +29,6 @@ use Hypervel\HttpServer\Router\DispatcherFactory;
 use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
@@ -46,7 +46,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
 
     protected ?string $serverName = null;
 
-    protected ?EventDispatcherInterface $event = null;
+    protected ?EventDispatcherContract $event = null;
 
     protected ?Option $option = null;
 
@@ -56,8 +56,8 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         protected ExceptionHandlerDispatcher $exceptionHandlerDispatcher,
         protected ResponseEmitter $responseEmitter
     ) {
-        if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->event = $this->container->make(EventDispatcherInterface::class);
+        if ($this->container->has(EventDispatcherContract::class)) {
+            $this->event = $this->container->make(EventDispatcherContract::class);
         }
     }
 
