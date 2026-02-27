@@ -120,7 +120,7 @@ class Schedule
     /**
      * Add a new callback event to the schedule.
      */
-    public function call(callable|string $callback, array $parameters = []): CallbackEvent
+    public function call(callable|string|array $callback, array $parameters = []): CallbackEvent
     {
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
@@ -175,16 +175,26 @@ class Schedule
                 : $job::class;
         }
 
-        /* @phpstan-ignore-next-line */
-        return $this->name($jobName)->call(function () use ($job, $queue, $connection) {
-            $job = is_string($job) ? Container::getInstance()->make($job) : $job;
+        $this->events[] = $event = new CallbackEvent(
+            $this->eventMutex,
+            function () use ($job, $queue, $connection) {
+                $job = is_string($job) ? Container::getInstance()->make($job) : $job;
 
-            if ($job instanceof ShouldQueue) {
-                $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
-            } else {
-                $this->dispatchNow($job);
-            }
-        });
+                if ($job instanceof ShouldQueue) {
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                } else {
+                    $this->dispatchNow($job);
+                }
+            },
+            [],
+            $this->timezone
+        );
+
+        $event->name($jobName);
+
+        $this->mergePendingAttributes($event);
+
+        return $event;
     }
 
     /**
