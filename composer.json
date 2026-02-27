@@ -23,7 +23,6 @@
     },
     "autoload": {
         "psr-4": {
-            "Illuminate\\Events\\": "src/event/illuminate/",
             "Workbench\\App\\": "src/testbench/workbench/app/",
             "Hypervel\\": "src/core/src/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
@@ -43,7 +42,7 @@
             "Hypervel\\Devtool\\": "src/devtool/src/",
             "Hypervel\\Dispatcher\\": "src/dispatcher/src/",
             "Hypervel\\Encryption\\": "src/encryption/src/",
-            "Hypervel\\Event\\": "src/event/src/",
+            "Hypervel\\Events\\": "src/events/src/",
             "Hypervel\\Filesystem\\": "src/filesystem/src/",
             "Hypervel\\Foundation\\": "src/foundation/src/",
             "Hypervel\\Framework\\": "src/framework/src/",
@@ -96,7 +95,7 @@
             "src/coordinator/src/Functions.php",
             "src/coroutine/src/Functions.php",
             "src/engine/src/Functions.php",
-            "src/event/src/Functions.php",
+            "src/events/src/Functions.php",
             "src/filesystem/src/Functions.php",
             "src/foundation/src/helpers.php",
             "src/prompts/src/helpers.php",
@@ -142,7 +141,6 @@
         "guzzlehttp/uri-template": "^1.0",
         "hyperf/di": "^3.1",
         "hyperf/engine": "^2.10",
-        "hyperf/event": "^3.1",
         "hyperf/signal": "~3.1.0",
         "hypervel/laminas-mime": "^0.1.0",
         "laravel/serializable-closure": "^1.3",
@@ -193,7 +191,7 @@
         "hypervel/encryption": "self.version",
         "hypervel/engine": "self.version",
         "hypervel/exception-handler": "self.version",
-        "hypervel/event": "self.version",
+        "hypervel/events": "self.version",
         "hypervel/filesystem": "self.version",
         "hypervel/foundation": "self.version",
         "hypervel/framework": "self.version",
@@ -289,7 +287,6 @@
         "hyperf": {
             "config": [
                 "Hypervel\\Config\\ConfigProvider",
-                "Hypervel\\Event\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Permission\\ConfigProvider"
@@ -309,6 +306,7 @@
                 "Hypervel\\Database\\DatabaseServiceProvider",
                 "Hypervel\\Encryption\\EncryptionServiceProvider",
                 "Hypervel\\Engine\\EngineServiceProvider",
+                "Hypervel\\Events\\EventServiceProvider",
                 "Hypervel\\ExceptionHandler\\ExceptionHandlerServiceProvider",
                 "Hypervel\\Filesystem\\FilesystemServiceProvider",
                 "Hypervel\\Hashing\\HashingServiceProvider",
