@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console;
+namespace Hypervel\Tests\Integration\Console\JobSchedulingTest;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Console\Scheduling\Schedule;
@@ -28,19 +28,19 @@ class JobSchedulingTest extends TestCase
         // that function would in this test environment fire after everything was run, including the tearDown method
         // (which flushes the entire container) which would then result in a ReflectionException when the container would try
         // to resolve the config service (which is needed in order to resolve the cache store for the mutex that is being cleared)
-        $scheduler->job(JobSchedulingJobWithDefaultQueue::class)->name('')->everyMinute();
-        $scheduler->job(JobSchedulingJobWithDefaultQueueTwo::class, 'another-queue')->name('')->everyMinute();
-        $scheduler->job(JobSchedulingJobWithoutDefaultQueue::class)->name('')->everyMinute();
+        $scheduler->job(JobWithDefaultQueue::class)->name('')->everyMinute();
+        $scheduler->job(JobWithDefaultQueueTwo::class, 'another-queue')->name('')->everyMinute();
+        $scheduler->job(JobWithoutDefaultQueue::class)->name('')->everyMinute();
 
         $events = $scheduler->events();
         foreach ($events as $event) {
             $event->run($this->app);
         }
 
-        Queue::assertPushedOn('test-queue', JobSchedulingJobWithDefaultQueue::class);
-        Queue::assertPushedOn('another-queue', JobSchedulingJobWithDefaultQueueTwo::class);
-        Queue::assertPushedOn(null, JobSchedulingJobWithoutDefaultQueue::class);
-        $this->assertTrue(Queue::pushed(JobSchedulingJobWithDefaultQueueTwo::class, function ($job, $pushedQueue) {
+        Queue::assertPushedOn('test-queue', JobWithDefaultQueue::class);
+        Queue::assertPushedOn('another-queue', JobWithDefaultQueueTwo::class);
+        Queue::assertPushedOn(null, JobWithoutDefaultQueue::class);
+        $this->assertTrue(Queue::pushed(JobWithDefaultQueueTwo::class, function ($job, $pushedQueue) {
             return $pushedQueue === 'test-queue-two';
         })->isEmpty());
     }
@@ -56,33 +56,33 @@ class JobSchedulingTest extends TestCase
         // that function would in this test environment fire after everything was run, including the tearDown method
         // (which flushes the entire container) which would then result in a ReflectionException when the container would try
         // to resolve the config service (which is needed in order to resolve the cache store for the mutex that is being cleared)
-        $scheduler->job(JobSchedulingJobWithDefaultConnection::class)->name('')->everyMinute();
-        $scheduler->job(JobSchedulingJobWithDefaultConnection::class, null, 'foo')->name('')->everyMinute();
-        $scheduler->job(JobSchedulingJobWithoutDefaultConnection::class)->name('')->everyMinute();
-        $scheduler->job(JobSchedulingJobWithoutDefaultConnection::class, null, 'bar')->name('')->everyMinute();
+        $scheduler->job(JobWithDefaultConnection::class)->name('')->everyMinute();
+        $scheduler->job(JobWithDefaultConnection::class, null, 'foo')->name('')->everyMinute();
+        $scheduler->job(JobWithoutDefaultConnection::class)->name('')->everyMinute();
+        $scheduler->job(JobWithoutDefaultConnection::class, null, 'bar')->name('')->everyMinute();
 
         $events = $scheduler->events();
         foreach ($events as $event) {
             $event->run($this->app);
         }
 
-        $this->assertSame(1, Queue::pushed(JobSchedulingJobWithDefaultConnection::class, function (JobSchedulingJobWithDefaultConnection $job, $pushedQueue) {
+        $this->assertSame(1, Queue::pushed(JobWithDefaultConnection::class, function (JobWithDefaultConnection $job, $pushedQueue) {
             return $job->connection === 'test-connection';
         })->count());
 
-        $this->assertSame(1, Queue::pushed(JobSchedulingJobWithDefaultConnection::class, function (JobSchedulingJobWithDefaultConnection $job, $pushedQueue) {
+        $this->assertSame(1, Queue::pushed(JobWithDefaultConnection::class, function (JobWithDefaultConnection $job, $pushedQueue) {
             return $job->connection === 'foo';
         })->count());
 
-        $this->assertSame(0, Queue::pushed(JobSchedulingJobWithDefaultConnection::class, function (JobSchedulingJobWithDefaultConnection $job, $pushedQueue) {
+        $this->assertSame(0, Queue::pushed(JobWithDefaultConnection::class, function (JobWithDefaultConnection $job, $pushedQueue) {
             return $job->connection === null;
         })->count());
 
-        $this->assertSame(1, Queue::pushed(JobSchedulingJobWithoutDefaultConnection::class, function (JobSchedulingJobWithoutDefaultConnection $job, $pushedQueue) {
+        $this->assertSame(1, Queue::pushed(JobWithoutDefaultConnection::class, function (JobWithoutDefaultConnection $job, $pushedQueue) {
             return $job->connection === null;
         })->count());
 
-        $this->assertSame(1, Queue::pushed(JobSchedulingJobWithoutDefaultConnection::class, function (JobSchedulingJobWithoutDefaultConnection $job, $pushedQueue) {
+        $this->assertSame(1, Queue::pushed(JobWithoutDefaultConnection::class, function (JobWithoutDefaultConnection $job, $pushedQueue) {
             return $job->connection === 'bar';
         })->count());
     }
@@ -92,16 +92,16 @@ class JobSchedulingTest extends TestCase
     // {
     //     Queue::fake();
     //
-    //     Queue::route(JobSchedulingJobWithDefaultQueue::class, 'default-queue');
-    //     Queue::route(JobSchedulingJobWithoutDefaultQueue::class, 'fallback-queue');
-    //     Queue::route(JobSchedulingJobWithoutDefaultConnection::class, 'some-queue', 'some-connection');
+    //     Queue::route(JobWithDefaultQueue::class, 'default-queue');
+    //     Queue::route(JobWithoutDefaultQueue::class, 'fallback-queue');
+    //     Queue::route(JobWithoutDefaultConnection::class, 'some-queue', 'some-connection');
     //
     //     /** @var Schedule $scheduler */
     //     $scheduler = $this->app->make(Schedule::class);
     //
-    //     $scheduler->job(JobSchedulingJobWithDefaultQueue::class)->name('')->everyMinute();
-    //     $scheduler->job(JobSchedulingJobWithoutDefaultQueue::class)->name('')->everyMinute();
-    //     $scheduler->job(JobSchedulingJobWithoutDefaultConnection::class)->name('')->everyMinute();
+    //     $scheduler->job(JobWithDefaultQueue::class)->name('')->everyMinute();
+    //     $scheduler->job(JobWithoutDefaultQueue::class)->name('')->everyMinute();
+    //     $scheduler->job(JobWithoutDefaultConnection::class)->name('')->everyMinute();
     //
     //     $events = $scheduler->events();
     //     foreach ($events as $event) {
@@ -109,13 +109,13 @@ class JobSchedulingTest extends TestCase
     //     }
     //
     //     // Own queue takes precedence over default
-    //     Queue::assertPushedOn('test-queue', JobSchedulingJobWithDefaultQueue::class);
-    //     Queue::assertPushedOn('fallback-queue', JobSchedulingJobWithoutDefaultQueue::class);
-    //     Queue::connection('some-queue')->assertPushedOn('some-queue', JobSchedulingJobWithoutDefaultConnection::class);
+    //     Queue::assertPushedOn('test-queue', JobWithDefaultQueue::class);
+    //     Queue::assertPushedOn('fallback-queue', JobWithoutDefaultQueue::class);
+    //     Queue::connection('some-queue')->assertPushedOn('some-queue', JobWithoutDefaultConnection::class);
     // }
 }
 
-class JobSchedulingJobWithDefaultQueue implements ShouldQueue
+class JobWithDefaultQueue implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
@@ -126,7 +126,7 @@ class JobSchedulingJobWithDefaultQueue implements ShouldQueue
     }
 }
 
-class JobSchedulingJobWithDefaultQueueTwo implements ShouldQueue
+class JobWithDefaultQueueTwo implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
@@ -137,13 +137,13 @@ class JobSchedulingJobWithDefaultQueueTwo implements ShouldQueue
     }
 }
 
-class JobSchedulingJobWithoutDefaultQueue implements ShouldQueue
+class JobWithoutDefaultQueue implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
 }
 
-class JobSchedulingJobWithDefaultConnection implements ShouldQueue
+class JobWithDefaultConnection implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
@@ -154,7 +154,7 @@ class JobSchedulingJobWithDefaultConnection implements ShouldQueue
     }
 }
 
-class JobSchedulingJobWithoutDefaultConnection implements ShouldQueue
+class JobWithoutDefaultConnection implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
