@@ -40,6 +40,11 @@ class Event
     use Tappable;
 
     /**
+     * The command string.
+     */
+    public ?string $command = null;
+
+    /**
      * The location that output should be sent to.
      */
     public ?string $output = null;
@@ -94,10 +99,11 @@ class Event
      */
     public function __construct(
         public EventMutex $mutex,
-        public ?string $command,
+        ?string $command = null,
         DateTimeZone|string|null $timezone = null,
         bool $isSystem = false
     ) {
+        $this->command = $command;
         $this->timezone = $timezone;
         $this->isSystem = $isSystem;
     }
