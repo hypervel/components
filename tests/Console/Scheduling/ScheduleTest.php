@@ -308,6 +308,18 @@ class ScheduleTest extends TestCase
         $events = $schedule->events();
         $this->assertSame('Asia/Tokyo', $events[0]->timezone);
     }
+
+    public function testJobSetsNameBeforeGroupAttributesAreMerged()
+    {
+        $schedule = new Schedule();
+        $schedule->withoutOverlapping()->group(function ($schedule) {
+            $schedule->job(JobToTestWithSchedule::class);
+        });
+
+        $events = $schedule->events();
+        $this->assertSame(JobToTestWithSchedule::class, $events[0]->description);
+        $this->assertTrue($events[0]->withoutOverlapping);
+    }
 }
 
 class ScheduleTestCommandStub extends Command
