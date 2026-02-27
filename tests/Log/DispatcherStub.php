@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Log;
 
 use Closure;
 use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Event\QueuedClosure;
+use Hypervel\Events\QueuedClosure;
 
 class DispatcherStub implements Dispatcher
 {
@@ -33,16 +33,6 @@ class DispatcherStub implements Dispatcher
         return null;
     }
 
-    public function getListeners(object|string $eventName): iterable
-    {
-        return [];
-    }
-
-    public function getListenersForEvent(object $event): iterable
-    {
-        return [];
-    }
-
     public function push(string $event, mixed $payload = []): void
     {
     }
@@ -64,17 +54,7 @@ class DispatcherStub implements Dispatcher
         return false;
     }
 
-    public function hasWildcardListeners(string $eventName): bool
-    {
-        return false;
-    }
-
     public function subscribe(object|string $subscriber): void
     {
-    }
-
-    public function getRawListeners(): array
-    {
-        return [];
     }
 }

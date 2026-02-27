@@ -7,6 +7,7 @@ namespace Hypervel\Tests\HttpServer;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Dispatcher\HttpDispatcher;
@@ -20,7 +21,6 @@ use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\HttpServer\Stub\ServerStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
@@ -108,10 +108,10 @@ class ServerTest extends TestCase
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnFalse();
         $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
 
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(DispatcherContract::class);
         $dispatcher->shouldReceive('dispatch')->andReturn(true);
-        $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(true);
-        $container->shouldReceive('make')->with(EventDispatcherInterface::class)->andReturn($dispatcher);
+        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
+        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturn($dispatcher);
 
         Container::setInstance($container);
 

@@ -11,8 +11,6 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
-use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
-use Hypervel\Event\ListenerProvider;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
@@ -425,11 +423,8 @@ class PoolConnectionManagementTest extends TestCase
         $eventDispatched = false;
         $dispatchedConnection = null;
 
-        // Get listener provider and register a listener
-        /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->make(ListenerProviderContract::class);
-
-        $listenerProvider->on(
+        // Register a listener for the ConnectionEstablished event
+        $this->app->make('events')->listen(
             ConnectionEstablished::class,
             function (ConnectionEstablished $event) use (&$eventDispatched, &$dispatchedConnection) {
                 $eventDispatched = true;
@@ -459,10 +454,8 @@ class PoolConnectionManagementTest extends TestCase
     {
         $capturedConnectionName = null;
 
-        /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->make(ListenerProviderContract::class);
-
-        $listenerProvider->on(
+        // Register a listener for the ConnectionEstablished event
+        $this->app->make('events')->listen(
             ConnectionEstablished::class,
             function (ConnectionEstablished $event) use (&$capturedConnectionName) {
                 $capturedConnectionName = $event->connection->getName();
