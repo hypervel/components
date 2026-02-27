@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\Collection;
 use Mockery as m;

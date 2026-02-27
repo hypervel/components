@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Http\Controllers;
 
-use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Database\QueryException;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;

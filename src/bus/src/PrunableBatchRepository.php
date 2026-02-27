@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Contracts\Bus;
+namespace Hypervel\Bus;
 
 use DateTimeInterface;
 

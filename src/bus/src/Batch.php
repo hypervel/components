@@ -7,7 +7,6 @@ namespace Hypervel\Bus;
 use Carbon\CarbonInterface;
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Arrayable;

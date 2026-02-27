@@ -2,12 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Contracts\Bus;
+namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Bus\Batch;
-use Hypervel\Bus\PendingBatch;
-use Hypervel\Bus\UpdatedBatchJobCounts;
 
 interface BatchRepository
 {
