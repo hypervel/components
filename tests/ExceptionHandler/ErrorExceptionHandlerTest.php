@@ -6,6 +6,7 @@ namespace Hypervel\Tests\ExceptionHandler;
 
 use ErrorException;
 use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
+use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\WithoutErrorHandler;
 
@@ -19,7 +20,7 @@ class ErrorExceptionHandlerTest extends TestCase
     public function testHandleError()
     {
         $listener = new ErrorExceptionHandler();
-        $listener->process((object) []);
+        $listener->handle(new BootApplication());
 
         $this->expectException(ErrorException::class);
         $this->expectExceptionMessage('Undefined array key 1');
