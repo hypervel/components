@@ -193,7 +193,7 @@ trait EnumeratesValues
      *
      * @param null|(callable(TValue): (float|int))|string $callback
      */
-    public function avg(callable|string|null $callback = null): float|int|null
+    public function avg(callable|int|string|null $callback = null): float|int|null
     {
         $callback = $this->valueRetriever($callback);
 
@@ -462,7 +462,7 @@ trait EnumeratesValues
      *
      * @param null|(callable(TValue):mixed)|string $callback
      */
-    public function min(callable|string|null $callback = null): mixed
+    public function min(callable|int|string|null $callback = null): mixed
     {
         $callback = $this->valueRetriever($callback);
 
@@ -476,7 +476,7 @@ trait EnumeratesValues
      *
      * @param null|(callable(TValue):mixed)|string $callback
      */
-    public function max(callable|string|null $callback = null): mixed
+    public function max(callable|int|string|null $callback = null): mixed
     {
         $callback = $this->valueRetriever($callback);
 
@@ -540,7 +540,7 @@ trait EnumeratesValues
      * @param null|(callable(TValue): TReturnType)|string $callback
      * @return ($callback is callable ? TReturnType : mixed)
      */
-    public function sum(callable|string|null $callback = null): mixed
+    public function sum(callable|int|string|null $callback = null): mixed
     {
         $callback = is_null($callback)
             ? $this->identity()
@@ -849,7 +849,7 @@ trait EnumeratesValues
      *
      * @param null|(callable(TValue, TKey): mixed)|string $key
      */
-    public function unique(callable|string|null $key = null, bool $strict = false): static
+    public function unique(callable|int|string|null $key = null, bool $strict = false): static
     {
         $callback = $this->valueRetriever($key);
 
@@ -1055,7 +1055,7 @@ trait EnumeratesValues
     /**
      * Get a value retrieving callback.
      */
-    protected function valueRetriever(callable|string|null $value): callable
+    protected function valueRetriever(callable|int|string|null $value): callable
     {
         if ($this->useAsCallable($value)) {
             return $value;
