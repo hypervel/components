@@ -36,16 +36,14 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         });
     }
 
-    /**
-     * @TODO Replace with testItOnlyEagerLoadsRequiredModelsOriginal once illuminate/events package is ported.
-     *       Hypervel's event dispatcher spreads wildcard listener payload instead of passing array.
-     */
     public function testItOnlyEagerLoadsRequiredModels()
     {
         $this->retrievedLogins = 0;
-        User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $model) {
-            if ($model instanceof Login) {
-                ++$this->retrievedLogins;
+        User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
+            foreach ($models as $model) {
+                if (get_class($model) == Login::class) {
+                    ++$this->retrievedLogins;
+                }
             }
         });
 
@@ -60,30 +58,6 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
 
         $this->assertSame(2, $this->retrievedLogins);
     }
-
-    // @TODO Restore this test once illuminate/events package is ported (wildcard listeners receive array payload)
-    // public function testItOnlyEagerLoadsRequiredModelsOriginal()
-    // {
-    //     $this->retrievedLogins = 0;
-    //     User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
-    //         foreach ($models as $model) {
-    //             if (get_class($model) == Login::class) {
-    //                 ++$this->retrievedLogins;
-    //             }
-    //         }
-    //     });
-    //
-    //     $user = User::create();
-    //     $user->latest_login()->create();
-    //     $user->latest_login()->create();
-    //     $user = User::create();
-    //     $user->latest_login()->create();
-    //     $user->latest_login()->create();
-    //
-    //     User::with('latest_login')->get();
-    //
-    //     $this->assertSame(2, $this->retrievedLogins);
-    // }
 
     public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId()
     {
