@@ -32,7 +32,6 @@
     "require": {
         "php": "^8.4",
         "ext-redis": "*",
-        "hyperf/contract": "~3.1.0",
         "hypervel/contracts": "^0.4",
         "hypervel/pool": "^0.4",        
         "hypervel/support": "^0.4"

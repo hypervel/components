@@ -30,10 +30,9 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/contract": "~3.1.0",
+        "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "psr/container": "^1.0|^2.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/console": "^7.0"
     },

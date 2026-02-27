@@ -31,10 +31,9 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/contract": "~3.1.0",
+        "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "hypervel/engine": "^0.4",
-        "psr/container": "^1.0|^2.0"
+        "hypervel/engine": "^0.4"
     },
     "config": {
         "sort-packages": true
