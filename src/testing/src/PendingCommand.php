@@ -6,6 +6,7 @@ namespace Hypervel\Testing;
 
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\OutputStyle;
+use Hypervel\Console\PromptValidationException;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
@@ -67,7 +68,7 @@ class PendingCommand
     /**
      * Specify an expected question that will be asked when the command runs.
      */
-    public function expectsQuestion(string $question, bool|string $answer): static
+    public function expectsQuestion(string $question, array|bool|string $answer): static
     {
         $this->test->expectedQuestions[] = [$question, $answer];
 
@@ -365,10 +366,16 @@ class PendingCommand
             }
 
             throw $e;
+        } catch (PromptValidationException) {
+            $exitCode = Command::FAILURE;
         }
 
         if ($exception) {
-            throw $exception;
+            if ($exception instanceof PromptValidationException) {
+                $exitCode = Command::FAILURE;
+            } else {
+                throw $exception;
+            }
         }
 
         if ($this->expectedExitCode !== null) {
