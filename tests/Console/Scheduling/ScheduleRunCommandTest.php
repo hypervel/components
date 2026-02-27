@@ -165,7 +165,7 @@ class ScheduleRunCommandTest extends TestCase
         $eventMutex->shouldReceive('forget');
 
         $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount) {
-            $runCount++;
+            ++$runCount;
             return 0;
         });
 
@@ -192,7 +192,7 @@ class ScheduleRunCommandTest extends TestCase
         $eventMutex->shouldReceive('forget');
 
         $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount) {
-            $runCount++;
+            ++$runCount;
             return 0;
         });
         // Make it repeatable (every 10 seconds).
