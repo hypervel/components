@@ -54,9 +54,11 @@ class PendingDispatch
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public function onGroup(UnitEnum|string $group): static
+    public function onGroup(UnitEnum|string|null $group): static
     {
-        $this->job->onGroup($group);
+        if (! is_null($group)) {
+            $this->job->onGroup($group);
+        }
 
         return $this;
     }
