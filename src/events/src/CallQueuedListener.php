@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Events;
 
+use DateTimeInterface;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -52,7 +53,7 @@ class CallQueuedListener implements ShouldQueue
     /**
      * The timestamp indicating when the job should timeout.
      */
-    public ?int $retryUntil = null;
+    public DateTimeInterface|int|null $retryUntil = null;
 
     /**
      * The number of seconds the job can run before timing out.
