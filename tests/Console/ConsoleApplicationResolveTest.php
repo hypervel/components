@@ -216,6 +216,37 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('alias-test:prop-alias', $app->all());
     }
 
+    public function testResolveRegistersPropertyAliasesInCommandMap()
+    {
+        $app = $this->createApp();
+
+        $app->resolve(StubCommandWithPropertyAlias::class);
+
+        $map = $this->getCommandMap($app);
+        $this->assertArrayHasKey('alias-test:prop', $map);
+        $this->assertArrayHasKey('alias-test:prop-alias', $map);
+    }
+
+    public function testPropertyAliasResolvesDirectlyWithoutPrimaryName()
+    {
+        $app = $this->createApp($this->app);
+        $app->resolve(StubCommandWithPropertyAlias::class);
+        $app->setContainerCommandLoader();
+
+        // Access alias DIRECTLY — never resolve the primary name first.
+        $this->assertInstanceOf(StubCommandWithPropertyAlias::class, $app->get('alias-test:prop-alias'));
+    }
+
+    public function testSignatureCommandWithAliasesResolvesDirectlyByAlias()
+    {
+        $app = $this->createApp($this->app);
+        $app->resolve(StubSignatureWithAliasCommand::class);
+        $app->setContainerCommandLoader();
+
+        // Access alias DIRECTLY — never resolve the primary name first.
+        $this->assertInstanceOf(StubSignatureWithAliasCommand::class, $app->get('test:signed-alias'));
+    }
+
     public function testResolvingCommandsWithNoAliasViaAttribute()
     {
         $app = $this->createApp($this->app);
@@ -471,6 +502,17 @@ class StubCommandWithPropertyAlias extends Command
 class StubCommandWithoutPropertyAlias extends Command
 {
     protected ?string $name = 'alias-test:no-alias';
+
+    public function handle(): void
+    {
+    }
+}
+
+class StubSignatureWithAliasCommand extends Command
+{
+    protected ?string $signature = 'test:signed-primary {--option}';
+
+    protected array $aliases = ['test:signed-alias'];
 
     public function handle(): void
     {
