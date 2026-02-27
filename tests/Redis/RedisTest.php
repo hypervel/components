@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Exception;
-use Hyperf\Pool\PoolOption;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
