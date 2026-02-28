@@ -28,7 +28,6 @@
         "hypervel/support": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/validation": "^0.4",
-        "hyperf/di": "~3.1.0",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/dispatcher": "^0.4",
@@ -40,9 +39,6 @@
         "hypervel/websocket-server": "^0.4",
         "hypervel/engine": "^0.4",
         "symfony/error-handler": "^6.3"
-    },
-    "require-dev": {
-        "hyperf/testing": "~3.1.0"
     },
     "autoload": {
         "psr-4": {

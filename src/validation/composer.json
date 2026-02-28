@@ -31,8 +31,10 @@
         "ext-mbstring": "*",
         "brick/math": "^0.11|^0.12",
         "egulias/email-validator": "^3.2.5|^4.0",
+        "hypervel/database": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/translation": "^0.4"
+        "hypervel/translation": "^0.4",
+        "ramsey/uuid": "^4.7"
     },
     "config": {
         "sort-packages": true
@@ -46,9 +48,5 @@
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
-    },
-    "suggest": {
-        "hyperf/database": "Required to use the database presence verifier (^3.1.0).",
-        "ramsey/uuid": "Required to use Validator::validateUuid() (^4.7)."
     }
 }

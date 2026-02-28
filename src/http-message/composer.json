@@ -30,7 +30,6 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/codec": "~3.1.0",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/engine": "^0.4",

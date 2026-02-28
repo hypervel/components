@@ -30,7 +30,6 @@
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/macroable": "^0.4",
-        "hyperf/di": "~3.1.0",
         "hypervel/support": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/object-pool": "^0.4",
