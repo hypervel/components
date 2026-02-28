@@ -5,18 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Mail\Contracts\Factory as MailFactory;
-use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Mail\Factory as MailFactory;
+use Hypervel\Contracts\Mail\Mailable;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Markdown;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use RuntimeException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
@@ -113,8 +112,8 @@ class MailChannel
      */
     protected function markdownRenderer(MailMessage $message): Markdown
     {
-        $config = ApplicationContext::getContainer()
-            ->get(ConfigInterface::class);
+        $config = Container::getInstance()
+            ->make('config');
 
         $theme = $message->theme ?? $config->get('mail.markdown.theme', 'default');
 

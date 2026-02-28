@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:flush')]
 class FlushFailedCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
@@ -27,8 +26,10 @@ class FlushFailedCommand extends Command
      */
     public function handle()
     {
-        $this->app->get(FailedJobProviderInterface::class)
-            ->flush($this->option('hours'));
+        $hours = $this->option('hours');
+
+        $this->app->make(FailedJobProviderInterface::class)
+            ->flush($hours ? (int) $hours : null);
 
         if ($this->option('hours')) {
             $this->info("All jobs that failed more than {$this->option('hours')} hours ago have been deleted successfully.");

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -48,7 +48,7 @@ class Sanctum
     /**
      * Set the current user for the application with the given abilities.
      *
-     * @param \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
+     * @param \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
      * @param array<string> $abilities
      */
     public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
@@ -72,7 +72,7 @@ class Sanctum
         }
 
         // Set the user on the guard
-        $authManager = ApplicationContext::getContainer()->get(AuthManager::class);
+        $authManager = Container::getInstance()->make(AuthManager::class);
         $authManager->guard($guard)->setUser($user);
 
         return $user;

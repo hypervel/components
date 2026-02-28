@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\LockProvider;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use Throwable;
 
 class DatabaseStore implements Store, LockProvider

@@ -5,8 +5,6 @@ declare(strict_types=1);
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Watchers;
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------

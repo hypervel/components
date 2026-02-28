@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Cache\RateLimiter;
+use Hypervel\Container\Container;
 use Hypervel\Queue\Middleware\RateLimited;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
 use TypeError;
@@ -35,12 +33,6 @@ enum RateLimitedTestUnitEnum
  */
 class RateLimitedTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        Mockery::close();
-    }
-
     public function testConstructorAcceptsString(): void
     {
         $this->mockRateLimiter();
@@ -96,15 +88,12 @@ class RateLimitedTest extends TestCase
      */
     protected function mockRateLimiter(): RateLimiter&MockInterface
     {
-        $limiter = Mockery::mock(RateLimiter::class);
+        $limiter = m::mock(RateLimiter::class);
 
-        $container = new Container(
-            new DefinitionSource([
-                RateLimiter::class => fn () => $limiter,
-            ])
-        );
+        $container = new Container();
+        $container->instance(RateLimiter::class, $limiter);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $limiter;
     }

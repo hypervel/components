@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Support\Manager;
 
 /**
- * @mixin \Hypervel\Hashing\Contracts\Hasher
+ * @mixin \Hypervel\Contracts\Hashing\Hasher
  */
 class HashManager extends Manager implements Hasher
 {
@@ -74,6 +74,22 @@ class HashManager extends Manager implements Hasher
     public function isHashed(string $value): bool
     {
         return password_get_info($value)['algo'] !== null;
+    }
+
+    /**
+     * Verifies that the configuration is less than or equal to what is configured.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        $driver = $this->driver();
+
+        if (method_exists($driver, 'verifyConfiguration')) {
+            return $driver->verifyConfiguration($hashedValue);
+        }
+
+        return true;
     }
 
     /**

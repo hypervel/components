@@ -17,17 +17,25 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/context": "~3.1.0",
-        "hyperf/support": "~3.1.0",
-        "hyperf/stringable": "~3.1.0",
-        "hyperf/tappable": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/context": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/pipeline": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "laravel/serializable-closure": "^1.3",
+        "league/uri": "^7.5",
         "nesbot/carbon": "^2.72.6",
-        "league/uri": "^7.5"
+        "symfony/uid": "^7.4",
+        "voku/portable-ascii": "^2.0"
     },
     "autoload": {
         "psr-4": {
@@ -40,8 +48,11 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
+    },
+    "suggest": {
+        "ext-intl": "Required to use number formatting and spellout features."
     },
     "config": {
         "sort-packages": true

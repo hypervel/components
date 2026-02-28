@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Di\Container;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
-use Hyperf\Stringable\Str;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -28,13 +28,14 @@ class QueueRedisQueueTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
-
+        Carbon::setTestNow();
         Uuid::setFactory(new UuidFactory());
     }
 
     public function testPushProperlyPushesJobOntoRedis()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(RedisFactory::class), 'default', 'default'])->getMock();
@@ -42,16 +43,18 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testPushProperlyPushesJobOntoRedisWithCustomPayloadHook()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(RedisFactory::class), 'default', 'default'])->getMock();
@@ -59,7 +62,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0, 'delay' => null]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -68,13 +71,15 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
 
         Queue::createPayloadUsing(null);
     }
 
     public function testPushProperlyPushesJobOntoRedisWithTwoCustomPayloadHook()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(RedisFactory::class), 'default', 'default'])->getMock();
@@ -82,7 +87,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), ['queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0])], 2);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0, 'delay' => null]));
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -95,13 +100,15 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
 
         Queue::createPayloadUsing(null);
     }
 
     public function testDelayedPushProperlyPushesJobOntoRedis()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['availableAt', 'getRandomId'])->setConstructorArgs([$redis = m::mock(RedisFactory::class), 'default', 'default'])->getMock();
@@ -114,17 +121,19 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->shouldReceive('zadd')->once()->with(
             'queues:default:delayed',
             2,
-            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'id' => 'foo', 'attempts' => 0])
+            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])
         );
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         $id = $queue->later(1, 'foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $date = Carbon::now();
@@ -138,12 +147,12 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->shouldReceive('zadd')->once()->with(
             'queues:default:delayed',
             2,
-            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'id' => 'foo', 'attempts' => 0])
+            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 0])
         );
         $redis->shouldReceive('get')->once()->andReturn($redisProxy);
 
         $queue->later($date, 'foo', ['data']);
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     protected function mockUuid(): UuidInterface

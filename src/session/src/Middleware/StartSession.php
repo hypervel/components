@@ -6,15 +6,16 @@ namespace Hypervel\Session\Middleware;
 
 use Carbon\Carbon;
 use DateTimeInterface;
-use Hyperf\Context\Context;
-use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpServer\Request;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\HttpServer\Request;
+use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\Session\SessionManager;
+use Hypervel\Session\Store;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -82,8 +83,9 @@ class StartSession implements MiddlewareInterface
         $waitFor = ($blockingOptions['wait']
             ?? $this->manager->defaultRouteBlockWaitSeconds());
 
-        /* @phpstan-ignore-next-line */
-        $lock = $this->cache->store($this->manager->blockDriver())
+        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */ // @phpstan-ignore varTag.nativeType
+        $store = $this->cache->store($this->manager->blockDriver());
+        $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)
             ->betweenBlockedAttemptsSleepFor(50);
 
@@ -92,7 +94,7 @@ class StartSession implements MiddlewareInterface
 
             return $this->handleStatefulRequest($request, $session, $handler);
         } finally {
-            $lock?->release();
+            $lock->release();
         }
     }
 
@@ -105,7 +107,7 @@ class StartSession implements MiddlewareInterface
             // If a session driver has been configured, we will need to start the session here
             // so that the data is ready for an application. Note that the Hypervel sessions
             // do not make use of PHP "native" sessions in any way since they are crappy.
-            Context::set(SessionInterface::class, $session);
+            Context::set(Store::CONTEXT_KEY, $session);
             $session->start();
 
             $this->collectGarbage($session);
@@ -211,7 +213,7 @@ class StartSession implements MiddlewareInterface
             $cookieConfig['partitioned']
         );
 
-        /** @var \Hyperf\HttpMessage\Server\Response $response */
+        /** @var \Hypervel\HttpMessage\Server\Response $response */
         return $response->withCookie($cookie);
     }
 

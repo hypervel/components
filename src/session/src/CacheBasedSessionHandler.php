@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository as RepositoryContract;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use SessionHandlerInterface;
 
 class CacheBasedSessionHandler implements SessionHandlerInterface

@@ -5,40 +5,30 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Devtool\Generator\GeneratorCommand;
-use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 
-class SessionTableCommand extends GeneratorCommand
+#[AsCommand(name: 'make:session-table|session:table')]
+class SessionTableCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
+    protected ?string $name = 'make:session-table|session:table';
+
+    protected string $description = 'Create a migration for the session database table';
+
+    protected string $type = 'Migration';
+
+    public function handle(): int
     {
-        parent::__construct('make:session-table');
-    }
-
-    public function configure()
-    {
-        $this->setDescription('Create a migration for the session database table');
-        $this->setAliases(['session:table']);
-
-        parent::configure();
-    }
-
-    public function execute(InputInterface $input, OutputInterface $output): int
-    {
-        $this->input = $input;
-        $this->output = $output;
-
         $filename = Carbon::now()->format('Y_m_d_000000') . '_create_sessions_table.php';
-        $path = $this->input->getOption('path') ?: "database/migrations/{$filename}";
+        $path = $this->option('path') ?: "database/migrations/{$filename}";
 
         // First we will check to see if the class already exists. If it does, we don't want
         // to create the class and overwrite the user's code. So, we will bail out so the
         // code is untouched. Otherwise, we will continue generating this class' files.
-        if (($input->getOption('force') === false) && $this->alreadyExists($path)) {
-            $output->writeln(sprintf('<fg=red>%s</>', $path . ' already exists!'));
-            return 0;
+        if ((! $this->hasOption('force') || ! $this->option('force'))
+            && $this->alreadyExists($path)) {
+            $this->components->error($path . ' already exists!');
+            return self::FAILURE;
         }
 
         // Next, we will generate the path to the location where this class' file should get
@@ -48,11 +38,11 @@ class SessionTableCommand extends GeneratorCommand
 
         file_put_contents($path, file_get_contents($this->getStub()));
 
-        $output->writeln(sprintf('<info>%s</info>', "Migration {$filename} created successfully."));
+        $this->components->info(sprintf('Migration [%s] created successfully.', $path));
 
         $this->openWithIde($path);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     protected function getStub(): string
@@ -81,7 +71,7 @@ class SessionTableCommand extends GeneratorCommand
         ]);
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

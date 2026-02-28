@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 class IncomingDumpEntry extends IncomingEntry
 {

@@ -20,6 +20,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # Swoole 6.1+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
     container:
       image: phpswoole/swoole:6.1.4-php8.4
 
@@ -30,10 +31,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /root/.composer/cache
           key: composer-8.4-${{ hashFiles('composer.lock') }}
@@ -49,7 +50,7 @@ jobs:
           REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Redis/Integration
+          vendor/bin/phpunit tests/Integration/Redis
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -66,6 +67,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # Swoole 6.1+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
     container:
       image: phpswoole/swoole:6.1.4-php8.4
 
@@ -76,10 +78,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /root/.composer/cache
           key: composer-8.4-${{ hashFiles('composer.lock') }}
@@ -95,4 +97,4 @@ jobs:
           REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Redis/Integration
+          vendor/bin/phpunit tests/Integration/Redis

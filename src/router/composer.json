@@ -29,9 +29,9 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/context": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/context": "^0.4",
+        "hypervel/http-server": "^0.4",
         "nikic/fast-route": "^1.3.0"
     },
     "suggest": {
@@ -44,11 +44,13 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Router\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Router\\RouterServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

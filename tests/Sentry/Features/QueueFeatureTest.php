@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
@@ -110,7 +109,7 @@ class QueueFeatureTest extends SentryTestCase
 
     public function testQueueJobCreatesTransactionByDefault(): void
     {
-        $this->app->get(ConfigInterface::class)->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();
@@ -130,8 +129,8 @@ class QueueFeatureTest extends SentryTestCase
      */
     public function testQueueJobDoesntCreateTransaction(): void
     {
-        $this->app->get(ConfigInterface::class)->set('sentry.traces_sample_rate', 1.0);
-        $this->app->get(ConfigInterface::class)->set('sentry.tracing.queue_job_transactions', false);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.tracing.queue_job_transactions', false);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();

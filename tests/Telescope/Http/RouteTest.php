@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
-use Hypervel\Foundation\Testing\Http\TestResponse;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Assert as PHPUnit;
 

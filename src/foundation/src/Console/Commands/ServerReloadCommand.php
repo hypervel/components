@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Support\Filesystem\FileNotFoundException;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Filesystem\Filesystem;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'server:reload')]
 class ServerReloadCommand extends Command
 {
     protected ?string $signature = 'server:reload';
@@ -18,8 +20,8 @@ class ServerReloadCommand extends Command
     protected string $description = 'Reload all workers gracefully.';
 
     public function __construct(
-        protected ContainerInterface $container,
-        protected ConfigInterface $config,
+        protected Container $container,
+        protected Repository $config,
         protected Filesystem $filesystem
     ) {
         parent::__construct();

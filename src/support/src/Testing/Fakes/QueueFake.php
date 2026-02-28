@@ -8,15 +8,15 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\CallQueuedClosure;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Psr\Container\ContainerInterface;
 
 class QueueFake extends QueueManager implements Fake, Queue
 {
@@ -50,7 +50,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Create a new fake queue instance.
      */
-    public function __construct(ContainerInterface $app, array $jobsToFake = [], ?FactoryContract $queue = null)
+    public function __construct(Container $app, array $jobsToFake = [], ?FactoryContract $queue = null)
     {
         parent::__construct($app);
 

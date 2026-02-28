@@ -4,24 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-class MailCommand extends GeneratorCommand
+#[AsCommand(name: 'make:mail')]
+class MailCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:mail');
-    }
+    protected ?string $name = 'make:mail';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new email class');
+    protected string $description = 'Create a new email class';
 
-        parent::configure();
-    }
+    protected string $type = 'Mailable';
 
     protected function getStub(): string
     {
@@ -29,12 +24,12 @@ class MailCommand extends GeneratorCommand
             return $stub;
         }
 
-        if ($markdown = $this->input->getOption('markdown')) {
+        if ($markdown = $this->option('markdown')) {
             $this->writeMarkdownTemplate($markdown);
             return __DIR__ . '/stubs/markdown-mail.stub';
         }
 
-        if ($view = $this->input->getOption('view')) {
+        if ($view = $this->option('view')) {
             $this->writeView($view);
             return __DIR__ . '/stubs/view-mail.stub';
         }
@@ -58,7 +53,7 @@ class MailCommand extends GeneratorCommand
         );
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Mail';
     }
@@ -86,7 +81,7 @@ class MailCommand extends GeneratorCommand
         }
         file_put_contents($path, file_get_contents(__DIR__ . '/stubs/markdown.stub'));
 
-        $this->output->writeln(sprintf('<info>%s [%s] created successfully.</info>', 'Markdown', $path));
+        $this->components->info(sprintf('%s [%s] created successfully.', 'Markdown', $path));
     }
 
     /**
@@ -111,7 +106,7 @@ class MailCommand extends GeneratorCommand
 
         file_put_contents($path, $stub);
 
-        $this->output->writeln(sprintf('<info>%s [%s] created successfully.</info>', 'View', $path));
+        $this->components->info(sprintf('%s [%s] created successfully.', 'View', $path));
     }
 
     /**
@@ -119,10 +114,10 @@ class MailCommand extends GeneratorCommand
      */
     protected function getView(): string
     {
-        $view = $this->input->getOption('markdown') ?: $this->input->getOption('view');
+        $view = $this->option('markdown') ?: $this->option('view');
 
         if (! $view) {
-            $name = str_replace('\\', '/', $this->input->getArgument('name'));
+            $name = str_replace('\\', '/', $this->argument('name'));
 
             $view = 'mail.' . (new Collection(explode('/', $name)))
                 ->map(fn ($part) => Str::kebab($part))

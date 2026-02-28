@@ -7,13 +7,13 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Filesystem\Contracts\Cloud;
-use Hypervel\Filesystem\Contracts\Factory as FactoryContract;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Filesystem\Cloud;
+use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
 use League\Flysystem\AwsS3V3\PortableVisibilityConverter as AwsS3PortableVisibilityConverter;
@@ -30,7 +30,6 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
-use Psr\Container\ContainerInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -67,7 +66,7 @@ class FilesystemManager implements FactoryContract
      * Create a new filesystem manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -82,7 +81,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): FileSystem
+    public function disk(UnitEnum|string|null $name = null): Filesystem
     {
         $name = enum_value($name) ?: $this->getDefaultDriver();
 
@@ -103,7 +102,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): FileSystem
+    public function build(array|string $config): Filesystem
     {
         return $this->resolve('ondemand', is_array($config) ? $config : [
             'driver' => 'local',
@@ -114,7 +113,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): FileSystem
+    protected function get(string $name): Filesystem
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -124,7 +123,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): FileSystem
+    protected function resolve(string $name, ?array $config = null): Filesystem
     {
         $config ??= $this->getConfig($name);
 
@@ -166,7 +165,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): FileSystem
+    protected function callCustomCreator(array $config): Filesystem
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
@@ -174,7 +173,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the local driver.
      */
-    public function createLocalDriver(array $config, string $name = 'local'): FileSystem
+    public function createLocalDriver(array $config, string $name = 'local'): Filesystem
     {
         $visibility = PortableVisibilityConverter::fromArray(
             $config['permissions'] ?? [],
@@ -207,7 +206,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the ftp driver.
      */
-    public function createFtpDriver(array $config): FileSystem
+    public function createFtpDriver(array $config): Filesystem
     {
         if (! isset($config['root'])) {
             $config['root'] = '';
@@ -222,7 +221,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create an instance of the sftp driver.
      */
-    public function createSftpDriver(array $config): FileSystem
+    public function createSftpDriver(array $config): Filesystem
     {
         /* @phpstan-ignore-next-line */
         $provider = SftpConnectionProvider::fromArray($config);
@@ -356,7 +355,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Create a scoped driver.
      */
-    public function createScopedDriver(array $config): FileSystem
+    public function createScopedDriver(array $config): Filesystem
     {
         if (empty($config['disk'])) {
             throw new InvalidArgumentException('Scoped disk is missing "disk" configuration option.');
@@ -419,7 +418,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get("filesystems.disks.{$name}", []);
     }
 
@@ -428,7 +427,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('filesystems.default');
     }
 
@@ -437,7 +436,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('filesystems.cloud', 's3');
     }
 
@@ -484,7 +483,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

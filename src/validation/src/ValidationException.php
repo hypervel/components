@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Exception;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
 use Psr\Http\Message\ResponseInterface;
 
 class ValidationException extends Exception
@@ -58,7 +58,7 @@ class ValidationException extends Exception
     {
         $messages = $validator->errors()->all();
 
-        if (! count($messages) || ! is_string($messages[0])) {
+        if (! count($messages)) {
             return $validator->getTranslator()->get('The given data was invalid.');
         }
 

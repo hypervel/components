@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature;
 
 use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\JobPayload;
-use Hypervel\Mail\Contracts\Mailable;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeEvent;
@@ -24,8 +25,7 @@ use Hypervel\Tests\Horizon\Feature\Fixtures\FakeModel;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SilencedMailable;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Illuminate\Events\CallQueuedListener;
-use Mockery;
+use Mockery as m;
 use StdClass;
 
 /**
@@ -44,7 +44,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $JobPayload->prepare(new CallQueuedListener('stdClass', 'method', [new StdClass()]));
         $this->assertSame('event', $JobPayload->decoded['type']);
 
-        $JobPayload->prepare(new SendQueuedMailable(Mockery::mock(Mailable::class)));
+        $JobPayload->prepare(new SendQueuedMailable(m::mock(Mailable::class)));
         $this->assertSame('mail', $JobPayload->decoded['type']);
 
         $JobPayload->prepare(new SendQueuedNotifications([], new StdClass(), ['mail']));
@@ -172,7 +172,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $mailableMock = Mockery::mock(SilencedMailable::class);
+        $mailableMock = m::mock(SilencedMailable::class);
         config(['horizon.silenced' => [get_class($mailableMock)]]);
         $JobPayload->prepare(new SendQueuedMailable($mailableMock));
         $this->assertTrue($JobPayload->isSilenced());

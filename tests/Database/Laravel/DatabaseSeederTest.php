@@ -1,0 +1,91 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Console\Command;
+use Hypervel\Console\OutputStyle;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\Seeder;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+use Mockery\Mock;
+
+class TestSeeder extends Seeder
+{
+    public function run()
+    {
+    }
+}
+
+class TestDepsSeeder extends Seeder
+{
+    public function run(Mock $someDependency, $someParam = '')
+    {
+    }
+}
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseSeederTest extends TestCase
+{
+    public function testCallResolveTheClassAndCallsRun()
+    {
+        $seeder = new TestSeeder();
+        $seeder->setContainer($container = m::mock(Container::class));
+        $output = m::mock(OutputStyle::class);
+        $output->shouldReceive('writeln')->times(3);
+        $command = m::mock(Command::class);
+        $command->shouldReceive('getOutput')->times(3)->andReturn($output);
+        $seeder->setCommand($command);
+        $container->shouldReceive('build')->once()->with('ClassName')->andReturn($child = m::mock(Seeder::class));
+        $child->shouldReceive('setContainer')->once()->with($container)->andReturn($child);
+        $child->shouldReceive('setCommand')->once()->with($command)->andReturn($child);
+        $child->shouldReceive('__invoke')->once();
+
+        $seeder->call('ClassName');
+    }
+
+    public function testSetContainer()
+    {
+        $seeder = new TestSeeder();
+        $container = m::mock(Container::class);
+        $this->assertEquals($seeder->setContainer($container), $seeder);
+    }
+
+    public function testSetCommand()
+    {
+        $seeder = new TestSeeder();
+        $command = m::mock(Command::class);
+        $this->assertEquals($seeder->setCommand($command), $seeder);
+    }
+
+    public function testInjectDependenciesOnRunMethod()
+    {
+        $container = m::mock(Container::class);
+        $container->shouldReceive('call');
+
+        $seeder = new TestDepsSeeder();
+        $seeder->setContainer($container);
+
+        $seeder->__invoke();
+
+        $container->shouldHaveReceived('call')->once()->with([$seeder, 'run'], []);
+    }
+
+    public function testSendParamsOnCallMethodWithDeps()
+    {
+        $container = m::mock(Container::class);
+        $container->shouldReceive('call');
+
+        $seeder = new TestDepsSeeder();
+        $seeder->setContainer($container);
+
+        $seeder->__invoke(['test1', 'test2']);
+
+        $container->shouldHaveReceived('call')->once()->with([$seeder, 'run'], ['test1', 'test2']);
+    }
+}

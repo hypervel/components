@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\MailWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -23,7 +22,7 @@ class MailWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 MailWatcher::class => true,
             ]);
@@ -46,7 +45,7 @@ class MailWatcherTest extends FeatureTestCase
 
         $event = new MessageSent($message);
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

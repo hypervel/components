@@ -5,21 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\RedisFactory;
-use Hypervel\Cache\Contracts\Factory as FactoryContract;
-use Hypervel\Cache\Contracts\Repository as RepositoryContract;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Factory as FactoryContract;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
-
-use function Hyperf\Support\make;
-use function Hyperf\Tappable\tap;
 
 /**
- * @mixin \Hypervel\Cache\Contracts\Repository
- * @mixin \Hypervel\Cache\Contracts\LockProvider
+ * @mixin \Hypervel\Contracts\Cache\Repository
+ * @mixin \Hypervel\Contracts\Cache\LockProvider
  * @mixin \Hypervel\Cache\TaggableStore
  */
 class CacheManager implements FactoryContract
@@ -38,7 +35,7 @@ class CacheManager implements FactoryContract
      * Create a new Cache manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -53,7 +50,7 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache store instance by name, wrapped in a repository.
      */
-    public function store(?string $name = null): RepositoryContract
+    public function store(?string $name = null): CacheRepository
     {
         $name = $name ?: $this->getDefaultDriver();
 
@@ -63,7 +60,7 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache driver instance.
      */
-    public function driver(?string $driver = null): RepositoryContract
+    public function driver(?string $driver = null): CacheRepository
     {
         return $this->store($driver);
     }
@@ -97,7 +94,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('cache.default', 'file');
     }
 
@@ -106,7 +103,7 @@ class CacheManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('cache.default', $name);
     }
 
@@ -149,7 +146,7 @@ class CacheManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 
@@ -159,7 +156,7 @@ class CacheManager implements FactoryContract
     /**
      * Attempt to get the store from the local cache.
      */
-    protected function getStore(string $name): RepositoryContract
+    protected function getStore(string $name): CacheRepository
     {
         return $this->stores[$name] ?? $this->resolve($name);
     }
@@ -169,7 +166,7 @@ class CacheManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name): RepositoryContract
+    protected function resolve(string $name): CacheRepository
     {
         $config = $this->getConfig($name);
 
@@ -193,7 +190,7 @@ class CacheManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): RepositoryContract
+    protected function callCustomCreator(array $config): CacheRepository
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
@@ -211,10 +208,11 @@ class CacheManager implements FactoryContract
      */
     protected function createFileDriver(array $config): Repository
     {
-        $store = make(FileStore::class, [
-            'directory' => $config['path'],
-            'filePermission' => $config['permission'] ?? null,
-        ])->setLockDirectory($config['lock_path'] ?? null);
+        $store = (new FileStore(
+            $this->app->make(Filesystem::class),
+            $config['path'],
+            $config['permission'] ?? null,
+        ))->setLockDirectory($config['lock_path'] ?? null);
 
         return $this->repository($store, $config);
     }
@@ -232,7 +230,7 @@ class CacheManager implements FactoryContract
      */
     protected function createRedisDriver(array $config): Repository
     {
-        $redis = $this->app->get(RedisFactory::class);
+        $redis = $this->app->make(RedisFactory::class);
 
         $connection = $config['connection'] ?? 'default';
 
@@ -250,7 +248,7 @@ class CacheManager implements FactoryContract
      */
     protected function createSwooleDriver(array $config): Repository
     {
-        $cacheTable = $this->app->get(SwooleTableManager::class)->get($config['table']);
+        $cacheTable = $this->app->make(SwooleTableManager::class)->get($config['table']);
         $store = new SwooleStore(
             $cacheTable,
             $config['memory_limit_buffer'] ?? 0.05,
@@ -285,7 +283,7 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connectionResolver = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class);
+        $connectionResolver = $this->app->make(\Hypervel\Database\ConnectionResolverInterface::class);
 
         $store = new DatabaseStore(
             $connectionResolver,
@@ -305,12 +303,12 @@ class CacheManager implements FactoryContract
      */
     protected function setEventDispatcher(Repository $repository): void
     {
-        if (! $this->app->has(DispatcherContract::class)) {
+        if (! $this->app->has(Dispatcher::class)) {
             return;
         }
 
         $repository->setEventDispatcher(
-            $this->app->get(DispatcherContract::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -319,7 +317,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app->get(ConfigInterface::class)->get('cache.prefix');
+        return $config['prefix'] ?? $this->app->make('config')->get('cache.prefix');
     }
 
     /**
@@ -328,7 +326,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigInterface::class)->get("cache.stores.{$name}");
+            return $this->app->make('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];

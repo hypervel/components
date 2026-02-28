@@ -6,9 +6,9 @@ namespace Hypervel\View;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Arrayable;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\Factory;
 use Hypervel\View\Contracts\View as ViewContract;
 use ReflectionClass;

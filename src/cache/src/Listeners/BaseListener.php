@@ -4,20 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Listeners;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Event\Contract\ListenerInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Collection;
 
-abstract class BaseListener implements ListenerInterface
+abstract class BaseListener
 {
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 
     protected function swooleStores(): Collection
     {
-        $config = $this->container->get(ConfigInterface::class)->get('cache.stores');
+        $config = $this->container->make('config')->get('cache.stores');
 
         return collect($config)->where('driver', 'swoole');
     }

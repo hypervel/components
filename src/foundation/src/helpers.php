@@ -3,35 +3,34 @@
 declare(strict_types=1);
 
 use Carbon\Carbon;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\Stringable\Stringable;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Gate;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
 use Hypervel\Broadcasting\PendingBroadcast;
-use Hypervel\Bus\PendingClosureDispatch;
-use Hypervel\Bus\PendingDispatch;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Foundation\Bus\PendingClosureDispatch;
+use Hypervel\Foundation\Bus\PendingDispatch;
+use Hypervel\HttpMessage\Cookie\Cookie;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\Support\Stringable;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
@@ -103,7 +102,7 @@ if (! function_exists('base_path')) {
      */
     function base_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -139,7 +138,7 @@ if (! function_exists('database_path')) {
      */
     function database_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'database', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -155,7 +154,7 @@ if (! function_exists('storage_path')) {
      */
     function storage_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'storage', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -171,7 +170,7 @@ if (! function_exists('config_path')) {
      */
     function config_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'config', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -187,7 +186,7 @@ if (! function_exists('resource_path')) {
      */
     function resource_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'resources', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -203,7 +202,7 @@ if (! function_exists('lang_path')) {
      */
     function lang_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'lang', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -219,7 +218,7 @@ if (! function_exists('public_path')) {
      */
     function public_path(string $path = ''): string
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! Container::getInstance()->has(Application::class)) {
             return defined('BASE_PATH')
                 ? join_paths(BASE_PATH, 'public', $path)
                 : throw new RuntimeException('BASE_PATH constant is not defined.');
@@ -279,7 +278,7 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Contracts\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
@@ -357,26 +356,11 @@ if (! function_exists('app')) {
      */
     function app(?string $abstract = null, array $parameters = [])
     {
-        if (ApplicationContext::hasContainer()) {
-            /** @var Container $container */
-            $container = ApplicationContext::getContainer();
-
-            if (is_null($abstract)) {
-                return $container;
-            }
-
-            if (count($parameters) == 0 && $container->has($abstract)) {
-                return $container->get($abstract);
-            }
-
-            return $container->make($abstract, $parameters);
-        }
-
         if (is_null($abstract)) {
-            throw new InvalidArgumentException('Invalid argument $abstract');
+            return Container::getInstance();
         }
 
-        return new $abstract(...array_values($parameters));
+        return Container::getInstance()->make($abstract, $parameters);
     }
 }
 
@@ -408,16 +392,10 @@ if (! function_exists('dispatch_sync')) {
 if (! function_exists('event')) {
     /**
      * Dispatch an event and call the listeners.
-     *
-     * @template T of object
-     *
-     * @param T $event
-     *
-     * @return T
      */
-    function event(object $event)
+    function event(mixed ...$args): mixed
     {
-        return \Hypervel\Event\event($event);
+        return app('events')->dispatch(...$args);
     }
 }
 
@@ -427,15 +405,19 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
      */
     function fake(?string $locale = null): \Faker\Generator
     {
-        $locale ??= config('app.faker_locale', 'en_US');
+        if (app()->bound('config')) {
+            $locale ??= app('config')->get('app.faker_locale');
+        }
+
+        $locale ??= 'en_US';
 
         $abstract = \Faker\Generator::class . ':' . $locale;
 
         if (! app()->bound($abstract)) {
-            app()->bind($abstract, fn () => \Faker\Factory::create($locale));
+            app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
         }
 
-        return app()->get($abstract);
+        return app()->make($abstract);
     }
 }
 
@@ -765,13 +747,10 @@ if (! function_exists('__')) {
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
-     *
-     * @param null|string $view
-     * @param array $mergeData
      */
-    function view($view = null, array|Arrayable $data = [], $mergeData = []): FactoryContract|ViewContract
+    function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract
     {
-        $factory = app(FactoryContract::class);
+        $factory = app(ViewFactory::class);
 
         if (func_num_args() === 0) {
             return $factory;

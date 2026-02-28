@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Failed\PrunableFailedJobProvider;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:prune-failed')]
 class PruneFailedJobsCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -30,7 +29,7 @@ class PruneFailedJobsCommand extends Command
      */
     public function handle(): ?int
     {
-        $failer = $this->app->get(FailedJobProviderInterface::class);
+        $failer = $this->app->make(FailedJobProviderInterface::class);
 
         if ($failer instanceof PrunableFailedJobProvider) {
             $count = $failer->prune(Carbon::now()->subHours((int) $this->option('hours')));

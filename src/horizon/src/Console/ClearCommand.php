@@ -9,7 +9,9 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Arr;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:clear')]
 class ClearCommand extends Command
 {
     use ConfirmableTrait;

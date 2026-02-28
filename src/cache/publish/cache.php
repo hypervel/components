@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\SwooleStore;
-
-use function Hyperf\Support\env;
+use Hypervel\Support\Str;
 
 return [
     /*

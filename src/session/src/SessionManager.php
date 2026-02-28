@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\HttpServer\Request;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
-use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Session\Contracts\Factory;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Session\Factory;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\HttpServer\Request;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 
@@ -60,8 +60,8 @@ class SessionManager extends Manager implements Factory
     protected function createCookieDriver(): Store
     {
         return $this->buildSession(new CookieSessionHandler(
-            $this->container->get(CookieContract::class),
-            $this->container->get(Request::class),
+            $this->container->make(CookieContract::class),
+            $this->container->make(Request::class),
             $this->config->get('session.lifetime'),
             $this->config->get('session.expire_on_close')
         ));
@@ -83,7 +83,7 @@ class SessionManager extends Manager implements Factory
         $lifetime = $this->config->get('session.lifetime');
 
         return $this->buildSession(new FileSessionHandler(
-            $this->container->get(Filesystem::class),
+            $this->container->make(Filesystem::class),
             $this->config->get('session.files'),
             $lifetime
         ));
@@ -99,7 +99,7 @@ class SessionManager extends Manager implements Factory
         $lifetime = $this->config->get('session.lifetime');
 
         return $this->buildSession(new DatabaseSessionHandler(
-            $this->container->get(ConnectionResolverInterface::class),
+            $this->container->make(ConnectionResolverInterface::class),
             $this->config->get('session.connection'),
             $table,
             $lifetime,
@@ -123,7 +123,7 @@ class SessionManager extends Manager implements Factory
     protected function createCacheHandler(string $driver): CacheBasedSessionHandler
     {
         return new CacheBasedSessionHandler(
-            $this->container->get(CacheContract::class),
+            $this->container->make(CacheContract::class),
             $this->config->get('session.store') ?: $driver,
             $this->config->get('session.lifetime')
         );
@@ -151,7 +151,7 @@ class SessionManager extends Manager implements Factory
         return new EncryptedStore(
             $this->config->get('session.cookie'),
             $handler,
-            $this->container->get(Encrypter::class),
+            $this->container->make(Encrypter::class),
             $this->config->get('session.serialization', 'php'),
         );
     }

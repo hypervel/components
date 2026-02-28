@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Console;
 
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:terminate')]
 class TerminateCommand extends Command
 {
     use InteractsWithTime;
@@ -59,7 +61,7 @@ class TerminateCommand extends Command
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 
-        $this->app->get(CacheFactory::class)
-            ->forever('illuminate:queue:restart', $this->currentTime());
+        $this->app->make(CacheFactory::class)
+            ->store()->forever('illuminate:queue:restart', $this->currentTime());
     }
 }

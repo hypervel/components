@@ -17,12 +17,16 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/context": "~3.1.0",
-        "hyperf/di": "~3.1.0"
+        "php": "^8.4",
+        "hypervel/context": "^0.4",
+        "psr/container": "^2.0.2"
     },
     "autoload": {
         "psr-4": {
@@ -31,7 +35,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

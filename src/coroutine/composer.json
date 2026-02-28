@@ -29,15 +29,14 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/coroutine": "~3.1.0"
+        "php": "^8.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

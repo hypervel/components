@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
@@ -26,7 +26,7 @@ class ValidationImageFileRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             return new Translator(
                 new ArrayLoader(),
                 'en'
@@ -129,7 +129,7 @@ class ValidationImageFileRuleTest extends TestCase
 
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->get(TranslatorContract::class),
+                $this->app->make(TranslatorContract::class),
                 ['my_file' => $value],
                 ['my_file' => is_object($rule) ? clone $rule : $rule]
             );

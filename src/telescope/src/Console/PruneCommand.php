@@ -7,7 +7,9 @@ namespace Hypervel\Telescope\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Carbon;
 use Hypervel\Telescope\Contracts\PrunableRepository;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'telescope:prune')]
 class PruneCommand extends Command
 {
     /**

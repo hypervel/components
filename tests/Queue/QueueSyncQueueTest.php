@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Queue\Contracts\QueueableEntity;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -48,9 +48,9 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue();
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
 
         try {
@@ -65,13 +65,13 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue();
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch');
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcher::class, $events);
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
         $dispatcher->shouldReceive('dispatchNow')->once();
-        $container->set(Dispatcher::class, $dispatcher);
+        $container->instance(Dispatcher::class, $dispatcher);
         $sync->setContainer($container);
 
         SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -90,10 +90,11 @@ class QueueSyncQueueTest extends TestCase
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
         $sync = new SyncQueue();
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitJob());
@@ -102,10 +103,11 @@ class QueueSyncQueueTest extends TestCase
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
         $sync = new SyncQueue();
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitInterfaceJob());
@@ -113,9 +115,10 @@ class QueueSyncQueueTest extends TestCase
 
     protected function getContainer(): Container
     {
-        return new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container();
+        $container->instance(ContainerContract::class, $container);
+
+        return $container;
     }
 }
 

@@ -5,43 +5,31 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Devtool\Generator\GeneratorCommand;
-use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 
-class BatchesTableCommand extends GeneratorCommand
+#[AsCommand(name: 'make:queue-batches-table|queue:batches-table')]
+class BatchesTableCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
+    protected ?string $name = 'make:queue-batches-table|queue:batches-table';
+
+    protected string $description = 'Create a migration for the batches database table';
+
+    protected string $type = 'Migration';
+
+    public function handle(): int
     {
-        parent::__construct('make:queue-batches-table');
-    }
-
-    public function configure()
-    {
-        $this->setDescription('Create a migration for the batches database table');
-        $this->setAliases(['queue:batches-table']);
-
-        parent::configure();
-    }
-
-    public function execute(InputInterface $input, OutputInterface $output): int
-    {
-        $this->input = $input;
-        $this->output = $output;
-
         $tableName = $this->migrationTableName();
         $filename = Carbon::now()->format('Y_m_d_000000') . "_create_{$tableName}_table.php";
-        $path = $this->input->getOption('path') ?: "database/migrations/{$filename}";
+        $path = $this->option('path') ?: "database/migrations/{$filename}";
 
         // First we will check to see if the class already exists. If it does, we don't want
         // to create the class and overwrite the user's code. So, we will bail out so the
         // code is untouched. Otherwise, we will continue generating this class' files.
-        if (($input->getOption('force') === false) && $this->alreadyExists($path)) {
-            $output->writeln(sprintf('<fg=red>%s</>', $path . ' already exists!'));
-            return 0;
+        if ((! $this->hasOption('force') || ! $this->option('force'))
+            && $this->alreadyExists($path)) {
+            $this->components->error($path . ' already exists!');
+            return self::FAILURE;
         }
 
         // Next, we will generate the path to the location where this class' file should get
@@ -52,11 +40,11 @@ class BatchesTableCommand extends GeneratorCommand
         $stub = file_get_contents($this->getStub());
         file_put_contents($path, $this->buildMigration($stub, $tableName));
 
-        $output->writeln(sprintf('<info>%s</info>', "Migration {$filename} created successfully."));
+        $this->components->info(sprintf('Migration [%s] created successfully.', $path));
 
         $this->openWithIde($path);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     protected function buildMigration(string $stub, string $name): string
@@ -86,11 +74,11 @@ class BatchesTableCommand extends GeneratorCommand
         });
 
         return array_merge(array_values($options), [
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the sessions table migration.'],
+            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the batches table migration.'],
         ]);
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }
@@ -100,8 +88,7 @@ class BatchesTableCommand extends GeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        return $this->app->make('config')
             ->get('queue.batching.table', 'job_batches');
     }
 }

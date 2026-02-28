@@ -7,11 +7,11 @@ namespace Hypervel\Support\Facades;
 use Hypervel\View\Contracts\Factory as FactoryContract;
 
 /**
- * @method static \Hypervel\View\Contracts\View file(string $path, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
- * @method static \Hypervel\View\Contracts\View make(string $view, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
- * @method static \Hypervel\View\Contracts\View first(array $views, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderWhen(bool $condition, string $view, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderUnless(bool $condition, string $view, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\View\Contracts\View file(string $path, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\View\Contracts\View make(string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\View\Contracts\View first(array $views, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderWhen(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderUnless(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderEach(string $view, array $data, string $iterator, string $empty = 'raw|')
  * @method static bool exists(string $view)
  * @method static \Hypervel\View\Contracts\Engine getEngineFromPath(string $path)
@@ -34,17 +34,17 @@ use Hypervel\View\Contracts\Factory as FactoryContract;
  * @method static \Hypervel\View\ViewFinderInterface getFinder()
  * @method static void setFinder(\Hypervel\View\ViewFinderInterface $finder)
  * @method static void flushFinderCache()
- * @method static \Hypervel\Event\Contracts\Dispatcher getDispatcher()
- * @method static void setDispatcher(\Hypervel\Event\Contracts\Dispatcher $events)
- * @method static \Hypervel\Container\Contracts\Container getContainer()
- * @method static void setContainer(\Hypervel\Container\Contracts\Container $container)
+ * @method static \Hypervel\Contracts\Event\Dispatcher getDispatcher()
+ * @method static void setDispatcher(\Hypervel\Contracts\Event\Dispatcher $events)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static void setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static mixed shared(string $key, mixed $default = null)
  * @method static array getShared()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  * @method static void flushMacros()
- * @method static void startComponent(\Hypervel\View\Contracts\View|\Hypervel\Support\Contracts\Htmlable|\Closure|string $view, array $data = [])
+ * @method static void startComponent(\Hypervel\View\Contracts\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string $view, array $data = [])
  * @method static void startComponentFirst(array $names, array $data = [])
  * @method static string renderComponent()
  * @method static mixed getConsumableComponentData(string $key, mixed $default = null)
@@ -90,7 +90,7 @@ use Hypervel\View\Contracts\Factory as FactoryContract;
  */
 class View extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return FactoryContract::class;
     }

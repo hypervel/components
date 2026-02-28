@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum\Http\Middleware;
 
 use Closure;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

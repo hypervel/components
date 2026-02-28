@@ -4,25 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class NotificationWatcher extends Watcher
 {
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(NotificationSent::class, [$this, 'recordNotification']);
     }
 

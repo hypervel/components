@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Bus\Batch;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Dispatchable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Jobs\FakeJob;
@@ -19,7 +19,6 @@ use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -31,7 +30,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 JobWatcher::class => true,
             ]);
@@ -51,7 +50,7 @@ class JobWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn($batch);
 
-        $this->app->set(BatchRepository::class, $batchRepository);
+        $this->app->instance(BatchRepository::class, $batchRepository);
 
         MockedBatchableJob::dispatch('batch-id');
 
@@ -69,7 +68,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         Bus::fake();
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(
                 new JobProcessed(
                     'connection',
@@ -94,7 +93,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         Bus::fake();
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(
                 new JobFailed(
                     'connection',

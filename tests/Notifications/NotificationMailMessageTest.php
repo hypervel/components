@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
+use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Notifications\Messages\MailMessage;
 use PHPUnit\Framework\TestCase;
 

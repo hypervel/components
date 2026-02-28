@@ -4,32 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemManager;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @method static \Hypervel\Filesystem\Contracts\Filesystem drive(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem disk(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Filesystem\Contracts\Cloud cloud()
- * @method static \Hypervel\Filesystem\Contracts\Filesystem build(array|string $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createLocalDriver(array $config, string $name = 'local')
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createFtpDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createSftpDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Cloud createS3Driver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Cloud createGcsDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createScopedDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud cloud()
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createSftpDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud createS3Driver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud createGcsDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createScopedDriver(array $config)
  * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static string getDefaultDriver()
  * @method static string getDefaultCloudDriver()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
- * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static \Hypervel\Filesystem\FilesystemManager addPoolable(string $driver)
@@ -91,8 +89,8 @@ use function Hypervel\Support\enum_value;
  * @method static array|null json(string $path, int $flags = 0)
  * @method static \Psr\Http\Message\ResponseInterface response(string $path, string|null $name = null, array $headers = [], string|null $disposition = 'inline')
  * @method static \Psr\Http\Message\ResponseInterface download(string $path, string|null $name = null, array $headers = [])
- * @method static string|false putFile(\Hyperf\HttpMessage\Upload\UploadedFile|string $path, \Hyperf\HttpMessage\Upload\UploadedFile|array|string|null $file = null, mixed $options = [])
- * @method static string|false putFileAs(\Hyperf\HttpMessage\Upload\UploadedFile|string $path, \Hyperf\HttpMessage\Upload\UploadedFile|array|string|null $file, array|string|null $name = null, mixed $options = [])
+ * @method static string|false putFile(\Hypervel\HttpMessage\Upload\UploadedFile|string $path, \Hypervel\HttpMessage\Upload\UploadedFile|array|string|null $file = null, mixed $options = [])
+ * @method static string|false putFileAs(\Hypervel\HttpMessage\Upload\UploadedFile|string $path, \Hypervel\HttpMessage\Upload\UploadedFile|array|string|null $file, array|string|null $name = null, mixed $options = [])
  * @method static string getVisibility(string $path)
  * @method static bool setVisibility(string $path, string $visibility)
  * @method static string|false checksum(string $path, array $options = [])
@@ -126,12 +124,12 @@ class Storage extends Facade
     /**
      * Replace the given disk with a local testing disk.
      *
-     * @return \Hypervel\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
     public static function fake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = enum_value($disk) ?: ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        $disk = enum_value($disk) ?: Container::getInstance()
+            ->make('config')
             ->get('filesystems.default');
 
         $root = storage_path('framework/testing/disks/' . $disk);
@@ -150,12 +148,12 @@ class Storage extends Facade
     /**
      * Replace the given disk with a persistent local testing disk.
      *
-     * @return \Hypervel\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = enum_value($disk) ?: ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        $disk = enum_value($disk) ?: Container::getInstance()
+            ->make('config')
             ->get('filesystems.default');
 
         static::set($disk, $fake = static::createLocalDriver(array_merge($config, [
@@ -165,8 +163,8 @@ class Storage extends Facade
         return $fake;
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return FilesystemManager::class;
+        return 'filesystem';
     }
 }

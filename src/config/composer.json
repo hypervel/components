@@ -29,9 +29,8 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/config": "~3.1.0",
-        "hyperf/macroable": "~3.1.0"
+        "php": "^8.4",
+        "hypervel/macroable": "^0.4"
     },
     "config": {
         "sort-packages": true
@@ -41,7 +40,7 @@
             "config": "Hypervel\\Config\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

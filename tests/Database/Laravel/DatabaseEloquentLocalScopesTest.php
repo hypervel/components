@@ -1,0 +1,111 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentLocalScopesTest;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Testbench\TestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentLocalScopesTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        tap(new DB())->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ])->bootEloquent();
+    }
+
+    protected function tearDown(): void
+    {
+        Model::unsetConnectionResolver();
+
+        parent::tearDown();
+    }
+
+    public function testCanCheckExistenceOfLocalScope()
+    {
+        $model = new ScopedModel();
+
+        $this->assertTrue($model->hasNamedScope('active'));
+        $this->assertTrue($model->hasNamedScope('type'));
+
+        $this->assertFalse($model->hasNamedScope('nonExistentLocalScope'));
+    }
+
+    public function testLocalScopeIsApplied()
+    {
+        $model = new ScopedModel();
+        $query = $model->newQuery()->active();
+
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([true], $query->getBindings());
+    }
+
+    public function testDynamicLocalScopeIsApplied()
+    {
+        $model = new ScopedModel();
+        $query = $model->newQuery()->type('foo');
+
+        $this->assertSame('select * from "table" where "type" = ?', $query->toSql());
+        $this->assertEquals(['foo'], $query->getBindings());
+    }
+
+    public function testLocalScopesCanChained()
+    {
+        $model = new ScopedModel();
+        $query = $model->newQuery()->active()->type('foo');
+
+        $this->assertSame('select * from "table" where "active" = ? and "type" = ?', $query->toSql());
+        $this->assertEquals([true, 'foo'], $query->getBindings());
+    }
+
+    public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
+    {
+        $model = new ScopedModel();
+        $query = $model
+            ->newQuery()
+            ->whereNot('firstWhere', true)
+            ->orWhere('secondWhere', true)
+            ->active();
+
+        $this->assertSame('select * from "table" where (not "firstWhere" = ? or "secondWhere" = ?) and "active" = ?', $query->toSql());
+        $this->assertEquals([true, true, true], $query->getBindings());
+    }
+
+    public function testLocalScopeNestingGroupsOrNotWhereClause()
+    {
+        $model = new ScopedModel();
+        $query = $model
+            ->newQuery()
+            ->where('firstWhere', true)
+            ->orWhereNot('secondWhere', true)
+            ->active();
+
+        $this->assertSame('select * from "table" where ("firstWhere" = ? or not "secondWhere" = ?) and "active" = ?', $query->toSql());
+        $this->assertEquals([true, true, true], $query->getBindings());
+    }
+}
+
+class ScopedModel extends Model
+{
+    protected ?string $table = 'table';
+
+    public function scopeActive($query)
+    {
+        $query->where('active', true);
+    }
+
+    public function scopeType($query, $type)
+    {
+        $query->where('type', $type);
+    }
+}

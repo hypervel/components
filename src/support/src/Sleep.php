@@ -7,13 +7,10 @@ namespace Hypervel\Support;
 use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
-use Hyperf\Collection\Collection;
-use Hyperf\Macroable\Macroable;
+use DateTimeInterface;
+use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
-
-use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
 
 class Sleep
 {
@@ -87,7 +84,7 @@ class Sleep
     /**
      * Sleep until the given timestamp.
      */
-    public static function until(DateInterval|float|int|string $timestamp): static
+    public static function until(DateTimeInterface|float|int|string $timestamp): static
     {
         if (is_numeric($timestamp)) {
             $timestamp = Carbon::createFromTimestamp($timestamp, date_default_timezone_get());
@@ -358,29 +355,38 @@ class Sleep
      */
     public static function assertSequence(array $sequence): void
     {
-        static::assertSleptTimes(count($sequence));
+        try {
+            static::assertSleptTimes(count($sequence));
 
-        (new Collection($sequence))
-            ->zip(static::$sequence)
-            ->eachSpread(function (?Sleep $expected, CarbonInterval $actual) {
-                if ($expected === null) {
-                    return;
+            (new Collection($sequence))
+                ->zip(static::$sequence)
+                /* @phpstan-ignore argument.type (eachSpread signature can't express fixed-param callbacks) */
+                ->eachSpread(function (?Sleep $expected, CarbonInterval $actual) {
+                    if ($expected === null) {
+                        return;
+                    }
+
+                    PHPUnit::assertTrue(
+                        $expected->shouldNotSleep()->duration->equalTo($actual),
+                        vsprintf('Expected sleep duration of [%s] but actually slept for [%s].', [
+                            $expected->duration->cascade()->forHumans([
+                                'options' => 0,
+                                'minimumUnit' => 'microsecond',
+                            ]),
+                            $actual->cascade()->forHumans([
+                                'options' => 0,
+                                'minimumUnit' => 'microsecond',
+                            ]),
+                        ])
+                    );
+                });
+        } finally {
+            foreach ($sequence as $expected) {
+                if ($expected instanceof self) {
+                    $expected->shouldNotSleep();
                 }
-
-                PHPUnit::assertTrue(
-                    $expected->shouldNotSleep()->duration->equalTo($actual),
-                    vsprintf('Expected sleep duration of [%s] but actually slept for [%s].', [
-                        $expected->duration->cascade()->forHumans([
-                            'options' => 0,
-                            'minimumUnit' => 'microsecond',
-                        ]),
-                        $actual->cascade()->forHumans([
-                            'options' => 0,
-                            'minimumUnit' => 'microsecond',
-                        ]),
-                    ])
-                );
-            });
+            }
+        }
     }
 
     /**

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Http\Contracts\RequestContract;
-
 /**
  * @method static array allFiles()
  * @method static bool anyFilled(array|string $keys)
@@ -72,7 +70,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static bool prefetch()
  * @method static bool isRange()
  * @method static bool hasSession()
- * @method static \Hypervel\Session\Contracts\Session session()
+ * @method static \Hypervel\Contracts\Session\Session session()
  * @method static array validate(array $rules, array $messages = [], array $customAttributes = [])
  * @method static \Closure getUserResolver()
  * @method static \Hypervel\Http\Request setUserResolver(\Closure $callback)
@@ -101,7 +99,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static bool hasCookie(string $key)
  * @method static mixed server(string $key, mixed $default = null)
  * @method static bool isMethod(string $method)
- * @method static null|\Hyperf\HttpMessage\Upload\UploadedFile|\Hyperf\HttpMessage\Upload\UploadedFile[] file(string $key, mixed $default = null)
+ * @method static null|\Hypervel\HttpMessage\Upload\UploadedFile|\Hypervel\HttpMessage\Upload\UploadedFile[] file(string $key, mixed $default = null)
  * @method static bool hasFile(string $key)
  * @method static string getProtocolVersion()
  * @method static \Psr\Http\Message\MessageInterface withProtocolVersion(string $version)
@@ -139,12 +137,12 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static bool hasMacro(string $name)
  *
  * @see \Hypervel\Http\Request
- * @see \Hyperf\HttpServer\Request
+ * @see \Hypervel\HttpServer\Request
  */
 class Request extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return RequestContract::class;
+        return 'request';
     }
 }

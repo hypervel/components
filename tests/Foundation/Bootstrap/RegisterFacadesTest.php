@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Support\Composer;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -21,7 +22,7 @@ class RegisterFacadesTest extends TestCase
 
     public function testRegisterAliases()
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('app.aliases', [])
             ->once()
@@ -30,7 +31,7 @@ class RegisterFacadesTest extends TestCase
             ]);
 
         $app = $this->getApplication([
-            ConfigInterface::class => fn () => $config,
+            ConfigContract::class => fn () => $config,
         ]);
 
         $bootstrapper = $this->createPartialMock(
@@ -45,7 +46,7 @@ class RegisterFacadesTest extends TestCase
                 'TestAlias' => 'TestClass',
             ]);
 
-        Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');
+        Composer::setBasePath(dirname(__DIR__) . '/fixtures/project1');
 
         $bootstrapper->bootstrap($app);
     }

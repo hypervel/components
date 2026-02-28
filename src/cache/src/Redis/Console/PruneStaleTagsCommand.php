@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console;
 
-use Hyperf\Command\Command;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 
+#[AsCommand(name: 'cache:prune-redis-stale-tags')]
 class PruneStaleTagsCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
@@ -31,7 +30,7 @@ class PruneStaleTagsCommand extends Command
     {
         $storeName = $this->argument('store') ?? 'redis';
 
-        $repository = $this->app->get(CacheContract::class)->store($storeName);
+        $repository = $this->app->make(CacheContract::class)->store($storeName);
         $store = $repository->getStore();
 
         if (! $store instanceof RedisStore) {

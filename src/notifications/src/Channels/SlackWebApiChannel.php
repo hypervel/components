@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use GuzzleHttp\Client as HttpClient;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Notifications\Slack\SlackRoute;
@@ -22,7 +22,7 @@ class SlackWebApiChannel
      */
     public function __construct(
         protected HttpClient $client,
-        protected ConfigInterface $config
+        protected Repository $config
     ) {
     }
 

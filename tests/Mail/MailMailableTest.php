@@ -4,26 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Contracts\Mail\Factory as FactoryContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
-use Hypervel\Mail\Contracts\Factory as FactoryContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Mail\Mailables\Headers;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Testbench\TestCase;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -31,11 +26,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class MailMailableTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testMailableSetsRecipientsCorrectly()
     {
         $this->mockContainer();
@@ -1046,6 +1036,8 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasAttachmentFromStorage()
     {
+        $this->mockContainer();
+
         $mailable = new class extends Mailable {
             public function build()
             {
@@ -1149,23 +1141,15 @@ class MailMailableTest extends TestCase
         $mailable->assertHasSubject('test subject');
     }
 
-    protected function mockContainer()
+    protected function mockContainer(): void
     {
         $mailer = m::mock(MailerContract::class);
         $mailer->shouldReceive('render')
             ->andReturn('');
 
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
-                FactoryContract::class => MailManager::class,
-                ViewFactory::class => ViewFactory::class,
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-                MailerContract::class => fn () => $mailer,
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
+        $this->app->singleton(FactoryContract::class, MailManager::class);
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance(MailerContract::class, $mailer);
     }
 
     protected function mockView()

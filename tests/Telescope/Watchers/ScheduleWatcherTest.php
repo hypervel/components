@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ScheduleWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -24,7 +23,7 @@ class ScheduleWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ScheduleWatcher::class => true,
             ]);
@@ -43,7 +42,7 @@ class ScheduleWatcherTest extends FeatureTestCase
 
     public function testScheduleRegistersEntry()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new ScheduledTaskStarting(
                 m::mock(Event::class)
             ));
@@ -58,7 +57,7 @@ class ScheduleWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn($output = 'success');
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new ScheduledTaskFinished($task, 0.1));
 
         $entry = $this->loadTelescopeEntries()->first();

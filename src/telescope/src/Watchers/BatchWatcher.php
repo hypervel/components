@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class BatchWatcher extends Watcher
 {
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(BatchDispatched::class, [$this, 'recordBatch']);
     }
 

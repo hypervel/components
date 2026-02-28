@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Carbon\Carbon;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Hypervel\Tests\TestCase;
-use Mockery;
-use Psr\Container\ContainerInterface;
+use Mockery as m;
 
 /**
  * @internal
@@ -31,7 +31,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getLastRecycledAt')
             ->once()
             ->andReturn(Carbon::now()->subSeconds(3));
@@ -47,7 +47,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getLastRecycledAt')
             ->once()
             ->andReturn(Carbon::now()->subSeconds(30));
@@ -63,7 +63,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getOption->getRecycleRatio')
             ->once()
             ->andReturn(0.5);
@@ -85,15 +85,15 @@ class TimeStrategyTest extends TestCase
         $strategy->recycle($pool);
     }
 
-    protected function mockContainerWithInterval(float $interval): ContainerInterface
+    protected function mockContainerWithInterval(float $interval): Container
     {
-        $recycler = Mockery::mock(Recycler::class);
+        $recycler = m::mock(Recycler::class);
         $recycler->shouldReceive('getInterval')
             ->once()
             ->andReturn($interval);
 
-        $container = Mockery::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')
             ->with(Recycler::class)
             ->andReturn($recycler);
 

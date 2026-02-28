@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 /**
  * Provides hooks for registering package service providers and aliases.
@@ -33,12 +33,22 @@ trait CreatesApplication
 
     /**
      * Register package providers.
+     *
+     * Merges the test's package providers into config('app.providers') so they
+     * are registered by RegisterProviders during bootstrap, matching the
+     * Orchestral Testbench pattern.
      */
     protected function registerPackageProviders(ApplicationContract $app): void
     {
-        foreach ($this->getPackageProviders($app) as $provider) {
-            $app->register($provider);
+        $packageProviders = $this->getPackageProviders($app);
+
+        if (empty($packageProviders)) {
+            return;
         }
+
+        $config = $app->make('config');
+        $existing = $config->get('app.providers', []);
+        $config->set('app.providers', array_merge($existing, $packageProviders));
     }
 
     /**
@@ -52,7 +62,7 @@ trait CreatesApplication
             return;
         }
 
-        $config = $app->get('config');
+        $config = $app->make('config');
         $existing = $config->get('app.aliases', []);
         $config->set('app.aliases', array_merge($existing, $aliases));
     }

@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\GoogleTestProviderStub;
 use Hypervel\Tests\TestCase;

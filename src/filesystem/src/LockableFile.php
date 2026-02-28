@@ -6,9 +6,9 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use Exception;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Coroutine\Locker;
-use Hypervel\Filesystem\Exceptions\LockTimeoutException;
+use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Locker;
 
 class LockableFile
 {

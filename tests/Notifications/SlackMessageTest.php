@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Notifications;
 use Closure;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Psr7\Response;
-use Hyperf\Config\Config;
+use Hypervel\Config\Repository;
 use Hypervel\Notifications\Channels\SlackWebApiChannel;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
@@ -18,11 +18,11 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Notifications\Slack\SlackRoute;
 use LogicException;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function Hyperf\Tappable\tap;
+use function tap;
 
 /**
  * @internal
@@ -34,7 +34,7 @@ class SlackMessageTest extends TestCase
 
     protected ?HttpClient $client = null;
 
-    protected ?Config $config = null;
+    protected ?Repository $config = null;
 
     public function setUp(): void
     {
@@ -46,8 +46,6 @@ class SlackMessageTest extends TestCase
         $this->slackChannel = null;
         $this->client = null;
         $this->config = null;
-
-        Mockery::close();
     }
 
     public function testExceptionWhenNoTextOrBlock(): void
@@ -718,8 +716,8 @@ class SlackMessageTest extends TestCase
     protected function getSlackChannel(): SlackWebApiChannel
     {
         return new SlackWebApiChannel(
-            $this->client = Mockery::mock(HttpClient::class),
-            $this->config = new Config([])
+            $this->client = m::mock(HttpClient::class),
+            $this->config = new Repository([])
         );
     }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Cache\Redis;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
@@ -15,6 +14,7 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

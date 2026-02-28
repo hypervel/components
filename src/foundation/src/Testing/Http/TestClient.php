@@ -4,35 +4,32 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hyperf\ExceptionHandler\ExceptionHandlerDispatcher;
-use Hyperf\HttpMessage\Server\Request as Psr7Request;
-use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpMessage\Uri\Uri;
-use Hyperf\HttpServer\Event\RequestHandled;
-use Hyperf\HttpServer\Event\RequestReceived;
-use Hyperf\HttpServer\ResponseEmitter;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Dispatcher\HttpDispatcher;
+use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\HttpMessage\Server\Request as Psr7Request;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\ResponseEmitter;
+use Hypervel\Support\Arr;
+use Hypervel\Testing\HttpMessage\Upload\UploadedFile;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Throwable;
 
-use function Hyperf\Collection\data_get;
-
 class TestClient extends HttpKernel
 {
     protected bool $enableEvents = false;
 
-    protected ?EventDispatcherInterface $event = null;
+    protected ?DispatcherContract $event = null;
 
     protected float $waitTimeout = 10.0;
 
@@ -40,19 +37,19 @@ class TestClient extends HttpKernel
 
     protected static ?Waiter $waiter = null;
 
-    public function __construct(ContainerInterface $container, $server = 'http')
+    public function __construct(Container $container, $server = 'http')
     {
-        $this->enableEvents = $container->get(ConfigInterface::class)
+        $this->enableEvents = $container->make('config')
             ->get("server.servers.{$server}.options.enable_request_lifecycle", false);
         if ($this->enableEvents) {
-            $this->event = $container->get(EventDispatcherInterface::class);
+            $this->event = $container->make(DispatcherContract::class);
         }
 
         parent::__construct(
             $container,
-            $container->get(HttpDispatcher::class),
-            $container->get(ExceptionHandlerDispatcher::class),
-            $container->get(ResponseEmitter::class)
+            $container->make(HttpDispatcher::class),
+            $container->make(ExceptionHandlerDispatcher::class),
+            $container->make(ResponseEmitter::class)
         );
 
         $this->initCoreMiddleware($server);
@@ -253,13 +250,13 @@ class TestClient extends HttpKernel
 
     protected function loadKernelMiddleware(string $server): void
     {
-        $kernelClass = $this->container->get(ConfigInterface::class)
+        $kernelClass = $this->container->make('config')
             ->get("server.kernels.{$server}");
         if (! $kernelClass || ! class_exists($kernelClass)) {
             return;
         }
 
-        $kernel = $this->container->get($kernelClass);
+        $kernel = $this->container->make($kernelClass);
 
         $this->setGlobalMiddleware($kernel->getGlobalMiddleware());
         $this->setMiddlewareGroups($kernel->getMiddlewareGroups());
@@ -275,8 +272,8 @@ class TestClient extends HttpKernel
 
     protected function initBaseUri(string $server): void
     {
-        if ($this->container->has(ConfigInterface::class)) {
-            $config = $this->container->get(ConfigInterface::class);
+        if ($this->container->has('config')) {
+            $config = $this->container->make('config');
             $servers = $config->get('server.servers', []);
             foreach ($servers as $item) {
                 if ($item['name'] == $server) {
@@ -290,7 +287,7 @@ class TestClient extends HttpKernel
     protected function normalizeFiles(array $multipart): array
     {
         $files = [];
-        $fileSystem = $this->container->get(Filesystem::class);
+        $fileSystem = $this->container->make(Filesystem::class);
 
         foreach ($multipart as $name => $item) {
             if ($item instanceof UploadedFileInterface) {

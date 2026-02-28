@@ -5,27 +5,28 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Context\Context;
-use Hyperf\Context\ResponseContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\SessionInterface;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
-use Hyperf\HttpMessage\Exception\HttpException;
-use Hyperf\HttpMessage\Server\Response as Psr7Response;
-use Hyperf\HttpMessage\Uri\Uri;
 use Hypervel\Config\Repository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
+use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Exceptions\Handler;
-use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\Responsable;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Server\Response as Psr7Response;
+use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\Session\Store;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\MessageBag;
@@ -45,7 +46,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use stdClass;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
 use Throwable;
 
 /**
@@ -71,7 +71,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
+            ConfigContract::class => fn () => $this->config,
             FactoryContract::class => fn () => new stdClass(),
             Request::class => fn () => $this->request,
             ServerRequestInterface::class => fn () => m::mock(ServerRequestInterface::class),
@@ -80,9 +80,9 @@ class FoundationExceptionHandlerTest extends TestCase
         ]);
 
         ResponseContext::set(new Psr7Response());
-        ApplicationContext::setContainer($this->container);
+        Container::setInstance($this->container);
         View::shouldReceive('replaceNamespace')->once();
-        Context::destroy(SessionInterface::class);
+        Context::destroy(Store::CONTEXT_KEY);
 
         $this->handler = new Handler($this->container);
     }
@@ -92,6 +92,7 @@ class FoundationExceptionHandlerTest extends TestCase
         parent::tearDown();
 
         Context::destroy('__request.root.uri');
+        Context::destroy(ServerRequestInterface::class);
         Facade::clearResolvedInstances();
     }
 
@@ -346,7 +347,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
         $session->shouldReceive('flash')->with('errors', m::type(ViewErrorBag::class))->once();
         $session->shouldReceive('flashInput')->with(['foo' => 'bar'])->once();
-        Context::set(SessionInterface::class, $session);
+        Context::set(Store::CONTEXT_KEY, $session);
         $this->container->instance(SessionContract::class, $session);
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);

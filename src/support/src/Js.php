@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Stringable\Str;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Jsonable;
 use JsonException;
 use JsonSerializable;
 use Stringable;
@@ -25,7 +24,12 @@ class Js implements Htmlable, Stringable
      *
      * @var int
      */
-    protected const REQUIRED_FLAGS = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR;
+    protected const REQUIRED_FLAGS = JSON_HEX_TAG
+        | JSON_HEX_APOS
+        | JSON_HEX_AMP
+        | JSON_HEX_QUOT
+        | JSON_UNESCAPED_UNICODE
+        | JSON_THROW_ON_ERROR;
 
     /**
      * Create a new class instance.
@@ -58,6 +62,13 @@ class Js implements Htmlable, Stringable
             return $data->toHtml();
         }
 
+        if ($data instanceof Htmlable
+            && ! $data instanceof Arrayable
+            && ! $data instanceof Jsonable
+            && ! $data instanceof JsonSerializable) {
+            $data = $data->toHtml();
+        }
+
         if ($data instanceof UnitEnum) {
             $data = enum_value($data);
         }
@@ -79,7 +90,7 @@ class Js implements Htmlable, Stringable
     public static function encode(mixed $data, int $flags = 0, int $depth = 512): string
     {
         if ($data instanceof Jsonable) {
-            return (string) $data;
+            return $data->toJson($flags | static::REQUIRED_FLAGS);
         }
 
         if ($data instanceof Arrayable && ! ($data instanceof JsonSerializable)) {

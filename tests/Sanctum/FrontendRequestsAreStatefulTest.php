@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Testing\ModelFactory;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -17,7 +15,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
-use Workbench\App\Models\User;
+use Hypervel\Tests\Sanctum\Stub\User;
 
 /**
  * @internal
@@ -30,11 +28,22 @@ class FrontendRequestsAreStatefulTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--realpath' => true,
+            '--path' => [
+                __DIR__ . '/../../src/sanctum/database/migrations',
+                __DIR__ . '/migrations',
+            ],
+        ];
+    }
+
     public function setUp(): void
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)->set([
+        $this->app->make('config')->set([
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
@@ -44,15 +53,15 @@ class FrontendRequestsAreStatefulTest extends TestCase
             ],
         ]);
 
-        $this->app->get(SanctumServiceProvider::class)->register();
-        $this->app->get(SanctumServiceProvider::class)->boot();
+        $this->app->make(SanctumServiceProvider::class)->register();
+        $this->app->make(SanctumServiceProvider::class)->boot();
 
         $this->registerRoutes();
     }
 
     protected function registerRoutes(): void
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $webMiddleware = [
             StartSession::class,
@@ -144,9 +153,6 @@ class FrontendRequestsAreStatefulTest extends TestCase
 
     protected function createUser(array $attributes = []): User
     {
-        return $this->app
-            ->get(ModelFactory::class)
-            ->factory(User::class)
-            ->create($attributes);
+        return User::factory()->create($attributes);
     }
 }

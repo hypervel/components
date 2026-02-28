@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Events\BroadcastNotificationCreated;
 use Hypervel\Notifications\Messages\BroadcastMessage;
 use Hypervel\Notifications\Notification;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -19,18 +19,13 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NotificationBroadcastChannelTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData()
     {
         $notification = new NotificationBroadcastChannelTestNotification();
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::type(BroadcastNotificationCreated::class));
         $channel = new BroadcastChannel($events);
         $channel->send($notifiable, $notification);
@@ -93,7 +88,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::on(function ($event) {
             return $event->connection === 'sync';
         }));

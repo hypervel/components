@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\TranslatorLoaderInterface;
-use Hyperf\Database\Migrations\Migrator;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Translation\Loader as TranslationLoader;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\View\Compilers\CompilerInterface;
@@ -16,6 +15,16 @@ use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 abstract class ServiceProvider
 {
+    /**
+     * The registration priority for this provider.
+     *
+     * Higher values are registered first among discovered/merged providers.
+     * Core framework providers (DefaultProviders) always load first regardless
+     * of priority. Use gaps between values (10, 20, 30) to allow future
+     * insertion without renumbering.
+     */
+    public int $priority = 0;
+
     /**
      * All of the registered booting callbacks.
      */
@@ -96,7 +105,7 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $config->set($key, array_merge(
             require $path,
             $config->get($key, [])
@@ -108,7 +117,7 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->get(RouteFileCollector::class)
+        $this->app->make(RouteFileCollector::class)
             ->addRouteFile($path);
     }
 
@@ -118,6 +127,15 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
+            if (isset($this->app->config['view']['paths'])
+                && is_array($this->app->config['view']['paths'])) {
+                foreach ($this->app->config['view']['paths'] as $viewPath) {
+                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                        $view->addNamespace($namespace, $appPath);
+                    }
+                }
+            }
+
             $view->addNamespace($namespace, $path);
         });
     }
@@ -139,7 +157,7 @@ abstract class ServiceProvider
      */
     protected function loadTranslationsFrom(string $path, string $namespace): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path, $namespace) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path, $namespace) {
             $translator->addNamespace($namespace, $path);
         });
     }
@@ -149,7 +167,7 @@ abstract class ServiceProvider
      */
     protected function loadJsonTranslationsFrom(string $path): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path) {
             $translator->addJsonPath($path);
         });
     }
@@ -174,7 +192,7 @@ abstract class ServiceProvider
         $this->app->afterResolving($name, $callback);
 
         if ($this->app->resolved($name)) {
-            $callback($this->app->get($name), $this->app);
+            $callback($this->app->make($name), $this->app);
         }
     }
 

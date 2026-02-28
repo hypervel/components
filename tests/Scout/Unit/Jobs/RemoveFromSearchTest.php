@@ -9,7 +9,7 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * Tests for RemoveFromSearch job.
@@ -19,12 +19,6 @@ use Mockery;
  */
 class RemoveFromSearchTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
-    }
-
     public function testHandleCallsEngineDelete(): void
     {
         $model1 = new SearchableModel(['title' => 'First', 'body' => 'Content']);
@@ -35,10 +29,10 @@ class RemoveFromSearchTest extends ScoutTestCase
 
         $collection = new Collection([$model1, $model2]);
 
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldReceive('delete')
             ->once()
-            ->with(Mockery::on(function ($models) {
+            ->with(m::on(function ($models) {
                 return $models instanceof RemoveableScoutCollection
                     && $models->count() === 2;
             }));
@@ -62,7 +56,7 @@ class RemoveFromSearchTest extends ScoutTestCase
     {
         $collection = new Collection([]);
 
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldNotReceive('delete');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {

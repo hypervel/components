@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\HttpClient\ConnectionException;
 use Hypervel\HttpClient\Factory as HttpFactory;
 use Hypervel\HttpClient\Response;
@@ -109,7 +109,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
         $exceptionHandler->shouldReceive('report')->once()->with($exception);
-        $this->app->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+        $this->app->singleton(ExceptionHandler::class, function () use ($exceptionHandler) {
             return $exceptionHandler;
         });
 

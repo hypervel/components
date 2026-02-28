@@ -14,7 +14,11 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
-        }
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }        
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
@@ -29,25 +33,26 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/config": "~3.1.0",
-        "hyperf/support": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/support": "^0.4",
         "laravel/serializable-closure": "^1.3",
         "psr/simple-cache": "^3.0"
     },
     "suggest": {
-        "hyperf/redis": "Required to use redis driver. (~3.1.0)",
-        "hypervel/cache": "Required to use file lock. (~0.1.0)"
+        "hypervel/redis": "Required to use redis driver. (^0.4).",
+        "hypervel/cache": "Required to use file lock. (^0.4)"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Cache\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Cache\\CacheServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

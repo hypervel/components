@@ -1,0 +1,17 @@
+{
+    "autoload": {
+        "psr-4": {
+            "App\\One\\": "app/"
+        }
+    },
+    "extra": {
+        "hypervel": {
+            "dont-discover": [
+                "package-four"
+            ],
+            "aliases": {
+                "TestAlias": "TestClass"
+            }
+        }
+    }
+}

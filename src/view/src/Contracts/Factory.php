@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Contracts;
 
 use Closure;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 
 interface Factory
 {

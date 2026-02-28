@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class SimpleObjectPool extends ObjectPool
 {
@@ -18,10 +18,10 @@ class SimpleObjectPool extends ObjectPool
     /**
      * Create a new SimpleObjectPool instance.
      *
-     * @param ContainerInterface $container The container instance
+     * @param Container $container The container instance
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         callable $callback,
         array $config = []
     ) {

@@ -1,0 +1,52 @@
+{
+    "name": "hypervel/serializer",
+    "type": "library",
+    "description": "The Hypervel Serializer package for data normalization and denormalization.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "serializer",
+        "normalizer",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Serializer\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "doctrine/instantiator": "^1.5|^2.0",
+        "hypervel/contracts": "^0.4",
+        "symfony/property-access": "^8.0",
+        "symfony/serializer": "^8.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Serializer\\SerializerServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

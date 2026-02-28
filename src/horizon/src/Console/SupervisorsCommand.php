@@ -6,7 +6,9 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:supervisors')]
 class SupervisorsCommand extends Command
 {
     /**

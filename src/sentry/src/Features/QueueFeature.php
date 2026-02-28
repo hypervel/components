@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Closure;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -65,7 +65,7 @@ class QueueFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
         $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
         $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
 
@@ -227,7 +227,10 @@ class QueueFeature extends Feature
     public function handleJobFailedEvent(JobFailed $event): void
     {
         $this->maybeFinishSpan(SpanStatus::internalError());
-        $this->maybePopScope();
+
+        // Don't pop scope here - breadcrumbs need to remain available for exception
+        // reporting. The next JobProcessing event will clean up via its maybePopScope()
+        // call before pushing a new scope.
     }
 
     public function handleWorkerStoppingQueueEvent(WorkerStopping $event): void

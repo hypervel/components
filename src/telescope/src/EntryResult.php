@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Carbon\CarbonInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use JsonSerializable;
 
 class EntryResult implements JsonSerializable

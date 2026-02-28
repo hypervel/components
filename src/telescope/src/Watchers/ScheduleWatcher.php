@@ -6,11 +6,11 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Console\Events;
 use Hypervel\Console\Scheduling\CallbackEvent;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class ScheduleWatcher extends Watcher
 {
@@ -22,12 +22,12 @@ class ScheduleWatcher extends Watcher
     /**
      * The application instance.
      */
-    protected ?ContainerInterface $app = null;
+    protected ?Container $app = null;
 
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         if (! in_array($_SERVER['argv'][1] ?? null, ['crontab:run', 'schedule:run'])) {
             return;
@@ -35,11 +35,11 @@ class ScheduleWatcher extends Watcher
 
         $this->app = $app;
 
-        $this->entriesRepository = $app->get(EntriesRepository::class);
+        $this->entriesRepository = $app->make(EntriesRepository::class);
 
         Telescope::startRecording();
 
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen([
                 Events\ScheduledTaskStarting::class,
                 Events\ScheduledTaskFinished::class,

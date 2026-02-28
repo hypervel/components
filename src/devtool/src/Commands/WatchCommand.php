@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Commands;
 
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Concerns\NullDisableEventDispatcher;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Watcher\Option;
 use Hyperf\Watcher\Watcher;
-use Psr\Container\ContainerInterface;
+use Hypervel\Console\Command;
+use Hypervel\Console\Concerns\NullDisableEventDispatcher;
+use Hypervel\Contracts\Container\Container;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-use function Hyperf\Support\make;
-
-class WatchCommand extends HyperfCommand
+#[AsCommand(name: 'watch')]
+class WatchCommand extends Command
 {
     use NullDisableEventDispatcher;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         parent::__construct('watch');
         $this->setDescription('A hot-reload watcher command for restarting server when files changed.');
@@ -35,7 +34,7 @@ class WatchCommand extends HyperfCommand
             return;
         }
 
-        $options = $this->container->get(ConfigInterface::class)->get('watcher', []);
+        $options = $this->container->make('config')->get('watcher', []);
         if (empty($options)
             && file_exists($defaultConfigPath = BASE_PATH . '/vendor/hyperf/watcher/publish/watcher.php')
         ) {
@@ -49,14 +48,14 @@ class WatchCommand extends HyperfCommand
             $options['command'] = 'artisan serve';
         }
 
-        $option = make(Option::class, [
+        $option = $this->container->make(Option::class, [
             'options' => $options,
             'dir' => $this->input->getOption('dir'),
             'file' => $this->input->getOption('file'),
             'restart' => ! $this->input->getOption('no-restart'),
         ]);
 
-        $watcher = make(Watcher::class, [
+        $watcher = $this->container->make(Watcher::class, [
             'option' => $option,
             'output' => $this->output,
         ]);

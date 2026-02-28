@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Benchmark;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Support\Number;
 
 /**

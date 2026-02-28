@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 class SelectPrompt extends Prompt
@@ -67,7 +67,7 @@ class SelectPrompt extends Prompt
      */
     public function value(): int|string|null
     {
-        if (static::$interactive === false) {
+        if (static::isInteractive() === false) {
             return $this->default;
         }
 

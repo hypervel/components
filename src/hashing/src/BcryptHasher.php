@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
-use Hypervel\Hashing\Contracts\Hasher as HasherContract;
+use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use RuntimeException;
 
 class BcryptHasher extends AbstractHasher implements HasherContract
@@ -68,6 +68,42 @@ class BcryptHasher extends AbstractHasher implements HasherContract
         return password_needs_rehash($hashedValue, PASSWORD_BCRYPT, [
             'cost' => $this->cost($options),
         ]);
+    }
+
+    /**
+     * Verifies that the configuration is less than or equal to what is configured.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        return $this->isUsingCorrectAlgorithm($hashedValue) && $this->isUsingValidOptions($hashedValue);
+    }
+
+    /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'bcrypt';
+    }
+
+    /**
+     * Verify the hashed value's options.
+     */
+    protected function isUsingValidOptions(string $hashedValue): bool
+    {
+        ['options' => $options] = $this->info($hashedValue);
+
+        if (! is_int($options['cost'] ?? null)) {
+            return false;
+        }
+
+        if ($options['cost'] > $this->rounds) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

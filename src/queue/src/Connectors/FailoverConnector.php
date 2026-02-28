@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class FailoverConnector implements ConnectorInterface
 {
@@ -16,7 +16,7 @@ class FailoverConnector implements ConnectorInterface
      */
     public function __construct(
         protected QueueManager $manager,
-        protected EventDispatcherInterface $events
+        protected Dispatcher $events
     ) {
     }
 

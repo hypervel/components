@@ -5,21 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Di\Definition\DefinitionSourceInterface;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Config\ProviderConfig;
 use Hypervel\Container\Container;
-use Hypervel\Container\DefinitionSourceFactory;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Traits\Macroable;
+use ReflectionClass;
 use RuntimeException;
 
-use function Hyperf\Collection\data_get;
 use function Hypervel\Filesystem\join_paths;
 
 class Application extends Container implements ApplicationContract
@@ -31,12 +32,12 @@ class Application extends Container implements ApplicationContract
      *
      * @var string
      */
-    public const VERSION = '0.3.18';
+    public const VERSION = '0.4';
 
     /**
      * The base path for the Hypervel installation.
      */
-    protected string $basePath;
+    protected string $basePath = '';
 
     /**
      * Indicates if the application has been bootstrapped before.
@@ -63,6 +64,13 @@ class Application extends Container implements ApplicationContract
     protected array $bootedCallbacks = [];
 
     /**
+     * The array of registered callbacks.
+     *
+     * @var callable[]
+     */
+    protected array $registeredCallbacks = [];
+
+    /**
      * All of the registered service providers.
      *
      * @var array<string, ServiceProvider>
@@ -79,19 +87,14 @@ class Application extends Container implements ApplicationContract
      */
     protected ?string $namespace;
 
-    public function __construct(?DefinitionSourceInterface $definitionSource = null, ?string $basePath = null)
+    public function __construct(?string $basePath = null)
     {
-        $this->setBasePath($basePath ?: BASE_PATH);
-
-        parent::__construct($definitionSource ?: $this->getDefinitionSource());
+        $this->setBasePath($basePath ?: (defined('BASE_PATH') ? BASE_PATH : ''));
 
         $this->registerBaseBindings();
+        $this->registerBaseServiceProviders();
         $this->registerCoreContainerAliases();
-    }
-
-    protected function getDefinitionSource(): DefinitionSourceInterface
-    {
-        return (new DefinitionSourceFactory())();
+        $this->registerConfigProviderDependencies();
     }
 
     /**
@@ -107,7 +110,97 @@ class Application extends Container implements ApplicationContract
      */
     protected function registerBaseBindings(): void
     {
-        $this->instance(ContainerInterface::class, $this);
+        static::setInstance($this);
+
+        $this->instance('app', $this);
+        $this->instance(Container::class, $this);
+        $this->instance(ContainerContract::class, $this);
+        $this->instance(ApplicationContract::class, $this);
+        $this->instance(\Psr\Container\ContainerInterface::class, $this);
+
+        // Console application must be bound before service providers because
+        // resolving it triggers Kernel::getArtisan() which calls bootstrap().
+        $this->singleton(
+            \Hypervel\Contracts\Console\Application::class,
+            fn ($app) => $app->make(\Hypervel\Contracts\Console\Kernel::class)->getArtisan()
+        );
+
+        // StdoutLogger is resolved during Kernel bootstrap before service
+        // providers run, so the binding must exist here.
+        $this->singleton(
+            \Hypervel\Contracts\Log\StdoutLoggerInterface::class,
+            \Hypervel\Framework\Logger\StdoutLogger::class
+        );
+    }
+
+    /**
+     * Register all of the base service providers.
+     */
+    protected function registerBaseServiceProviders(): void
+    {
+        $this->register(new \Hypervel\Events\EventServiceProvider($this));
+    }
+
+    /**
+     * Determine if the given abstract type has been bound.
+     *
+     * The facade system calls has() before get() to check if a service is
+     * resolvable. With auto-singleton semantics, any concrete class can be
+     * resolved, so has() must return true for existing classes.
+     */
+    public function has(string $id): bool
+    {
+        return parent::has($id) || class_exists($id);
+    }
+
+    /**
+     * Register ConfigProvider dependencies as singletons.
+     *
+     * This is a temporary bridge that replaces the old DefinitionSourceFactory system
+     * which pre-loaded ConfigProvider dependencies into the Hyperf container before
+     * the Application existed. Once all packages are migrated to ServiceProviders,
+     * this method can be removed.
+     */
+    protected function registerConfigProviderDependencies(): void
+    {
+        if (! class_exists(ProviderConfig::class) || ! defined('BASE_PATH')) {
+            return;
+        }
+
+        $dependencies = ProviderConfig::load()['dependencies'] ?? [];
+
+        $paths = [
+            $this->basePath('config/autoload/dependencies.php'),
+            $this->basePath('config/dependencies.php'),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                $definitions = include $path;
+                $dependencies = array_replace($dependencies, $definitions ?? []);
+            }
+        }
+
+        foreach ($dependencies as $abstract => $concrete) {
+            // Resolve alias chain so bindings are stored under the canonical
+            // abstract, not under an alias key that getAlias() would skip.
+            $abstract = $this->getAlias($abstract);
+
+            if ($concrete instanceof Closure) {
+                $this->singleton($abstract, $concrete);
+            } elseif (is_string($concrete) && class_exists($concrete) && method_exists($concrete, '__invoke')) {
+                // Hyperf factory pattern: classes with __invoke() are factories
+                // that produce the actual service when called.
+                $this->singleton($abstract, function ($app) use ($concrete) {
+                    return $app->make($concrete)($app);
+                });
+            } elseif (is_string($concrete)) {
+                // Use a closure to build the concrete class directly, bypassing
+                // the alias chain. Without this, string concretes that are also
+                // aliased back to the abstract create infinite resolution cycles.
+                $this->singleton($abstract, fn ($app) => $app->build($concrete));
+            }
+        }
     }
 
     /**
@@ -306,6 +399,90 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Determine if the application is currently down for maintenance.
+     *
+     * @TODO Implement properly once maintenance mode is ported.
+     */
+    public function isDownForMaintenance(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Register a new registered listener.
+     */
+    public function registered(callable $callback): void
+    {
+        $this->registeredCallbacks[] = $callback;
+    }
+
+    /**
+     * Register all of the configured providers.
+     *
+     * Providers are loaded in three tiers:
+     * 1. Framework providers (Hypervel\* from app.providers) — always first
+     * 2. Discovered providers (from composer packages) — sorted by priority
+     * 3. Application providers (non-Hypervel\* from app.providers) — always last
+     */
+    public function registerConfiguredProviders(): void
+    {
+        $providers = (new Collection($this->make('config')->get('app.providers', [])))
+            ->partition(fn (string $provider) => str_starts_with($provider, 'Hypervel\\'));
+
+        $discovered = static::sortByPriority($this->discoverProviders());
+
+        $providers->splice(1, 0, [$discovered]);
+
+        foreach ($providers->collapse()->unique()->all() as $provider) {
+            $this->register($provider);
+        }
+
+        $this->fireAppCallbacks($this->registeredCallbacks);
+    }
+
+    /**
+     * Discover service providers from installed composer packages.
+     *
+     * @return array<int, class-string>
+     */
+    protected function discoverProviders(): array
+    {
+        return RegisterProviders::discoveredProviders();
+    }
+
+    /**
+     * Sort providers by their priority property in descending order.
+     *
+     * Higher priority values are loaded first. Providers with the same
+     * priority preserve their original order (stable sort).
+     *
+     * @param array<int, class-string> $providers
+     * @return array<int, class-string>
+     */
+    protected static function sortByPriority(array $providers): array
+    {
+        if (empty($providers)) {
+            return [];
+        }
+
+        // Read priority from each provider's default property value without instantiation
+        $prioritized = array_map(function (string $provider) {
+            $priority = 0;
+
+            if (class_exists($provider) && is_subclass_of($provider, ServiceProvider::class)) {
+                $priority = (new ReflectionClass($provider))->getDefaultProperties()['priority'] ?? 0;
+            }
+
+            return ['provider' => $provider, 'priority' => $priority];
+        }, $providers);
+
+        // Stable sort: higher priority first, original order preserved within same priority
+        usort($prioritized, fn (array $a, array $b) => $b['priority'] <=> $a['priority']);
+
+        return array_column($prioritized, 'provider');
+    }
+
+    /**
      * Register a service provider with the application.
      */
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider
@@ -323,12 +500,19 @@ class Application extends Container implements ApplicationContract
 
         $provider->register();
 
-        // If there are bindings set as properties on the provider we
+        // If there are bindings / singletons set as properties on the provider we
         // will spin through them and register them with the application, which
         // serves as a convenience layer while registering a lot of bindings.
         if (property_exists($provider, 'bindings')) {
             foreach ($provider->bindings as $key => $value) {
                 $this->bind($key, $value);
+            }
+        }
+
+        if (property_exists($provider, 'singletons')) {
+            foreach ($provider->singletons as $key => $value) {
+                $key = is_int($key) ? $value : $key;
+                $this->singleton($key, $value);
             }
         }
 
@@ -542,120 +726,128 @@ class Application extends Container implements ApplicationContract
 
     /**
      * Register the core class aliases in the container.
+     *
+     * The key is the abstract (a resolvable FQCN), and the values are aliases
+     * that should resolve to it. This direction is important: aliases point TO
+     * the FQCN, so resolving an alias follows through to a real class. The
+     * reversed direction (short name as key) would require service provider
+     * bindings for each short name, which don't exist yet.
      */
     protected function registerCoreContainerAliases(): void
     {
         foreach ([
             \Psr\Container\ContainerInterface::class => [
                 'app',
-                \Hyperf\Di\Container::class,
-                \Hyperf\Contract\ContainerInterface::class,
-                \Hypervel\Container\Contracts\Container::class,
+                \Hypervel\Contracts\Container\Container::class,
                 \Hypervel\Container\Container::class,
-                \Hypervel\Foundation\Contracts\Application::class,
+                \Hypervel\Contracts\Foundation\Application::class,
                 \Hypervel\Foundation\Application::class,
             ],
-            \Hypervel\Foundation\Console\Contracts\Kernel::class => ['artisan'],
-            \Hyperf\Contract\ConfigInterface::class => [
-                'config',
-                \Hypervel\Config\Contracts\Repository::class,
-            ],
-            \Psr\EventDispatcher\EventDispatcherInterface::class => [
-                'events',
-                \Hypervel\Event\Contracts\Dispatcher::class,
-            ],
-            \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
-            \Psr\Log\LoggerInterface::class => [
-                'log',
-                \Hypervel\Log\LogManager::class,
-            ],
-            \Hypervel\Encryption\Contracts\Encrypter::class => [
-                'encrypter',
-                \Hypervel\Encryption\Encrypter::class,
-            ],
-            \Hypervel\Cache\Contracts\Factory::class => [
-                'cache',
-                \Hypervel\Cache\CacheManager::class,
-            ],
-            \Hypervel\Cache\Contracts\Store::class => [
-                'cache.store',
-                \Hypervel\Cache\Repository::class,
-            ],
-            \Hypervel\Filesystem\Filesystem::class => ['files'],
-            \Hypervel\Filesystem\Contracts\Factory::class => [
-                'filesystem',
-                \Hypervel\Filesystem\FilesystemManager::class,
-            ],
-            \Hypervel\Translation\Contracts\Loader::class => [
-                'translator.loader',
-                \Hyperf\Contract\TranslatorLoaderInterface::class,
-            ],
-            \Hypervel\Translation\Contracts\Translator::class => [
-                'translator',
-                \Hyperf\Contract\TranslatorInterface::class,
-            ],
-            \Psr\Http\Message\ServerRequestInterface::class => [
-                'request',
-                \Hyperf\HttpServer\Contract\RequestInterface::class,
-                \Hyperf\HttpServer\Request::class,
-                \Hypervel\Http\Contracts\RequestContract::class,
-            ],
-            \Hypervel\Http\Contracts\ResponseContract::class => [
-                'response',
-                \Hyperf\HttpServer\Contract\ResponseInterface::class,
-                \Hyperf\HttpServer\Response::class,
-            ],
-            \Hyperf\DbConnection\Db::class => ['db'],
-            \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
-            \Hypervel\Auth\Contracts\Factory::class => [
-                'auth',
+            \Hypervel\Contracts\Console\Kernel::class => ['artisan'],
+            'auth' => [
                 \Hypervel\Auth\AuthManager::class,
+                \Hypervel\Contracts\Auth\Factory::class,
             ],
-            \Hypervel\Auth\Contracts\Guard::class => [
-                'auth.driver',
+            'auth.driver' => [\Hypervel\Contracts\Auth\Guard::class],
+            'cache' => [
+                \Hypervel\Cache\CacheManager::class,
+                \Hypervel\Contracts\Cache\Factory::class,
             ],
-            \Hypervel\Hashing\Contracts\Hasher::class => ['hash'],
-            \Hypervel\Cookie\CookieManager::class => ['cookie'],
-            \Hypervel\JWT\Contracts\ManagerContract::class => [
-                'jwt',
+            'cache.store' => [
+                \Hypervel\Cache\Repository::class,
+                \Hypervel\Contracts\Cache\Repository::class,
+            ],
+            \Hypervel\Contracts\Config\Repository::class => [
+                'config',
+                \Hypervel\Config\Repository::class,
+            ],
+            'cookie' => [
+                \Hypervel\Cookie\CookieManager::class,
+                \Hypervel\Contracts\Cookie\Cookie::class,
+            ],
+            'db' => [\Hypervel\Database\DatabaseManager::class],
+            'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
+            'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
+            'encrypter' => [
+                \Hypervel\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\StringEncrypter::class,
+            ],
+            'events' => [
+                \Hypervel\Events\Dispatcher::class,
+                \Hypervel\Contracts\Event\Dispatcher::class,
+            ],
+            'files' => [\Hypervel\Filesystem\Filesystem::class],
+            'filesystem' => [
+                \Hypervel\Filesystem\FilesystemManager::class,
+                \Hypervel\Contracts\Filesystem\Factory::class,
+            ],
+            'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
+            'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
+            'hash' => [\Hypervel\Hashing\HashManager::class, \Hypervel\Contracts\Hashing\Hasher::class],
+            'hash.driver' => [],
+            'jwt' => [
                 \Hypervel\JWT\JWTManager::class,
+                \Hypervel\JWT\Contracts\ManagerContract::class,
             ],
-            \Hyperf\Redis\Redis::class => ['redis'],
-            \Hypervel\Router\Router::class => ['router'],
-            \Hypervel\Router\Contracts\UrlGenerator::class => [
-                'url',
-                \Hypervel\Router\UrlGenerator::class,
+            'log' => [
+                \Hypervel\Log\LogManager::class,
+                \Psr\Log\LoggerInterface::class,
             ],
-            \Hypervel\View\Contracts\Factory::class => ['view'],
-            \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
-            \Hypervel\Session\Contracts\Factory::class => [
-                'session',
-                \Hypervel\Session\SessionManager::class,
-            ],
-            \Hypervel\Session\Contracts\Session::class => ['session.store'],
-            \Hypervel\Mail\Contracts\Factory::class => [
+            \Hypervel\Contracts\Mail\Factory::class => [
                 'mail.manager',
                 \Hypervel\Mail\MailManager::class,
             ],
-            \Hypervel\Mail\Contracts\Mailer::class => ['mailer'],
-            \Hypervel\Notifications\Contracts\Dispatcher::class => [
-                \Hypervel\Notifications\Contracts\Factory::class,
-            ],
-            \Hypervel\Bus\Contracts\Dispatcher::class => [
-                \Hypervel\Bus\Contracts\QueueingDispatcher::class,
-                \Hypervel\Bus\Dispatcher::class,
-            ],
-            \Hypervel\Queue\Contracts\Factory::class => [
-                'queue',
-                \Hypervel\Queue\Contracts\Monitor::class,
+            \Hypervel\Contracts\Mail\Mailer::class => ['mailer'],
+            \Hypervel\Database\Migrations\Migrator::class => ['migrator'],
+            'queue' => [
                 \Hypervel\Queue\QueueManager::class,
+                \Hypervel\Contracts\Queue\Factory::class,
+                \Hypervel\Contracts\Queue\Monitor::class,
             ],
-            \Hypervel\Queue\Contracts\Queue::class => ['queue.connection'],
-            \Hypervel\Queue\Worker::class => ['queue.worker'],
-            \Hypervel\Queue\Listener::class => ['queue.listener'],
-            \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
-            \Hypervel\Validation\Contracts\Factory::class => ['validator'],
-            \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
+            'queue.connection' => [\Hypervel\Contracts\Queue\Queue::class],
+            'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
+            'queue.listener' => [\Hypervel\Queue\Listener::class],
+            'queue.worker' => [\Hypervel\Queue\Worker::class],
+            'redis' => [\Hypervel\Redis\Redis::class],
+            'request' => [
+                \Psr\Http\Message\ServerRequestInterface::class,
+                \Hypervel\HttpServer\Contracts\RequestInterface::class,
+                \Hypervel\HttpServer\Request::class,
+                \Hypervel\Contracts\Http\Request::class,
+                \Hypervel\Http\Request::class,
+            ],
+            'response' => [
+                \Hypervel\Contracts\Http\Response::class,
+                \Hypervel\HttpServer\Contracts\ResponseInterface::class,
+                \Hypervel\HttpServer\Response::class,
+                \Hypervel\Http\Response::class,
+            ],
+            'router' => [\Hypervel\Router\Router::class],
+            'url' => [
+                \Hypervel\Contracts\Router\UrlGenerator::class,
+                \Hypervel\Router\UrlGenerator::class,
+            ],
+            'validator' => [
+                \Hypervel\Validation\Factory::class,
+                \Hypervel\Contracts\Validation\Factory::class,
+            ],
+            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
+            \Hypervel\View\Contracts\Factory::class => ['view'],
+            \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
+            'session' => [
+                \Hypervel\Session\SessionManager::class,
+                \Hypervel\Contracts\Session\Factory::class,
+            ],
+            'session.store' => [\Hypervel\Contracts\Session\Session::class],
+            'translator' => [
+                \Hypervel\Translation\Translator::class,
+                \Hypervel\Contracts\Translation\Translator::class,
+            ],
+            'translator.loader' => [
+                \Hypervel\Translation\FileLoader::class,
+                \Hypervel\Contracts\Translation\Loader::class,
+            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

@@ -16,18 +16,105 @@ parameters:
   excludePaths:
     - %currentWorkingDirectory%/src/helper/*
     - %currentWorkingDirectory%/tests/*
+    - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
     - %currentWorkingDirectory%/src/*/class_map/*
     - %currentWorkingDirectory%/src/foundation/src/helpers.php
     - %currentWorkingDirectory%/src/foundation/src/Testing/Concerns/*
-    - %currentWorkingDirectory%/src/foundation/src/Testing/Constraints/*
     - %currentWorkingDirectory%/src/foundation/src/Http/WebsocketKernel.php
     - %currentWorkingDirectory%/src/log/src/Adapter/*
+    - %currentWorkingDirectory%/src/container/src/Attributes/Context.php
     - %currentWorkingDirectory%/src/support/src/Js.php
     - %currentWorkingDirectory%/src/notifications/src/DatabaseNotification.php
   ignoreErrors:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
+
+    # Fluent class uses magic __get/__set/__call for dynamic properties and methods (ColumnDefinition, IndexDefinition, etc.)
+    - '#Access to an undefined property Hypervel\\Support\\Fluent::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\ColumnDefinition::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\IndexDefinition::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignKeyDefinition::\$#'
+    - '#Call to an undefined method Hypervel\\Support\\Fluent::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ColumnDefinition::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\IndexDefinition::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignKeyDefinition::#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
+
+    # NodeTrait methods - mixed in at app level, not on base Model class
+    - message: '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
+      path: src/nested-set/*
+
+    # SoftDeletes trait methods - optionally mixed in, can't be statically verified
+    - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'
+
+    # Generic template type limitations - PHPStan can't resolve methods through generic TModel/TRelatedModel
+    - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
+    - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
+    - '#Call to an undefined method TPivotModel of Hypervel\\Database\\Eloquent\\Relations\\Pivot::#'
+
+    # Container::getInstance() - PHPStan sees the interface as abstract but concrete implementation exists at runtime
+    - identifier: staticMethod.callToAbstract
+      path: src/database/*
+
+    # Deep generic template limitations - PHPStan can't fully resolve complex generic type relationships
+    - identifier: generics.lessTypes
+      path: src/database/*
+    - identifier: generics.notSubtype
+      path: src/database/*
+    - identifier: method.templateTypeNotInParameter
+      path: src/database/*
+
+    # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant
+    # for semantic documentation on collection-like classes even though it violates strict variance rules.
+    # The code is functionally correct; this is a PHPStan limitation with PHP's lack of runtime generics.
+    - identifier: generics.variance
+
+    # Eloquent Relation subclass method overrides - covariance/contravariance issues with complex generics
+    # (e.g., Builder<*> vs Builder<TModel>, parameter type narrowing in overrides)
+    - identifier: method.childReturnType
+      path: src/database/*
+    - identifier: method.childParameterType
+      path: src/database/*
+
+    # Eloquent @mixin forwarding loses Eloquent\Builder type - methods forwarded via __call return Query\Builder
+    # but actually return $this (Eloquent\Builder) at runtime
+    - message: '#Method .* should return Hypervel\\Database\\Eloquent\\Builder<.*> but returns Hypervel\\Database\\Query\\Builder\.$#'
+      path: src/database/*
+
+    # Relation @mixin forwarding - Relation methods returning $this forward to Builder methods
+    # PHPStan sees Builder return type but the actual return is $this (the Relation)
+    - message: '#should return \$this\(Hypervel\\Database\\Eloquent\\Relations\\.+\) but returns Hypervel\\Database\\(Query|Eloquent)\\Builder#'
+      path: src/database/*
+
+    # Collection template covariance - specific array shapes are subtypes of array<string, mixed>
+    # but Collection<TValue> is invariant, so PHPStan rejects the more specific return type
+    - message: '#should return Hypervel\\Support\\Collection<.+, array<.+>> but returns Hypervel\\Support\\Collection<.+, array\{#'
+
+    # BelongsToMany pivot intersection type - PHPDoc uses object{pivot: ...}&TRelatedModel
+    # to document that models get a pivot property attached, but PHPStan can't track dynamic attachment
+    - message: '#object\{pivot:#'
+      path: src/database/*
+
+    # call_user_func with void callbacks - intentional pattern in Eloquent
+    - '#Result of function call_user_func \(void\) is used\.#'
+    - '#Result of callable passed to call_user_func\(\) \(void\) is used\.#'
+
+    # Boolean narrowing issues - PHPStan over-narrows types in conditionals
+    - identifier: booleanAnd.rightAlwaysTrue
+      path: src/database/*
+
+    # Eloquent Model magic __call forwarding to Query Builder
+    - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
+    - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
+
+    # Driver-specific methods (MySQL/MariaDB)
+    - '#Call to an undefined method Hypervel\\Database\\Connection::isMaria\(\)#'
+
+    # Non-generic interface usage in PHPDoc (Arrayable, etc.)
+    - '#PHPDoc tag @return contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
+    - '#PHPDoc tag @param contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
     - '#Result of method .* \(void\) is used\.#'
     - '#Unsafe usage of new static#'
     - '#Class [a-zA-Z0-9\\\\_]+ not found.#'
@@ -38,26 +125,31 @@ parameters:
       path: src/foundation/src/Testing/TestCase.php
     - '#Method Redis::eval\(\) invoked with [0-9] parameters, 1-3 required.#'
     - '#Access to an undefined property Hypervel\\Queue\\Jobs\\DatabaseJobRecord::\$.*#'
-    - '#Access to an undefined property Hypervel\\Queue\\Contracts\\Job::\$.*#'
+    - '#Access to an undefined property Hypervel\\Contracts\\Queue\\Job::\$.*#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
-    - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
-    - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
-    - '#Trait Hypervel\\Scout\\Searchable is used zero times and is not analysed#'
-    - message: '#.*#'
-      paths:
-        - src/support/src/Collection.php
-        - src/core/src/Database/Eloquent/Builder.php
-        - src/core/src/Database/Eloquent/Collection.php
-        - src/core/src/Database/Eloquent/Concerns/HasRelationships.php
-        - src/core/src/Database/Eloquent/Concerns/QueriesRelationships.php
-        - src/core/src/Database/Eloquent/Relations/BelongsToMany.php
-        - src/core/src/Database/Eloquent/Relations/HasMany.php
-        - src/core/src/Database/Eloquent/Relations/HasManyThrough.php
-        - src/core/src/Database/Eloquent/Relations/HasOne.php
-        - src/core/src/Database/Eloquent/Relations/HasOneThrough.php
-        - src/core/src/Database/Eloquent/Relations/MorphMany.php
-        - src/core/src/Database/Eloquent/Relations/MorphOne.php
-        - src/core/src/Database/Eloquent/Relations/MorphTo.php
-        - src/core/src/Database/Eloquent/Relations/MorphToMany.php
-        - src/core/src/Database/Eloquent/Relations/Relation.php
+    - '#Access to an undefined property (Hyperf\\Collection|Hypervel\\Support)\\HigherOrderCollectionProxy#'
+    - '#Call to an undefined method Hypervel\\Support\\HigherOrderTapProxy#'
+
+    # View Component base class uses OutputInterface for flexibility, but interactive
+    # subclasses (Ask, Choice, Confirm, Secret) call OutputStyle methods via the Factory
+    - message: '#Call to an undefined method Symfony\\Component\\Console\\Output\\OutputInterface::(askQuestion|confirm)\(\)#'
+      path: src/console/src/View/Components/*
+
+    # Optional class uses magic __get to proxy property access to wrapped value
+    - '#Access to an undefined property Hypervel\\Support\\Optional::\$#'
+
+    # Generic type loss through Builder chain - firstOrFail() returns TModel but phpstan loses it
+    - '#Cannot call method load\(\) on stdClass#'
+
+    # Conditionable::when() callback - PHPDoc requires 2 params but callbacks often only need 1
+    - identifier: argument.type
+      message: '#Parameter \#2 \$callback of method .*::when\(\) expects#'
+
+    # Conditionable trait - dynamic behavior with HigherOrderWhenProxy can't be fully typed
+    - identifier: return.type
+      path: src/conditionable/*
+    - identifier: arguments.count
+      path: src/conditionable/*
+    - identifier: nullCoalesce.expr
+      path: src/conditionable/*

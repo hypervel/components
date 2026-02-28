@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
@@ -17,18 +18,17 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 
 use function Termwind\terminal;
 
+#[AsCommand(name: 'queue:work')]
 class WorkCommand extends Command
 {
-    use HasLaravelStyleCommand;
     use InteractsWithTime;
 
     /**
@@ -74,8 +74,8 @@ class WorkCommand extends Command
      * Create a new queue work command.
      */
     public function __construct(
-        protected ContainerInterface $container,
-        protected ConfigInterface $config,
+        protected Container $container,
+        protected Repository $config,
         protected Worker $worker,
         protected CacheFactory $cache
     ) {
@@ -164,7 +164,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $event = $this->container->get(EventDispatcherInterface::class);
+        $event = $this->container->make(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             $this->writeOutput($event->job, 'starting');
         });
@@ -301,7 +301,7 @@ class WorkCommand extends Command
      */
     protected function logFailedJob(JobFailed $event): void
     {
-        $this->container->get(FailedJobProviderInterface::class)
+        $this->container->make(FailedJobProviderInterface::class)
             ->log(
                 $event->connectionName,
                 $event->job->getQueue(),

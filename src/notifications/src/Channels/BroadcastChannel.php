@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Channels;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Notifications\Events\BroadcastNotificationCreated;
 use Hypervel\Notifications\Messages\BroadcastMessage;
 use Hypervel\Notifications\Notification;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
 class BroadcastChannel
@@ -16,7 +16,7 @@ class BroadcastChannel
      * Create a new broadcast channel.
      */
     public function __construct(
-        protected EventDispatcherInterface $events
+        protected Dispatcher $events
     ) {
     }
 

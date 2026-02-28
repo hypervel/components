@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie;
 
-use Hyperf\Context\RequestContext;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieManager;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
 use TypeError;
 
 enum CookieManagerTestNameEnum: string
@@ -36,6 +36,13 @@ enum CookieManagerTestNameIntEnum: int
  */
 class CookieManagerTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        RequestContext::destroy();
+    }
+
     public function testHas()
     {
         $request = m::mock(RequestInterface::class);

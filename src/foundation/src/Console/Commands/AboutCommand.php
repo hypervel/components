@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Commands;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'about')]
 class AboutCommand extends Command
 {
     protected ?string $signature = 'about {--only= : The section to display}
@@ -20,7 +22,7 @@ class AboutCommand extends Command
     protected string $description = 'Display basic information about your application';
 
     public function __construct(
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Composer $composer,
     ) {
         parent::__construct();

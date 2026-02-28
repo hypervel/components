@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Psr\Log\LoggerInterface;
-
 /**
  * @method static \Psr\Log\LoggerInterface build(array $config)
  * @method static \Psr\Log\LoggerInterface stack(array $channels, string|null $channel = null)
@@ -34,15 +32,15 @@ use Psr\Log\LoggerInterface;
  * @method static array getContext()
  * @method static void listen(\Closure $callback)
  * @method static \Psr\Log\LoggerInterface getLogger()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface getEventDispatcher()
- * @method static \Hypervel\Log\Logger setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $dispatcher)
+ * @method static \Hypervel\Contracts\Event\Dispatcher getEventDispatcher()
+ * @method static \Hypervel\Log\Logger setEventDispatcher(\Hypervel\Contracts\Event\Dispatcher $dispatcher)
  *
  * @see \Hypervel\Log\LogManager
  */
 class Log extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return LoggerInterface::class;
+        return 'log';
     }
 }

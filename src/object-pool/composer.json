@@ -21,12 +21,12 @@
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/coroutine": "~3.1.0",
-        "hyperf/engine": "^2.1",
-        "hyperf/coordinator": "~3.1.0",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/support": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/support": "^0.4",
         "nesbot/carbon": "^2.72.6"
     },
     "autoload": {
@@ -35,11 +35,13 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ObjectPool\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\ObjectPool\\ObjectPoolServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

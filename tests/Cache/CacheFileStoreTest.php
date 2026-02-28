@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Support\Filesystem\FileNotFoundException;
-use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Cache\FileStore;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -127,7 +127,6 @@ class CacheFileStoreTest extends TestCase
         $this->assertTrue($result);
         $result = $store->put('foo', 'baz', 10);
         $this->assertTrue($result);
-        m::close();
     }
 
     public function testStoreItemDirectoryProperlySetsPermissions()
@@ -152,7 +151,6 @@ class CacheFileStoreTest extends TestCase
 
         $result = $store->put('foo', 'foo', 10);
         $this->assertTrue($result);
-        m::close();
     }
 
     public function testForeversAreStoredWithHighTimestamp()

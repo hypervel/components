@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Queue\Contracts\Factory;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\Collection;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:monitor')]
 class MonitorCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
@@ -38,8 +37,8 @@ class MonitorCommand extends Command
      */
     public function __construct(
         protected Factory $manager,
-        protected EventDispatcherInterface $events,
-        protected ConfigInterface $config,
+        protected Dispatcher $events,
+        protected Repository $config,
     ) {
         parent::__construct();
     }
@@ -90,7 +89,7 @@ class MonitorCommand extends Command
      */
     protected function displaySizes(Collection $queues): void
     {
-        $this->table($this->headers, $queues);
+        $this->table($this->headers, $queues->toArray());
     }
 
     /**

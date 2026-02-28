@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Scheduling;
 
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Cache\Contracts\LockProvider;
-use Hypervel\Cache\Contracts\Store;
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\EventMutex;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Store;
 
 class CacheEventMutex implements EventMutex, CacheAware
 {
@@ -32,9 +30,11 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function create(Event $event): bool
     {
-        if ($this->shouldUseLocks($this->cache->store($this->store)->getStore())) {
-            /* @phpstan-ignore-next-line */
-            return $this->cache->store($this->store)->getStore()
+        $store = $this->cache->store($this->store)->getStore();
+
+        if ($this->shouldUseLocks($store)) {
+            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
+            return $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->acquire();
         }
@@ -51,9 +51,11 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function exists(Event $event): bool
     {
-        if ($this->shouldUseLocks($this->cache->store($this->store)->getStore())) {
-            /* @phpstan-ignore-next-line */
-            return ! $this->cache->store($this->store)->getStore()
+        $store = $this->cache->store($this->store)->getStore();
+
+        if ($this->shouldUseLocks($store)) {
+            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
+            return ! $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->get(fn () => true);
         }
@@ -66,9 +68,11 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function forget(Event $event): void
     {
-        if ($this->shouldUseLocks($this->cache->store($this->store)->getStore())) {
-            /* @phpstan-ignore-next-line */
-            $this->cache->store($this->store)->getStore()
+        $store = $this->cache->store($this->store)->getStore();
+
+        if ($this->shouldUseLocks($store)) {
+            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
+            $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->forceRelease();
 

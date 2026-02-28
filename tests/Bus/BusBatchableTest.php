@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Container\Container;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -19,11 +17,6 @@ use PHPUnit\Framework\TestCase;
  */
 class BusBatchableTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBatchMayBeRetrieved()
     {
         $class = new class {
@@ -37,12 +30,9 @@ class BusBatchableTest extends TestCase
         $repository = m::mock(BatchRepository::class);
         $repository->shouldReceive('find')->once()->with('test-batch-id')->andReturn($batch);
 
-        $container = new Container(
-            new DefinitionSource([
-                BatchRepository::class => fn () => $repository,
-            ])
-        );
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(BatchRepository::class, $repository);
+        Container::setInstance($container);
 
         $this->assertSame($batch, $class->batch());
     }

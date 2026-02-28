@@ -29,20 +29,22 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/contract": "~3.1.0",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/support": "^0.3"
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Translation\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Translation\\TranslationServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

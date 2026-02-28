@@ -39,6 +39,16 @@ class BootTraitsTest extends TestCase
 class TestCaseWithTrait extends TestbenchTestCase
 {
     use TestTrait;
+
+    /**
+     * Dummy test method required for setUpTraits() to work.
+     *
+     * PHPUnit TestCase expects the named test method to exist, and
+     * AttributeParser reflects on it to check for database attributes.
+     */
+    public function foo(): void
+    {
+    }
 }
 
 trait TestTrait

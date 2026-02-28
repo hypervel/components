@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Encryption\Contracts\Encrypter as EncrypterContract;
-use Hypervel\Encryption\Exceptions\DecryptException;
+use Hypervel\Contracts\Encryption\DecryptException;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use SessionHandlerInterface;
 
 class EncryptedStore extends Store

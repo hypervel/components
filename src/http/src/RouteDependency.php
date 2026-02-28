@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Closure;
-use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Serializer\NormalizerInterface;
+use Hypervel\HttpServer\Router\Dispatched;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 
 class RouteDependency
 {
@@ -38,7 +38,7 @@ class RouteDependency
     protected bool $resolvingCallbacksRegistered = false;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected NormalizerInterface $normalizer,
         protected MethodDefinitionCollectorInterface $methodDefinitionCollector,
         protected ClosureDefinitionCollectorInterface $closureDefinitionCollector
@@ -162,7 +162,7 @@ class RouteDependency
             } elseif ($definition->getMeta('defaultValueAvailable')) {
                 $dependencies[] = $definition->getMeta('defaultValue');
             } elseif ($this->container->has($name = $definition->getName())) {
-                $dependencies[] = $this->container->get($name);
+                $dependencies[] = $this->container->make($name);
             } elseif ($definition->allowsNull()) {
                 $dependencies[] = null;
             } else {

@@ -46,7 +46,7 @@ class SesTransport extends AbstractTransport implements Stringable
                         'Destinations' => collect($message->getEnvelope()->getRecipients())
                             ->map
                             ->toString()
-                            ->values()
+                            ->values() // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->toString() returns Collection, not string)
                             ->all(),
                         'RawMessage' => [
                             'Data' => $message->toString(),

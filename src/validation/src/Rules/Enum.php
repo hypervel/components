@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use TypeError;
 use UnitEnum;
 

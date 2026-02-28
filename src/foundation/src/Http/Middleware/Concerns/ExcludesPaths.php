@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware\Concerns;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Psr\Http\Message\ServerRequestInterface;
 
 trait ExcludesPaths

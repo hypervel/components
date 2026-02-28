@@ -5,102 +5,125 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Commands;
 
 use Closure;
-use Hyperf\Command\Command as HyperfCommand;
-use Hypervel\Event\Contracts\Dispatcher as EventDispatcherContract;
-use Hypervel\Event\ListenerData;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Events\Dispatcher;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class EventListCommand extends HyperfCommand
+/**
+ * Lists all registered events and their listeners.
+ */
+#[AsCommand(name: 'event:list')]
+class EventListCommand extends Command
 {
-    public function __construct(private ContainerInterface $container)
+    public function __construct(private Container $container)
     {
         parent::__construct('event:list');
     }
 
-    public function handle()
+    public function handle(): void
     {
-        $event = $this->input->getOption('event');
-        $listener = $this->input->getOption('listener');
+        $eventFilter = $this->input->getOption('event');
+        $listenerFilter = $this->input->getOption('listener');
 
-        /** @var EventDispatcherContract $dispatcher */
-        $dispatcher = $this->container->get(EventDispatcherInterface::class);
-        $this->show($this->handleData($dispatcher, $event, $listener), $this->output);
+        /** @var \Hypervel\Events\Dispatcher $dispatcher */
+        $dispatcher = $this->container->make(DispatcherContract::class);
+
+        $this->show($this->handleData($dispatcher, $eventFilter, $listenerFilter), $this->output);
     }
 
-    protected function configure()
+    protected function configure(): void
     {
         $this->setDescription("List the application's events and listeners.")
             ->addOption('event', 'e', InputOption::VALUE_OPTIONAL, 'Filter the events by event name.')
             ->addOption('listener', 'l', InputOption::VALUE_OPTIONAL, 'Filter the events by listener name.');
     }
 
-    protected function handleData(EventDispatcherInterface $dispatcher, ?string $filterEvent, ?string $filterListener): array
+    /**
+     * Process raw listeners into display format.
+     */
+    protected function handleData(Dispatcher $dispatcher, ?string $eventFilter, ?string $listenerFilter): array
     {
         $data = [];
-        if (! $dispatcher instanceof EventDispatcherContract) {
-            return $data;
-        }
 
-        foreach ($dispatcher->getRawListeners() as $event => $listeners) {
-            if (! is_array($listeners)) {
+        foreach ($dispatcher->getRawListeners() as $event => $rawListeners) {
+            if (! is_array($rawListeners)) {
                 continue;
             }
 
-            if ($filterEvent && ! str_contains($event, $filterEvent)) {
+            if ($eventFilter && ! str_contains($event, $eventFilter)) {
                 continue;
             }
 
-            $listeners = array_filter($listeners, function ($listener) use ($filterListener) {
-                if (! $listener instanceof ListenerData) {
-                    return false;
+            $formattedListeners = [];
+
+            foreach ($rawListeners as $listener) {
+                $formatted = $this->formatListener($listener);
+
+                if ($listenerFilter && ! str_contains($formatted, $listenerFilter)) {
+                    continue;
                 }
 
-                return ! $filterListener || str_contains($listener->listener, $filterListener);
-            });
+                $formattedListeners[] = $formatted;
+            }
 
-            $listeners = array_map(function ($listener) {
-                $listener = $listener->listener;
-                if (is_array($listener) && count($listener) === 2) {
-                    [$object, $method] = $listener;
-                    $listenerClassName = is_string($object)
-                        ? $object
-                        : get_class($object);
-
-                    return implode('::', [$listenerClassName, $method]);
-                }
-
-                if (is_string($listener)) {
-                    return $listener;
-                }
-
-                if ($listener instanceof Closure) {
-                    return 'Closure';
-                }
-
-                return 'Unknown listener';
-            }, $listeners);
-
-            $data[$event]['events'] = $event;
-            $data[$event]['listeners'] = array_merge($data[$event]['listeners'] ?? [], $listeners);
+            if (! empty($formattedListeners)) {
+                $data[$event] = [
+                    'events' => $event,
+                    'listeners' => $formattedListeners,
+                ];
+            }
         }
 
         return $data;
     }
 
+    /**
+     * Format a raw listener for display.
+     */
+    protected function formatListener(mixed $listener): string
+    {
+        if (is_string($listener)) {
+            return $listener;
+        }
+
+        if ($listener instanceof Closure) {
+            return 'Closure';
+        }
+
+        if (is_array($listener) && count($listener) === 2) {
+            [$object, $method] = $listener;
+            $className = is_string($object) ? $object : get_class($object);
+
+            return $className . '::' . $method;
+        }
+
+        return 'Unknown listener';
+    }
+
     protected function show(array $data, OutputInterface $output): void
     {
+        if (empty($data)) {
+            $output->writeln('<info>No events registered.</info>');
+
+            return;
+        }
+
         $rows = [];
-        foreach ($data as $route) {
-            $route['listeners'] = implode(PHP_EOL, (array) $route['listeners']);
-            $rows[] = $route;
+        foreach ($data as $row) {
+            $row['listeners'] = implode(PHP_EOL, (array) $row['listeners']);
+            $rows[] = $row;
             $rows[] = new TableSeparator();
         }
-        $rows = array_slice($rows, 0, count($rows) - 1);
+
+        // Remove trailing separator
+        array_pop($rows);
+
         $table = new Table($output);
         $table->setHeaders(['Events', 'Listeners'])->setRows($rows);
         $table->render();

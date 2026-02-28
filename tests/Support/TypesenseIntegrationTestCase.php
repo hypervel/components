@@ -4,31 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Throwable;
-use Typesense\Client as TypesenseClient;
 
 /**
  * Base test case for Typesense integration tests.
  *
- * Provides parallel-safe Typesense testing infrastructure:
- * - Uses TEST_TOKEN env var (from paratest) to create unique collection prefixes
- * - Configures Typesense client from environment variables
- * - Cleans up test collections in setUp/tearDown
+ * Uses InteractsWithTypesense trait for:
+ * - Auto-skip: Skips tests if Typesense is unavailable (no env var needed)
+ * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
+ * - Auto-cleanup: Removes test collections in teardown
  *
  * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
  * should add the trait if they need coroutine context for their tests.
- *
- * NOTE: Concrete test classes extending this MUST add @group integration
- * and @group typesense-integration for proper test filtering in CI.
  *
  * @internal
  * @coversNothing
  */
 abstract class TypesenseIntegrationTestCase extends TestCase
 {
+    use InteractsWithTypesense;
+
     /**
      * Base collection prefix for integration tests.
      */
@@ -40,11 +38,6 @@ abstract class TypesenseIntegrationTestCase extends TestCase
     protected string $testPrefix;
 
     /**
-     * The Typesense client instance.
-     */
-    protected TypesenseClient $typesense;
-
-    /**
      * Track collections created during tests for cleanup.
      *
      * @var array<string>
@@ -53,13 +46,8 @@ abstract class TypesenseIntegrationTestCase extends TestCase
 
     protected function setUp(): void
     {
-        if (! env('RUN_TYPESENSE_INTEGRATION_TESTS', false)) {
-            $this->markTestSkipped(
-                'Typesense integration tests are disabled. Set RUN_TYPESENSE_INTEGRATION_TESTS=true to enable.'
-            );
-        }
-
         $this->computeTestPrefix();
+        $this->typesenseTestPrefix = $this->testPrefix; // Sync trait's prefix
 
         parent::setUp();
 
@@ -72,18 +60,18 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      *
      * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
      * Subclasses NOT using the trait should call this at the end of setUp().
+     *
+     * Uses the trait's auto-skip logic - skips if Typesense is unavailable.
      */
     protected function initializeTypesense(): void
     {
-        $this->typesense = $this->app->get(TypesenseClient::class);
-        $this->cleanupTestCollections();
+        $this->setUpInteractsWithTypesense();
     }
 
     protected function tearDown(): void
     {
-        if (isset($this->typesense)) {
-            $this->cleanupTestCollections();
-        }
+        $this->tearDownInteractsWithTypesense();
+        $this->createdCollections = [];
 
         parent::tearDown();
     }
@@ -107,7 +95,7 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      */
     protected function configureTypesense(): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
 
         $host = env('TYPESENSE_HOST', '127.0.0.1');
         $port = env('TYPESENSE_PORT', '8108');

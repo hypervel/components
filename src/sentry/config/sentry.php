@@ -14,8 +14,6 @@ use Sentry\Integration\EnvironmentIntegration;
 use Sentry\Integration\FrameContextifierIntegration;
 use Sentry\Integration\TransactionIntegration;
 
-use function Hyperf\Support\env;
-
 return [
     'dsn' => env('SENTRY_DSN', ''),
 
@@ -101,7 +99,6 @@ return [
     'ignore_commands' => [
         'crontab:run',
         'make:*',
-        'gen:*',
         'migrate*',
         'tinker',
         'vendor:publish',

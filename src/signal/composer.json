@@ -1,0 +1,52 @@
+{
+    "name": "hypervel/signal",
+    "type": "library",
+    "description": "The Hypervel Signal package for OS signal handling.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "signal",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Signal\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/support": "^0.4"
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Signal\\SignalServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

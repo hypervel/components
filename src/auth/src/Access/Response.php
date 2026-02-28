@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Stringable;
 
 class Response implements Arrayable, Stringable

@@ -14,10 +14,10 @@ declare(strict_types=1);
  */
 return [
     // Regular listeners (numeric keys - should be appended)
-    'Hyperf\ModelListener\Listener\ModelEventListener',
-    'Hyperf\Process\Listener\BootProcessListener',
+    'App\Listeners\ModelEventListener',
+    'Hypervel\ServerProcess\Listeners\BootProcessListener',
 
     // Priority listeners (string keys - MUST be preserved)
-    'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,
-    'Hyperf\Signal\Listener\SignalRegisterListener' => PHP_INT_MAX,
+    'App\Listeners\ModelHookEventListener' => 99,
+    'App\Listeners\CriticalSecurityListener' => PHP_INT_MAX,
 ];

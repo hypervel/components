@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -23,7 +23,7 @@ class DefineEnvironmentTest extends TestCase
         $this->passedApp = $app;
 
         // Set a config value to verify it takes effect before providers boot
-        $app->get('config')->set('testing.define_environment_test', 'configured');
+        $app->make('config')->set('testing.define_environment_test', 'configured');
     }
 
     public function testDefineEnvironmentIsCalledDuringSetUp(): void
@@ -42,7 +42,7 @@ class DefineEnvironmentTest extends TestCase
     {
         $this->assertSame(
             'configured',
-            $this->app->get('config')->get('testing.define_environment_test')
+            $this->app->make('config')->get('testing.define_environment_test')
         );
     }
 }

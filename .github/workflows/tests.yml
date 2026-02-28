@@ -13,12 +13,8 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - php: "8.2"
-            swoole: "5.1.6"
-          - php: "8.3"
-            swoole: "5.1.6"
           - php: "8.4"
-            swoole: "6.0.2"
+            swoole: "6.1.4"
 
     name: PHP ${{ matrix.php }} (swoole-${{ matrix.swoole }})
 
@@ -27,10 +23,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Install PHP extensions
+        run: |
+          apt-get update && apt-get install -y libgmp-dev libicu-dev
+          docker-php-ext-install gmp intl
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /root/.composer/cache
           key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
@@ -43,80 +44,4 @@ jobs:
       - name: Execute tests
         run: |
             PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
-            vendor/bin/phpunit -c phpunit.xml.dist --exclude-group integration
-
-  meilisearch_integration_tests:
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-
-    name: Integration (Meilisearch)
-
-    services:
-      meilisearch:
-        image: getmeili/meilisearch:latest
-        env:
-          MEILI_MASTER_KEY: secret
-          MEILI_NO_ANALYTICS: true
-        ports:
-          - 7700:7700
-        options: >-
-          --health-cmd "curl -f http://localhost:7700/health"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    container:
-      image: phpswoole/swoole:6.0.2-php8.4
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-            COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
-
-      - name: Execute Meilisearch integration tests
-        env:
-          RUN_MEILISEARCH_INTEGRATION_TESTS: true
-          MEILISEARCH_HOST: meilisearch
-          MEILISEARCH_PORT: 7700
-          MEILISEARCH_KEY: secret
-        run: |
-            vendor/bin/phpunit -c phpunit.xml.dist --group meilisearch-integration
-
-  typesense_integration_tests:
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-
-    name: Integration (Typesense)
-
-    services:
-      typesense:
-        image: typesense/typesense:27.1
-        env:
-          TYPESENSE_API_KEY: secret
-          TYPESENSE_DATA_DIR: /tmp
-        ports:
-          - 8108:8108
-
-    container:
-      image: phpswoole/swoole:6.0.2-php8.4
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-            COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
-
-      - name: Execute Typesense integration tests
-        env:
-          RUN_TYPESENSE_INTEGRATION_TESTS: true
-          TYPESENSE_HOST: typesense
-          TYPESENSE_PORT: 8108
-          TYPESENSE_API_KEY: secret
-          TYPESENSE_PROTOCOL: http
-        run: |
-            vendor/bin/phpunit -c phpunit.xml.dist --group typesense-integration
+            vendor/bin/phpunit -c phpunit.xml.dist

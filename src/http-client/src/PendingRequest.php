@@ -16,16 +16,16 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\HttpClient\Events\ConnectionFailed;
 use Hypervel\HttpClient\Events\RequestSending;
 use Hypervel\HttpClient\Events\ResponseReceived;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\Macroable;
 use JsonSerializable;
 use OutOfBoundsException;
 use Psr\Http\Message\RequestInterface;
@@ -138,6 +138,11 @@ class PendingRequest
      * Indicates that an exception should be thrown if any request is not faked.
      */
     protected bool $preventStrayRequests = false;
+
+    /**
+     * The URL patterns that are allowed as stray requests.
+     */
+    protected array $allowedStrayRequestUrls = [];
 
     /**
      * The middleware callables added by users that will handle requests.
@@ -625,7 +630,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function get(string $url, array|JsonSerializable|string|null $query = null): PromiseInterface|Response
+    public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'GET',
@@ -781,8 +786,7 @@ class PendingRequest
                 throw $exception;
             }
         }, $this->retryDelay ?? 100, function ($exception) use (&$shouldRetry) {
-            // @phpstan-ignore-next-line nullCoalesce.variable
-            $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func(
+            $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
                 $this
@@ -1009,6 +1013,8 @@ class PendingRequest
             $options[$key] = match (true) {
                 is_array($value) => $this->normalizeRequestOptions($value),
                 $value instanceof Stringable => $value->toString(),
+                $value instanceof JsonSerializable => $value,
+                $value instanceof Arrayable => $this->normalizeRequestOptions($value->toArray()),
                 default => $value,
             };
         }
@@ -1123,7 +1129,7 @@ class PendingRequest
                     ->first();
 
                 if (is_null($response)) {
-                    if ($this->preventStrayRequests) {
+                    if (! $this->isAllowedRequestUrl((string) $request->getUri())) {
                         throw new RuntimeException(
                             'Attempted request to [' . (string) $request->getUri() . '] without a matching fake.'
                         );
@@ -1228,6 +1234,34 @@ class PendingRequest
         $this->preventStrayRequests = $prevent;
 
         return $this;
+    }
+
+    /**
+     * Allow stray, unfaked requests for specific URL patterns.
+     */
+    public function allowStrayRequests(array $only): static
+    {
+        $this->allowedStrayRequestUrls = array_values($only);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the given URL is allowed as a stray request.
+     */
+    public function isAllowedRequestUrl(string $url): bool
+    {
+        if (! $this->preventStrayRequests) {
+            return true;
+        }
+
+        foreach ($this->allowedStrayRequestUrls as $pattern) {
+            if (Str::is($pattern, $url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -6,16 +6,16 @@ namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Di\Exception\NotFoundException;
-use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\UsePolicy;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
@@ -41,7 +41,7 @@ class Gate implements GateContract
     /**
      * Create a new gate instance.
      *
-     * @param ContainerInterface $container the container instance
+     * @param Container $container the container instance
      * @param Closure $userResolver the user resolver callable
      * @param array $abilities all of the defined abilities
      * @param array $policies all of the defined policies
@@ -49,7 +49,7 @@ class Gate implements GateContract
      * @param array $afterCallbacks all of the registered after callbacks
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Closure $userResolver,
         protected array $abilities = [],
         protected array $policies = [],
@@ -450,11 +450,11 @@ class Gate implements GateContract
      */
     protected function dispatchGateEvaluatedEvent(?Authenticatable $user, string $ability, array $arguments, bool|Response|null $result): void
     {
-        if (! $this->container->has(EventDispatcherInterface::class)) {
+        if (! $this->container->has(Dispatcher::class)) {
             return;
         }
 
-        $this->container->get(EventDispatcherInterface::class)->dispatch(
+        $this->container->make(Dispatcher::class)->dispatch(
             new GateEvaluated($user, $ability, $result, $arguments)
         );
     }
@@ -537,11 +537,11 @@ class Gate implements GateContract
     /**
      * Build a policy class instance of the given type.
      *
-     * @throws NotFoundException
+     * @throws BindingResolutionException
      */
     public function resolvePolicy(string $class): mixed
     {
-        return $this->container->get($class);
+        return $this->container->make($class);
     }
 
     /**

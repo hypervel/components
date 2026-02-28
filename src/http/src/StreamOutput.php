@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\HttpMessage\Server\Chunk\Chunkable;
+use Hypervel\HttpMessage\Server\Chunk\Chunkable;
 
 class StreamOutput
 {

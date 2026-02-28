@@ -26,22 +26,19 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hypervel/auth": "^0.3",
-        "hypervel/cache": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/core": "^0.3",
-        "hypervel/support": "^0.3"
+        "php": "^8.4",
+        "hypervel/auth": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/core": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
-        },
-        "hyperf": {
-            "config": "Hypervel\\Permission\\ConfigProvider"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

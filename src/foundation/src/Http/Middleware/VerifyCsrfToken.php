@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Request;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\HttpServer\Request;
 use Hypervel\Session\TokenMismatchException;
-use Hypervel\Support\Traits\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -45,8 +45,8 @@ class VerifyCsrfToken implements MiddlewareInterface
      * Create a new middleware instance.
      */
     public function __construct(
-        protected ContainerInterface $app,
-        protected ConfigInterface $config,
+        protected Container $app,
+        protected Repository $config,
         protected Request $request
     ) {
     }
@@ -103,7 +103,7 @@ class VerifyCsrfToken implements MiddlewareInterface
     protected function tokensMatch(): bool
     {
         $token = $this->getTokenFromRequest();
-        $sessionToken = $this->app->get(SessionContract::class)->token();
+        $sessionToken = $this->app->make(SessionContract::class)->token();
 
         return is_string($sessionToken)
             && is_string($token)
@@ -147,7 +147,7 @@ class VerifyCsrfToken implements MiddlewareInterface
     {
         return new Cookie(
             'XSRF-TOKEN',
-            $this->app->get(SessionContract::class)->token(),
+            $this->app->make(SessionContract::class)->token(),
             $this->availableAt(60 * $config['lifetime']),
             $config['path'] ?? '/',
             $config['domain'] ?? '',

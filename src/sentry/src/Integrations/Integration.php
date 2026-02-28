@@ -36,13 +36,6 @@ class Integration implements IntegrationInterface
                 ]);
             }
 
-            if (defined('\Swow\Extension::VERSION')) {
-                $event->setContext('swow', [
-                    /* @phpstan-ignore-next-line */
-                    'version' => \Swow\Extension::VERSION,
-                ]);
-            }
-
             if (empty($event->getTransaction())) {
                 $event->setTransaction($self->getTransaction());
             }

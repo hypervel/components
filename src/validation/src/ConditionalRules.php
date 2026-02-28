@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
+use Hypervel\Contracts\Validation\InvokableRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Fluent;
-use Hypervel\Validation\Contracts\InvokableRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\ValidationRule;
 
 class ConditionalRules
 {

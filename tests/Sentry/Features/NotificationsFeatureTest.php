@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Sentry\Features\NotificationsFeature;
@@ -35,7 +35,7 @@ class NotificationsFeatureTest extends SentryTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class)->shouldIgnoreMissing());
     }
 
     public function testSpanIsRecorded(): void

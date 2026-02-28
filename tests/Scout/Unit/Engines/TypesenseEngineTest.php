@@ -11,7 +11,7 @@ use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use ReflectionMethod;
 use Typesense\Client as TypesenseClient;
@@ -27,15 +27,9 @@ use Typesense\Exceptions\TypesenseClientError;
  */
 class TypesenseEngineTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
-    }
-
     protected function createEngine(?MockInterface $client = null): TypesenseEngine
     {
-        $client = $client ?? Mockery::mock(TypesenseClient::class);
+        $client = $client ?? m::mock(TypesenseClient::class);
 
         return new TypesenseEngine($client, 1000);
     }
@@ -45,17 +39,17 @@ class TypesenseEngineTest extends TestCase
      */
     protected function createPartialEngine(?MockInterface $client = null): MockInterface&TypesenseEngine
     {
-        $client = $client ?? Mockery::mock(TypesenseClient::class);
+        $client = $client ?? m::mock(TypesenseClient::class);
 
         /** @var MockInterface&TypesenseEngine */
-        return Mockery::mock(TypesenseEngine::class, [$client, 1000])
+        return m::mock(TypesenseEngine::class, [$client, 1000])
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
     }
 
     protected function createSearchableModelMock(): MockInterface
     {
-        return Mockery::mock(Model::class . ', ' . SearchableInterface::class);
+        return m::mock(Model::class . ', ' . SearchableInterface::class);
     }
 
     protected function invokeMethod(object $object, string $methodName, array $parameters = []): mixed
@@ -69,7 +63,7 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createEngine();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->wheres = [
             'status' => 'active',
             'age' => 25,
@@ -193,7 +187,7 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateWithEmptyCollectionDoesNothing(): void
     {
-        $client = Mockery::mock(TypesenseClient::class);
+        $client = m::mock(TypesenseClient::class);
         $client->shouldNotReceive('getCollections');
 
         $engine = $this->createEngine($client);
@@ -209,17 +203,17 @@ class TypesenseEngineTest extends TestCase
         $model->shouldReceive('getScoutKey')->andReturn(123);
 
         // Mock the Document object that's returned by array access on Documents
-        $document = Mockery::mock(Document::class);
+        $document = m::mock(Document::class);
         $document->shouldReceive('retrieve')->once()->andReturn([]);
         $document->shouldReceive('delete')->once()->andReturn([]);
 
         // Documents already implements ArrayAccess
-        $documents = Mockery::mock(Documents::class);
+        $documents = m::mock(Documents::class);
         $documents->shouldReceive('offsetGet')
             ->with('123')
             ->andReturn($document);
 
-        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection = m::mock(TypesenseCollection::class);
         $collection->shouldReceive('getDocuments')->andReturn($documents);
 
         $engine = $this->createPartialEngine();
@@ -233,7 +227,7 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteWithEmptyCollectionDoesNothing(): void
     {
-        $client = Mockery::mock(TypesenseClient::class);
+        $client = m::mock(TypesenseClient::class);
         $client->shouldNotReceive('getCollections');
 
         $engine = $this->createEngine($client);
@@ -249,16 +243,16 @@ class TypesenseEngineTest extends TestCase
         $model->shouldReceive('getScoutKey')->andReturn(123);
 
         // Mock the Document object to throw ObjectNotFound on retrieve
-        $document = Mockery::mock(Document::class);
+        $document = m::mock(Document::class);
         $document->shouldReceive('retrieve')->once()->andThrow(new ObjectNotFound('Document not found'));
         $document->shouldNotReceive('delete');
 
-        $documents = Mockery::mock(Documents::class);
+        $documents = m::mock(Documents::class);
         $documents->shouldReceive('offsetGet')
             ->with('123')
             ->andReturn($document);
 
-        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection = m::mock(TypesenseCollection::class);
         $collection->shouldReceive('getDocuments')->andReturn($documents);
 
         $engine = $this->createPartialEngine();
@@ -279,15 +273,15 @@ class TypesenseEngineTest extends TestCase
         $model->shouldReceive('getScoutKey')->andReturn(123);
 
         // Mock the Document object to throw TypesenseClientError (network/auth error)
-        $document = Mockery::mock(Document::class);
+        $document = m::mock(Document::class);
         $document->shouldReceive('retrieve')->once()->andThrow(new TypesenseClientError('Connection failed'));
 
-        $documents = Mockery::mock(Documents::class);
+        $documents = m::mock(Documents::class);
         $documents->shouldReceive('offsetGet')
             ->with('123')
             ->andReturn($document);
 
-        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection = m::mock(TypesenseCollection::class);
         $collection->shouldReceive('getDocuments')->andReturn($documents);
 
         $engine = $this->createPartialEngine();
@@ -306,7 +300,7 @@ class TypesenseEngineTest extends TestCase
     {
         $model = $this->createSearchableModelMock();
 
-        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection = m::mock(TypesenseCollection::class);
         $collection->shouldReceive('delete')->once();
 
         $engine = $this->createPartialEngine();
@@ -320,7 +314,7 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteIndexCallsTypesenseDelete(): void
     {
-        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection = m::mock(TypesenseCollection::class);
         $collection->shouldReceive('delete')
             ->once()
             ->andReturn(['name' => 'test_index']);
@@ -341,7 +335,7 @@ class TypesenseEngineTest extends TestCase
             }
         };
 
-        $client = Mockery::mock(TypesenseClient::class);
+        $client = m::mock(TypesenseClient::class);
         $client->shouldReceive('getCollections')->andReturn($collections);
 
         $engine = $this->createEngine($client);
@@ -353,7 +347,7 @@ class TypesenseEngineTest extends TestCase
 
     public function testGetTypesenseClientReturnsClient(): void
     {
-        $client = Mockery::mock(TypesenseClient::class);
+        $client = m::mock(TypesenseClient::class);
         $engine = $this->createEngine($client);
 
         $this->assertSame($client, $engine->getTypesenseClient());
@@ -366,7 +360,7 @@ class TypesenseEngineTest extends TestCase
         $model = $this->createSearchableModelMock();
         $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $results = ['found' => 0, 'hits' => []];
 
         $mapped = $engine->map($builder, $results, $model);
@@ -381,7 +375,7 @@ class TypesenseEngineTest extends TestCase
         $model = $this->createSearchableModelMock();
         $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $results = ['found' => 0, 'hits' => []];
 
         $lazyMapped = $engine->lazyMap($builder, $results, $model);
@@ -395,7 +389,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'search term';
         $builder->wheres = [];
@@ -421,7 +415,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = ['status' => 'active'];
@@ -443,7 +437,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -467,7 +461,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -490,7 +484,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -514,7 +508,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = 'query';
         $builder->wheres = [];
@@ -535,7 +529,7 @@ class TypesenseEngineTest extends TestCase
 
         $model = $this->createSearchableModelMock();
 
-        $builder = Mockery::mock(Builder::class);
+        $builder = m::mock(Builder::class);
         $builder->model = $model;
         $builder->query = '';
         $builder->wheres = [];
@@ -551,14 +545,14 @@ class TypesenseEngineTest extends TestCase
     }
 
     /**
-     * Create a partial engine mock that stubs getConfig to avoid ApplicationContext dependency.
+     * Create a partial engine mock that stubs getConfig to avoid container dependency.
      */
     protected function createPartialEngineWithConfig(?MockInterface $client = null): MockInterface&TypesenseEngine
     {
-        $client = $client ?? Mockery::mock(TypesenseClient::class);
+        $client = $client ?? m::mock(TypesenseClient::class);
 
         /** @var MockInterface&TypesenseEngine */
-        $engine = Mockery::mock(TypesenseEngine::class, [$client, 1000])
+        $engine = m::mock(TypesenseEngine::class, [$client, 1000])
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
 

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Config\Repository;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
@@ -24,8 +26,6 @@ use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Logger as Monolog;
 use Monolog\Processor\ProcessorInterface;
 use Monolog\Processor\PsrLogMessageProcessor;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Stringable;
 use Throwable;
@@ -40,7 +40,7 @@ class LogManager implements LoggerInterface
     /**
      * The config for log.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved channels.
@@ -61,9 +61,9 @@ class LogManager implements LoggerInterface
      * Create a new Log manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
-        $this->config = $this->app->get(ConfigInterface::class);
+        $this->config = $this->app->make('config');
     }
 
     /**
@@ -83,7 +83,7 @@ class LogManager implements LoggerInterface
     {
         return new Logger(
             $this->createStackDriver(compact('channels', 'channel')),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -110,7 +110,7 @@ class LogManager implements LoggerInterface
     {
         try {
             return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->get(EventDispatcherInterface::class)));
+                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->make(Dispatcher::class)));
             });
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
@@ -157,7 +157,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->make(Dispatcher::class)
         );
     }
 
@@ -469,7 +469,7 @@ class LogManager implements LoggerInterface
      */
     protected function getFallbackChannelName(): string
     {
-        return $this->app->get(Environment::class)->get() ?: 'production';
+        return $this->app->make(Environment::class)->get() ?: 'production';
     }
 
     /**
@@ -527,7 +527,7 @@ class LogManager implements LoggerInterface
     {
         $driver ??= $this->getDefaultDriver();
 
-        if ($this->app->get(Environment::class)->isTesting()) {
+        if ($this->app->make(Environment::class)->isTesting()) {
             $driver ??= 'null';
         }
 

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Translation;
 
+use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Translation\Contracts\Loader;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;
@@ -36,11 +36,6 @@ enum TranslatorTestUnitEnum
  */
 class TranslatorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull()
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();

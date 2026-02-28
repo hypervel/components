@@ -5,21 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 use UnitEnum;
 
-use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;
+use function value;
 
 class PendingBatch
 {
@@ -38,11 +37,11 @@ class PendingBatch
     /**
      * Create a new pending batch instance.
      *
-     * @param ContainerInterface $container the IoC container instance
+     * @param Container $container the IoC container instance
      * @param Collection $jobs the jobs that belong to the batch
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         public Collection $jobs
     ) {
     }
@@ -244,7 +243,7 @@ class PendingBatch
      */
     public function dispatch(): Batch
     {
-        $repository = $this->container->get(BatchRepository::class);
+        $repository = $this->container->make(BatchRepository::class);
 
         try {
             $batch = $this->store($repository);
@@ -258,7 +257,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(EventDispatcherInterface::class)
+        $this->container->make(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );
@@ -271,7 +270,7 @@ class PendingBatch
      */
     public function dispatchAfterResponse(): Batch
     {
-        $repository = $this->container->get(BatchRepository::class);
+        $repository = $this->container->make(BatchRepository::class);
 
         $batch = $this->store($repository);
 
@@ -295,7 +294,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(EventDispatcherInterface::class)
+        $this->container->make(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth\Stub;
 
 use Hypervel\Auth\Access\HandlesAuthorization;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 
 class AccessGateTestPolicy
 {

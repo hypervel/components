@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -20,12 +19,12 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)->set('sanctum.stateful', ['test.com', '*.test.com']);
+        $this->app->make('config')->set('sanctum.stateful', ['test.com', '*.test.com']);
     }
 
     public function testRequestFromFrontendIsIdentified(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn('https://test.com');
@@ -38,7 +37,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testRequestNotFromFrontend(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn('https://wrong.com');
@@ -51,7 +50,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testOriginFallback(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn(null);
@@ -64,7 +63,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testWildcardDomainMatching(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn('https://subdomain.test.com');
@@ -77,7 +76,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testRequestsWithoutRefererOrOrigin(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn(null);
@@ -99,7 +98,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testStatefulDomainsCanBeOverridden(): void
     {
-        $request = Mockery::mock(RequestInterface::class);
+        $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
             ->andReturn('https://custom.example.com');

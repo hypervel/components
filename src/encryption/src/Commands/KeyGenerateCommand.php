@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption\Commands;
 
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Concerns\Confirmable as ConfirmableTrait;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
+use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Encrypter;
-use Psr\Container\ContainerInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-class KeyGenerateCommand extends HyperfCommand
+#[AsCommand(name: 'key:generate')]
+class KeyGenerateCommand extends Command
 {
     use ConfirmableTrait;
 
     public function __construct(
-        protected ContainerInterface $container,
-        protected ConfigInterface $config
+        protected Container $container,
+        protected Repository $config
     ) {
         parent::__construct('key:generate');
     }
@@ -42,7 +44,7 @@ class KeyGenerateCommand extends HyperfCommand
         $this->info('Application key set successfully.');
     }
 
-    protected function configure()
+    protected function configure(): void
     {
         $this->setDescription('Set the application key')
             ->addOption('show', null, InputOption::VALUE_OPTIONAL, 'Display the key instead of modifying files')

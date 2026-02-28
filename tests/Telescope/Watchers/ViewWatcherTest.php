@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ViewWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -22,7 +21,7 @@ class ViewWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ViewWatcher::class => true,
             ]);
@@ -43,7 +42,7 @@ class ViewWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn(['foo' => 'bar']);
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch('composing:tests::welcome', [$view]);
 
         $entry = $this->loadTelescopeEntries()->first();

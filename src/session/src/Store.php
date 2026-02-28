@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Session\Session;
+use Hypervel\Support\Arr;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\ViewErrorBag;
 use SessionHandlerInterface;
 use stdClass;
@@ -21,6 +21,11 @@ use function Hypervel\Support\enum_value;
 class Store implements Session
 {
     use Macroable;
+
+    /**
+     * The context key used to store the active session for the current request.
+     */
+    public const CONTEXT_KEY = '__session.store';
 
     /**
      * Create a new session instance.
@@ -47,7 +52,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set('_session.store.started', true);
+        return Context::set('__session.store.started', true);
     }
 
     /**
@@ -55,7 +60,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get('_session.store.attributes', []);
+        return Context::get('__session.store.attributes', []);
     }
 
     /**
@@ -63,7 +68,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set('_session.store.attributes', $attributes);
+        Context::set('__session.store.attributes', $attributes);
     }
 
     /**
@@ -72,8 +77,8 @@ class Store implements Session
     protected function replaceAttributes(array $attributes): void
     {
         Context::set(
-            '_session.store.attributes',
-            array_replace(Context::get('_session.store.attributes', []), $attributes)
+            '__session.store.attributes',
+            array_replace(Context::get('__session.store.attributes', []), $attributes)
         );
     }
 
@@ -148,7 +153,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set('_session.store.started', false);
+        Context::set('__session.store.started', false);
     }
 
     /**
@@ -511,7 +516,7 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get('_session.store.started', false);
+        return Context::get('__session.store.started', false);
     }
 
     /**
@@ -543,7 +548,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get('_session.store.id', null);
+        return Context::get('__session.store.id', null);
     }
 
     /**
@@ -552,7 +557,7 @@ class Store implements Session
     public function setId(?string $id): void
     {
         Context::set(
-            '_session.store.id',
+            '__session.store.id',
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }

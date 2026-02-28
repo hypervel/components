@@ -1,0 +1,143 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\ServerProcess;
+
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\ServerProcess\ProcessInterface;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
+use Hypervel\ServerProcess\Events\AfterProcessHandle;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
+use Hypervel\ServerProcess\Events\PipeMessage;
+use Hypervel\ServerProcess\Exceptions\SocketAcceptException;
+use Swoole\Coroutine\Socket;
+use Swoole\Process as SwooleProcess;
+use Swoole\Server;
+use Swoole\Timer;
+use Throwable;
+
+abstract class AbstractProcess implements ProcessInterface
+{
+    public string $name = 'process';
+
+    public int $nums = 1;
+
+    public bool $redirectStdinStdout = false;
+
+    public int $pipeType = SOCK_DGRAM;
+
+    public bool $enableCoroutine = true;
+
+    protected ?DispatcherContract $event = null;
+
+    protected ?SwooleProcess $process = null;
+
+    protected int $recvLength = 65535;
+
+    protected float $recvTimeout = 10.0;
+
+    protected int $restartInterval = 5;
+
+    public function __construct(protected Container $container)
+    {
+        if ($container->has(DispatcherContract::class)) {
+            $this->event = $container->make(DispatcherContract::class);
+        }
+    }
+
+    /**
+     * Determine if the process should start.
+     */
+    public function isEnable(Server $server): bool
+    {
+        return true;
+    }
+
+    /**
+     * Create process objects and bind them to the server.
+     */
+    public function bind(Server $server): void
+    {
+        $num = $this->nums;
+        for ($i = 0; $i < $num; ++$i) {
+            $process = new SwooleProcess(function (SwooleProcess $process) use ($i) {
+                try {
+                    $this->event?->dispatch(new BeforeProcessHandle($this, $i));
+
+                    $this->process = $process;
+                    if ($this->enableCoroutine) {
+                        $quit = new Channel(1);
+                        $this->listen($quit);
+                    }
+                    $this->handle();
+                } catch (Throwable $throwable) {
+                    $this->logThrowable($throwable);
+                } finally {
+                    $this->event?->dispatch(new AfterProcessHandle($this, $i));
+                    if (isset($quit)) {
+                        $quit->push(true);
+                    }
+                    Timer::clearAll();
+                    CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+                    sleep($this->restartInterval);
+                }
+            }, $this->redirectStdinStdout, $this->pipeType, $this->enableCoroutine);
+            $process->setBlocking(false);
+            $server->addProcess($process);
+
+            if ($this->enableCoroutine) {
+                ProcessCollector::add($this->name, $process);
+            }
+        }
+    }
+
+    /**
+     * Listen for data from worker/task processes via IPC pipe.
+     */
+    protected function listen(Channel $quit): void
+    {
+        Coroutine::create(function () use ($quit) {
+            while ($quit->pop(0.001) !== true) {
+                try {
+                    /** @var Socket $sock */
+                    $sock = $this->process->exportSocket();
+                    $recv = $sock->recv($this->recvLength, $this->recvTimeout);
+                    if ($recv === '') {
+                        throw new SocketAcceptException('Socket is closed', $sock->errCode);
+                    }
+
+                    if ($recv === false && $sock->errCode !== SOCKET_ETIMEDOUT) {
+                        throw new SocketAcceptException('Socket is closed', $sock->errCode);
+                    }
+
+                    if ($this->event && $recv !== false && $data = unserialize($recv)) {
+                        $this->event->dispatch(new PipeMessage($data));
+                    }
+                } catch (Throwable $exception) {
+                    $this->logThrowable($exception);
+                    if ($exception instanceof SocketAcceptException) {
+                        // TODO: Reconnect the socket.
+                        break;
+                    }
+                }
+            }
+            $quit->close();
+        });
+    }
+
+    /**
+     * Log a throwable via the exception handler.
+     */
+    protected function logThrowable(Throwable $throwable): void
+    {
+        if ($this->container->has(ExceptionHandlerContract::class)) {
+            $this->container->make(ExceptionHandlerContract::class)->report($throwable);
+        }
+    }
+}

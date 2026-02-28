@@ -7,7 +7,9 @@ namespace Hypervel\Horizon\Console;
 use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:snapshot')]
 class SnapshotCommand extends Command
 {
     /**

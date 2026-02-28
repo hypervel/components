@@ -4,44 +4,259 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use FriendsOfHyperf\CommandSignals\Traits\InteractsWithSignals;
-use FriendsOfHyperf\PrettyConsole\Traits\Prettyable;
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Event\AfterExecute;
-use Hyperf\Command\Event\AfterHandle;
-use Hyperf\Command\Event\BeforeHandle;
-use Hyperf\Command\Event\FailToHandle;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Events\AfterExecute;
+use Hypervel\Console\Events\AfterHandle;
+use Hypervel\Console\Events\BeforeHandle;
+use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Console\View\Components\Factory;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Isolatable;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Support\Traits\Macroable;
+use ReflectionClass;
 use Swoole\ExitException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
+use function Hypervel\Support\swoole_hook_flags;
 
-abstract class Command extends HyperfCommand
+class Command extends SymfonyCommand
 {
-    use InteractsWithSignals;
-    use Prettyable;
+    use Concerns\CallsCommands;
+    use Concerns\ConfiguresPrompts;
+    use Concerns\DisableEventDispatcher;
+    use Concerns\HasParameters;
+    use Concerns\InteractsWithIO;
+    use Concerns\InteractsWithSignals;
+    use Concerns\PromptsForMissingInput;
+    use Macroable;
+
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = null;
+
+    /**
+     * The console command name.
+     */
+    protected ?string $name = null;
+
+    /**
+     * The console command description.
+     */
+    protected string $description = '';
+
+    /**
+     * The console command help text.
+     */
+    protected string $help = '';
+
+    /**
+     * Indicates whether the command should be shown in the Artisan command list.
+     */
+    protected bool $hidden = false;
+
+    /**
+     * Indicates whether only one instance of the command can run at any given time.
+     */
+    protected bool $isolated = false;
+
+    /**
+     * The default exit code for isolated commands.
+     */
+    protected int $isolatedExitCode = self::SUCCESS;
+
+    /**
+     * The console command name aliases.
+     *
+     * @var string[]
+     */
+    protected array $aliases = [];
+
+    /**
+     * Whether to execute in a coroutine environment.
+     */
+    protected bool $coroutine = true;
+
+    /**
+     * The event dispatcher instance.
+     */
+    protected ?Dispatcher $eventDispatcher = null;
+
+    /**
+     * The hook flags for the coroutine.
+     */
+    protected int $hookFlags = -1;
+
+    /**
+     * The exit code of the command.
+     */
+    protected int $exitCode = self::SUCCESS;
 
     protected ApplicationContract $app;
 
     public function __construct(?string $name = null)
     {
-        parent::__construct($name);
+        $this->name = $name ?? $this->name;
 
-        /** @var ApplicationContract $app */
-        $app = ApplicationContext::getContainer();
-        $this->app = $app;
+        if ($this->hookFlags < 0) {
+            $this->hookFlags = swoole_hook_flags();
+        }
+
+        $this->configureFromAttributes();
+
+        // We will go ahead and set the name, description, and parameters on console
+        // commands just to make things a little easier on the developer. This is
+        // so they don't have to all be manually specified in the constructors.
+        if (isset($this->signature)) {
+            $this->configureUsingFluentDefinition();
+        } else {
+            parent::__construct($this->name);
+        }
+
+        $this->addDisableDispatcherOption();
+
+        // Once we have constructed the command, we'll set the description and other
+        // related properties of the command. If a signature wasn't used to build
+        // the command we'll set the arguments and the options on this command.
+        if (! empty($this->description)) {
+            $this->setDescription($this->description);
+        }
+
+        if (! empty($this->help)) {
+            $this->setHelp($this->help);
+        }
+
+        $this->setHidden($this->isHidden());
+
+        if (! empty($this->aliases)) {
+            $this->setAliases($this->aliases);
+        }
+
+        if (! isset($this->signature)) {
+            $this->specifyParameters();
+        }
+
+        /* @phpstan-ignore assign.propertyType */
+        $this->app = Container::getInstance();
+
+        if ($this instanceof Isolatable) {
+            $this->configureIsolation();
+        }
+    }
+
+    /**
+     * Run the console command.
+     */
+    public function run(InputInterface $input, OutputInterface $output): int
+    {
+        $this->output = $output instanceof OutputStyle ? $output : $this->app->make(
+            OutputStyle::class,
+            ['input' => $input, 'output' => $output]
+        );
+
+        $this->components = $this->app->make(Factory::class, ['output' => $this->output]);
+
+        $this->configurePrompts($input);
+
+        $this->setUpTraits($this->input = $input, $this->output);
+
+        try {
+            return parent::run($this->input, $this->output);
+        } finally {
+            $this->untrap();
+        }
+    }
+
+    /**
+     * Configure the console command for isolation.
+     */
+    protected function configureIsolation(): void
+    {
+        $this->getDefinition()->addOption(new InputOption(
+            'isolated',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'Do not run the command if another instance of the command is already running',
+            $this->isolated
+        ));
+    }
+
+    /**
+     * Configure the command from class attributes.
+     */
+    protected function configureFromAttributes(): void
+    {
+        $reflection = new ReflectionClass($this);
+
+        $signature = $reflection->getAttributes(Signature::class);
+
+        if (count($signature) > 0) {
+            $signatureInstance = $signature[0]->newInstance();
+
+            $this->signature = $signatureInstance->signature;
+
+            if ($signatureInstance->aliases !== null) {
+                $this->aliases = $signatureInstance->aliases;
+            }
+        }
+
+        $description = $reflection->getAttributes(Description::class);
+
+        if (count($description) > 0) {
+            $this->description = $description[0]->newInstance()->description;
+        }
+    }
+
+    /**
+     * Configure the console command using a fluent definition.
+     */
+    protected function configureUsingFluentDefinition(): void
+    {
+        [$name, $arguments, $options] = Parser::parse($this->signature);
+
+        parent::__construct($this->name = $name);
+
+        // After parsing the signature we will spin through the arguments and options
+        // and set them on this command. These will already be changed into proper
+        // instances of these "InputArgument" and "InputOption" Symfony classes.
+        $this->getDefinition()->addArguments($arguments);
+        $this->getDefinition()->addOptions($options);
+    }
+
+    protected function configure(): void
+    {
+        parent::configure();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->disableDispatcher($input);
         $this->replaceOutput();
+
+        // Check if the command should be isolated and if another instance is running
+        if ($this instanceof Isolatable
+            && $this->option('isolated') !== false
+            && ! $this->commandIsolationMutex()->create($this)
+        ) {
+            $this->comment(sprintf(
+                'The [%s] command is already running.',
+                $this->getName()
+            ));
+
+            return (int) (is_numeric($this->option('isolated'))
+                ? $this->option('isolated')
+                : $this->isolatedExitCode);
+        }
+
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
         $callback = function () use ($method): int {
@@ -74,6 +289,11 @@ abstract class Command extends HyperfCommand
                 $this->eventDispatcher->dispatch(new FailToHandle($this, $exception));
             } finally {
                 $this->eventDispatcher?->dispatch(new AfterExecute($this, $exception ?? null));
+
+                // Release the isolation mutex if applicable
+                if ($this instanceof Isolatable && $this->option('isolated') !== false) {
+                    $this->commandIsolationMutex()->forget($this);
+                }
             }
 
             return $this->exitCode;
@@ -88,11 +308,20 @@ abstract class Command extends HyperfCommand
         return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
     }
 
+    /**
+     * Get a command isolation mutex instance for the command.
+     */
+    protected function commandIsolationMutex(): CommandMutex
+    {
+        return $this->app->bound(CommandMutex::class)
+            ? $this->app->make(CommandMutex::class)
+            : $this->app->make(CacheCommandMutex::class);
+    }
+
     protected function replaceOutput(): void
     {
-        /* @phpstan-ignore-next-line */
-        if ($this->app->bound(OutputInterface::class)) {
-            $this->output = $this->app->get(OutputInterface::class);
+        if ($this->app->bound(OutputStyle::class)) {
+            $this->output = $this->app->make(OutputStyle::class);
         }
     }
 
@@ -115,12 +344,68 @@ abstract class Command extends HyperfCommand
     }
 
     /**
-     * Call another console command without output.
+     * Resolve the console command instance for the given command.
      */
-    public function callSilent(string $command, array $arguments = []): int
+    protected function resolveCommand(SymfonyCommand|string $command): SymfonyCommand
     {
-        return $this->app
-            ->get(KernelContract::class)
-            ->call($command, $arguments);
+        if (is_string($command)) {
+            if (! class_exists($command)) {
+                return $this->getApplication()->find($command);
+            }
+
+            $command = $this->app->make($command);
+        }
+
+        if ($command instanceof SymfonyCommand) {
+            $command->setApplication($this->getApplication());
+        }
+
+        if ($command instanceof self) {
+            $command->app = $this->app;
+        }
+
+        return $command;
+    }
+
+    /**
+     * Determine if the command is hidden.
+     */
+    public function isHidden(): bool
+    {
+        return $this->hidden;
+    }
+
+    /**
+     * Set whether the command is hidden.
+     */
+    public function setHidden(bool $hidden = true): static
+    {
+        parent::setHidden($this->hidden = $hidden);
+
+        return $this;
+    }
+
+    /**
+     * Set the application instance.
+     */
+    public function setApp(ApplicationContract $app): void
+    {
+        $this->app = $app;
+    }
+
+    /**
+     * Set up the traits used by the command.
+     */
+    protected function setUpTraits(InputInterface $input, OutputInterface $output): array
+    {
+        $uses = array_flip(class_uses_recursive(static::class));
+
+        foreach ($uses as $trait) {
+            if (method_exists($this, $method = 'setUp' . class_basename($trait))) {
+                $this->{$method}($input, $output);
+            }
+        }
+
+        return $uses;
     }
 }

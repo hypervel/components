@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Notifications\AnonymousNotifiable;
-use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
+use Hypervel\Notifications\ChannelManager;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * @method static void send(mixed $notifiables, mixed $notification)
@@ -24,8 +22,8 @@ use function Hyperf\Tappable\tap;
  * @method static string|null getLocale()
  * @method static mixed driver(string|null $driver = null)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Notifications\ChannelManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Notifications\ChannelManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Notifications\ChannelManager forgetDrivers()
  * @method static \Hypervel\Notifications\ChannelManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
@@ -42,7 +40,7 @@ use function Hyperf\Tappable\tap;
  * @method static void assertNothingSentTo(mixed $notifiable)
  * @method static void assertSentTimes(string $notification, int $expectedCount)
  * @method static void assertCount(int $expectedCount)
- * @method static \Hyperf\Collection\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
  * @method static bool hasSent(mixed $notifiable, string $notification)
  * @method static array sentNotifications()
  * @method static void macro(string $name, callable|object $macro)
@@ -86,8 +84,8 @@ class Notification extends Facade
         return (new AnonymousNotifiable())->route($channel, $route);
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return NotificationDispatcher::class;
+        return ChannelManager::class;
     }
 }

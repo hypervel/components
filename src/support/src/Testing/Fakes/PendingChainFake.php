@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use Hypervel\Bus\PendingChain;
-use Hypervel\Bus\PendingDispatch;
+use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Queue\CallQueuedClosure;
 
 class PendingChainFake extends PendingChain

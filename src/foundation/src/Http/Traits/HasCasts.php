@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Traits;
 
+use BackedEnum;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
-use Hyperf\Database\Exception\InvalidCastException;
-use Hyperf\Database\Model\EnumCollector;
+use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Support\Collection;
@@ -223,7 +223,7 @@ trait HasCasts
         $castType = $this->getCasts()[$key];
 
         if (! is_array($value)) {
-            throw new InvalidCastException(static::class, $key, $castType);
+            throw new InvalidCastException($this, $key, $castType);
         }
 
         // Check if the class has make static method (provided by DataObject)
@@ -241,7 +241,9 @@ trait HasCasts
      */
     protected function getEnumCaseFromValue(string $enumClass, int|string $value): UnitEnum
     {
-        return EnumCollector::getEnumCaseFromValue($enumClass, $value);
+        return is_subclass_of($enumClass, BackedEnum::class)
+            ? $enumClass::from($value)
+            : constant($enumClass . '::' . $value);
     }
 
     /**
@@ -301,7 +303,7 @@ trait HasCasts
             return true;
         }
 
-        throw new InvalidCastException(static::class, $key, $castType);
+        throw new InvalidCastException($this, $key, $castType);
     }
 
     /**

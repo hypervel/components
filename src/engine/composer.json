@@ -1,0 +1,62 @@
+{
+    "name": "hypervel/engine",
+    "description": "Coroutine engine for Hypervel powered by Swoole.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "hypervel",
+        "engine",
+        "swoole",
+        "coroutine"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/http-message": "^0.4",
+        "psr/http-message": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Engine\\": "src/"
+        },
+        "files": [
+            "src/Functions.php"
+        ]
+    },
+    "suggest": {
+        "ext-sockets": "*",
+        "ext-swoole": ">=5.0"
+    },
+    "conflict": {
+        "ext-swoole": "<5.0"
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Engine\\EngineServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

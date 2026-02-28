@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Closure;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -18,11 +18,6 @@ use PHPUnit\Framework\TestCase;
  */
 class ValidationDatabasePresenceVerifierTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicCount()
     {
         $verifier = new DatabasePresenceVerifier($db = m::mock(ConnectionResolverInterface::class));
@@ -61,6 +56,8 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $builder->shouldReceive('where')->with('not', '!=', 'admin');
         $builder->shouldReceive('where')->with(m::type(Closure::class))->andReturnUsing(function () use ($builder, $closure) {
             $closure($builder);
+
+            return $builder;
         });
         $builder->shouldReceive('where')->with('closure', 1);
         $builder->shouldReceive('count')->once()->andReturn(100);

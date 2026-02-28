@@ -14,7 +14,11 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
-        }
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }        
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
@@ -26,19 +30,23 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/redis": "~3.1.0",
-        "hypervel/support": "^0.3"
+        "php": "^8.4",
+        "ext-redis": "*",
+        "hypervel/contracts": "^0.4",
+        "hypervel/pool": "^0.4",        
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Redis\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Redis\\RedisServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

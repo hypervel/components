@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis;
 
 use Generator;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
+use Hypervel\Contracts\Cache\Store;
 
 /**
  * Any-mode tag set for Redis 8.0+ enhanced tagging.

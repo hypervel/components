@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Support\Providers;
 
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\ServiceProvider;
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\EventDispatcher\ListenerProviderInterface;
 
 class EventServiceProvider extends ServiceProvider
 {
     /**
-     * The event listener mappings for the application.
+     * The event handler mappings for the application.
+     *
+     * @var array<string, array<int, string>>
      */
     protected array $listen = [];
 
@@ -20,19 +21,47 @@ class EventServiceProvider extends ServiceProvider
      */
     protected array $subscribe = [];
 
+    /**
+     * The model observers to register.
+     *
+     * @var array<string, array<int, object|string>|object|string>
+     */
+    protected array $observers = [];
+
+    /**
+     * Register the application's event listeners.
+     */
     public function register(): void
     {
-        $provider = $this->app->get(ListenerProviderInterface::class);
-        foreach ($this->listen as $event => $listeners) {
-            foreach ($listeners as $listener) {
-                $instance = $this->app->get($listener);
-                $provider->on($event, [$instance, 'handle']);
+        $this->booting(function () {
+            foreach ($this->listens() as $event => $listeners) {
+                foreach (array_unique($listeners, SORT_REGULAR) as $listener) {
+                    Event::listen($event, $listener);
+                }
             }
-        }
 
-        $dispatcher = $this->app->get(EventDispatcherInterface::class);
-        foreach ($this->subscribe as $subscriber) {
-            $dispatcher->subscribe($subscriber);
-        }
+            foreach ($this->subscribe as $subscriber) {
+                Event::subscribe($subscriber);
+            }
+
+            foreach ($this->observers as $model => $observers) {
+                $model::observe($observers);
+            }
+        });
+    }
+
+    /**
+     * Boot any application services.
+     */
+    public function boot(): void
+    {
+    }
+
+    /**
+     * Get the events and handlers.
+     */
+    public function listens(): array
+    {
+        return $this->listen;
     }
 }

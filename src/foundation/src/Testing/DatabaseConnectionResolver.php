@@ -4,29 +4,129 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\DbConnection\ConnectionResolver;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\FlushableConnectionResolver;
+use UnitEnum;
 
-class DatabaseConnectionResolver extends ConnectionResolver
+use function Hypervel\Support\enum_value;
+
+/**
+ * Database connection resolver for the testing environment.
+ *
+ * Caches connections statically to prevent pool exhaustion (since the testing
+ * environment doesn't use defer() to release connections back to the pool).
+ * Call resetCachedConnections() at the start of each test to ensure clean
+ * state without the test pollution that static caching would otherwise cause.
+ */
+class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
 {
     /**
      * Connections for testing environment.
+     *
+     * @var array<string, ConnectionInterface>
      */
     protected static array $connections = [];
 
     /**
+     * The object ID of the container when connections were cached.
+     * Used to detect when a new test's container differs from previous.
+     */
+    protected static ?int $containerId = null;
+
+    /**
+     * Whether the dispatcher rebinding hook has been registered.
+     */
+    protected static bool $rebindingRegistered = false;
+
+    /**
+     * Reset all cached connections to clean state.
+     *
+     * Called after Application is created to prevent test pollution (query logs,
+     * event listeners, transaction state, etc.) from leaking between tests.
+     *
+     * When the container changes (new test with fresh Application), cached
+     * connections are flushed since they hold references to the old container's
+     * services. A rebinding hook is registered so Event::fake() automatically
+     * updates cached connections with the new dispatcher.
+     */
+    public static function resetCachedConnections(): void
+    {
+        $container = Container::getInstance();
+        $currentContainerId = spl_object_id($container);
+
+        // If container changed, flush all cached connections since they hold
+        // stale references to the old container's dispatcher and other services
+        if (static::$containerId !== $currentContainerId) {
+            static::$containerId = $currentContainerId;
+            static::$connections = [];
+            static::$rebindingRegistered = false;
+        }
+
+        // Reset per-request state on remaining connections
+        foreach (static::$connections as $connection) {
+            if ($connection instanceof Connection) {
+                $connection->resetForPool();
+            }
+        }
+
+        // Register rebinding hook so Event::fake() updates cached connections
+        static::registerDispatcherRebinding($container);
+    }
+
+    /**
+     * Register a rebinding hook for the event dispatcher.
+     *
+     * When Event::fake() swaps the dispatcher, this callback updates all
+     * cached connections to use the new (fake) dispatcher.
+     */
+    protected static function registerDispatcherRebinding(ContainerContract $container): void
+    {
+        if (static::$rebindingRegistered) {
+            return;
+        }
+
+        // Must use the canonical binding key (PSR interface registered by ConfigProvider),
+        // not an alias. rebinding() resolves aliases when storing callbacks, but instance()
+        // doesn't when firing them. Using the canonical key avoids the mismatch.
+        // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
+        /** @var \Hypervel\Container\Container $container */
+        $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
+            foreach (static::$connections as $connection) {
+                if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
+            }
+        });
+
+        static::$rebindingRegistered = true;
+    }
+
+    /**
+     * Flush a cached connection.
+     *
+     * Clears the static cache so the next connection() call creates a fresh
+     * connection with current configuration.
+     */
+    public function flush(string $name): void
+    {
+        unset(static::$connections[$name]);
+    }
+
+    /**
      * Get a database connection instance.
      */
-    public function connection(?string $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        if (is_null($name)) {
-            $name = $this->getDefaultConnection();
-        }
+        $name = enum_value($name) ?: $this->getDefaultConnection();
 
         // If the pool is enabled, we should use the default connection resolver.
         $poolEnabled = $this->container
-            ->get(ConfigInterface::class)
+            ->get('config')
             ->get("database.connections.{$name}.pool.testing_enabled", false);
         if ($poolEnabled) {
             return parent::connection($name);

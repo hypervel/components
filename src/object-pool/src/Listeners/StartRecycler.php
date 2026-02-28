@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Listeners;
 
-use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Framework\Event\AfterWorkerStart;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\ObjectPool\Contracts\Recycler;
-use Psr\Container\ContainerInterface;
 
-class StartRecycler implements ListenerInterface
+class StartRecycler
 {
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
     ) {
     }
 
-    public function listen(): array
+    /**
+     * Start the object pool recycler after a worker starts.
+     */
+    public function handle(AfterWorkerStart $event): void
     {
-        return [
-            AfterWorkerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
-    {
-        $this->container->get(Recycler::class)
+        $this->container->make(Recycler::class)
             ->start();
     }
 }

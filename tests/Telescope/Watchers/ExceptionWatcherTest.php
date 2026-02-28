@@ -7,8 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Error;
 use ErrorException;
 use Exception;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -24,11 +23,11 @@ class ExceptionWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 ExceptionWatcher::class => true,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('logging.default', 'null');
 
         $this->startTelescope();
@@ -36,7 +35,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaException('Something went bananas.');
 
@@ -53,7 +52,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterThrowableEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaError('Something went bananas.');
 
@@ -70,7 +69,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterEntriesWhenEvalFailed()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = null;
 

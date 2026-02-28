@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
-use Hypervel\Validation\Contracts\Rule as RuleContract;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
 use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
 use Mockery as m;
@@ -24,7 +24,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             return new Translator(
                 new ArrayLoader(),
                 'en'
@@ -243,7 +243,7 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             ['my_password' => 'Nuno'],
             ['my_password' => ['nullable', 'confirmed', Password::min(3)->letters()]]
         );
@@ -299,7 +299,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             ['password' => '1234'],
             $rules
         );
@@ -307,7 +307,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v1 = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             ['password' => '123412@45#341111'],
             $rules
         );
@@ -327,7 +327,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make(TranslatorContract::class),
             ['my_password' => '1234'],
             $rules,
             $messages,
@@ -425,7 +425,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->get(TranslatorContract::class),
+                $this->app->make(TranslatorContract::class),
                 ['my_password' => $value, 'my_password_confirmation' => $value],
                 ['my_password' => is_object($rule) ? clone $rule : $rule]
             );

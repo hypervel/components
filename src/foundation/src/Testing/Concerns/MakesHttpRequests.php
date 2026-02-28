@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Foundation\Testing\Http\TestClient;
-use Hypervel\Foundation\Testing\Http\TestResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\Testing\TestResponse;
 
 trait MakesHttpRequests
 {
@@ -318,12 +318,12 @@ trait MakesHttpRequests
     protected function withoutMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
-            $this->app->set('middleware.disable', true);
+            $this->app->instance('middleware.disable', true);
             return $this;
         }
 
         foreach ((array) $middleware as $abstract) {
-            $this->app->bind($abstract, FakeMiddleware::class);
+            $this->app->singleton($abstract, FakeMiddleware::class);
         }
 
         return $this;
@@ -337,14 +337,13 @@ trait MakesHttpRequests
     public function withMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
-            $this->app->remove('middleware.disable');
+            unset($this->app['middleware.disable']);
 
             return $this;
         }
 
-        // restore bindings since bound middleware can't be removed from container's definition map
         foreach ((array) $middleware as $abstract) {
-            $this->app->remove($abstract, $abstract);
+            unset($this->app[$abstract]);
         }
 
         return $this;

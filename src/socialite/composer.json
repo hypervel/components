@@ -26,12 +26,12 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-json": "*",
         "firebase/php-jwt": "^6.4",
         "guzzlehttp/guzzle": "^6.0|^7.0",
-        "hypervel/http": "^0.3",
-        "hypervel/support": "^0.3",
+        "hypervel/http": "^0.4",
+        "hypervel/support": "^0.4",
         "league/oauth1-client": "^1.11",
         "phpseclib/phpseclib": "^3.0"
     },
@@ -39,11 +39,13 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Socialite\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Socialite\\SocialiteServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use function Hyperf\Support\env;
-
 /*
  * This file is for backward compatibility for Hyperf framework only.
  * If you're using Hypervel, you should set keys in `config/app.php`.

@@ -6,11 +6,11 @@ namespace Hypervel\Horizon;
 
 use ArrayAccess;
 use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Arr;
-use Illuminate\Events\CallQueuedListener;
 
 class JobPayload implements ArrayAccess
 {

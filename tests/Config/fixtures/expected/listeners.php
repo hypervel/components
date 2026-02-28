@@ -15,13 +15,13 @@ return [
     // From base (numeric keys)
     0 => 'App\Listeners\EventLoggerListener',
     1 => 'App\Listeners\AuditListener',
-    2 => 'Hyperf\Command\Listener\RegisterCommandListener',
+    2 => 'App\Listeners\RegisterCommandListener',
 
     // From override (numeric keys - appended)
-    3 => 'Hyperf\ModelListener\Listener\ModelEventListener',
-    4 => 'Hyperf\Process\Listener\BootProcessListener',
+    3 => 'App\Listeners\ModelEventListener',
+    4 => 'Hypervel\ServerProcess\Listeners\BootProcessListener',
 
     // From override (string keys with priority - MUST be preserved)
-    'Hyperf\ModelListener\Listener\ModelHookEventListener' => 99,
-    'Hyperf\Signal\Listener\SignalRegisterListener' => PHP_INT_MAX,
+    'App\Listeners\ModelHookEventListener' => 99,
+    'App\Listeners\CriticalSecurityListener' => PHP_INT_MAX,
 ];

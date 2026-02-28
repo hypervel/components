@@ -7,23 +7,23 @@ namespace Hypervel\Mail;
 use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Mail\Factory as FactoryContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Log\LogManager;
-use Hypervel\Mail\Contracts\Factory as FactoryContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\Transport\SesTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
+use Hypervel\Support\Str;
 use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory;
@@ -39,7 +39,7 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * @mixin \Hypervel\Mail\Contracts\Mailer
+ * @mixin \Hypervel\Contracts\Mail\Mailer
  */
 class MailManager implements FactoryContract
 {
@@ -48,7 +48,7 @@ class MailManager implements FactoryContract
     /**
      * The config instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved mailers.
@@ -76,9 +76,9 @@ class MailManager implements FactoryContract
      * Create a new Mail manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->make('config');
     }
 
     /**
@@ -128,13 +128,13 @@ class MailManager implements FactoryContract
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app->get(ViewFactoryContract::class),
+            $this->app->make(ViewFactoryContract::class),
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->make(Dispatcher::class)
         );
 
         if ($this->app->has(QueueFactory::class)) {
-            $mailer->setQueue($this->app->get(QueueFactory::class));
+            $mailer->setQueue($this->app->make(QueueFactory::class));
         }
 
         // Next we will set all of the global addresses on this mailer, which allows
@@ -404,11 +404,11 @@ class MailManager implements FactoryContract
      */
     protected function createLogTransport(array $config): LogTransport
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         if ($logger instanceof LogManager) {
             $logger = $logger->channel(
-                $config['channel'] ?? $this->app->get(ConfigInterface::class)->get('mail.log_channel')
+                $config['channel'] ?? $this->app->make('config')->get('mail.log_channel')
             );
         }
 
@@ -527,7 +527,7 @@ class MailManager implements FactoryContract
     /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -535,7 +535,7 @@ class MailManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\QueryException;
 use InvalidArgumentException;
 
-use function Hyperf\Support\optional;
+use function optional;
 
 class DatabaseLock extends Lock implements RefreshableLock
 {

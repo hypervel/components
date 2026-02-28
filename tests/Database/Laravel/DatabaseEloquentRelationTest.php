@@ -1,0 +1,384 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentRelationTest;
+
+use Exception;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentRelationTest extends TestCase
+{
+    public function testSetRelationFail()
+    {
+        $parent = new ResetModelStub();
+        $relation = new ResetModelStub();
+        $parent->setRelation('test', $relation);
+        $parent->setRelation('foo', 'bar');
+        $this->assertArrayNotHasKey('foo', $parent->toArray());
+    }
+
+    public function testUnsetExistingRelation()
+    {
+        $parent = new ResetModelStub();
+        $relation = new ResetModelStub();
+        $parent->setRelation('foo', $relation);
+        $parent->unsetRelation('foo');
+        $this->assertFalse($parent->relationLoaded('foo'));
+    }
+
+    public function testTouchMethodUpdatesRelatedTimestamps()
+    {
+        $builder = m::mock(Builder::class);
+        $parent = m::mock(Model::class);
+        $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
+        $builder->shouldReceive('getModel')->andReturn($related);
+        $builder->shouldReceive('whereNotNull');
+        $builder->shouldReceive('where');
+        $builder->shouldReceive('withoutGlobalScopes')->andReturn($builder);
+        $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
+        $related->shouldReceive('getTable')->andReturn('table');
+        $related->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+        $now = Carbon::now();
+        $related->shouldReceive('freshTimestampString')->andReturn($now);
+        $builder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+
+        $relation->touch();
+    }
+
+    public function testCanDisableParentTouchingForAllModels()
+    {
+        /** @var \Illuminate\Tests\Database\NoTouchingModelStub $related */
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
+        $related->shouldReceive('getUpdatedAtColumn')->never();
+        $related->shouldReceive('freshTimestampString')->never();
+
+        $this->assertFalse($related::isIgnoringTouch());
+
+        Model::withoutTouching(function () use ($related) {
+            $this->assertTrue($related::isIgnoringTouch());
+
+            $builder = m::mock(Builder::class);
+            $parent = m::mock(Model::class);
+
+            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+            $builder->shouldReceive('getModel')->andReturn($related);
+            $builder->shouldReceive('whereNotNull');
+            $builder->shouldReceive('where');
+            $builder->shouldReceive('withoutGlobalScopes')->andReturn($builder);
+            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
+            $builder->shouldReceive('update')->never();
+
+            $relation->touch();
+        });
+
+        $this->assertFalse($related::isIgnoringTouch());
+    }
+
+    public function testCanDisableTouchingForSpecificModel()
+    {
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
+        $related->shouldReceive('getUpdatedAtColumn')->never();
+        $related->shouldReceive('freshTimestampString')->never();
+
+        $anotherRelated = m::mock(NoTouchingAnotherModelStub::class)->makePartial();
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($anotherRelated::isIgnoringTouch());
+
+        NoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated) {
+            $this->assertTrue($related::isIgnoringTouch());
+            $this->assertFalse($anotherRelated::isIgnoringTouch());
+
+            $builder = m::mock(Builder::class);
+            $parent = m::mock(Model::class);
+
+            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+            $builder->shouldReceive('getModel')->andReturn($related);
+            $builder->shouldReceive('whereNotNull');
+            $builder->shouldReceive('where');
+            $builder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
+            $builder->shouldReceive('update')->never();
+
+            $relation->touch();
+
+            $anotherBuilder = m::mock(Builder::class);
+            $anotherParent = m::mock(Model::class);
+
+            $anotherParent->shouldReceive('getAttribute')->with('id')->andReturn(2);
+            $anotherBuilder->shouldReceive('getModel')->andReturn($anotherRelated);
+            $anotherBuilder->shouldReceive('whereNotNull');
+            $anotherBuilder->shouldReceive('where');
+            $anotherBuilder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
+            $now = Carbon::now();
+            $anotherRelated->shouldReceive('freshTimestampString')->andReturn($now);
+            $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+
+            $anotherRelation->touch();
+        });
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($anotherRelated::isIgnoringTouch());
+    }
+
+    public function testParentModelIsNotTouchedWhenChildModelIsIgnored()
+    {
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
+        $related->shouldReceive('getUpdatedAtColumn')->never();
+        $related->shouldReceive('freshTimestampString')->never();
+
+        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
+        $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
+        $relatedChild->shouldReceive('freshTimestampString')->never();
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($relatedChild::isIgnoringTouch());
+
+        NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
+            $this->assertTrue($related::isIgnoringTouch());
+            $this->assertTrue($relatedChild::isIgnoringTouch());
+
+            $builder = m::mock(Builder::class);
+            $parent = m::mock(Model::class);
+
+            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+            $builder->shouldReceive('getModel')->andReturn($related);
+            $builder->shouldReceive('whereNotNull');
+            $builder->shouldReceive('where');
+            $builder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
+            $builder->shouldReceive('update')->never();
+
+            $relation->touch();
+
+            $anotherBuilder = m::mock(Builder::class);
+            $anotherParent = m::mock(Model::class);
+
+            $anotherParent->shouldReceive('getAttribute')->with('id')->andReturn(2);
+            $anotherBuilder->shouldReceive('getModel')->andReturn($relatedChild);
+            $anotherBuilder->shouldReceive('whereNotNull');
+            $anotherBuilder->shouldReceive('where');
+            $anotherBuilder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
+            $anotherBuilder->shouldReceive('update')->never();
+
+            $anotherRelation->touch();
+        });
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($relatedChild::isIgnoringTouch());
+    }
+
+    public function testIgnoredModelsStateIsResetWhenThereAreExceptions()
+    {
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
+        $related->shouldReceive('getUpdatedAtColumn')->never();
+        $related->shouldReceive('freshTimestampString')->never();
+
+        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
+        $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
+        $relatedChild->shouldReceive('freshTimestampString')->never();
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($relatedChild::isIgnoringTouch());
+
+        try {
+            NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
+                $this->assertTrue($related::isIgnoringTouch());
+                $this->assertTrue($relatedChild::isIgnoringTouch());
+
+                throw new Exception();
+            });
+
+            $this->fail('Exception was not thrown');
+        } catch (Exception) {
+            // Does nothing.
+        }
+
+        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse($relatedChild::isIgnoringTouch());
+    }
+
+    public function testSettingMorphMapWithNumericArrayUsesTheTableNames()
+    {
+        Relation::morphMap([ResetModelStub::class]);
+
+        $this->assertEquals([
+            'reset' => ResetModelStub::class,
+        ], Relation::morphMap());
+
+        Relation::morphMap([], false);
+    }
+
+    public function testSettingMorphMapWithNumericKeys()
+    {
+        Relation::morphMap([1 => 'App\User']);
+
+        $this->assertEquals([
+            1 => 'App\User',
+        ], Relation::morphMap());
+
+        Relation::morphMap([], false);
+    }
+
+    public function testGetMorphAlias()
+    {
+        Relation::morphMap(['user' => 'App\User']);
+
+        $this->assertSame('user', Relation::getMorphAlias('App\User'));
+        $this->assertSame('Does\Not\Exist', Relation::getMorphAlias('Does\Not\Exist'));
+    }
+
+    public function testWithoutRelations()
+    {
+        $original = new NoTouchingModelStub();
+
+        $original->setRelation('foo', 'baz');
+
+        $this->assertSame('baz', $original->getRelation('foo'));
+
+        $model = $original->withoutRelations();
+
+        $this->assertInstanceOf(NoTouchingModelStub::class, $model);
+        $this->assertTrue($original->relationLoaded('foo'));
+        $this->assertFalse($model->relationLoaded('foo'));
+
+        $model = $original->unsetRelations();
+
+        $this->assertInstanceOf(NoTouchingModelStub::class, $model);
+        $this->assertFalse($original->relationLoaded('foo'));
+        $this->assertFalse($model->relationLoaded('foo'));
+    }
+
+    public function testMacroable()
+    {
+        Relation::macro('foo', function () {
+            return 'foo';
+        });
+
+        $model = new ResetModelStub();
+        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
+        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
+        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
+            return new QueryBuilder($connection, $grammar, $processor);
+        });
+
+        $relation = new RelationStub($model->newQuery(), $model);
+
+        $result = $relation->foo();
+        $this->assertSame('foo', $result);
+    }
+
+    public function testIsRelationIgnoresAttribute()
+    {
+        $model = new RelationAndAttributeModelStub();
+
+        $this->assertTrue($model->isRelation('parent'));
+        $this->assertFalse($model->isRelation('field'));
+    }
+}
+
+class ResetModelStub extends Model
+{
+    protected ?string $table = 'reset';
+
+    // Override method call which would normally go through __call()
+
+    public function getQuery()
+    {
+        return $this->newQuery()->getQuery();
+    }
+}
+
+class RelationStub extends Relation
+{
+    public function addConstraints(): void
+    {
+    }
+
+    public function addEagerConstraints(array $models): void
+    {
+    }
+
+    public function initRelation(array $models, string $relation): array
+    {
+        return [];
+    }
+
+    public function match(array $models, Collection $results, string $relation): array
+    {
+        return [];
+    }
+
+    public function getResults(): mixed
+    {
+        return null;
+    }
+}
+
+class NoTouchingModelStub extends Model
+{
+    protected ?string $table = 'table';
+
+    protected array $attributes = [
+        'id' => 1,
+    ];
+}
+
+class NoTouchingChildModelStub extends NoTouchingModelStub
+{
+}
+
+class NoTouchingAnotherModelStub extends Model
+{
+    protected ?string $table = 'another_table';
+
+    protected array $attributes = [
+        'id' => 2,
+    ];
+}
+
+class RelationAndAttributeModelStub extends Model
+{
+    protected ?string $table = 'one_more_table';
+
+    public function field(): Attribute
+    {
+        return new Attribute(
+            function ($value) {
+                return $value;
+            },
+            function ($value) {
+                return $value;
+            },
+        );
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class);
+    }
+}

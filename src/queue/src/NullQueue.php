@@ -6,8 +6,8 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 
 class NullQueue extends Queue implements QueueContract
 {

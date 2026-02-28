@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
-use Hyperf\Command\Command;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\ProcessUtils;
 use Override;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use ReflectionClass;
 use Symfony\Component\Console\Application as SymfonyApplication;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -24,13 +26,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Process\PhpExecutableFinder;
 
-class Application extends SymfonyApplication implements ApplicationContract
+class Application extends SymfonyApplication implements ConsoleApplicationContract
 {
-    /**
-     * Indicates if the application has "booted".
-     */
-    protected bool $booted = false;
-
     /**
      * The output from the previous command.
      */
@@ -38,17 +35,24 @@ class Application extends SymfonyApplication implements ApplicationContract
 
     /**
      * The console application bootstrappers.
+     *
+     * @var array<array-key, Closure(static): void>
      */
-    protected array $bootstrappers = [];
+    protected static array $bootstrappers = [];
 
     /**
      * A map of command names to classes.
      */
     protected array $commandMap = [];
 
+    /**
+     * Whether the container command loader has been set.
+     */
+    protected bool $commandLoaderSet = false;
+
     public function __construct(
-        protected ContainerContract $container,
-        protected EventDispatcherInterface $dispatcher,
+        protected ApplicationContract $container,
+        protected Dispatcher $dispatcher,
         string $version
     ) {
         parent::__construct('Hypervel Framework', $version);
@@ -60,6 +64,8 @@ class Application extends SymfonyApplication implements ApplicationContract
 
         $this->setAutoExit(false);
         $this->setCatchExceptions(true);
+
+        $this->dispatcher->dispatch(new ArtisanStarting($this));
 
         $this->bootstrap();
     }
@@ -94,10 +100,12 @@ class Application extends SymfonyApplication implements ApplicationContract
 
     /**
      * Register a console "starting" bootstrapper.
+     *
+     * @param Closure(static): void $callback
      */
-    public function starting(Closure $callback): void
+    public static function starting(Closure $callback): void
     {
-        $this->bootstrappers[] = $callback;
+        static::$bootstrappers[] = $callback;
     }
 
     /**
@@ -105,7 +113,7 @@ class Application extends SymfonyApplication implements ApplicationContract
      */
     protected function bootstrap(): void
     {
-        foreach ($this->bootstrappers as $bootstrapper) {
+        foreach (static::$bootstrappers as $bootstrapper) {
             $bootstrapper($this);
         }
     }
@@ -113,9 +121,9 @@ class Application extends SymfonyApplication implements ApplicationContract
     /**
      * Clear the console application bootstrappers.
      */
-    public function forgetBootstrappers(): void
+    public static function forgetBootstrappers(): void
     {
-        $this->bootstrappers = [];
+        static::$bootstrappers = [];
     }
 
     /**
@@ -123,7 +131,7 @@ class Application extends SymfonyApplication implements ApplicationContract
      *
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
+    public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
         [$command, $input] = $this->parseCommand($command, $parameters);
 
@@ -140,12 +148,16 @@ class Application extends SymfonyApplication implements ApplicationContract
     /**
      * Parse the incoming Artisan command and its input.
      */
-    protected function parseCommand(string $command, array $parameters): array
+    protected function parseCommand(string|SymfonyCommand $command, array $parameters): array
     {
         if (is_subclass_of($command, SymfonyCommand::class)) {
             $callingClass = true;
 
-            $command = $this->container->get($command)->getName();
+            if (is_object($command)) {
+                $command = get_class($command);
+            }
+
+            $command = $this->container->make($command)->getName();
         }
 
         if (! isset($callingClass) && empty($parameters)) {
@@ -172,25 +184,121 @@ class Application extends SymfonyApplication implements ApplicationContract
     }
 
     /**
-     * Add a command, resolving through the application.
+     * Alias for addCommand() since Symfony's add() method was deprecated.
      */
-    public function resolve(Command|string $command): ?SymfonyCommand
+    public function add(SymfonyCommand $command): ?SymfonyCommand
     {
-        if (is_subclass_of($command, SymfonyCommand::class) && ($commandName = $command::getDefaultName())) {
-            foreach (explode('|', $commandName) as $name) {
-                $this->commandMap[$name] = $command;
-            }
+        return $this->addCommand($command);
+    }
 
-            return null;
-        }
-
+    /**
+     * Add a command to the console.
+     */
+    public function addCommand(SymfonyCommand|callable $command): ?SymfonyCommand
+    {
         if ($command instanceof Command) {
-            return $this->add($command);
+            $command->setApp($this->container);
         }
 
-        return $this->add(
-            $this->container->get($command)
-        );
+        return $this->addToParent($command);
+    }
+
+    /**
+     * Add the command to the parent instance.
+     */
+    protected function addToParent(SymfonyCommand|callable $command): ?SymfonyCommand
+    {
+        return parent::addCommand($command);
+    }
+
+    /**
+     * Add a command, resolving through the application.
+     *
+     * Commands whose name can be determined statically (#[AsCommand], $signature,
+     * or $name property) are added to the commandMap for lazy resolution via
+     * ContainerCommandLoader. Commands without a static name fall back to eager
+     * resolution through the container.
+     */
+    public function resolve(SymfonyCommand|string $command): ?SymfonyCommand
+    {
+        if ($command instanceof SymfonyCommand) {
+            return $this->addCommand($command);
+        }
+
+        if (is_subclass_of($command, SymfonyCommand::class)) {
+            $commandName = static::extractCommandName($command);
+
+            if ($commandName !== null) {
+                foreach (explode('|', $commandName) as $name) {
+                    $this->commandMap[$name] = $command;
+                }
+
+                foreach (static::extractCommandAliases($command) as $alias) {
+                    $this->commandMap[$alias] = $command;
+                }
+
+                // Refresh the loader so it sees the new commandMap entries.
+                if ($this->commandLoaderSet) {
+                    $this->setContainerCommandLoader();
+                }
+
+                return null;
+            }
+        }
+
+        // Eager fallback for commands whose name cannot be determined statically.
+        return $this->addCommand($this->container->make($command));
+    }
+
+    /**
+     * Extract the command name from a class without instantiation.
+     *
+     * Checks (in order): #[AsCommand] attribute, $signature property default,
+     * $name property default. Returns null if the name can only be determined
+     * at construction time.
+     */
+    protected static function extractCommandName(string $command): ?string
+    {
+        $reflection = new ReflectionClass($command);
+
+        // 1. #[AsCommand] attribute (Symfony standard, used by Laravel).
+        $attributes = $reflection->getAttributes(AsCommand::class);
+
+        if (! empty($attributes)) {
+            return $attributes[0]->newInstance()->name;
+        }
+
+        $defaults = $reflection->getDefaultProperties();
+
+        // 2. $signature property (Laravel convention) — name is the first token.
+        if (! empty($defaults['signature'])) {
+            return preg_match('/^\S+/', trim($defaults['signature']), $matches)
+                ? $matches[0]
+                : null;
+        }
+
+        // 3. $name property.
+        if (! empty($defaults['name'])) {
+            return $defaults['name'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract command aliases from a class without instantiation.
+     *
+     * Reads the $aliases property default. #[AsCommand] aliases are already
+     * baked into the name string as pipe-separated values by Symfony, so they
+     * are handled by extractCommandName() + the explode('|') in resolve().
+     *
+     * @return array<int, string>
+     */
+    protected static function extractCommandAliases(string $command): array
+    {
+        $defaults = (new ReflectionClass($command))->getDefaultProperties();
+
+        return $defaults['aliases'] ?? [];
     }
 
     /**
@@ -221,6 +329,8 @@ class Application extends SymfonyApplication implements ApplicationContract
             new ContainerCommandLoader($this->container, $this->commandMap)
         );
 
+        $this->commandLoaderSet = true;
+
         return $this;
     }
 
@@ -249,7 +359,10 @@ class Application extends SymfonyApplication implements ApplicationContract
         return new InputOption('--env', null, InputOption::VALUE_OPTIONAL, $message);
     }
 
-    public function getContainer(): ContainerContract
+    /**
+     * Get the application instance.
+     */
+    public function getApp(): ApplicationContract
     {
         return $this->container;
     }

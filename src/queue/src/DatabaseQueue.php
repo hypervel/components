@@ -6,17 +6,17 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
-use Hyperf\Stringable\Str;
-use Hypervel\Queue\Contracts\ClearableQueue;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Contracts\Queue\ClearableQueue;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use PDO;
 use Throwable;
 
@@ -37,7 +37,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         protected string $table,
         protected string $default = 'default',
         protected ?int $retryAfter = 60,
-        protected bool $dispatchAfterCommit = false
+        protected ?bool $dispatchAfterCommit = false
     ) {
     }
 
@@ -130,7 +130,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $this->getQueue($queue), $data),
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
             function ($payload, $queue, $delay) {

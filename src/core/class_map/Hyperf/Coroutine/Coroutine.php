@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hyperf\Coroutine;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Engine\Coroutine as Co;
-use Hyperf\Engine\Exception\CoroutineDestroyedException;
-use Hyperf\Engine\Exception\RunningInNonCoroutineException;
-use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Engine\Coroutine as Co;
+use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Engine\Exception\RunningInNonCoroutineException;
+use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Throwable;
 
 class Coroutine
@@ -148,16 +148,14 @@ class Coroutine
 
     private static function printLog(Throwable $throwable): void
     {
-        if (ApplicationContext::hasContainer()) {
-            $container = ApplicationContext::getContainer();
-            if ($container->has(StdoutLoggerInterface::class)) {
-                $logger = $container->get(StdoutLoggerInterface::class);
-                if ($container->has(FormatterInterface::class)) {
-                    $formatter = $container->get(FormatterInterface::class);
-                    $logger->warning($formatter->format($throwable));
-                } else {
-                    $logger->warning((string) $throwable);
-                }
+        $container = Container::getInstance();
+        if ($container->has(StdoutLoggerInterface::class)) {
+            $logger = $container->make(StdoutLoggerInterface::class);
+            if ($container->has(FormatterInterface::class)) {
+                $formatter = $container->make(FormatterInterface::class);
+                $logger->warning($formatter->format($throwable));
+            } else {
+                $logger->warning((string) $throwable);
             }
         }
     }

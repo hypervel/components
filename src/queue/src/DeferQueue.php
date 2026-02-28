@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hyperf\Engine\Coroutine;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Engine\Coroutine;
 use Throwable;
 
 class DeferQueue extends SyncQueue
@@ -23,9 +22,9 @@ class DeferQueue extends SyncQueue
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has(TransactionManager::class)
+            && $this->container->has('db.transactions')
         ) {
-            return $this->container->get(TransactionManager::class)
+            return $this->container->make('db.transactions')
                 ->addCallback(
                     fn () => $this->deferJob($job, $data, $queue)
                 );

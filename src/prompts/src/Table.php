@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 class Table extends Prompt
 {

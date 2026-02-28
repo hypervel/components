@@ -13,10 +13,10 @@ use function PHPStan\Testing\assertType;
 /** @param \Hypervel\Database\Eloquent\Builder<User> $userQuery */
 function test(Builder $query, EloquentBuilder $userQuery): void
 {
-    assertType('object|null', $query->first());
-    assertType('object|null', $query->find(1));
-    assertType('42|object', $query->findOr(1, fn () => 42));
-    assertType('42|object', $query->findOr(1, callback: fn () => 42));
+    assertType('stdClass|null', $query->first());
+    assertType('array|object|null', $query->find(1));
+    assertType('42|stdClass', $query->findOr(1, fn () => 42));
+    assertType('42|stdClass', $query->findOr(1, callback: fn () => 42));
     assertType('Hypervel\Database\Query\Builder', $query->selectSub($userQuery, 'alias'));
     assertType('Hypervel\Database\Query\Builder', $query->fromSub($userQuery, 'alias'));
     assertType('Hypervel\Database\Query\Builder', $query->from($userQuery, 'alias'));
@@ -36,31 +36,36 @@ function test(Builder $query, EloquentBuilder $userQuery): void
     assertType('Hypervel\Database\Query\Builder', $query->unionAll($userQuery));
     assertType('int', $query->insertUsing([], $userQuery));
     assertType('int', $query->insertOrIgnoreUsing([], $userQuery));
-    assertType('Hypervel\Support\LazyCollection<int, object>', $query->lazy());
-    assertType('Hypervel\Support\LazyCollection<int, object>', $query->lazyById());
-    assertType('Hypervel\Support\LazyCollection<int, object>', $query->lazyByIdDesc());
+    assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazy());
+    assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazyById());
+    assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazyByIdDesc());
 
     $query->chunk(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, object>', $users);
+        assertType('Hypervel\Support\Collection<int, stdClass>', $users);
         assertType('int', $page);
     });
     $query->chunkById(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, object>', $users);
+        assertType('Hypervel\Support\Collection<int, stdClass>', $users);
         assertType('int', $page);
     });
     $query->chunkMap(function ($users) {
-        assertType('object', $users);
+        assertType('stdClass', $users);
     });
     $query->chunkByIdDesc(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, object>', $users);
+        assertType('Hypervel\Support\Collection<int, stdClass>', $users);
         assertType('int', $page);
     });
     $query->each(function ($users, $page) {
-        assertType('object', $users);
+        assertType('stdClass', $users);
         assertType('int', $page);
     });
     $query->eachById(function ($users, $page) {
-        assertType('object', $users);
+        assertType('stdClass', $users);
         assertType('int', $page);
     });
+    assertType('Hypervel\Database\Query\Builder', $query->pipe(function () {
+    }));
+    assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null));
+    assertType('Hypervel\Database\Query\Builder', $query->pipe(fn ($query) => $query));
+    assertType('5', $query->pipe(fn ($query) => 5));
 }

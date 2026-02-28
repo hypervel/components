@@ -26,27 +26,27 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-filter": "*",
         "ext-mbstring": "*",
         "brick/math": "^0.11|^0.12",
         "egulias/email-validator": "^3.2.5|^4.0",
-        "hypervel/support": "^0.3",
-        "hypervel/translation": "^0.3"
+        "hypervel/database": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/translation": "^0.4",
+        "ramsey/uuid": "^4.7"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Validation\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Validation\\ValidationServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
-    },
-    "suggest": {
-        "hyperf/database": "Required to use the database presence verifier (^3.1.0).",
-        "ramsey/uuid": "Required to use Validator::validateUuid() (^4.7)."
     }
 }

@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Event\EventDispatcher;
-use Hypervel\Event\ListenerProvider;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
@@ -14,9 +13,7 @@ use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
 
 /**
@@ -39,8 +36,8 @@ class FoundationApplicationTest extends TestCase
             ->once();
 
         $app = $this->getApplication([
-            TranslatorContract::class => fn () => $trans,
-            EventDispatcherInterface::class => fn () => $events,
+            'translator' => fn () => $trans,
+            'events' => fn () => $events,
         ]);
 
         $app->setLocale('foo');
@@ -160,15 +157,9 @@ class FoundationApplicationTest extends TestCase
 
     public function testBeforeBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
@@ -177,15 +168,9 @@ class FoundationApplicationTest extends TestCase
 
     public function testAfterBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
@@ -194,11 +179,11 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetNamespace()
     {
-        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf1'));
-        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf2'));
+        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project1'));
+        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project2'));
 
-        $this->assertSame('Hyperf\One\\', $app1->getNamespace());
-        $this->assertSame('Hyperf\Two\\', $app2->getNamespace());
+        $this->assertSame('App\One\\', $app1->getNamespace());
+        $this->assertSame('App\Two\\', $app2->getNamespace());
     }
 
     public function testMacroable()

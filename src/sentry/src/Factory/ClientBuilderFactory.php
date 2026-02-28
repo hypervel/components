@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Factory;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentry\Integrations\ExceptionContextIntegration;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Integrations\RequestFetcher;
@@ -16,10 +15,6 @@ use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
-
-use function Hyperf\Support\make;
-use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class ClientBuilderFactory
 {
@@ -36,7 +31,7 @@ class ClientBuilderFactory
 
     public function __invoke(Application $container)
     {
-        $userConfig = $container->get(ConfigInterface::class)->get('sentry', []);
+        $userConfig = $container->make('config')->get('sentry', []);
         $userConfig['enable_tracing'] ??= true;
 
         foreach (static::SPECIFIC_OPTIONS as $specificOptionName) {
@@ -47,7 +42,7 @@ class ClientBuilderFactory
 
         if (isset($userConfig['logger'])) {
             if (is_string($userConfig['logger']) && $container->has($userConfig['logger'])) {
-                $userConfig['logger'] = $container->get($userConfig['logger']);
+                $userConfig['logger'] = $container->make($userConfig['logger']);
             }
             if (! $userConfig['logger'] instanceof LoggerInterface) {
                 unset($userConfig['logger']);
@@ -71,7 +66,7 @@ class ClientBuilderFactory
             ! ($options['http_client'] ?? null) instanceof HttpClientInterface
             && $container->has(HttpClientInterface::class)
         ) {
-            $options['http_client'] = $container->get(HttpClientInterface::class);
+            $options['http_client'] = $container->make(HttpClientInterface::class);
         }
 
         return tap(
@@ -87,12 +82,13 @@ class ClientBuilderFactory
     protected function resolveIntegrations(Application $container, ClientBuilder $clientBuilder): void
     {
         $options = $clientBuilder->getOptions();
-        $userConfig = (array) $container->get(ConfigInterface::class)->get('sentry', []);
+        $userConfig = (array) $container->make('config')->get('sentry', []);
 
         /** @var array<array-key, class-string>|callable $userIntegrationOption */
         $userIntegrationOption = $userConfig['integrations'] ?? [];
 
         $userIntegrations = $this->resolveIntegrationsFromUserConfig(
+            $container,
             \is_array($userIntegrationOption) ? $userIntegrationOption : []
         );
 
@@ -133,7 +129,7 @@ class ClientBuilderFactory
                         }
                     );
 
-                    $requestFetcher = $container->get(RequestFetcher::class);
+                    $requestFetcher = $container->make(RequestFetcher::class);
                     $integrations[] = new SdkIntegration\RequestIntegration($requestFetcher);
                 }
 
@@ -159,7 +155,7 @@ class ClientBuilderFactory
     /**
      * @return SdkIntegration\IntegrationInterface[]
      */
-    protected function resolveIntegrationsFromUserConfig(array $userIntegrations): array
+    protected function resolveIntegrationsFromUserConfig(Application $container, array $userIntegrations): array
     {
         $integrations = [];
 
@@ -167,7 +163,7 @@ class ClientBuilderFactory
             if ($userIntegration instanceof SdkIntegration\IntegrationInterface) {
                 $integrations[] = $userIntegration;
             } elseif (\is_string($userIntegration)) {
-                $resolvedIntegration = make($userIntegration);
+                $resolvedIntegration = $container->make($userIntegration);
 
                 if (! $resolvedIntegration instanceof SdkIntegration\IntegrationInterface) {
                     throw new RuntimeException(

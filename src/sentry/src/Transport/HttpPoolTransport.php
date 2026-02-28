@@ -23,7 +23,7 @@ class HttpPoolTransport implements TransportInterface
         /** @var HttpTransport $transport */
         $transport = $this->pool->get();
 
-        Context::set('sentry.transport', $transport);
+        Context::set('__sentry.transport', $transport);
 
         try {
             return $transport->send($event);
@@ -36,7 +36,7 @@ class HttpPoolTransport implements TransportInterface
 
     public function close(?int $timeout = null): Result
     {
-        if ($transport = Context::get('sentry.transport')) {
+        if ($transport = Context::get('__sentry.transport')) {
             $this->pool->release($transport);
         }
 

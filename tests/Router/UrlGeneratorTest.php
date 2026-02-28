@@ -4,24 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Contract\SessionInterface;
-use Hyperf\HttpMessage\Server\Request as ServerRequest;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Request;
-use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\HttpMessage\Server\Request as ServerRequest;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Request;
+use Hypervel\HttpServer\Router\DispatcherFactory as HttpServerDispatcherFactory;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\UrlGenerator;
 use Hypervel\Tests\Router\Stub\UrlRoutableStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReflectionMethod;
@@ -32,10 +29,7 @@ use ReflectionMethod;
  */
 class UrlGeneratorTest extends TestCase
 {
-    /**
-     * @var ContainerInterface|MockInterface
-     */
-    private ContainerInterface $container;
+    private Container $container;
 
     /**
      * @var MockInterface|RouteCollector
@@ -62,13 +56,9 @@ class UrlGeneratorTest extends TestCase
 
         $this->mockRouter();
 
-        $config = Mockery::mock(ConfigInterface::class);
-        $config->shouldReceive('get')
-            ->with('app.url')
-            ->andReturn('http://example.com');
-        $this->container->shouldReceive('get')
-            ->with(ConfigInterface::class)
-            ->andReturn($config);
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://example.com'],
+        ]));
 
         $this->router
             ->shouldReceive('getNamedRoutes')
@@ -250,13 +240,11 @@ class UrlGeneratorTest extends TestCase
 
     public function testNoRequestContext()
     {
-        $urlGenerator = new UrlGenerator($this->container);
-
-        $this->container->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config([
-            'app' => [
-                'url' => 'http://localhost',
-            ],
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://localhost'],
         ]));
+
+        $urlGenerator = new UrlGenerator($this->container);
 
         $this->assertEquals('http://localhost/foo', $urlGenerator->to('foo'));
     }
@@ -291,9 +279,6 @@ class UrlGeneratorTest extends TestCase
                 ['referer' => 'http://example.com/previous']
             )
         );
-        $this->container->shouldReceive('has')
-            ->with(SessionInterface::class)
-            ->andReturnFalse();
 
         $this->assertEquals('http://example.com/previous', $urlGenerator->previous());
 
@@ -324,19 +309,9 @@ class UrlGeneratorTest extends TestCase
             )
         );
 
-        // Mock ConfigInterface for app.url
-        $mockConfig = Mockery::mock(ConfigInterface::class);
-        $mockConfig->shouldReceive('get')
-            ->with('app.url')
-            ->andReturn('http://example.com');
-        $this->container->shouldReceive('get')
-            ->with(ConfigInterface::class)
-            ->andReturn($mockConfig);
-
-        // Test with referer header
-        $this->container->shouldReceive('has')
-            ->with(SessionInterface::class)
-            ->andReturnFalse();
+        $this->container->instance('config', new ConfigRepository([
+            'app' => ['url' => 'http://example.com'],
+        ]));
 
         $this->assertEquals('/previous/path', $urlGenerator->previousPath());
 
@@ -640,14 +615,10 @@ class UrlGeneratorTest extends TestCase
 
     private function mockContainer()
     {
-        /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = new Container();
+        $container->instance(RequestInterface::class, new Request());
 
-        $container->shouldReceive('get')
-            ->with(RequestInterface::class)
-            ->andReturn(new Request());
-
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->container = $container;
     }
@@ -655,15 +626,12 @@ class UrlGeneratorTest extends TestCase
     private function mockRouter(?RouteCollector $router = null)
     {
         /** @var DispatcherFactory|MockInterface */
-        $factory = Mockery::mock(DispatcherFactory::class);
+        $factory = m::mock(DispatcherFactory::class);
 
         /** @var MockInterface|RouteCollector */
-        $router = $router ?: Mockery::mock(RouteCollector::class);
+        $router = $router ?: m::mock(RouteCollector::class);
 
-        $this->container
-            ->shouldReceive('get')
-            ->with(HyperfDispatcherFactory::class)
-            ->andReturn($factory);
+        $this->container->instance(HttpServerDispatcherFactory::class, $factory);
 
         $factory
             ->shouldReceive('getRouter')

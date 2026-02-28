@@ -1,0 +1,450 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Database\Eloquent\Concerns;
+
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Events\NullDispatcher;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use InvalidArgumentException;
+use ReflectionClass;
+
+trait HasEvents
+{
+    /**
+     * The event map for the model.
+     *
+     * Allows for object-based events for native Eloquent events.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $dispatchesEvents = [];
+
+    /**
+     * User exposed observable events.
+     *
+     * These are extra user-defined events observers may subscribe to.
+     *
+     * @var string[]
+     */
+    protected array $observables = [];
+
+    /**
+     * Boot the has event trait for a model.
+     */
+    public static function bootHasEvents(): void
+    {
+        static::whenBooted(function () {
+            $observers = static::resolveObserveAttributes();
+
+            if (! empty($observers)) {
+                static::observe($observers);
+            }
+        });
+    }
+
+    /**
+     * Resolve the observe class names from the attributes.
+     *
+     * @return array<int, class-string>
+     */
+    public static function resolveObserveAttributes(): array
+    {
+        $reflectionClass = new ReflectionClass(static::class);
+
+        // @phpstan-ignore function.alreadyNarrowedType (defensive: trait may be used outside Model context)
+        $isEloquentGrandchild = is_subclass_of(static::class, Model::class)
+            && get_parent_class(static::class) !== Model::class;
+
+        // @phpstan-ignore return.type (flatten() produces class-strings from getArguments(), PHPStan can't trace)
+        return (new Collection($reflectionClass->getAttributes(ObservedBy::class)))
+            ->map(fn ($attribute) => $attribute->getArguments())
+            ->flatten()
+            ->when($isEloquentGrandchild, function (Collection $attributes) { // @phpstan-ignore argument.type (when() callback type inference)
+                // @phpstan-ignore staticMethod.nonObject ($isEloquentGrandchild guarantees parent exists and is Model subclass)
+                return (new Collection(get_parent_class(static::class)::resolveObserveAttributes()))
+                    ->merge($attributes);
+            })
+            ->all();
+    }
+
+    /**
+     * Register observers with the model.
+     *
+     * @param array<class-string>|class-string|object $classes
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function observe(object|array|string $classes): void
+    {
+        $instance = new static();
+
+        foreach (Arr::wrap($classes) as $class) {
+            $instance->registerObserver($class);
+        }
+    }
+
+    /**
+     * Register a single observer with the model.
+     *
+     * @param class-string|object $class
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function registerObserver(object|string $class): void
+    {
+        $className = $this->resolveObserverClassName($class);
+
+        // When registering a model observer, we will spin through the possible events
+        // and determine if this observer has that method. If it does, we will hook
+        // it into the model's event system, making it convenient to watch these.
+        foreach ($this->getObservableEvents() as $event) {
+            if (method_exists($class, $event)) {
+                static::registerModelEvent($event, $className . '@' . $event);
+            }
+        }
+    }
+
+    /**
+     * Resolve the observer's class name from an object or string.
+     *
+     * @param class-string|object $class
+     * @return class-string
+     *
+     * @throws InvalidArgumentException
+     */
+    private function resolveObserverClassName(object|string $class): string
+    {
+        if (is_object($class)) {
+            return $class::class;
+        }
+
+        if (class_exists($class)) {
+            return $class;
+        }
+
+        throw new InvalidArgumentException('Unable to find observer: ' . $class);
+    }
+
+    /**
+     * Get the observable event names.
+     *
+     * @return string[]
+     */
+    public function getObservableEvents(): array
+    {
+        return array_merge(
+            [
+                'retrieved', 'creating', 'created', 'updating', 'updated',
+                'saving', 'saved', 'restoring', 'restored', 'replicating',
+                'trashed', 'deleting', 'deleted', 'forceDeleting', 'forceDeleted',
+            ],
+            $this->observables
+        );
+    }
+
+    /**
+     * Set the observable event names.
+     *
+     * @param string[] $observables
+     * @return $this
+     */
+    public function setObservableEvents(array $observables): static
+    {
+        $this->observables = $observables;
+
+        return $this;
+    }
+
+    /**
+     * Add an observable event name.
+     *
+     * @param string|string[] $observables
+     */
+    public function addObservableEvents(array|string $observables): void
+    {
+        $this->observables = array_unique(array_merge(
+            $this->observables,
+            is_array($observables) ? $observables : func_get_args()
+        ));
+    }
+
+    /**
+     * Remove an observable event name.
+     *
+     * @param string|string[] $observables
+     */
+    public function removeObservableEvents(array|string $observables): void
+    {
+        $this->observables = array_diff(
+            $this->observables,
+            is_array($observables) ? $observables : func_get_args()
+        );
+    }
+
+    /**
+     * Register a model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    protected static function registerModelEvent(string $event, mixed $callback): void
+    {
+        if (isset(static::$dispatcher)) {
+            $name = static::class;
+
+            static::$dispatcher->listen("eloquent.{$event}: {$name}", $callback);
+        }
+    }
+
+    /**
+     * Fire the given event for the model.
+     */
+    protected function fireModelEvent(string $event, bool $halt = true): mixed
+    {
+        if (! isset(static::$dispatcher) || static::eventsDisabled()) {
+            return true;
+        }
+
+        // First, we will get the proper method to call on the event dispatcher, and then we
+        // will attempt to fire a custom, object based event for the given event. If that
+        // returns a result we can return that result, or we'll call the string events.
+        $method = $halt ? 'until' : 'dispatch';
+
+        $result = $this->filterModelEventResults(
+            $this->fireCustomModelEvent($event, $method)
+        );
+
+        if ($result === false) {
+            return false;
+        }
+
+        return ! empty($result) ? $result : static::$dispatcher->{$method}(
+            "eloquent.{$event}: " . static::class,
+            $this
+        );
+    }
+
+    /**
+     * Fire a custom model event for the given event.
+     *
+     * @param 'dispatch'|'until' $method
+     */
+    protected function fireCustomModelEvent(string $event, string $method): mixed
+    {
+        if (! isset($this->dispatchesEvents[$event])) {
+            return null;
+        }
+
+        $result = static::$dispatcher->{$method}(new $this->dispatchesEvents[$event]($this));
+
+        if (! is_null($result)) {
+            return $result;
+        }
+
+        return null;
+    }
+
+    /**
+     * Filter the model event results.
+     */
+    protected function filterModelEventResults(mixed $result): mixed
+    {
+        if (is_array($result)) {
+            $result = array_filter($result, fn ($response) => ! is_null($response));
+        }
+
+        return $result;
+    }
+
+    /**
+     * Register a retrieved model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function retrieved(mixed $callback): void
+    {
+        static::registerModelEvent('retrieved', $callback);
+    }
+
+    /**
+     * Register a saving model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function saving(mixed $callback): void
+    {
+        static::registerModelEvent('saving', $callback);
+    }
+
+    /**
+     * Register a saved model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function saved(mixed $callback): void
+    {
+        static::registerModelEvent('saved', $callback);
+    }
+
+    /**
+     * Register an updating model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function updating(mixed $callback): void
+    {
+        static::registerModelEvent('updating', $callback);
+    }
+
+    /**
+     * Register an updated model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function updated(mixed $callback): void
+    {
+        static::registerModelEvent('updated', $callback);
+    }
+
+    /**
+     * Register a creating model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function creating(mixed $callback): void
+    {
+        static::registerModelEvent('creating', $callback);
+    }
+
+    /**
+     * Register a created model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function created(mixed $callback): void
+    {
+        static::registerModelEvent('created', $callback);
+    }
+
+    /**
+     * Register a replicating model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function replicating(mixed $callback): void
+    {
+        static::registerModelEvent('replicating', $callback);
+    }
+
+    /**
+     * Register a deleting model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function deleting(mixed $callback): void
+    {
+        static::registerModelEvent('deleting', $callback);
+    }
+
+    /**
+     * Register a deleted model event with the dispatcher.
+     *
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
+     */
+    public static function deleted(mixed $callback): void
+    {
+        static::registerModelEvent('deleted', $callback);
+    }
+
+    /**
+     * Remove all the event listeners for the model.
+     */
+    public static function flushEventListeners(): void
+    {
+        if (! isset(static::$dispatcher)) {
+            return;
+        }
+
+        $instance = new static();
+
+        foreach ($instance->getObservableEvents() as $event) {
+            static::$dispatcher->forget("eloquent.{$event}: " . static::class);
+        }
+
+        foreach ($instance->dispatchesEvents as $event) {
+            static::$dispatcher->forget($event);
+        }
+    }
+
+    /**
+     * Get the event map for the model.
+     *
+     * @return array<string, class-string>
+     */
+    public function dispatchesEvents(): array
+    {
+        return $this->dispatchesEvents;
+    }
+
+    /**
+     * Get the event dispatcher instance.
+     *
+     * Returns a NullDispatcher when events are disabled (inside withoutEvents())
+     * to ensure manual dispatch() calls are also suppressed, matching Laravel behavior.
+     */
+    public static function getEventDispatcher(): ?Dispatcher
+    {
+        if (static::eventsDisabled() && static::$dispatcher !== null) {
+            return new NullDispatcher(static::$dispatcher);
+        }
+
+        return static::$dispatcher;
+    }
+
+    /**
+     * Set the event dispatcher instance.
+     */
+    public static function setEventDispatcher(Dispatcher $dispatcher): void
+    {
+        static::$dispatcher = $dispatcher;
+    }
+
+    /**
+     * Unset the event dispatcher for models.
+     */
+    public static function unsetEventDispatcher(): void
+    {
+        static::$dispatcher = null;
+    }
+
+    /**
+     * Execute a callback without firing any model events for any model type.
+     *
+     * Uses Context for coroutine-safe event disabling, ensuring concurrent
+     * requests don't interfere with each other's event handling.
+     */
+    public static function withoutEvents(callable $callback): mixed
+    {
+        $wasDisabled = Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
+        Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, true);
+
+        try {
+            return $callback();
+        } finally {
+            Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, $wasDisabled);
+        }
+    }
+
+    /**
+     * Determine if model events are currently disabled for this coroutine.
+     */
+    public static function eventsDisabled(): bool
+    {
+        return (bool) Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
+    }
+}

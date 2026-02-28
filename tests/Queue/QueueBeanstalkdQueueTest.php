@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
@@ -17,8 +20,6 @@ use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -35,19 +36,21 @@ class QueueBeanstalkdQueueTest extends TestCase
     private $queue;
 
     /**
-     * @var ContainerInterface
+     * @var Container
      */
     private $container;
 
     protected function tearDown(): void
     {
-        m::close();
-
+        Carbon::setTestNow();
         Uuid::setFactory(new UuidFactory());
     }
 
     public function testPushProperlyPushesJobOntoBeanstalkd()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -58,16 +61,19 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk = $this->queue->getPheanstalk();
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
-        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), 1024, 0, 60);
+        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]), 1024, 0, 60);
 
         $this->queue->push('foo', ['data'], 'stack');
         $this->queue->push('foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->times(4);
+        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
     }
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -78,12 +84,12 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk = $this->queue->getPheanstalk();
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
-        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), Pheanstalk::DEFAULT_PRIORITY, 5, Pheanstalk::DEFAULT_TTR);
+        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 5]), Pheanstalk::DEFAULT_PRIORITY, 5, Pheanstalk::DEFAULT_TTR);
 
         $this->queue->later(5, 'foo', ['data'], 'stack');
         $this->queue->later(5, 'foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->times(4);
+        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
     }
 
     public function testPopProperlyPopsJobOffOfBeanstalkd()
@@ -144,7 +150,7 @@ class QueueBeanstalkdQueueTest extends TestCase
             $blockFor
         );
         $this->queue->setConnectionName('beanstalkd');
-        $this->container = m::spy(ContainerInterface::class);
+        $this->container = m::spy(Container::class);
         $this->queue->setContainer($this->container);
     }
 }

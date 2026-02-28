@@ -6,22 +6,21 @@ namespace Hypervel\Queue\Console;
 
 use __PHP_Incomplete_Class;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Command\Command;
-use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use RuntimeException;
 use stdClass;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:retry')]
 class RetryCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -61,7 +60,7 @@ class RetryCommand extends Command
             if (is_null($job)) {
                 $this->error("Unable to find failed job with ID [{$id}].");
             } else {
-                $this->app->get(EventDispatcherInterface::class)->dispatch(new JobRetryRequested($job));
+                $this->app->make(Dispatcher::class)->dispatch(new JobRetryRequested($job));
 
                 $this->retryJob($job);
 
@@ -138,7 +137,7 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $this->app->get(QueueFactory::class)->connection($job->connection)->pushRaw(
+        $this->app->make(QueueFactory::class)->connection($job->connection)->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),
             $job->queue
         );
@@ -176,7 +175,7 @@ class RetryCommand extends Command
         if (str_starts_with($payload['data']['command'], 'O:')) {
             $instance = unserialize($payload['data']['command']);
         } elseif ($this->app->has(Encrypter::class)) {
-            $instance = unserialize($this->app->get(Encrypter::class)->decrypt($payload['data']['command']));
+            $instance = unserialize($this->app->make(Encrypter::class)->decrypt($payload['data']['command']));
         }
 
         if (! isset($instance)) {

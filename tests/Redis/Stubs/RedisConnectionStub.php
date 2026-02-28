@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Stubs;
 
-use Hyperf\Contract\PoolInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Redis\RedisConnection;
-use Mockery;
-use Psr\Container\ContainerInterface;
+use Mockery as m;
 use Redis;
 use RedisCluster;
-use Throwable;
+use RedisException;
 
 class RedisConnectionStub extends RedisConnection
 {
@@ -22,7 +22,7 @@ class RedisConnectionStub extends RedisConnection
      * Can be called with no arguments (for simple tests that inject via setActiveConnection()),
      * or with container/pool/config for tests that need full RedisConnection behavior.
      */
-    public function __construct(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $config = [])
+    public function __construct(?Container $container = null, ?PoolInterface $pool = null, array $config = [])
     {
         if ($container !== null && $pool !== null) {
             // Full initialization for tests that need it (e.g., RedisConnectionTest)
@@ -41,18 +41,20 @@ class RedisConnectionStub extends RedisConnection
         return true;
     }
 
-    public function getActiveConnection(): Redis|RedisCluster
+    public function getActiveConnection(): static
     {
         if ($this->connection !== null) {
-            return $this->connection;
+            return $this;
         }
 
         // Use shouldIgnoreMissing() to prevent falling through to real Redis
         // methods when expectations don't match (which causes "Redis server went away")
         $connection = $this->redisConnection
-            ?? Mockery::mock(Redis::class)->shouldIgnoreMissing();
+            ?? m::mock(Redis::class)->shouldIgnoreMissing();
 
-        return $this->connection = $connection;
+        $this->connection = $connection;
+
+        return $this;
     }
 
     public function setActiveConnection(Redis|RedisCluster $connection): static
@@ -68,10 +70,22 @@ class RedisConnectionStub extends RedisConnection
      */
     public function getConnection(): Redis|RedisCluster
     {
-        return $this->getActiveConnection();
+        $this->getActiveConnection();
+
+        return $this->connection;
     }
 
-    protected function retry($name, $arguments, Throwable $exception)
+    /**
+     * Get the merged connection configuration.
+     *
+     * @return array<string, mixed>
+     */
+    public function getConfigForTest(): array
+    {
+        return $this->config;
+    }
+
+    protected function retry(string $name, array $arguments, RedisException $exception): mixed
     {
         throw $exception;
     }

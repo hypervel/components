@@ -29,12 +29,12 @@
         ]
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/collection": "~3.1.0",
-        "hyperf/macroable": "~3.1.0",
-        "hyperf/support": "~3.1.0",
-        "hyperf/conditionable": "~3.1.0",
-        "hypervel/object-pool": "^0.3"
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/object-pool": "^0.4"
     },
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
@@ -53,11 +53,13 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Filesystem\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Filesystem\\FilesystemServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

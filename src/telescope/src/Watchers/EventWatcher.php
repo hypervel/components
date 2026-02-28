@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionFunction;
 
 class EventWatcher extends Watcher
@@ -24,18 +24,18 @@ class EventWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen('*', [$this, 'recordEvent']);
     }
 
     /**
      * Record an event was fired.
      */
-    public function recordEvent(object|string $event, ...$payload): void
+    public function recordEvent(string $event, array $payload): void
     {
-        $eventName = is_string($event) ? $event : get_class($event);
+        $eventName = $event;
         if (! Telescope::isRecording() || $this->shouldIgnore($eventName)) {
             return;
         }
@@ -57,8 +57,15 @@ class EventWatcher extends Watcher
      */
     protected function extractPayload(object|string $event, array $payload): array
     {
+        // For object events: the event object itself contains the payload properties
+        // Wildcard listeners receive (eventName, eventObject) so check payload[0]
         if (is_object($event) && empty($payload)) {
             return ExtractProperties::from($event);
+        }
+
+        // For wildcard listeners with object events, the event object is in payload[0]
+        if (is_string($event) && count($payload) === 1 && is_object($payload[0])) {
+            return ExtractProperties::from($payload[0]);
         }
 
         return Collection::make($payload)->map(function ($value) {
@@ -75,7 +82,7 @@ class EventWatcher extends Watcher
     protected function formatListeners(string $eventName): array
     {
         /* @phpstan-ignore-next-line */
-        return Collection::make(app(EventDispatcherInterface::class)->getListeners($eventName))
+        return Collection::make(app(Dispatcher::class)->getListeners($eventName))
             ->map(function ($listener) {
                 $listener = (new ReflectionFunction($listener))
                     ->getStaticVariables()['listener'];
@@ -115,15 +122,12 @@ class EventWatcher extends Watcher
     }
 
     /**
-     * Determine if the event was fired internally by Laravel.
+     * Determine if the event was fired internally by the framework.
      */
     protected function eventIsFiredByTheFramework(string $eventName): bool
     {
-        if (in_array($eventName, ModelWatcher::MODEL_EVENTS)) {
-            return true;
-        }
-
         $prefixes = [
+            'eloquent.', // Model events (e.g., "eloquent.created: App\Models\User")
             'Hypervel',
             'Hyperf',
             'FriendsOfHyperf',

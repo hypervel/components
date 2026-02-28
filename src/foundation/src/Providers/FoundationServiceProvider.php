@@ -4,26 +4,35 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hyperf\Command\Event\FailToHandle;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Grammar;
-use Hyperf\HttpServer\MiddlewareManager;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Grammar;
+use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Console\Commands\AboutCommand;
+use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
+use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
+use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\Listeners\SetProcessTitle;
+use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Framework\Events\BootApplication;
+use Hypervel\HttpServer\MiddlewareManager;
+use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\VarDumper\Caster\StubCaster;
@@ -32,13 +41,13 @@ use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
 {
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     protected ConsoleOutputInterface $output;
 
     public function __construct(protected ApplicationContract $app)
     {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->make('config');
         $this->output = new ConsoleOutput();
 
         if ($app->hasDebugModeEnabled()) {
@@ -51,6 +60,14 @@ class FoundationServiceProvider extends ServiceProvider
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
         $this->setDatabaseConnection();
+
+        $this->app->make(ErrorExceptionHandler::class)->handle(new BootApplication());
+
+        $events = $this->app->make('events');
+
+        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
+            $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
+        });
     }
 
     /**
@@ -64,6 +81,15 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->registerDumper();
 
+        $this->app->singleton(InitProcessTitleListener::class, SetProcessTitle::class);
+
+        $this->commands([
+            AboutCommand::class,
+            ConfigShowCommand::class,
+            ServerReloadCommand::class,
+            VendorPublishCommand::class,
+        ]);
+
         $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
             $request->setUserResolver(function (?string $guard = null) {
                 return $this->app
@@ -76,12 +102,12 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function listenCommandException(): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
-                    $this->app->get(ConsoleKernel::class)
-                        ->getArtisan()
-                        ->renderThrowable($throwable, $this->output);
+                    /** @var \Hypervel\Console\Application $artisan */
+                    $artisan = $this->app->make(ConsoleKernel::class)->getArtisan();
+                    $artisan->renderThrowable($throwable, $this->output);
                 }
             });
     }
@@ -101,7 +127,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setDatabaseConnection(): void
     {
         $connection = $this->config->get('database.default', 'mysql');
-        $this->app->get(ConnectionResolverInterface::class)
+        $this->app->make(ConnectionResolverInterface::class)
             ->setDefaultConnection($connection);
     }
 
@@ -111,11 +137,6 @@ class FoundationServiceProvider extends ServiceProvider
             'app_name' => $this->config->get('app.name'),
             'app_env' => $this->config->get('app.env'),
             StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
-            'databases' => $connections = $this->config->get('database.connections'),
-            'databases.migrations' => $migration = $this->config->get('database.migrations', 'migrations'),
-            'databases.default' => $connections[$this->config->get('database.default')] ?? [],
-            'databases.default.migrations' => $migration,
-            'redis' => $this->getRedisConfig(),
         ];
 
         foreach ($configs as $key => $value) {
@@ -125,19 +146,6 @@ class FoundationServiceProvider extends ServiceProvider
         }
 
         $this->config->set('middlewares', $this->getMiddlewareConfig());
-    }
-
-    protected function getRedisConfig(): array
-    {
-        $redisConfig = $this->config->get('database.redis', []);
-        $redisOptions = $redisConfig['options'] ?? [];
-        unset($redisConfig['options']);
-
-        return array_map(function (array $config) use ($redisOptions) {
-            return array_merge($config, [
-                'options' => $redisOptions,
-            ]);
-        }, $redisConfig);
     }
 
     protected function getMiddlewareConfig(): array
@@ -153,7 +161,7 @@ class FoundationServiceProvider extends ServiceProvider
                 continue;
             }
             $middleware[$server] = array_merge(
-                $this->app->get($kernel)->getGlobalMiddleware(),
+                $this->app->make($kernel)->getGlobalMiddleware(),
                 $middleware[$server] ?? [],
             );
         }
@@ -164,7 +172,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function registerUriUrlGeneration(): void
     {
         Uri::setUrlGeneratorResolver(
-            fn () => $this->app->get(UrlGeneratorContract::class)
+            fn () => $this->app->make(UrlGeneratorContract::class)
         );
     }
 

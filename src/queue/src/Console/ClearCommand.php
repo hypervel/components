@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Queue\Contracts\ClearableQueue;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Contracts\Queue\ClearableQueue;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Support\Str;
 use ReflectionClass;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'queue:clear')]
 class ClearCommand extends Command
 {
     use ConfirmableTrait;
-    use HasLaravelStyleCommand;
 
     /**
      * The console command name.
@@ -40,14 +39,14 @@ class ClearCommand extends Command
         }
 
         $connection = $this->argument('connection')
-            ?: $this->app->get(ConfigInterface::class)->get('queue.default');
+            ?: $this->app->make('config')->get('queue.default');
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
         // connection being run for the queue operation currently being executed.
         $queueName = $this->getQueue($connection);
 
-        $queue = $this->app->get(FactoryContract::class)->connection($connection);
+        $queue = $this->app->make(FactoryContract::class)->connection($connection);
 
         if ($queue instanceof ClearableQueue) {
             $count = $queue->clear($queueName);
@@ -67,7 +66,7 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->app->get(ConfigInterface::class)->get(
+        return $this->option('queue') ?: $this->app->make('config')->get(
             "queue.connections.{$connection}.queue",
             'default'
         );

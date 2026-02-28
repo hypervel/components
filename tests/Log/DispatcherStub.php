@@ -5,23 +5,56 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Log;
 
 use Closure;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Events\QueuedClosure;
 
-class DispatcherStub implements EventDispatcherInterface
+class DispatcherStub implements Dispatcher
 {
-    protected $listener;
+    protected ?Closure $listener = null;
 
-    public function dispatch(object $event)
+    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
     {
-        if (! $this->listener) {
-            return;
+        if ($this->listener) {
+            ($this->listener)($event);
         }
 
-        ($this->listener)($event);
+        return null;
     }
 
-    public function listen(string $event, Closure $listener)
+    public function listen(array|Closure|QueuedClosure|string $events, array|Closure|QueuedClosure|string|null $listener = null): void
     {
-        $this->listener = $listener;
+        if ($listener instanceof Closure) {
+            $this->listener = $listener;
+        }
+    }
+
+    public function until(object|string $event, mixed $payload = []): mixed
+    {
+        return null;
+    }
+
+    public function push(string $event, mixed $payload = []): void
+    {
+    }
+
+    public function flush(string $event): void
+    {
+    }
+
+    public function forgetPushed(): void
+    {
+    }
+
+    public function forget(string $event): void
+    {
+    }
+
+    public function hasListeners(string $eventName): bool
+    {
+        return false;
+    }
+
+    public function subscribe(object|string $subscriber): void
+    {
     }
 }

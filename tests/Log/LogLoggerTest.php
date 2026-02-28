@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Log\Logger;
 use Mockery as m;
@@ -20,7 +20,6 @@ class LogLoggerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
         Context::destroy('__logger.context');
     }
 

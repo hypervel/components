@@ -25,30 +25,27 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "guzzlehttp/guzzle": "^7.8.2",
-        "hyperf/command": "~3.1.0",
-        "hypervel/cache": "^0.3",
-        "hypervel/coroutine": "^0.3",
-        "hypervel/foundation": "^0.3",
-        "hypervel/queue": "^0.3",
+        "hypervel/cache": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/queue": "^0.4",
         "dragonmantank/cron-expression": "^3.3.2",
-        "symfony/console": "^5.4|^6.4|^7.0",
-        "friendsofhyperf/command-signals": "~3.1.0"
-    },
-    "suggest": {
-        "hypervel/prompt": "Required to run schedule:test command.",
-        "friendsofhyperf/pretty-console": "Required to run schedule:run command. (~3.1.0)"
+        "hypervel/prompts": "^0.4",
+        "symfony/console": "^6.2|^7.0"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Console\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Console\\ConsoleServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

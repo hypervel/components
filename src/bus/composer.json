@@ -21,17 +21,16 @@
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/context": "~3.1.0",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
-        "hyperf/conditionable": "~3.1.0",
-        "hyperf/coroutine": "~3.1.0",
-        "hyperf/support": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/coroutine": "^0.4",
         "nesbot/carbon": "^2.72.6",
         "laravel/serializable-closure": "^1.3",
-        "hypervel/support": "^0.3",
-        "hypervel/cache": "^0.3"
+        "hypervel/support": "^0.4",
+        "hypervel/cache": "^0.4"
 
     },
     "autoload": {
@@ -43,11 +42,13 @@
         ]
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Bus\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Bus\\BusServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "suggest": {

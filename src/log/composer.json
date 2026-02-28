@@ -26,23 +26,23 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/config": "~3.1.0",
+        "php": "^8.4",
         "monolog/monolog": "^3.1",
-        "hyperf/stringable": "~3.1.0",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
-        "hypervel/support": "^0.3"
+        "hypervel/collections": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Log\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Log\\LogServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

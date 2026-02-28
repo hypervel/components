@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:forget')]
 class ForgetFailedCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -27,7 +26,7 @@ class ForgetFailedCommand extends Command
      */
     public function handle(): ?int
     {
-        if ($this->app->get(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
+        if ($this->app->make(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
             $this->info('Failed job deleted successfully.');
         } else {
             $this->error('No failed job matches the given ID.');

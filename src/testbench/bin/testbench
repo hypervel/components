@@ -1,0 +1,72 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Testbench CLI - Run console commands in a Hypervel testbench environment.
+ *
+ * Used by remote() to spawn subprocesses for testing scenarios that require
+ * process isolation (e.g., queue workers with job timeouts).
+ */
+
+// Load autoloader - check multiple locations for monorepo vs installed package
+$autoloadPaths = [
+    $_composer_autoload_path ?? null,
+    __DIR__ . '/../../../vendor/autoload.php',  // monorepo: src/testbench/bin -> components/vendor
+    __DIR__ . '/../../vendor/autoload.php',      // installed: testbench/bin -> testbench/vendor
+];
+
+foreach (array_filter($autoloadPaths) as $autoloadPath) {
+    if (is_file($autoloadPath)) {
+        require $autoloadPath;
+        break;
+    }
+}
+
+// Determine working path - must contain testbench.yaml
+// Order of preference:
+// 1. TESTBENCH_WORKING_PATH env if it contains testbench.yaml
+// 2. The testbench package directory (src/testbench relative to this binary)
+// 3. Current working directory
+$envPath = getenv('TESTBENCH_WORKING_PATH');
+$testbenchPackageDir = dirname(__DIR__);  // bin/testbench -> testbench/
+
+$workingPath = match (true) {
+    is_string($envPath) && is_file($envPath . '/testbench.yaml') => $envPath,
+    is_file($testbenchPackageDir . '/testbench.yaml') => $testbenchPackageDir,
+    default => getcwd(),
+};
+
+define('TESTBENCH_WORKING_PATH', $workingPath);
+
+// Bootstrap the testbench environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, etc.)
+Hypervel\Testbench\Bootstrapper::bootstrap();
+
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Workbench\App\Exceptions\ExceptionHandler;
+
+// Create application
+$app = new Application();
+$app->bind(KernelContract::class, ConsoleKernel::class);
+$app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
+
+ApplicationContext::setContainer($app);
+
+// Get console kernel and run
+$kernel = $app->make(KernelContract::class);
+
+$input = new ArgvInput();
+$output = new ConsoleOutput();
+
+$status = $kernel->handle($input, $output);
+
+$kernel->terminate($input, $status);
+
+exit($status);

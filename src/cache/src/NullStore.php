@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Contracts\Cache\LockProvider;
 
 class NullStore extends TaggableStore implements LockProvider
 {

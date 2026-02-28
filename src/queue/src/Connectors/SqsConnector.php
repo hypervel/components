@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Connectors;
 
 use Aws\Sqs\SqsClient;
-use Hyperf\Collection\Arr;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\SqsQueue;
+use Hypervel\Support\Arr;
 
 class SqsConnector implements ConnectorInterface
 {
@@ -19,7 +19,11 @@ class SqsConnector implements ConnectorInterface
         $config = $this->getDefaultConfiguration($config);
 
         if (! empty($config['key']) && ! empty($config['secret'])) {
-            $config['credentials'] = Arr::only($config, ['key', 'secret', 'token']);
+            $config['credentials'] = Arr::only($config, ['key', 'secret']);
+
+            if (! empty($config['token'])) {
+                $config['credentials']['token'] = $config['token'];
+            }
         }
 
         return new SqsQueue(
@@ -29,7 +33,7 @@ class SqsConnector implements ConnectorInterface
             $config['queue'],
             $config['prefix'] ?? '',
             $config['suffix'] ?? '',
-            $config['after_commit'] ?? false
+            $config['after_commit'] ?? null
         );
     }
 

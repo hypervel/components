@@ -1,0 +1,53 @@
+{
+    "name": "hypervel/database",
+    "type": "library",
+    "description": "The database package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "database",
+        "eloquent",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Database\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/pool": "^0.4"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^2.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Database\\DatabaseServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

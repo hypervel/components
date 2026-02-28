@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\HttpServer\Contracts\RequestInterface;
 
 class NullBroadcaster extends Broadcaster
 {

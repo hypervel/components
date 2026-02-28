@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class ListenerCommand extends GeneratorCommand
+#[AsCommand(name: 'make:listener')]
+class ListenerCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:listener');
-    }
+    protected ?string $name = 'make:listener';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new event listener class');
+    protected string $description = 'Create a new event listener class';
 
-        parent::configure();
-    }
+    protected string $type = 'Listener';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/listener.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Listeners';
     }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Config\Repository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -34,7 +34,7 @@ class HtmlDumperTest extends TestCase
         $this->config = $this->getConfig();
 
         $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
+            ConfigContract::class => fn () => $this->config,
         ]);
 
         HtmlDumper::resolveDumpSourceUsing(function () {
@@ -226,7 +226,7 @@ class HtmlDumperTest extends TestCase
         ))->call($dumper);
         $this->assertNull($href);
 
-        ApplicationContext::setContainer($this->container);
+        Container::setInstance($this->container);
         $resolveSourceHref = fn () => (fn () => $this->resolveSourceHref(
             '/my-work-directory/app/my-file',
             10,

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Guards;
 
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\UserProvider;
 
 /**
  * These methods are typically the same across all guards.

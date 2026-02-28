@@ -9,9 +9,9 @@ use Hypervel\Sentry\Version;
 use Hypervel\Support\Collection;
 use Sentry\Client;
 use Sentry\State\HubInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-use function Hyperf\Support\make;
-
+#[AsCommand(name: 'sentry:about')]
 class AboutCommand extends Command
 {
     protected ?string $name = 'sentry:about';
@@ -20,7 +20,7 @@ class AboutCommand extends Command
 
     public function handle(): void
     {
-        $hub = make(HubInterface::class);
+        $hub = $this->app->make(HubInterface::class);
         $options = $this->getSentryOptions($hub);
         $this->table(
             ['Option', 'Value'],

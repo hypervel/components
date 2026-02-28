@@ -5,10 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console;
 
 use Exception;
-use Hyperf\Command\Command;
-use Hyperf\Command\Concerns\Prohibitable;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\Redis\Console\Benchmark\BenchmarkContext;
 use Hypervel\Cache\Redis\Console\Benchmark\ResultsFormatter;
 use Hypervel\Cache\Redis\Console\Benchmark\ScenarioResult;
@@ -25,15 +21,18 @@ use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Redis\Support\MonitoringDetector;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'cache:redis-benchmark')]
 class BenchmarkCommand extends Command
 {
     use DetectsRedisStore;
-    use HasLaravelStyleCommand;
     use Prohibitable;
 
     /**
@@ -140,7 +139,7 @@ class BenchmarkCommand extends Command
         $this->info("Running benchmark at <fg=cyan>{$scale}</> scale ({$config['items']} items){$runsText}.");
         $this->newLine();
 
-        $cacheManager = $this->app->get(CacheContract::class);
+        $cacheManager = $this->app->make(CacheContract::class);
         $context = $this->createContext($config, $cacheManager);
 
         try {
@@ -212,7 +211,7 @@ class BenchmarkCommand extends Command
             return false;
         }
 
-        $cacheManager = $this->app->get(CacheContract::class);
+        $cacheManager = $this->app->make(CacheContract::class);
 
         try {
             $storeInstance = $cacheManager->store($this->storeName)->getStore();
@@ -240,7 +239,7 @@ class BenchmarkCommand extends Command
      */
     protected function checkMonitoringTools(): bool
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $monitoringTools = (new MonitoringDetector($config))->detect();
 
         if (! empty($monitoringTools) && ! $this->option('force')) {
@@ -280,7 +279,7 @@ class BenchmarkCommand extends Command
             return true;
         }
 
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $env = $config->get('app.env', 'production');
         $scale = $this->option('scale');
 
@@ -499,7 +498,7 @@ class BenchmarkCommand extends Command
         }
 
         // Display Redis/Valkey info
-        $cacheManager = $this->app->get(CacheContract::class);
+        $cacheManager = $this->app->make(CacheContract::class);
 
         try {
             $store = $cacheManager->store($this->storeName)->getStore();
@@ -551,7 +550,7 @@ class BenchmarkCommand extends Command
      */
     protected function displayMemoryError(BenchmarkMemoryException $e): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
 
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');

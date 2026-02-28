@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use Hypervel\Bus\Dispatchable;
+use Hypervel\Foundation\Bus\Dispatchable;
 
 class %CLASS%
 {

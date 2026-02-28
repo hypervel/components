@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ContainerInterface;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Tests\Auth\Stub\AuthorizableStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -67,14 +66,11 @@ class AuthorizableTest extends TestCase
      */
     private function mockGate(): Gate
     {
-        $gate = Mockery::mock(Gate::class);
+        $gate = m::mock(Gate::class);
 
-        /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
-
-        $container->shouldReceive('get')->with(Gate::class)->andReturn($gate);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Gate::class, $gate);
+        Container::setInstance($container);
 
         return $gate;
     }

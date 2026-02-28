@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
-use Hyperf\Di\Container;
-use Hyperf\Stringable\Str;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -29,8 +30,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
-
+        Carbon::setTestNow();
         Uuid::setFactory(new UuidFactory());
     }
 
@@ -56,11 +56,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public static function pushJobsDataProvider()
@@ -76,6 +78,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testDelayedPushProperlyPushesJobOntoDatabase()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -92,17 +97,19 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
 
-        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid) {
+        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $now) {
             $this->assertSame('default', $array['queue']);
-            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), $array['payload']);
+            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 10]), $array['payload']);
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->later(10, 'foo', ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testFailureToCreatePayloadFromObject()
@@ -138,6 +145,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testBulkBatchPushesOntoDatabase()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -151,22 +161,24 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
-        $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid) {
+        $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid, $now) {
             $this->assertEquals([[
                 'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]),
+                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]),
                 'attempts' => 0,
                 'reserved_at' => null,
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ], [
                 'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'bar', 'job' => 'bar', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]),
+                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'bar', 'job' => 'bar', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]),
                 'attempts' => 0,
                 'reserved_at' => null,
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ]], $records);
+
+            return true;
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');

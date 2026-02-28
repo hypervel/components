@@ -120,31 +120,31 @@ class MergeIntegrationTest extends TestCase
         // All numeric-keyed listeners should be present
         $this->assertContains('App\Listeners\EventLoggerListener', $merged['listeners']);
         $this->assertContains('App\Listeners\AuditListener', $merged['listeners']);
-        $this->assertContains('Hyperf\Command\Listener\RegisterCommandListener', $merged['listeners']);
-        $this->assertContains('Hyperf\ModelListener\Listener\ModelEventListener', $merged['listeners']);
-        $this->assertContains('Hyperf\Process\Listener\BootProcessListener', $merged['listeners']);
+        $this->assertContains('App\Listeners\RegisterCommandListener', $merged['listeners']);
+        $this->assertContains('App\Listeners\ModelEventListener', $merged['listeners']);
+        $this->assertContains('Hypervel\ServerProcess\Listeners\BootProcessListener', $merged['listeners']);
 
         // Priority listeners MUST have their string keys preserved
         $this->assertArrayHasKey(
-            'Hyperf\ModelListener\Listener\ModelHookEventListener',
+            'App\Listeners\ModelHookEventListener',
             $merged['listeners'],
             'ModelHookEventListener string key must be preserved'
         );
         $this->assertSame(
             99,
-            $merged['listeners']['Hyperf\ModelListener\Listener\ModelHookEventListener'],
+            $merged['listeners']['App\Listeners\ModelHookEventListener'],
             'ModelHookEventListener priority must be 99'
         );
 
         $this->assertArrayHasKey(
-            'Hyperf\Signal\Listener\SignalRegisterListener',
+            'App\Listeners\CriticalSecurityListener',
             $merged['listeners'],
-            'SignalRegisterListener string key must be preserved'
+            'CriticalSecurityListener string key must be preserved'
         );
         $this->assertSame(
             PHP_INT_MAX,
-            $merged['listeners']['Hyperf\Signal\Listener\SignalRegisterListener'],
-            'SignalRegisterListener priority must be PHP_INT_MAX'
+            $merged['listeners']['App\Listeners\CriticalSecurityListener'],
+            'CriticalSecurityListener priority must be PHP_INT_MAX'
         );
 
         // Priority values should NOT appear as standalone numeric entries

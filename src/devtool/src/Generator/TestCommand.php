@@ -4,35 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-class TestCommand extends GeneratorCommand
+#[AsCommand(name: 'make:test')]
+class TestCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:test');
-    }
+    protected ?string $name = 'make:test';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new test class');
+    protected string $description = 'Create a new test class';
 
-        parent::configure();
-    }
+    protected string $type = 'Test';
 
     protected function getStub(): string
     {
-        $stub = $this->input->getOption('unit')
+        $stub = $this->option('unit')
             ? 'test.unit.stub'
             : 'test.stub';
 
         return $this->getConfig()['stub'] ?? __DIR__ . "/stubs/{$stub}";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
-        $namespace = $this->input->getOption('unit')
+        $namespace = $this->option('unit')
             ? 'Tests\Unit'
             : 'Tests\Feature';
 
@@ -56,16 +51,16 @@ class TestCommand extends GeneratorCommand
      */
     protected function getPath(string $name): string
     {
-        $namespace = $this->input->getOption('namespace');
+        $namespace = $this->option('namespace');
         if (empty($namespace)) {
-            $namespace = $this->getDefaultNamespace();
+            $namespace = $this->getDefaultNamespace($this->rootNamespace());
         }
 
         $filename = str_replace($namespace . '\\', '', "{$name}.php");
         $filename = str_replace('\\', '/', $filename);
 
-        $path = $this->input->getOption('path')
-            ?: ($this->input->getOption('unit') ? 'tests/Unit' : 'tests/Feature');
+        $path = $this->option('path')
+            ?: ($this->option('unit') ? 'tests/Unit' : 'tests/Feature');
 
         return "{$path}/{$filename}";
     }

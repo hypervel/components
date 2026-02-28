@@ -51,7 +51,7 @@ class MonitorWaitTimes
         $long->each(function ($wait, $queue) {
             [$connection, $queue] = explode(':', $queue, 2);
 
-            event(new LongWaitDetected($connection, $queue, $wait));
+            event(new LongWaitDetected($connection, $queue, (int) $wait));
         });
     }
 

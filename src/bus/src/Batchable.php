@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Container\Container;
+use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 
 trait Batchable
@@ -32,9 +31,9 @@ trait Batchable
         }
 
         if ($this->batchId) {
-            return ApplicationContext::getContainer()
-                ->get(BatchRepository::class)
-                ?->find($this->batchId);
+            return Container::getInstance()
+                ->make(BatchRepository::class)
+                ->find($this->batchId);
         }
 
         return null;

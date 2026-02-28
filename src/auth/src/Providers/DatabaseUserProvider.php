@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Providers;
 
 use Closure;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Database\ConnectionInterface;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\GenericUser;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\ConnectionInterface;
 
 class DatabaseUserProvider implements UserProvider
 {

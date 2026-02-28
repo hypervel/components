@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
 use Hyperf\Di\Definition\PriorityDefinition;
-use Hyperf\Support\Composer;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Throwable;
 
 /**
  * Provider config allow the components set the configs to application.
  */
-class ProviderConfig extends HyperfProviderConfig
+class ProviderConfig
 {
     protected static array $providerConfigs = [];
 
@@ -51,6 +50,14 @@ class ProviderConfig extends HyperfProviderConfig
         return static::$providerConfigs = static::loadProviders(
             Arr::flatten($providers)
         );
+    }
+
+    /**
+     * Clear the cached provider configs.
+     */
+    public static function clear(): void
+    {
+        static::$providerConfigs = [];
     }
 
     protected static function loadProviders(array $providers): array

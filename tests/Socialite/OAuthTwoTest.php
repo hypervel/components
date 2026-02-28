@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Socialite\Two\Token;
 use Hypervel\Socialite\Two\User;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
-use function Hyperf\Config\config;
+use function Hypervel\Config\config;
 
 trait RegistersWatchers
 {
@@ -34,7 +34,7 @@ trait RegistersWatchers
     /**
      * Register the configured Telescope watchers.
      */
-    protected static function registerWatchers(ContainerInterface $app): void
+    protected static function registerWatchers(Container $app): void
     {
         foreach (config('telescope.watchers', []) as $key => $watcher) {
             if (is_string($key) && $watcher === false) {
@@ -45,7 +45,7 @@ trait RegistersWatchers
                 continue;
             }
 
-            $watcher = $app->get(is_string($key) ? $key : $watcher)
+            $watcher = $app->make(is_string($key) ? $key : $watcher)
                 ->setOptions(is_array($watcher) ? $watcher : []);
 
             static::$watchers[] = get_class($watcher);

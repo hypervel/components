@@ -6,11 +6,10 @@ namespace Hypervel\Tests\Telescope;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Model\Collection;
-use Hyperf\Database\Schema\Blueprint;
-use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Queue;
@@ -45,11 +44,11 @@ class FeatureTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(
+        $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope', [
                 'enabled' => true,
                 'path' => 'telescope',
@@ -58,19 +57,19 @@ class FeatureTestCase extends TestCase
                 ],
                 'defer' => false,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('cache.default', 'array');
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('cache.stores.array', [
                 'driver' => 'array',
                 'serialize' => false,
                 'events' => true,
             ]);
-        $this->app->get(CacheFactoryContract::class)
+        $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
-        $this->app->get(Environment::class)
+        $this->app->make(Environment::class)
             ->set('production');
-        $this->app->get(Environment::class)
+        $this->app->make(Environment::class)
             ->setDebug(false);
     }
 
@@ -167,7 +166,7 @@ class FeatureTestCase extends TestCase
     public function terminateTelescope(): void
     {
         Telescope::store(
-            $this->app->get(EntriesRepository::class)
+            $this->app->make(EntriesRepository::class)
         );
     }
 }

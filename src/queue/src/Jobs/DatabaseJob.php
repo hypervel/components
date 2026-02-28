@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\DatabaseQueue;
-use Psr\Container\ContainerInterface;
 
 class DatabaseJob extends Job
 {
@@ -13,7 +13,7 @@ class DatabaseJob extends Job
      * Create a new job instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected DatabaseQueue $database,
         protected DatabaseJobRecord $job,
         protected string $connectionName,

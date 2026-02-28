@@ -6,9 +6,9 @@ namespace Hypervel\ApiClient;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Traits\ForwardsCalls;
 use JsonSerializable;
 use Stringable;
 
@@ -103,6 +103,14 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     public function toArray(): array
     {
         return $this->response->json();
+    }
+
+    /**
+     * Convert the resource to its JSON representation.
+     */
+    public function toJson(int $options = 0): string
+    {
+        return json_encode($this->jsonSerialize(), $options);
     }
 
     /**

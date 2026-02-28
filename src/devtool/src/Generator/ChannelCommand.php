@@ -4,21 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class ChannelCommand extends GeneratorCommand
+#[AsCommand(name: 'make:channel')]
+class ChannelCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:channel');
-    }
+    protected ?string $name = 'make:channel';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new channel class');
+    protected string $description = 'Create a new channel class';
 
-        parent::configure();
-    }
+    protected string $type = 'Channel';
 
     /**
      * Replace the class name for the given stub.
@@ -43,7 +38,7 @@ class ChannelCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/channel.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Broadcasting';
     }

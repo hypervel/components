@@ -18,6 +18,9 @@
             <exclude>./tests/Horizon</exclude>
         </testsuite>
     </testsuites>
+    <extensions>
+        <bootstrap class="Hypervel\Tests\AfterEachTestExtension" />
+    </extensions>
     <php>
         <ini name="error_reporting" value="-1"/>
         <ini name="display_errors" value="on"/>

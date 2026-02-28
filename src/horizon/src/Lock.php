@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Closure;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 
 class Lock
 {
@@ -47,7 +47,9 @@ class Lock
      */
     public function get(string $key, int $seconds = 60): bool
     {
-        if ($result = $this->connection()->setNx($key, 1)) {
+        $result = $this->connection()->setNx($key, '1') === 1;
+
+        if ($result) {
             $this->connection()->expire($key, $seconds);
         }
 

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\LuaScripts;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use stdClass;
@@ -509,7 +509,9 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = is_array($attributes) && $attributes[$this->keys[0]] ? (object) $attributes : null;
+        $job = is_array($attributes) && $attributes[0] !== null // @phpstan-ignore function.alreadyNarrowedType (Redis hmget can return false at runtime despite PHPDoc)
+            ? (object) array_combine($this->keys, $attributes)
+            : null;
 
         if ($job && $job->status !== 'failed') {
             return null;
@@ -604,13 +606,11 @@ class RedisJobRepository implements JobRepository
     {
         return $this->connection()->eval(
             LuaScripts::purge(),
-            [
-                'recent_jobs',
-                'pending_jobs',
-                config('horizon.prefix'),
-                $queue,
-            ],
             2,
+            'recent_jobs',
+            'pending_jobs',
+            config('horizon.prefix'),
+            $queue,
         );
     }
 

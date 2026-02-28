@@ -15,12 +15,12 @@ class WorkbenchServiceProvider extends ServiceProvider
         $config = Bootstrapper::getConfig()['workbench']['discover'] ?? [];
 
         if ($config['web'] ?? false) {
-            $this->app->get(RouteFileCollector::class)
+            $this->app->make(RouteFileCollector::class)
                 ->addRouteFile(dirname(__DIR__, 2) . '/routes/web.php');
         }
 
         if ($config['api'] ?? false) {
-            $this->app->get(RouteFileCollector::class)
+            $this->app->make(RouteFileCollector::class)
                 ->addRouteFile(dirname(__DIR__, 2) . '/routes/api.php');
         }
 

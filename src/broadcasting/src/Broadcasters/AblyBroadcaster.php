@@ -7,13 +7,11 @@ namespace Hypervel\Broadcasting\Broadcasters;
 use Ably\AblyRest;
 use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Psr\Container\ContainerInterface;
-
-use function Hyperf\Tappable\tap;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Support\Str;
 
 class AblyBroadcaster extends Broadcaster
 {
@@ -21,7 +19,7 @@ class AblyBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected AblyRest $ably,
     ) {
     }

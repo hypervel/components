@@ -6,7 +6,15 @@ namespace Hypervel\Validation;
 
 use BadMethodCallException;
 use Closure;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Translation\Translator;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\HttpMessage\Upload\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
@@ -14,15 +22,7 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
-use Hypervel\Translation\Contracts\Translator;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\ImplicitRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Rule as RuleContract;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use stdClass;
 use Throwable;
@@ -35,7 +35,7 @@ class Validator implements ValidatorContract
     /**
      * The container instance.
      */
-    protected ?ContainerInterface $container = null;
+    protected ?Container $container = null;
 
     /**
      * The Presence Verifier implementation.
@@ -1374,7 +1374,7 @@ class Validator implements ValidatorContract
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): void
+    public function setContainer(Container $container): void
     {
         $this->container = $container;
     }

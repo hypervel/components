@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\PrunableBatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Bus\PrunableBatchRepository;
+use Hypervel\Console\Command;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:prune-batches')]
 class PruneBatchesCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -33,7 +32,7 @@ class PruneBatchesCommand extends Command
      */
     public function handle()
     {
-        $repository = $this->app->get(BatchRepository::class);
+        $repository = $this->app->make(BatchRepository::class);
 
         $count = 0;
 

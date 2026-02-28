@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Context\ResponseContext;
 use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Context\Context;
+use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Validation\Factory as ValidationFactory;
+use Hypervel\Contracts\Validation\ValidatesWhenResolved;
+use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
-use Hypervel\Validation\Contracts\Factory as ValidationFactory;
-use Hypervel\Validation\Contracts\ValidatesWhenResolved;
-use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Support\Arr;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use Hypervel\Validation\ValidationException;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 
 class FormRequest extends Request implements ValidatesWhenResolved
@@ -39,7 +39,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected array $dontFlash = ['password', 'password_confirmation'];
 
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -90,7 +90,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Set the container implementation.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 
@@ -108,7 +108,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected function getValidatorInstance(): Validator
     {
         return Context::getOrSet($this->getContextValidatorKey(Validator::class), function () {
-            $factory = $this->container->get(ValidationFactory::class);
+            $factory = $this->container->make(ValidationFactory::class);
 
             if (method_exists($this, 'validator')) {
                 $validator = call_user_func_array([$this, 'validator'], compact('factory'));

@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Contracts\Console;
+
+use Closure;
+use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Foundation\Bus\PendingDispatch;
+use Hypervel\Foundation\Console\ClosureCommand;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+
+interface Kernel
+{
+    /**
+     * Handle an incoming console command.
+     */
+    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed;
+
+    /**
+     * Bootstrap the application for artisan commands.
+     */
+    public function bootstrap(): void;
+
+    /**
+     * Define the application's command schedule.
+     */
+    public function schedule(Schedule $schedule): void;
+
+    /**
+     * Register the commands for the application.
+     */
+    public function commands(): void;
+
+    /**
+     * Register a Closure based command with the application.
+     */
+    public function command(string $signature, Closure $callback): ClosureCommand;
+
+    /**
+     * Add loadPaths in the given directory.
+     */
+    public function load(array|string $paths): void;
+
+    /**
+     * Set the Artisan commands provided by the application.
+     *
+     * @return $this
+     */
+    public function addCommands(array $commands): static;
+
+    /**
+     * Set the paths that should have their Artisan commands automatically discovered.
+     *
+     * @return $this
+     */
+    public function addCommandPaths(array $paths): static;
+
+    /**
+     * Set the paths that should have their Artisan "routes" automatically discovered.
+     *
+     * @return $this
+     */
+    public function addCommandRoutePaths(array $paths): static;
+
+    /**
+     * Register the given command with the console application.
+     */
+    public function registerCommand(SymfonyCommand $command): void;
+
+    /**
+     * Run an Artisan console command by name.
+     *
+     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     */
+    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null);
+
+    /**
+     * Queue the given console command.
+     */
+    public function queue(string $command, array $parameters = []): PendingDispatch;
+
+    /**
+     * Get all of the commands registered with the console.
+     */
+    public function all(): array;
+
+    /**
+     * Get the output for the last run command.
+     */
+    public function output(): string;
+
+    /**
+     * Set the Artisan application instance.
+     */
+    public function setArtisan(Application $artisan): void;
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(InputInterface $input, int $status): void;
+
+    /**
+     * Get the Artisan application instance.
+     */
+    public function getArtisan(): Application;
+}

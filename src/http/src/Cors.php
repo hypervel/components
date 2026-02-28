@@ -11,9 +11,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -146,8 +146,8 @@ class Cors
 
     public function handlePreflightRequest(RequestContract $request): ResponseInterface
     {
-        $response = ApplicationContext::getContainer()
-            ->get(ResponseContract::class)
+        $response = Container::getInstance()
+            ->make(ResponseContract::class)
             ->make(status: 204);
 
         return $this->addPreflightRequestHeaders($response, $request);

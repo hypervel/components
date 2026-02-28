@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Support\InteractsWithTime;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:restart')]
 class RestartCommand extends Command
 {
-    use HasLaravelStyleCommand;
     use InteractsWithTime;
 
     /**

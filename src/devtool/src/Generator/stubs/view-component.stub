@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace %NAMESPACE%;
 
 use Closure;
+use Hypervel\Support\Facades\View;
 use Hypervel\View\Component;
 use Hypervel\View\Contracts\View as ViewContract;
-use Hypervel\Support\Facades\View;
 
 class %CLASS% extends Component
 {

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Exception\InvalidRedisConnectionException;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
+use Hypervel\Support\Arr;
 use Throwable;
 use UnitEnum;
 
@@ -29,8 +31,51 @@ class Redis
     ) {
     }
 
+    /**
+     * Scan keys matching a pattern.
+     * @param mixed $cursor
+     */
+    public function scan($cursor, ...$arguments)
+    {
+        return $this->__call('scan', [$cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan hash fields matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function hScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('hScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan sorted set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function zScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('zScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function sScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('sScan', [$key, $cursor, ...$arguments]);
+    }
+
     public function __call($name, $arguments)
     {
+        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
+            return $this->handleSubscribe($name, $arguments);
+        }
+
         $hasContextConnection = Context::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
@@ -62,8 +107,8 @@ class Redis
                 // Connection is already in context, don't release
             } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
                 // On success with same-connection command: store in context for reuse
-                if ($name === 'select' && $db = $arguments[0]) {
-                    $connection->setDatabase((int) $db);
+                if ($name === 'select' && array_key_exists(0, $arguments)) {
+                    $connection->setDatabase((int) $arguments[0]);
                 }
                 Context::set($this->getContextKey(), $connection);
                 defer(function () {
@@ -97,6 +142,37 @@ class Redis
     }
 
     /**
+     * Handle subscribe/psubscribe using the coroutine-native subscriber.
+     *
+     * Creates a dedicated socket connection (not from the pool) and bridges
+     * the channel-based subscriber to the Laravel-style callback API.
+     */
+    protected function handleSubscribe(string $name, array $arguments): void
+    {
+        $channels = Arr::wrap($arguments[0]);
+        $callback = $arguments[1];
+
+        $subscriber = $this->subscriber();
+
+        try {
+            if ($name === 'subscribe') {
+                $subscriber->subscribe(...$channels);
+            } else {
+                $subscriber->psubscribe(...$channels);
+            }
+
+            $channel = $subscriber->channel();
+            while ($message = $channel->pop()) {
+                $callback($message->payload, $message->channel);
+            }
+        } finally {
+            if (! $subscriber->closed) {
+                $subscriber->close();
+            }
+        }
+    }
+
+    /**
      * Define the commands that need same connection to execute.
      * When these commands executed, the connection will storage to coroutine context.
      */
@@ -106,7 +182,7 @@ class Redis
             'multi',
             'pipeline',
             'select',
-        ]);
+        ], true);
     }
 
     /**
@@ -136,7 +212,7 @@ class Redis
      */
     protected function getContextKey(): string
     {
-        return sprintf('redis.connection.%s', $this->poolName);
+        return sprintf('__redis.connection.%s', $this->poolName);
     }
 
     /**
@@ -169,12 +245,37 @@ class Redis
     }
 
     /**
+     * Create a coroutine-native Redis subscriber.
+     *
+     * Returns a Subscriber with its own dedicated socket connection (not from
+     * the pool). Use for the channel-based pub/sub API:
+     *
+     *     $sub = Redis::subscriber();
+     *     $sub->subscribe('channel');
+     *     while ($message = $sub->channel()->pop()) { ... }
+     *     $sub->close();
+     */
+    public function subscriber(): Subscriber
+    {
+        $config = $this->factory->getPool($this->poolName)->getConfig();
+        $options = $config['options'] ?? [];
+
+        return new Subscriber(
+            host: $config['host'],
+            port: (int) $config['port'],
+            password: (string) ($config['auth'] ?? ''),
+            timeout: (float) ($config['timeout'] ?? 5.0),
+            prefix: (string) ($options['prefix'] ?? ''),
+        );
+    }
+
+    /**
      * Get a Redis connection by name.
      */
     public function connection(UnitEnum|string $name = 'default'): RedisProxy
     {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
+        return Container::getInstance()
+            ->make(RedisFactory::class)
             ->get(enum_value($name));
     }
 

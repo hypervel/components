@@ -6,7 +6,11 @@ namespace Hypervel\Foundation\Testing;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
-use Hyperf\Coroutine\Coroutine;
+use Faker\Generator as FakerGenerator;
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -16,10 +20,9 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Support\Facades\Facade;
-use Mockery;
 use Throwable;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
@@ -61,9 +64,21 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             $this->refreshApplication();
         }
 
-        $this->runInCoroutine(
-            fn () => $this->setUpTraits()
-        );
+        // Reset after Application exists so container-change detection works correctly
+        // and rebinding hooks are registered on the current container.
+        DatabaseConnectionResolver::resetCachedConnections();
+
+        $this->setUpFaker();
+
+        $this->runInCoroutine(function () {
+            $this->setUpTraits();
+
+            // Preserve transaction manager context for the test coroutine.
+            // RefreshDatabase stores transaction state in Context, but setUpTraits runs
+            // in a temporary coroutine. Copy to non-coroutine context so the test
+            // coroutine (which copies from nonCoContext) can access it.
+            $this->preserveTransactionContext();
+        });
 
         foreach ($this->afterApplicationCreatedCallbacks as $callback) {
             $callback();
@@ -114,6 +129,19 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         return $uses;
     }
 
+    /**
+     * Set up Faker for factory usage.
+     */
+    protected function setUpFaker(): void
+    {
+        if (! $this->app->bound(FakerGenerator::class)) {
+            $this->app->singleton(
+                FakerGenerator::class,
+                fn ($app) => \Faker\Factory::create($app->make('config')->get('app.faker_locale', 'en_US'))
+            );
+        }
+    }
+
     protected function tearDown(): void
     {
         if ($this->app) {
@@ -132,14 +160,6 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             throw $this->callbackException;
         }
 
-        if (class_exists('Mockery')) {
-            if ($container = Mockery::getContainer()) { // @phpstan-ignore if.alwaysTrue (defensive check)
-                $this->addToAssertionCount($container->mockery_getExpectationCount());
-            }
-
-            Mockery::close();
-        }
-
         if (class_exists(Carbon::class)) {
             Carbon::setTestNow();
         }
@@ -147,6 +167,15 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         if (class_exists(CarbonImmutable::class)) {
             CarbonImmutable::setTestNow();
         }
+
+        ConsoleApplication::forgetBootstrappers();
+
+        // Reset Model strict mode flags to prevent test pollution.
+        // These are process-global in Swoole, so tests that enable strict
+        // modes must not leak that state to subsequent tests.
+        Model::preventSilentlyDiscardingAttributes(false);
+        Model::preventLazyLoading(false);
+        Model::preventAccessingMissingAttributes(false);
 
         $this->setUpHasRun = false;
     }
@@ -188,7 +217,27 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     }
 
     /**
+     * Preserve transaction manager context for the test coroutine.
+     *
+     * RefreshDatabase and DatabaseTransactions store transaction state in Context.
+     * Since setUpTraits runs in a temporary coroutine (separate from the test method's
+     * coroutine), we must copy this state to non-coroutine context. The test coroutine
+     * will then copy from non-coroutine context via copyFromNonCoroutine().
+     */
+    protected function preserveTransactionContext(): void
+    {
+        Context::copyToNonCoroutine([
+            '__db.transactions.committed',
+            '__db.transactions.pending',
+            '__db.transactions.current',
+        ]);
+    }
+
+    /**
      * Ensure callback is executed in coroutine.
+     *
+     * Exceptions are captured and re-thrown outside the coroutine context
+     * so they propagate correctly to PHPUnit (e.g., for markTestSkipped).
      */
     protected function runInCoroutine(callable $callback): void
     {

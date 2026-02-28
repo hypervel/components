@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Database\Model\Events\Deleting;
-use Hyperf\Database\Model\Events\Updating;
-use Hyperf\Database\Model\Relations\MorphTo;
-use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Repository as CacheRepository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use UnitEnum;
 
@@ -24,7 +22,7 @@ use function Hypervel\Support\enum_value;
  * @property string $name
  * @property null|\Carbon\Carbon $last_used_at
  * @property null|\Carbon\Carbon $expires_at
- * @method static \Hyperf\Database\Model\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
+ * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
 class PersonalAccessToken extends Model implements HasAbilities
@@ -63,24 +61,21 @@ class PersonalAccessToken extends Model implements HasAbilities
         'token',
     ];
 
-    /**
-     * Handle the updating event.
-     */
-    public function updating(Updating $event): void
+    protected static function boot(): void
     {
-        if (config('sanctum.cache.enabled')) {
-            self::clearTokenCache($this->id);
-        }
-    }
+        parent::boot();
 
-    /**
-     * Handle the deleting event.
-     */
-    public function deleting(Deleting $event): void
-    {
-        if (config('sanctum.cache.enabled')) {
-            self::clearTokenCache($this->id);
-        }
+        static::updating(function ($model) {
+            if (config('sanctum.cache.enabled')) {
+                self::clearTokenCache($model->id);
+            }
+        });
+
+        static::deleting(function ($model) {
+            if (config('sanctum.cache.enabled')) {
+                self::clearTokenCache($model->id);
+            }
+        });
     }
 
     /**
@@ -222,7 +217,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function getCache(): CacheRepository
     {
-        $cacheManager = ApplicationContext::getContainer()->get(CacheManager::class);
+        $cacheManager = Container::getInstance()->make(CacheManager::class);
         $store = config('sanctum.cache.store');
         return $store ? $cacheManager->store($store) : $cacheManager->store();
     }

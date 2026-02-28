@@ -260,6 +260,8 @@ class MeilisearchEngineTest extends TestCase
         $model = m::mock(Model::class . ', ' . SearchableInterface::class);
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
         $model->shouldReceive('getScoutModelsByIds')->andReturn(new EloquentCollection([$searchableModel]));
+        $model->shouldReceive('newCollection')
+            ->andReturnUsing(fn ($models) => new EloquentCollection($models));
 
         $builder = m::mock(Builder::class);
 
@@ -306,6 +308,8 @@ class MeilisearchEngineTest extends TestCase
         $model = m::mock(Model::class . ', ' . SearchableInterface::class);
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
         $model->shouldReceive('getScoutModelsByIds')->andReturn($models);
+        $model->shouldReceive('newCollection')
+            ->andReturnUsing(fn ($models) => new EloquentCollection($models));
 
         $builder = m::mock(Builder::class);
 

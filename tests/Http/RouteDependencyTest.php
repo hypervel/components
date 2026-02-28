@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Faker\Container\ContainerInterface;
-use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Serializer\NormalizerInterface;
 use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\RouteDependency;
 use InvalidArgumentException;
@@ -81,12 +81,12 @@ class RouteDependencyTest extends TestCase
             ->once()
             ->andReturn('bar');
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')
             ->with('service')
             ->once()
             ->andReturn(true);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('service')
             ->once()
             ->andReturn('service');
@@ -127,12 +127,12 @@ class RouteDependencyTest extends TestCase
             ->once()
             ->andReturn('bar');
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')
             ->with('service')
             ->once()
             ->andReturn(true);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with('service')
             ->once()
             ->andReturn('service');
@@ -158,7 +158,7 @@ class RouteDependencyTest extends TestCase
     protected function getRouteDependency(): RouteDependency
     {
         return new RouteDependency(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(NormalizerInterface::class),
             m::mock(MethodDefinitionCollectorInterface::class),
             m::mock(ClosureDefinitionCollectorInterface::class)

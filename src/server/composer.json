@@ -1,0 +1,56 @@
+{
+    "name": "hypervel/server",
+    "type": "library",
+    "description": "A base server library for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "hypervel",
+        "server"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Server\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/framework": "^0.4",
+        "hypervel/support": "^0.4",
+        "psr/log": "^1.0|^2.0|^3.0",
+        "symfony/console": "^7.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Server\\ServerServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

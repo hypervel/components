@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
 use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
 use Traversable;
-
-use function Hyperf\Tappable\tap;
 
 class PendingProcess
 {

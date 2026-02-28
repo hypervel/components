@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class RequestCommand extends GeneratorCommand
+#[AsCommand(name: 'make:request')]
+class RequestCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:request');
-    }
+    protected ?string $name = 'make:request';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new form request class');
+    protected string $description = 'Create a new form request class';
 
-        parent::configure();
-    }
+    protected string $type = 'Request';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/request.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Http\Requests';
     }

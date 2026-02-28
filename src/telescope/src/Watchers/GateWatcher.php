@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class GateWatcher extends Watcher
 {
@@ -23,9 +23,9 @@ class GateWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(GateEvaluated::class, [$this, 'recordGateCheck']);
     }
 

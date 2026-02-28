@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
 use Hypervel\Auth\Guards\SessionGuard;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

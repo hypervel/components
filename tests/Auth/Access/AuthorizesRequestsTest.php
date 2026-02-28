@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Database\Model\Model;
 use Hypervel\Auth\Access\Response;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -22,7 +21,7 @@ class AuthorizesRequestsTest extends TestCase
 {
     public function testAuthorize()
     {
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -34,7 +33,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedPassingModelInstance()
     {
         $model = new class extends Model {};
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -46,7 +45,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedPassingClassName()
     {
         $class = Model::class;
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -58,7 +57,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedAndNormalized()
     {
         $model = new class extends Model {};
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -77,14 +76,11 @@ class AuthorizesRequestsTest extends TestCase
      */
     private function mockGate(): Gate
     {
-        $gate = Mockery::mock(Gate::class);
+        $gate = m::mock(Gate::class);
 
-        /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
-
-        $container->shouldReceive('get')->with(Gate::class)->andReturn($gate);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        $container->instance(Gate::class, $gate);
+        Container::setInstance($container);
 
         return $gate;
     }

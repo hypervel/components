@@ -20,8 +20,8 @@
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/devtool": "~3.1.0"
+        "php": "^8.4",
+        "hypervel/console": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -29,11 +29,13 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Devtool\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Devtool\\DevtoolServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

@@ -6,7 +6,9 @@ namespace Hypervel\Console\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\Schedule;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'schedule:clear-cache')]
 class ScheduleClearCacheCommand extends Command
 {
     /**
@@ -28,7 +30,7 @@ class ScheduleClearCacheCommand extends Command
 
         foreach ($schedule->events() as $event) {
             if ($event->mutex->exists($event)) {
-                $this->info(sprintf('Deleting mutex for [%s]', $event->command));
+                $this->components->info(sprintf('Deleting mutex for [%s]', $event->command));
 
                 $event->mutex->forget($event);
 
@@ -37,7 +39,7 @@ class ScheduleClearCacheCommand extends Command
         }
 
         if (! $mutexCleared) {
-            $this->info('No mutex files were found.');
+            $this->components->info('No mutex files were found.');
         }
     }
 }

@@ -5,20 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\QueueingDispatcher;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Pipeline\Pipeline;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
 {
+    use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
+
     /**
      * The pipeline instance for the bus.
      */
@@ -37,11 +44,11 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Create a new command dispatcher instance.
      *
-     * @param ContainerInterface $container the container implementation
+     * @param Container $container the container implementation
      * @param null|Closure $queueResolver the queue resolver callback
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected ?Closure $queueResolver = null
     ) {
         $this->pipeline = new Pipeline($container);
@@ -94,13 +101,10 @@ class Dispatcher implements QueueingDispatcher
 
                 return $handler->{$method}($command);
             };
-        } elseif (! method_exists($this->container, 'call')) {
-            throw new RuntimeException('The container must implement the `call` method.');
         } else {
             $callback = function ($command) {
                 $method = method_exists($command, 'handle') ? 'handle' : '__invoke';
 
-                /* @phpstan-ignore-next-line */
                 return $this->container->call([$command, $method]);
             };
         }
@@ -158,7 +162,7 @@ class Dispatcher implements QueueingDispatcher
     public function getCommandHandler(mixed $command): mixed
     {
         if ($this->hasCommandHandler($command)) {
-            return $this->container->get($this->handlers[get_class($command)]);
+            return $this->container->make($this->handlers[get_class($command)]);
         }
 
         return false;
@@ -179,7 +183,9 @@ class Dispatcher implements QueueingDispatcher
      */
     public function dispatchToQueue(mixed $command): mixed
     {
-        $connection = $command->connection ?? null;
+        $connection = $this->getAttributeValue($command, Connection::class, 'connection')
+            ?? $this->resolveConnectionFromQueueRoute($command)
+            ?? null;
 
         $queue = call_user_func($this->queueResolver, $connection);
 
@@ -199,19 +205,15 @@ class Dispatcher implements QueueingDispatcher
      */
     protected function pushCommandToQueue(Queue $queue, mixed $command): mixed
     {
-        if (isset($command->queue, $command->delay)) {
-            return $queue->laterOn($command->queue, $command->delay, $command);
-        }
-
-        if (isset($command->queue)) {
-            return $queue->pushOn($command->queue, $command);
-        }
+        $queueName = $this->getAttributeValue($command, QueueAttribute::class, 'queue')
+            ?? $this->resolveQueueFromQueueRoute($command)
+            ?? null;
 
         if (isset($command->delay)) {
-            return $queue->later($command->delay, $command);
+            return $queue->later($command->delay, $command, queue: $queueName);
         }
 
-        return $queue->push($command);
+        return $queue->push($command, queue: $queueName);
     }
 
     /**

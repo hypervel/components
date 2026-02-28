@@ -10,23 +10,22 @@ use Cron\CronExpression;
 use DateTimeInterface;
 use DateTimeZone;
 use GuzzleHttp\Client as HttpClient;
-use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hyperf\Collection\Arr;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Stringable;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Tappable\Tappable;
-use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Console\Application;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Mail\Mailer;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\Tappable;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\Process\Process;
@@ -39,6 +38,11 @@ class Event
     use ManagesFrequencies;
     use ReflectsClosures;
     use Tappable;
+
+    /**
+     * The command string.
+     */
+    public ?string $command = null;
 
     /**
      * The location that output should be sent to.
@@ -95,10 +99,11 @@ class Event
      */
     public function __construct(
         public EventMutex $mutex,
-        public ?string $command,
+        ?string $command = null,
         DateTimeZone|string|null $timezone = null,
         bool $isSystem = false
     ) {
+        $this->command = $command;
         $this->timezone = $timezone;
         $this->isSystem = $isSystem;
     }
@@ -145,7 +150,8 @@ class Event
      */
     public function shouldRepeatNow(): bool
     {
-        return $this->lastChecked?->diffInSeconds() >= ($this->repeatSeconds ?? 60);
+        return $this->isRepeatable()
+            && $this->lastChecked?->diffInSeconds() >= $this->repeatSeconds;
     }
 
     /**
@@ -175,7 +181,7 @@ class Event
             return $this->runProcess($container);
         }
 
-        return $container->get(KernelContract::class)
+        return $container->make(KernelContract::class)
             ->call($this->command);
     }
 
@@ -184,13 +190,13 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
-        /** @var \Hypervel\Foundation\Contracts\Application $container */
+        /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath()
         );
 
-        Context::set("scheduling_process:{$this->mutexName()}", $process);
+        Context::set("__console.scheduling_process.{$this->mutexName()}", $process);
 
         return $process->run();
     }
@@ -200,7 +206,7 @@ class Event
      */
     protected function getProcessOutput(): ?string
     {
-        if (! $process = Context::get("scheduling_process:{$this->mutexName()}")) {
+        if (! $process = Context::get("__console.scheduling_process.{$this->mutexName()}")) {
             return null;
         }
 
@@ -246,7 +252,7 @@ class Event
      */
     public function isDue(ApplicationContract $app): bool
     {
-        if ($this->runsInMaintenanceMode()) {
+        if (! $this->runsInMaintenanceMode() && $app->isDownForMaintenance()) {
             return false;
         }
 
@@ -335,7 +341,7 @@ class Event
      */
     public function writeOutput(Container $container): void
     {
-        $filesystem = $container->get(Filesystem::class);
+        $filesystem = $container->make(Filesystem::class);
         if (! $this->ensureOutputIsBeingCaptured
             && (! $this->output || (! $this->isSystem && ! $filesystem->isFile($this->output)))
         ) {
@@ -358,7 +364,7 @@ class Event
             return $this->getProcessOutput();
         }
 
-        return $container->get(KernelContract::class)->output();
+        return $container->make(KernelContract::class)->output();
     }
 
     /**
@@ -525,7 +531,7 @@ class Event
             try {
                 $this->getHttpClient($container)->request('GET', $url);
             } catch (ClientExceptionInterface|TransferException $e) {
-                $container->get(ExceptionHandler::class)->report($e);
+                $container->make(ExceptionHandler::class)->report($e);
             }
         };
     }
@@ -533,7 +539,7 @@ class Event
     /**
      * Get the Guzzle HTTP client to use to send pings.
      */
-    protected function getHttpClient(Container $container): ClientInterface
+    protected function getHttpClient(Container $container): HttpClientInterface
     {
         return match (true) {
             $container->bound(HttpClientInterface::class) => $container->make(HttpClientInterface::class),
@@ -711,7 +717,7 @@ class Event
         }
 
         return 'framework' . DIRECTORY_SEPARATOR . 'schedule-'
-            . sha1($this->expression . ($this->command ?? ''));
+            . sha1($this->expression . static::normalizeCommand($this->command ?? ''));
     }
 
     /**
@@ -734,5 +740,19 @@ class Event
         if ($this->withoutOverlapping) {
             $this->mutex->forget($this);
         }
+    }
+
+    /**
+     * Format the given command string with a normalized PHP binary path.
+     */
+    public static function normalizeCommand(string $command): string
+    {
+        return str_replace([
+            Application::phpBinary(),
+            Application::artisanBinary(),
+        ], [
+            'php',
+            preg_replace("#['\"]#", '', Application::artisanBinary()),
+        ], $command);
     }
 }

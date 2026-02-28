@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Arr;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'config:show')]
 class ConfigShowCommand extends Command
 {
     protected ?string $signature = 'config:show {config : The configuration file or key to show}';
@@ -15,7 +17,7 @@ class ConfigShowCommand extends Command
     protected string $description = 'Display all of the values for a given configuration file or key';
 
     public function __construct(
-        protected ConfigInterface $config
+        protected Repository $config
     ) {
         parent::__construct();
     }

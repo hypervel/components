@@ -20,34 +20,25 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/core": "^0.3",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/support": "^0.3",
-        "hypervel/http": "^0.3",
-        "hypervel/validation": "^0.3",
-        "hyperf/config": "~3.1.0",
-        "hyperf/di": "~3.1.0",
-        "hyperf/support": "~3.1.0",
-        "hyperf/command": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
-        "hyperf/context": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
-        "hyperf/stringable": "~3.1.0",
-        "hyperf/dispatcher": "~3.1.0",
-        "hyperf/database": "~3.1.0",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/signal": "~3.1.0",
-        "hyperf/engine": "^2.1",
-        "hyperf/db-connection": "~3.1.0",
-        "hyperf/framework": "~3.1.0",
-        "friendsofhyperf/pretty-console": "~3.1.0",
-        "friendsofhyperf/command-signals": "~3.1.0",
+        "hypervel/core": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/validation": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/dispatcher": "^0.4",
+        "hypervel/exception-handler": "^0.4",
+        "hypervel/framework": "^0.4",
+        "hypervel/http-server": "^0.4",
+        "hypervel/server": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/websocket-server": "^0.4",
+        "hypervel/engine": "^0.4",
         "symfony/error-handler": "^6.3"
-    },
-    "require-dev": {
-        "hyperf/testing": "~3.1.0"
     },
     "autoload": {
         "psr-4": {
@@ -58,16 +49,13 @@
         ]
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Foundation\\ConfigProvider"
-        },
-        "hypervel" : {
+        "hypervel": {
             "providers": [
                 "Hypervel\\Foundation\\Providers\\FoundationServiceProvider"
             ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

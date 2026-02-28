@@ -29,7 +29,7 @@ use Hypervel\HttpClient\Factory;
  * @method static void assertSequencesAreEmpty()
  * @method static \Hypervel\Support\Collection recorded(callable|null $callback = null)
  * @method static \Hypervel\HttpClient\PendingRequest createPendingRequest()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface|null getDispatcher()
+ * @method static \Hypervel\Contracts\Event\Dispatcher|null getDispatcher()
  * @method static array getGlobalMiddleware()
  * @method static \Hypervel\HttpClient\Factory registerConnection(string $name, array $config = [])
  * @method static \GuzzleHttp\ClientInterface getClient(string|null $connection, \GuzzleHttp\HandlerStack $handlerStack, array|null $config = null)
@@ -114,7 +114,7 @@ use Hypervel\HttpClient\Factory;
  */
 class Http extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
     }

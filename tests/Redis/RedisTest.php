@@ -5,20 +5,29 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Exception;
-use Hyperf\Pool\PoolOption;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Pool\PoolOption;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Redis as PhpRedis;
+use RedisCluster;
+use RedisSentinel;
+use ReflectionClass;
 use RuntimeException;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 /**
  * Tests for the Redis class - the main public API.
@@ -33,10 +42,19 @@ class RedisTest extends TestCase
 {
     use RunTestsInCoroutine;
 
+    protected bool $isOlderThan6 = false;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->isOlderThan6 = version_compare((string) phpversion('redis'), '6.0.0', '<');
+    }
+
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
+        Context::destroy('__redis.connection.default');
     }
 
     public function testCommandIsProxiedToConnection(): void
@@ -67,7 +85,7 @@ class RedisTest extends TestCase
 
         $this->assertSame($multiInstance, $result);
         // Connection should be stored in context
-        $this->assertTrue(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.default'));
     }
 
     public function testConnectionIsStoredInContextForPipeline(): void
@@ -84,7 +102,7 @@ class RedisTest extends TestCase
         $result = $redis->pipeline();
 
         $this->assertSame($pipelineInstance, $result);
-        $this->assertTrue(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.default'));
     }
 
     public function testConnectionIsStoredInContextForSelect(): void
@@ -100,7 +118,99 @@ class RedisTest extends TestCase
         $result = $redis->select(1);
 
         $this->assertTrue($result);
-        $this->assertTrue(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.default'));
+    }
+
+    public function testConnectionIsStoredInContextForSelectZeroDatabase(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('select')->once()->with(0)->andReturn(true);
+        $connection->shouldReceive('setDatabase')->once()->with(0);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->select(0);
+
+        $this->assertTrue($result);
+        $this->assertTrue(Context::has('__redis.connection.default'));
+    }
+
+    public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
+    {
+        $setConnection = $this->mockConnection();
+        $setConnection->shouldReceive('set')->once()->with('xxxx', 'yyyy')->andReturn('db:0 name:set argument:xxxx,yyyy');
+        $setConnection->shouldReceive('release')->once();
+
+        $selectedConnection = $this->mockConnection();
+        $selectedConnection->shouldReceive('select')->once()->with(2)->andReturn(true);
+        $selectedConnection->shouldReceive('setDatabase')->once()->with(2);
+        $selectedConnection->shouldReceive('get')->once()->with('xxxx')->andReturn('db:2 name:get argument:xxxx');
+        $selectedConnection->shouldReceive('release')->once();
+
+        $otherCoroutineConnection = $this->mockConnection();
+        $otherCoroutineConnection->shouldReceive('get')->once()->with('xxxx')->andReturn('db:0 name:get argument:xxxx');
+        $otherCoroutineConnection->shouldReceive('release')->once();
+
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->times(3)->andReturn(
+            $setConnection,
+            $selectedConnection,
+            $otherCoroutineConnection,
+        );
+        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $this->assertSame('db:0 name:set argument:xxxx,yyyy', $redis->set('xxxx', 'yyyy'));
+        $this->assertTrue($redis->select(2));
+        $this->assertSame('db:2 name:get argument:xxxx', $redis->get('xxxx'));
+
+        $channel = new Channel(1);
+        go(static function () use ($redis, $channel) {
+            $channel->push($redis->get('xxxx'));
+        });
+
+        $this->assertSame('db:0 name:get argument:xxxx', $channel->pop());
+    }
+
+    public function testPinnedConnectionInOneCoroutineIsNotReusedInAnotherCoroutine(): void
+    {
+        $pipeline = m::mock(PhpRedis::class);
+
+        $pinnedConnection = $this->mockConnection();
+        $pinnedConnection->shouldReceive('multi')->once()->andReturn($pipeline);
+        $pinnedConnection->shouldReceive('set')->once()->with('id', '123')->andReturnSelf();
+        $pinnedConnection->shouldReceive('exec')->once()->andReturn([]);
+        $pinnedConnection->shouldReceive('release')->once();
+
+        $otherCoroutineConnection = $this->mockConnection();
+        $otherCoroutineConnection->shouldReceive('get')->once()->with('id')->andReturn('from-other-connection');
+        $otherCoroutineConnection->shouldReceive('release')->once();
+
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->times(2)->andReturn($pinnedConnection, $otherCoroutineConnection);
+        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $redis->multi();
+        $redis->set('id', '123');
+
+        $channel = new Channel(1);
+        go(static function () use ($redis, $channel) {
+            $channel->push($redis->get('id'));
+        });
+
+        $this->assertSame('from-other-connection', $channel->pop());
+
+        $this->assertSame([], $redis->exec());
     }
 
     public function testExistingContextConnectionIsReused(): void
@@ -112,7 +222,7 @@ class RedisTest extends TestCase
         $connection->shouldReceive('release')->zeroOrMoreTimes();
 
         // Pre-set connection in context
-        Context::set('redis.connection.default', $connection);
+        Context::set('__redis.connection.default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -140,6 +250,24 @@ class RedisTest extends TestCase
         $redis->get('key');
     }
 
+    public function testReleasesConnectionWhenUnderlyingGetConnectionFails(): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('shouldTransform')->andReturnSelf();
+        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
+        $connection->shouldReceive('getConnection')
+            ->once()
+            ->andThrow(new RuntimeException('Get connection failed.'));
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Get connection failed.');
+
+        $redis->set('xxxx', 'yyyy');
+    }
+
     public function testExceptionWithContextConnectionDoesNotReleaseConnection(): void
     {
         $expectedException = new Exception('Redis error');
@@ -148,7 +276,7 @@ class RedisTest extends TestCase
         $mockRedisConnection->shouldReceive('release')->never();
 
         // Pre-set context connection
-        Context::set('redis.connection.default', $mockRedisConnection);
+        Context::set('__redis.connection.default', $mockRedisConnection);
 
         $redis = $this->createRedis($mockRedisConnection);
 
@@ -178,12 +306,12 @@ class RedisTest extends TestCase
         }
 
         // Connection should NOT be stored in context on error
-        $this->assertNull(Context::get('redis.connection.default'));
+        $this->assertNull(Context::get('__redis.connection.default'));
     }
 
     public function testEventDispatchedOnSuccess(): void
     {
-        $mockEventDispatcher = m::mock(EventDispatcherInterface::class);
+        $mockEventDispatcher = m::mock(Dispatcher::class);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::on(function (CommandExecuted $event) {
@@ -205,7 +333,7 @@ class RedisTest extends TestCase
     {
         $expectedException = new Exception('Redis error');
 
-        $mockEventDispatcher = m::mock(EventDispatcherInterface::class);
+        $mockEventDispatcher = m::mock(Dispatcher::class);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::on(function (CommandExecuted $event) use ($expectedException) {
@@ -236,7 +364,7 @@ class RedisTest extends TestCase
 
         $redis->get('key');
 
-        $this->assertNull(Context::get('redis.connection.default'));
+        $this->assertNull(Context::get('__redis.connection.default'));
     }
 
     public function testWithConnectionExecutesCallbackAndReleasesConnection(): void
@@ -262,7 +390,7 @@ class RedisTest extends TestCase
         $connection->shouldReceive('release')->never();
 
         // Pre-set connection in context (simulating an active multi/pipeline)
-        Context::set('redis.connection.default', $connection);
+        Context::set('__redis.connection.default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -274,7 +402,7 @@ class RedisTest extends TestCase
 
         $this->assertSame('reused-connection', $result);
         // Connection should still be in context
-        $this->assertTrue(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.default'));
     }
 
     public function testWithConnectionReleasesOnException(): void
@@ -299,7 +427,7 @@ class RedisTest extends TestCase
         // Should NOT release since connection was in context
         $connection->shouldReceive('release')->never();
 
-        Context::set('redis.connection.default', $connection);
+        Context::set('__redis.connection.default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -313,7 +441,7 @@ class RedisTest extends TestCase
         }
 
         // Connection should still be in context
-        $this->assertTrue(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has('__redis.connection.default'));
     }
 
     public function testWithConnectionDefaultsToTransformTrue(): void
@@ -401,6 +529,113 @@ class RedisTest extends TestCase
         $this->assertSame('NOSCRIPT No matching script', $result);
     }
 
+    public function testRedisClusterConstructorSignature(): void
+    {
+        $reflection = new ReflectionClass(RedisCluster::class);
+        $method = $reflection->getMethod('__construct');
+        $names = [
+            ['name', 'string'],
+            ['seeds', 'array'],
+            ['timeout', ['int', 'float']],
+            ['read_timeout', ['int', 'float']],
+            ['persistent', 'bool'],
+            ['auth', 'mixed'],
+            ['context', 'array'],
+        ];
+
+        foreach ($method->getParameters() as $parameter) {
+            [$name, $type] = array_shift($names);
+            $this->assertSame($name, $parameter->getName());
+
+            if ($parameter->getName() === 'seeds') {
+                $this->assertSame('array', $parameter->getType()?->getName());
+                continue;
+            }
+
+            if ($this->isOlderThan6) {
+                $this->assertNull($parameter->getType());
+                continue;
+            }
+
+            if (is_array($type)) {
+                foreach ($parameter->getType()?->getTypes() ?? [] as $namedType) {
+                    $this->assertTrue(in_array($namedType->getName(), $type, true));
+                }
+
+                continue;
+            }
+
+            $this->assertSame($type, $parameter->getType()?->getName());
+        }
+    }
+
+    public function testRedisSentinelConstructorSignature(): void
+    {
+        $reflection = new ReflectionClass(RedisSentinel::class);
+        $method = $reflection->getMethod('__construct');
+        $count = count($method->getParameters());
+
+        if (! $this->isOlderThan6) {
+            $this->assertSame(1, $count);
+            $this->assertSame('options', $method->getParameters()[0]->getName());
+
+            return;
+        }
+
+        if ($count === 6) {
+            $this->markTestIncomplete('RedisSentinel does not support auth in this extension variant.');
+        }
+
+        $this->assertSame(7, $count);
+    }
+
+    public function testShuffleNodesMaintainsNodeCount(): void
+    {
+        $nodes = ['127.0.0.1:6379', '127.0.0.1:6378', '127.0.0.1:6377'];
+
+        shuffle($nodes);
+
+        $this->assertIsArray($nodes);
+        $this->assertSame(3, count($nodes));
+    }
+
+    public function testConnectionReturnsNamedProxy()
+    {
+        $proxy = m::mock(RedisProxy::class);
+
+        $factory = m::mock(RedisFactory::class);
+        $factory->shouldReceive('get')
+            ->once()
+            ->with('cache')
+            ->andReturn($proxy);
+
+        $container = new Container();
+        $container->instance(RedisFactory::class, $factory);
+        Container::setInstance($container);
+
+        $redis = $this->createRedis($this->mockConnection());
+
+        $result = $redis->connection('cache');
+
+        $this->assertSame($proxy, $result);
+    }
+
+    public function testFlushByPatternDelegatestoConnection()
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('flushByPattern')
+            ->once()
+            ->with('cache:*')
+            ->andReturn(42);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->flushByPattern('cache:*');
+
+        $this->assertSame(42, $result);
+    }
+
     /**
      * Create a mock RedisConnection with standard expectations.
      */
@@ -436,7 +671,7 @@ class RedisTest extends TestCase
         string $command = 'get',
         mixed $returnValue = 'value',
         ?Throwable $exception = null,
-        ?EventDispatcherInterface $eventDispatcher = null
+        ?Dispatcher $eventDispatcher = null
     ): RedisConnection&m\MockInterface {
         $mockPhpRedis = m::mock(PhpRedis::class);
 

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
 use Hypervel\Bus\Batch;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\QueueingDispatcher;
 use Hypervel\Bus\PendingBatch;
-use Hypervel\Bus\PendingChain;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
@@ -570,14 +570,15 @@ class BusFake implements Fake, QueueingDispatcher
     }
 
     /**
-     * Dispatch a command to its appropriate handler.
+     * Dispatch a command to its appropriate handler after the current process.
      */
-    public function dispatchAfterResponse(mixed $command): mixed
+    public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commandsAfterResponse[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commandsAfterResponse[get_class($command)][] = $this->getCommandRepresentation($command);
+            return;
         }
-        return $this->dispatcher->dispatch($command);
+        $this->dispatcher->dispatchAfterResponse($command, $handler);
     }
 
     /**

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\InteractsWithTime;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -27,7 +27,7 @@ abstract class Job implements JobContract
     /**
      * The IoC container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * Indicates if the job has been deleted.
@@ -177,7 +177,7 @@ abstract class Job implements JobContract
 
             $this->failed($e);
         } finally {
-            $this->resolve(EventDispatcherInterface::class)
+            $this->resolve(Dispatcher::class)
                 ->dispatch(new JobFailed(
                     $this->connectionName,
                     $this,
@@ -205,7 +205,7 @@ abstract class Job implements JobContract
      */
     protected function resolve(string $class): mixed
     {
-        return $this->container->get($class);
+        return $this->container->make($class);
     }
 
     /**
@@ -311,7 +311,7 @@ abstract class Job implements JobContract
     /**
      * Get the service container instance.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }

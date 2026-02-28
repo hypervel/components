@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:failed')]
 class ListFailedCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -48,7 +47,7 @@ class ListFailedCommand extends Command
      */
     protected function getFailedJobs(): array
     {
-        $failed = $this->app->get(FailedJobProviderInterface::class)->all();
+        $failed = $this->app->make(FailedJobProviderInterface::class)->all();
 
         return Collection::make($failed)->map(function ($failed) {
             return $this->parseFailedJob((array) $failed);

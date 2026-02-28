@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\Arrayable;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Events\Dispatchable;
-
-use function Hyperf\Collection\collect;
+use Hypervel\Support\Arr;
 
 class AnonymousEvent implements ShouldBroadcast
 {

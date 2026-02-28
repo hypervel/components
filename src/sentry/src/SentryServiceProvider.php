@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Aspects\CoroutineAspect;
@@ -12,15 +11,15 @@ use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Commands\AboutCommand;
 use Hypervel\Sentry\Commands\TestCommand;
 use Hypervel\Sentry\Factory\ClientBuilderFactory;
-use Hypervel\Sentry\Factory\HubFactory;
 use Hypervel\Sentry\Features\Feature;
-use Hypervel\Sentry\HttpClient\HttpClientFactory;
+use Hypervel\Sentry\HttpClient\HttpClient;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Support\ServiceProvider;
 use Sentry\ClientBuilder;
 use Sentry\ClientInterface;
 use Sentry\HttpClient\HttpClientInterface;
+use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Throwable;
 
@@ -28,6 +27,9 @@ class SentryServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        // Keep Sentry's global singleton hub aligned with the current application container.
+        SentrySdk::setCurrentHub($this->app->make(HubInterface::class));
+
         $this->bootFeatures();
         $this->registerPublishing();
         $this->registerCommands();
@@ -67,22 +69,25 @@ class SentryServiceProvider extends ServiceProvider
                 new Pool(
                     $builder->getOptions(),
                     $this->app,
-                    $this->app->get(ConfigInterface::class)->get('pools.sentry', [])
+                    $this->app->make('config')->get('pools.sentry', [])
                 )
             );
 
             return $builder->setTransport($transport);
         });
 
-        $this->app->bind(ClientInterface::class, function () {
+        $this->app->singleton(ClientInterface::class, function () {
             return $this->app
-                ->get(ClientBuilder::class)
+                ->make(ClientBuilder::class)
                 ->getClient();
         });
 
-        $this->app->bind(ClientBuilder::class, ClientBuilderFactory::class);
-        $this->app->bind(HubInterface::class, HubFactory::class);
-        $this->app->bind(HttpClientInterface::class, HttpClientFactory::class);
+        $this->app->singleton(ClientBuilder::class, fn () => (new ClientBuilderFactory())($this->app));
+        $this->app->singleton(HubInterface::class, fn () => new Hub());
+        $this->app->singleton(HttpClientInterface::class, fn () => new HttpClient(
+            Version::getSdkIdentifier(),
+            Version::getSdkVersion(),
+        ));
         $this->registerFeatures();
     }
 
@@ -109,15 +114,15 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function registerFeatures(): void
     {
-        $features = $this->app->get(ConfigInterface::class)->get('sentry.features', []);
+        $features = $this->app->make('config')->get('sentry.features', []);
         foreach ($features as $feature) {
-            $this->app->bind($feature, $feature);
+            $this->app->singleton($feature, $feature);
         }
 
         foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */
-                $featureInstance = $this->app->get($feature);
+                $featureInstance = $this->app->make($feature);
 
                 $featureInstance->register();
             } catch (Throwable $e) {
@@ -128,11 +133,11 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function bootFeatures(): void
     {
-        $features = $this->app->get(ConfigInterface::class)->get('sentry.features', []);
+        $features = $this->app->make('config')->get('sentry.features', []);
         foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */
-                $featureInstance = $this->app->get($feature);
+                $featureInstance = $this->app->make($feature);
 
                 $featureInstance->boot();
             } catch (Throwable $e) {

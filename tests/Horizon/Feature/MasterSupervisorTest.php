@@ -17,7 +17,7 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 use Symfony\Component\Process\Process;
 
 /**
@@ -43,7 +43,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessMarksCleanExitsAsDeadAndRemovesThem()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
@@ -63,7 +63,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessMarksDuplicatesAsDeadAndRemovesThem()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
@@ -83,7 +83,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessRestartsUnexpectedExits()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
@@ -114,7 +114,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessRestartsProcessesThatNeverStarted()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
@@ -133,7 +133,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessStartsUnstartedProcessesWhenUnpaused()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
             $this->supervisorOptions(),
@@ -175,7 +175,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessInformationIsPersisted()
     {
-        $process = Mockery::mock(Process::class);
+        $process = m::mock(Process::class);
         $master = new MasterSupervisor();
         $master->working = true;
         $master->supervisors[] = new SupervisorProcess($this->supervisorOptions(), $process);

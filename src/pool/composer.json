@@ -1,0 +1,46 @@
+{
+    "name": "hypervel/pool",
+    "type": "library",
+    "description": "The Hypervel Pool package for connection pooling.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "pool",
+        "connection",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Pool\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

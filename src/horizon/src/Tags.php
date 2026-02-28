@@ -8,17 +8,17 @@ use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Collection;
-use Illuminate\Events\CallQueuedListener;
 use ReflectionClass;
 use ReflectionProperty;
 use stdClass;
 
 class Tags
 {
-    protected const CONTEXT_KEY = 'horizon.tags';
+    protected const CONTEXT_KEY = '__horizon.tags';
 
     /**
      * Determine the tags for the given job.

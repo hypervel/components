@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
-use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;
@@ -38,7 +39,7 @@ trait InteractsWithContainer
     protected function instance(string $abstract, mixed $instance): mixed
     {
         /* @phpstan-ignore-next-line */
-        $this->app->set($abstract, $instance);
+        $this->app->instance($abstract, $instance);
 
         return $instance;
     }
@@ -87,13 +88,19 @@ trait InteractsWithContainer
     protected function refreshApplication(): void
     {
         $this->app = $this->createApplication();
-        /* @phpstan-ignore-next-line */
-        $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
-        $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
 
         $this->defineEnvironment($this->app);
 
-        $this->app->get(ApplicationInterface::class);
+        // Bootstrap the application (registers and boots all service providers).
+        // Commands are lazily resolved via ContainerCommandLoader, so they are
+        // not constructed during bootstrap — test overrides below take effect
+        // before any command dependencies are captured.
+        $this->app->make(ConsoleApplicationContract::class);
+
+        /* @phpstan-ignore-next-line */
+        $this->app->singleton(HttpDispatcher::class, TestingHttpDispatcher::class);
+        $this->app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+        Model::setConnectionResolver($this->app->make(ConnectionResolverInterface::class));
     }
 
     /**

@@ -1,0 +1,48 @@
+{
+    "name": "hypervel/pagination",
+    "type": "library",
+    "description": "The pagination package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "pagination",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Pagination\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Pagination\\PaginationServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

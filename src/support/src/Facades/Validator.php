@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Validation\Contracts\Factory as FactoryContract;
-
 /**
  * @method static \Hypervel\Validation\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
  * @method static array validate(array $data, array $rules, array $messages = [], array $attributes = [])
@@ -16,11 +14,11 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static void includeUnvalidatedArrayKeys()
  * @method static void excludeUnvalidatedArrayKeys()
  * @method static void resolver(\Closure $resolver)
- * @method static \Hypervel\Translation\Contracts\Translator getTranslator()
+ * @method static \Hypervel\Contracts\Translation\Translator getTranslator()
  * @method static \Hypervel\Validation\PresenceVerifierInterface getPresenceVerifier()
  * @method static void setPresenceVerifier(\Hypervel\Validation\PresenceVerifierInterface $presenceVerifier)
- * @method static \Psr\Container\ContainerInterface|null getContainer()
- * @method static \Hypervel\Validation\Factory setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container|null getContainer()
+ * @method static \Hypervel\Validation\Factory setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static array parseData(array $data)
  * @method static \Hypervel\Validation\Validator after(callable|array|string $callback)
  * @method static bool passes()
@@ -65,7 +63,7 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static string getException()
  * @method static \Hypervel\Validation\Validator setException(string|\Throwable $exception)
  * @method static \Hypervel\Validation\Validator ensureExponentWithinAllowedRangeUsing(\Closure $callback)
- * @method static void setTranslator(\Hypervel\Translation\Contracts\Translator $translator)
+ * @method static void setTranslator(\Hypervel\Contracts\Translation\Translator $translator)
  * @method static string makeReplacements(string $message, string $attribute, string $rule, array $parameters)
  * @method static string getDisplayableAttribute(string $attribute)
  * @method static string getDisplayableValue(string $attribute, mixed $value)
@@ -190,8 +188,8 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  */
 class Validator extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return FactoryContract::class;
+        return 'validator';
     }
 }

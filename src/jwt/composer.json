@@ -20,14 +20,13 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "nesbot/carbon": "^2.72.6",
-        "hyperf/collection": "~3.1.0",
+        "hypervel/collections": "^0.4",
         "lcobucci/jwt": "^5.0",
         "psr/simple-cache": "^3.0",
-        "hyperf/stringable": "~3.1.0",
         "ramsey/uuid": "^4.7",
-        "hypervel/cache": "^0.3"
+        "hypervel/cache": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -35,11 +34,13 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\JWT\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\JWT\\JWTServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

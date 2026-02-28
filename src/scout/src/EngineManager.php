@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
@@ -14,7 +14,6 @@ use Hypervel\Scout\Engines\TypesenseEngine;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Typesense\Client as TypesenseClient;
 
@@ -44,7 +43,7 @@ class EngineManager
      * Create a new engine manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -94,7 +93,7 @@ class EngineManager
         $this->ensureMeilisearchClientIsInstalled();
 
         return new MeilisearchEngine(
-            $this->container->get(MeilisearchClient::class),
+            $this->container->make(MeilisearchClient::class),
             $this->getConfig('soft_delete', false)
         );
     }
@@ -125,7 +124,7 @@ class EngineManager
         $this->ensureTypesenseClientIsInstalled();
 
         return new TypesenseEngine(
-            $this->container->get(TypesenseClient::class),
+            $this->container->make(TypesenseClient::class),
             (int) $this->getConfig('typesense.max_total_results', 1000)
         );
     }
@@ -217,6 +216,6 @@ class EngineManager
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return $this->container->get(ConfigInterface::class)->get("scout.{$key}", $default);
+        return $this->container->make('config')->get("scout.{$key}", $default);
     }
 }

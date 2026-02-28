@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Redis\Redis as RedisClient;
-
 /**
  * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string $name = 'default')
  * @method static mixed withConnection(callable $callback)
@@ -17,7 +15,7 @@ use Hypervel\Redis\Redis as RedisClient;
  * @method static mixed hscan(string $key, mixed $cursor, array ...$arguments)
  * @method static mixed sscan(string $key, mixed $cursor, array ...$arguments)
  * @method static void getActiveConnection()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface|null getEventDispatcher()
+ * @method static \Hypervel\Contracts\Event\Dispatcher|null getEventDispatcher()
  * @method static bool reconnect()
  * @method static bool close()
  * @method static void setDatabase(int|null $database)
@@ -312,8 +310,8 @@ use Hypervel\Redis\Redis as RedisClient;
  */
 class Redis extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return RedisClient::class;
+        return 'redis';
     }
 }

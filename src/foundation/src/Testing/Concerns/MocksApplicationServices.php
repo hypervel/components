@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Exception;
-use Hyperf\Database\Model\Register;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Event;
 use Mockery;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 trait MocksApplicationServices
 {
@@ -76,7 +76,7 @@ trait MocksApplicationServices
      */
     protected function withoutEvents()
     {
-        $mock = Mockery::mock(EventDispatcherInterface::class)->shouldIgnoreMissing();
+        $mock = Mockery::mock(Dispatcher::class)->shouldIgnoreMissing();
 
         $mock->shouldReceive('dispatch')->andReturnUsing(function ($called) {
             $this->firedEvents[] = $called;
@@ -84,8 +84,8 @@ trait MocksApplicationServices
 
         Event::clearResolvedInstances();
 
-        $this->app->set(EventDispatcherInterface::class, $mock);
-        Register::setEventDispatcher($mock);
+        $this->app->instance(Dispatcher::class, $mock);
+        Model::setEventDispatcher($mock);
 
         return $this;
     }

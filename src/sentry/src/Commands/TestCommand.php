@@ -6,21 +6,23 @@ namespace Hypervel\Sentry\Commands;
 
 use Exception;
 use Hypervel\Console\Command;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Sentry\ClientBuilder;
 use Sentry\State\Hub;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\TransactionContext;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'sentry:test')]
 class TestCommand extends Command
 {
     protected ?string $signature = 'sentry:test {--dsn= : Sentry DSN} {--transaction= : Transaction}';
 
     protected string $description = 'Generate a test event and send it to Sentry.';
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         parent::__construct();
     }
@@ -28,7 +30,7 @@ class TestCommand extends Command
     public function handle(): void
     {
         try {
-            $hub = $this->container->get(HubInterface::class);
+            $hub = $this->container->make(HubInterface::class);
 
             if ($this->option('dsn')) {
                 $hub = new Hub(ClientBuilder::create(['dsn' => $this->option('dsn')])->getClient());
