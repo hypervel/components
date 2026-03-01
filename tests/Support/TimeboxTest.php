@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  */
 class TimeboxTest extends TestCase
 {
-    public function testMakeExecutesCallback()
+    public function testMakeExecutesCallback(): void
     {
         $callback = function () {
             $this->assertTrue(true);
@@ -24,7 +24,7 @@ class TimeboxTest extends TestCase
         (new Timebox())->call($callback, 0);
     }
 
-    public function testMakeWaitsForMicroseconds()
+    public function testMakeWaitsForMicroseconds(): void
     {
         $mock = Mockery::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
         $mock->shouldReceive('usleep')->once();
@@ -35,7 +35,7 @@ class TimeboxTest extends TestCase
         $mock->shouldHaveReceived('usleep')->once();
     }
 
-    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged()
+    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged(): void
     {
         $mock = Mockery::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
         $mock->call(function ($timebox) {
@@ -45,7 +45,7 @@ class TimeboxTest extends TestCase
         $mock->shouldNotHaveReceived('usleep');
     }
 
-    public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged()
+    public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged(): void
     {
         $mock = Mockery::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
         $mock->shouldReceive('usleep')->once();
@@ -58,7 +58,7 @@ class TimeboxTest extends TestCase
         $mock->shouldHaveReceived('usleep')->once();
     }
 
-    public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown()
+    public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown(): void
     {
         $mock = Mockery::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
         $mock->shouldReceive('usleep')->once();
@@ -74,7 +74,7 @@ class TimeboxTest extends TestCase
         }
     }
 
-    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown()
+    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown(): void
     {
         $mock = Mockery::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
 
