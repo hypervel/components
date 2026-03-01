@@ -17,7 +17,7 @@ trait Fallback
     /**
      * The fallback implementations.
      *
-     * @var array<class-string, Closure($this): mixed>
+     * @var array<class-string, Closure>
      */
     protected static array $fallbacks = [];
 

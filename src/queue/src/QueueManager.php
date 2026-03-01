@@ -161,11 +161,10 @@ class QueueManager implements FactoryContract, MonitorContract
             throw new InvalidArgumentException("The [{$name}] queue connection has not been configured.");
         }
 
-        /** @phpstan-ignore-next-line */
         $resolver = fn () => $this->getConnector($config['driver'])
             ->connect($config)
             ->setConnectionName($name)
-            ->setContainer($this->app)
+            ->setContainer($this->app) // @phpstan-ignore method.notFound
             ->setConfig($config);
 
         if (in_array($config['driver'], $this->poolables)) {
