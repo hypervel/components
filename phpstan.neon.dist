@@ -39,6 +39,9 @@ parameters:
     - '#Method Redis::eval\(\) invoked with [0-9] parameters, 1-3 required.#'
     - '#Access to an undefined property Hypervel\\Queue\\Jobs\\DatabaseJobRecord::\$.*#'
     - '#Access to an undefined property Hypervel\\Queue\\Contracts\\Job::\$.*#'
+    # NodeTrait methods - mixed in at app level, not on base Model class
+    - message: '#Call to an undefined method Hyperf\\Database\\Model\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
+      path: src/nested-set/*
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
     - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
