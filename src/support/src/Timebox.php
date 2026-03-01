@@ -47,7 +47,7 @@ class Timebox
     /**
      * @return static
      */
-    public function returnEarly()
+    public function returnEarly(): static
     {
         $this->earlyReturn = true;
 
@@ -57,7 +57,7 @@ class Timebox
     /**
      * @return static
      */
-    public function dontReturnEarly()
+    public function dontReturnEarly(): static
     {
         $this->earlyReturn = false;
 
