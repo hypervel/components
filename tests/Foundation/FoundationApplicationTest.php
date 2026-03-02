@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-use Hypervel\Event\EventDispatcher;
-use Hypervel\Event\ListenerProvider;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
@@ -38,7 +36,7 @@ class FoundationApplicationTest extends TestCase
             ->once();
 
         $app = $this->getApplication([
-            TranslatorContract::class => fn () => $trans,
+            'translator' => fn () => $trans,
             'events' => fn () => $events,
         ]);
 
@@ -159,11 +157,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testBeforeBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
         $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
@@ -173,11 +168,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testAfterBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
         $app->instance('events', $eventDispatcher);
 
         $closure = function () {};

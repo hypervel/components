@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -13,7 +12,7 @@ use Symfony\Component\Console\Input\InputOption;
 use function Hypervel\Config\config;
 
 #[AsCommand(name: 'make:policy')]
-class PolicyCommand extends GeneratorCommand
+class PolicyCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:policy';
 
@@ -70,7 +69,7 @@ class PolicyCommand extends GeneratorCommand
         );
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Policies';
     }

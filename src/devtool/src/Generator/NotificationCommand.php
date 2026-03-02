@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:notification')]
-class NotificationCommand extends GeneratorCommand
+class NotificationCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:notification';
 
@@ -31,7 +30,7 @@ class NotificationCommand extends GeneratorCommand
         return __DIR__ . '/stubs/notification.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Notifications';
     }

@@ -11,7 +11,6 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\FlushableConnectionResolver;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -96,7 +95,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
         // doesn't when firing them. Using the canonical key avoids the mismatch.
         // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
         /** @var \Hypervel\Container\Container $container */
-        $container->rebinding(EventDispatcherInterface::class, function ($app, $dispatcher) {
+        $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
                     $connection->setEventDispatcher($dispatcher);

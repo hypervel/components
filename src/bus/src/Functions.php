@@ -7,6 +7,8 @@ namespace Hypervel\Bus;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Foundation\Bus\PendingClosureDispatch;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Queue\CallQueuedClosure;
 
 /**

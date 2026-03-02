@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:mail')]
-class MailCommand extends GeneratorCommand
+class MailCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:mail';
 
@@ -54,7 +53,7 @@ class MailCommand extends GeneratorCommand
         );
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Mail';
     }

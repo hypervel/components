@@ -6,6 +6,7 @@ namespace Hypervel\ServerProcess;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
@@ -15,7 +16,6 @@ use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\Events\PipeMessage;
 use Hypervel\ServerProcess\Exceptions\SocketAcceptException;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\Coroutine\Socket;
 use Swoole\Process as SwooleProcess;
 use Swoole\Server;
@@ -34,7 +34,7 @@ abstract class AbstractProcess implements ProcessInterface
 
     public bool $enableCoroutine = true;
 
-    protected ?EventDispatcherInterface $event = null;
+    protected ?DispatcherContract $event = null;
 
     protected ?SwooleProcess $process = null;
 
@@ -46,8 +46,8 @@ abstract class AbstractProcess implements ProcessInterface
 
     public function __construct(protected Container $container)
     {
-        if ($container->has(EventDispatcherInterface::class)) {
-            $this->event = $container->make(EventDispatcherInterface::class);
+        if ($container->has(DispatcherContract::class)) {
+            $this->event = $container->make(DispatcherContract::class);
         }
     }
 

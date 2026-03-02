@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Migrations;
 
 use Closure;
-use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
-use FriendsOfHyperf\PrettyConsole\View\Components\Info;
-use FriendsOfHyperf\PrettyConsole\View\Components\Task;
-use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Console\OutputStyle;
+use Hypervel\Console\View\Components\BulletList;
+use Hypervel\Console\View\Components\Info;
+use Hypervel\Console\View\Components\Task;
+use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Event\Dispatcher;
@@ -26,7 +27,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use ReflectionClass;
-use Symfony\Component\Console\Output\OutputInterface;
 
 class Migrator
 {
@@ -57,7 +57,7 @@ class Migrator
     /**
      * The output interface implementation.
      */
-    protected ?OutputInterface $output = null;
+    protected ?OutputStyle $output = null;
 
     /**
      * The pending migrations to skip.
@@ -418,7 +418,7 @@ class Migrator
 
         $this->write(
             BulletList::class,
-            (new Collection($this->getQueries($migration, $method)))->map(fn ($query) => $query['query'])
+            (new Collection($this->getQueries($migration, $method)))->map(fn ($query) => $query['query'])->all()
         );
     }
 
@@ -680,7 +680,7 @@ class Migrator
     /**
      * Set the output implementation that should be used by the console.
      */
-    public function setOutput(OutputInterface $output): static
+    public function setOutput(OutputStyle $output): static
     {
         $this->output = $output;
 

@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:session-table|session:table')]
-class SessionTableCommand extends GeneratorCommand
+class SessionTableCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:session-table|session:table';
 
@@ -72,7 +71,7 @@ class SessionTableCommand extends GeneratorCommand
         ]);
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

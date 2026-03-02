@@ -6,8 +6,8 @@ namespace Hypervel\Tests\ExceptionHandler;
 
 use Hypervel\Config\Repository;
 use Hypervel\ExceptionHandler\Listener\ExceptionHandlerListener;
+use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Tests\TestCase;
-use stdClass;
 
 /**
  * @internal
@@ -30,7 +30,7 @@ class ExceptionHandlerListenerTest extends TestCase
             ],
         ]);
         $listener = new ExceptionHandlerListener($config);
-        $listener->process(new stdClass());
+        $listener->handle(new BootApplication());
         $this->assertSame($http, $config->get('exceptions.handler', [])['http']);
         $this->assertSame($ws, $config->get('exceptions.handler', [])['ws']);
     }
@@ -47,7 +47,7 @@ class ExceptionHandlerListenerTest extends TestCase
             ],
         ]);
         $listener = new ExceptionHandlerListener($config);
-        $listener->process(new stdClass());
+        $listener->handle(new BootApplication());
         $this->assertSame([
             'http' => [
                 'Foo', 'Bar', 'Tar',
@@ -68,7 +68,7 @@ class ExceptionHandlerListenerTest extends TestCase
             ],
         ]);
         $listener = new ExceptionHandlerListener($config);
-        $listener->process(new stdClass());
+        $listener->handle(new BootApplication());
         $this->assertSame([
             'http' => [
                 'Bar', 'Foo',
@@ -80,7 +80,7 @@ class ExceptionHandlerListenerTest extends TestCase
     {
         $config = new Repository([]);
         $listener = new ExceptionHandlerListener($config);
-        $listener->process(new stdClass());
+        $listener->handle(new BootApplication());
         $this->assertSame([], $config->get('exceptions.handler', []));
     }
 
@@ -101,7 +101,7 @@ class ExceptionHandlerListenerTest extends TestCase
             ],
         ]);
         $listener = new ExceptionHandlerListener($config);
-        $listener->process(new stdClass());
+        $listener->handle(new BootApplication());
         $result = $config->get('exceptions.handler', []);
         $this->assertSame(['HttpHandler', 'SharedHandler'], $result['http']);
         $this->assertSame(['WsHandler', 'SharedHandler'], $result['ws']);

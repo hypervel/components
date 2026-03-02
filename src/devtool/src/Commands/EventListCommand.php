@@ -7,7 +7,8 @@ namespace Hypervel\Devtool\Commands;
 use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Events\Dispatcher;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableSeparator;
@@ -30,7 +31,8 @@ class EventListCommand extends Command
         $eventFilter = $this->input->getOption('event');
         $listenerFilter = $this->input->getOption('listener');
 
-        $dispatcher = $this->container->make(Dispatcher::class);
+        /** @var \Hypervel\Events\Dispatcher $dispatcher */
+        $dispatcher = $this->container->make(DispatcherContract::class);
 
         $this->show($this->handleData($dispatcher, $eventFilter, $listenerFilter), $this->output);
     }

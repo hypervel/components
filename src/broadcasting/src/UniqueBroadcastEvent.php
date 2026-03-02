@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
@@ -45,10 +45,10 @@ class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
     /**
      * Resolve the cache implementation that should manage the event's uniqueness.
      */
-    public function uniqueVia(): Cache
+    public function uniqueVia(): Repository
     {
         return method_exists($this->event, 'uniqueVia')
             ? $this->event->uniqueVia()
-            : Container::getInstance()->make(Cache::class);
+            : Container::getInstance()->make(Repository::class);
     }
 }

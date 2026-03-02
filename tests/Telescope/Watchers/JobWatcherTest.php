@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
 use Hypervel\Bus\Batch;
-use Hypervel\Bus\Dispatchable;
-use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Jobs\FakeJob;

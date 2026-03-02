@@ -121,7 +121,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @param null|(callable(TValue): (float|int))|string $callback
      */
-    public function avg(callable|string|null $callback = null): float|int|null;
+    public function avg(callable|int|string|null $callback = null): float|int|null;
 
     /**
      * Determine if an item exists in the enumerable.
@@ -670,14 +670,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @param null|(callable(TValue):mixed)|string $callback
      */
-    public function min(callable|string|null $callback = null): mixed;
+    public function min(callable|int|string|null $callback = null): mixed;
 
     /**
      * Get the max value of a given key.
      *
      * @param null|(callable(TValue):mixed)|string $callback
      */
-    public function max(callable|string|null $callback = null): mixed;
+    public function max(callable|int|string|null $callback = null): mixed;
 
     /**
      * Create a new collection consisting of every n-th element.
@@ -920,7 +920,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @param null|(callable(TValue): mixed)|string $callback
      */
-    public function sum(callable|string|null $callback = null): mixed;
+    public function sum(callable|int|string|null $callback = null): mixed;
 
     /**
      * Take the first or last {$limit} items.
@@ -1000,7 +1000,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @param null|(callable(TValue, TKey): mixed)|string $key
      */
-    public function unique(callable|string|null $key = null, bool $strict = false): static;
+    public function unique(callable|int|string|null $key = null, bool $strict = false): static;
 
     /**
      * Return only unique items from the collection array using strict comparison.

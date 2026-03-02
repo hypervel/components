@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database\Eloquent;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Event\NullDispatcher;
+use Hypervel\Events\NullDispatcher;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 

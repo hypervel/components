@@ -18,7 +18,7 @@ trait InteractsWithSignals
      * @param int|int[] $signo
      * @param (callable(int $signo): void) $callback
      */
-    protected function trap(array|int $signo, callable $callback): void
+    public function trap(array|int $signo, callable $callback): void
     {
         if (! $this->signalRegistry) {
             $this->signalRegistry = new SignalRegistry();
@@ -33,7 +33,7 @@ trait InteractsWithSignals
      *
      * @param null|int|int[] $signo
      */
-    protected function untrap(array|int|null $signo = null): void
+    public function untrap(array|int|null $signo = null): void
     {
         $this->signalRegistry?->unregister($signo);
     }

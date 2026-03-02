@@ -6,13 +6,12 @@ namespace Hypervel\Server\Listener;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Framework\Events\OnStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 
-class InitProcessTitleListener implements ListenerInterface
+class InitProcessTitleListener
 {
     protected string $name = '';
 
@@ -28,22 +27,9 @@ class InitProcessTitleListener implements ListenerInterface
     }
 
     /**
-     * Get the events the listener should handle.
-     */
-    public function listen(): array
-    {
-        return [
-            OnStart::class,
-            OnManagerStart::class,
-            AfterWorkerStart::class,
-            BeforeProcessHandle::class,
-        ];
-    }
-
-    /**
      * Set the process title based on the event type.
      */
-    public function process(object $event): void
+    public function handle(AfterWorkerStart|OnStart|OnManagerStart|BeforeProcessHandle $event): void
     {
         $array = [];
         if ($this->name !== '') {

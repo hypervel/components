@@ -37,7 +37,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         protected string $table,
         protected string $default = 'default',
         protected ?int $retryAfter = 60,
-        protected bool $dispatchAfterCommit = false
+        protected ?bool $dispatchAfterCommit = false
     ) {
     }
 
@@ -130,7 +130,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $this->getQueue($queue), $data),
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
             function ($payload, $queue, $delay) {

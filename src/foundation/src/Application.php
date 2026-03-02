@@ -92,6 +92,7 @@ class Application extends Container implements ApplicationContract
         $this->setBasePath($basePath ?: (defined('BASE_PATH') ? BASE_PATH : ''));
 
         $this->registerBaseBindings();
+        $this->registerBaseServiceProviders();
         $this->registerCoreContainerAliases();
         $this->registerConfigProviderDependencies();
     }
@@ -116,6 +117,28 @@ class Application extends Container implements ApplicationContract
         $this->instance(ContainerContract::class, $this);
         $this->instance(ApplicationContract::class, $this);
         $this->instance(\Psr\Container\ContainerInterface::class, $this);
+
+        // Console application must be bound before service providers because
+        // resolving it triggers Kernel::getArtisan() which calls bootstrap().
+        $this->singleton(
+            \Hypervel\Contracts\Console\Application::class,
+            fn ($app) => $app->make(\Hypervel\Contracts\Console\Kernel::class)->getArtisan()
+        );
+
+        // StdoutLogger is resolved during Kernel bootstrap before service
+        // providers run, so the binding must exist here.
+        $this->singleton(
+            \Hypervel\Contracts\Log\StdoutLoggerInterface::class,
+            \Hypervel\Framework\Logger\StdoutLogger::class
+        );
+    }
+
+    /**
+     * Register all of the base service providers.
+     */
+    protected function registerBaseServiceProviders(): void
+    {
+        $this->register(new \Hypervel\Events\EventServiceProvider($this));
     }
 
     /**
@@ -373,6 +396,16 @@ class Application extends Container implements ApplicationContract
     public function hasDebugModeEnabled(): bool
     {
         return $this->get(Environment::class)->isDebug();
+    }
+
+    /**
+     * Determine if the application is currently down for maintenance.
+     *
+     * @TODO Implement properly once maintenance mode is ported.
+     */
+    public function isDownForMaintenance(): bool
+    {
+        return false;
     }
 
     /**
@@ -735,30 +768,31 @@ class Application extends Container implements ApplicationContract
             'db' => [\Hypervel\Database\DatabaseManager::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
-            \Hypervel\Contracts\Encryption\Encrypter::class => [
-                'encrypter',
+            'encrypter' => [
                 \Hypervel\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\Encrypter::class,
+                \Hypervel\Contracts\Encryption\StringEncrypter::class,
             ],
-            \Psr\EventDispatcher\EventDispatcherInterface::class => [
-                'events',
+            'events' => [
+                \Hypervel\Events\Dispatcher::class,
                 \Hypervel\Contracts\Event\Dispatcher::class,
             ],
-            \Psr\EventDispatcher\ListenerProviderInterface::class => [
-                \Hypervel\Event\Contracts\ListenerProvider::class,
-            ],
-            \Hypervel\Filesystem\Filesystem::class => ['files'],
-            \Hypervel\Contracts\Filesystem\Factory::class => [
-                'filesystem',
+            'files' => [\Hypervel\Filesystem\Filesystem::class],
+            'filesystem' => [
                 \Hypervel\Filesystem\FilesystemManager::class,
+                \Hypervel\Contracts\Filesystem\Factory::class,
             ],
-            \Hypervel\Contracts\Hashing\Hasher::class => ['hash'],
-            \Hypervel\JWT\Contracts\ManagerContract::class => [
-                'jwt',
+            'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
+            'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
+            'hash' => [\Hypervel\Hashing\HashManager::class, \Hypervel\Contracts\Hashing\Hasher::class],
+            'hash.driver' => [],
+            'jwt' => [
                 \Hypervel\JWT\JWTManager::class,
+                \Hypervel\JWT\Contracts\ManagerContract::class,
             ],
-            \Psr\Log\LoggerInterface::class => [
-                'log',
+            'log' => [
                 \Hypervel\Log\LogManager::class,
+                \Psr\Log\LoggerInterface::class,
             ],
             \Hypervel\Contracts\Mail\Factory::class => [
                 'mail.manager',
@@ -766,46 +800,53 @@ class Application extends Container implements ApplicationContract
             ],
             \Hypervel\Contracts\Mail\Mailer::class => ['mailer'],
             \Hypervel\Database\Migrations\Migrator::class => ['migrator'],
-            \Hypervel\Contracts\Queue\Factory::class => [
-                'queue',
+            'queue' => [
                 \Hypervel\Queue\QueueManager::class,
+                \Hypervel\Contracts\Queue\Factory::class,
                 \Hypervel\Contracts\Queue\Monitor::class,
             ],
-            \Hypervel\Contracts\Queue\Queue::class => ['queue.connection'],
-            \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
-            \Hypervel\Queue\Listener::class => ['queue.listener'],
-            \Hypervel\Queue\Worker::class => ['queue.worker'],
-            \Hypervel\Redis\Redis::class => ['redis'],
-            \Psr\Http\Message\ServerRequestInterface::class => [
-                'request',
+            'queue.connection' => [\Hypervel\Contracts\Queue\Queue::class],
+            'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
+            'queue.listener' => [\Hypervel\Queue\Listener::class],
+            'queue.worker' => [\Hypervel\Queue\Worker::class],
+            'redis' => [\Hypervel\Redis\Redis::class],
+            'request' => [
+                \Psr\Http\Message\ServerRequestInterface::class,
                 \Hypervel\HttpServer\Contracts\RequestInterface::class,
                 \Hypervel\HttpServer\Request::class,
                 \Hypervel\Contracts\Http\Request::class,
+                \Hypervel\Http\Request::class,
             ],
-            \Hypervel\Contracts\Http\Response::class => [
-                'response',
+            'response' => [
+                \Hypervel\Contracts\Http\Response::class,
                 \Hypervel\HttpServer\Contracts\ResponseInterface::class,
                 \Hypervel\HttpServer\Response::class,
+                \Hypervel\Http\Response::class,
             ],
-            \Hypervel\HttpServer\Router\DispatcherFactory::class => ['router'],
-            \Hypervel\Router\Router::class => ['router'],
-            \Hypervel\Contracts\Router\UrlGenerator::class => [
-                'url',
+            'router' => [\Hypervel\Router\Router::class],
+            'url' => [
+                \Hypervel\Contracts\Router\UrlGenerator::class,
                 \Hypervel\Router\UrlGenerator::class,
             ],
-            \Hypervel\Contracts\Validation\Factory::class => ['validator'],
-            \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
+            'validator' => [
+                \Hypervel\Validation\Factory::class,
+                \Hypervel\Contracts\Validation\Factory::class,
+            ],
+            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             \Hypervel\View\Contracts\Factory::class => ['view'],
             \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
-            \Hypervel\Contracts\Session\Factory::class => [
-                'session',
+            'session' => [
                 \Hypervel\Session\SessionManager::class,
+                \Hypervel\Contracts\Session\Factory::class,
             ],
-            \Hypervel\Contracts\Session\Session::class => ['session.store'],
-            \Hypervel\Contracts\Translation\Translator::class => ['translator'],
-            \Hypervel\Contracts\Translation\Loader::class => ['translator.loader'],
-            \Hypervel\Contracts\Notifications\Dispatcher::class => [
-                \Hypervel\Contracts\Notifications\Factory::class,
+            'session.store' => [\Hypervel\Contracts\Session\Session::class],
+            'translator' => [
+                \Hypervel\Translation\Translator::class,
+                \Hypervel\Contracts\Translation\Translator::class,
+            ],
+            'translator.loader' => [
+                \Hypervel\Translation\FileLoader::class,
+                \Hypervel\Contracts\Translation\Loader::class,
             ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {

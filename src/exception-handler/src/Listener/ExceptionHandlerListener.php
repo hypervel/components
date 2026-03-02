@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\ExceptionHandler\Listener;
 
 use Hypervel\Contracts\Config\Repository;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\SplPriorityQueue;
 
-class ExceptionHandlerListener implements ListenerInterface
+class ExceptionHandlerListener
 {
     public const HANDLER_KEY = 'exceptions.handler';
 
@@ -21,19 +20,9 @@ class ExceptionHandlerListener implements ListenerInterface
     }
 
     /**
-     * Get the events the listener should listen for.
+     * Register and prioritize exception handlers from config.
      */
-    public function listen(): array
-    {
-        return [
-            BootApplication::class,
-        ];
-    }
-
-    /**
-     * Handle the event.
-     */
-    public function process(object $event): void
+    public function handle(BootApplication $event): void
     {
         $queue = new SplPriorityQueue();
         $handlers = $this->config->get(self::HANDLER_KEY, []);

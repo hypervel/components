@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Bootstrap;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
@@ -11,12 +12,11 @@ use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Framework\Events\MainWorkerStart;
 use Hypervel\Framework\Events\OtherWorkerStart;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\Server as SwooleServer;
 
 class WorkerStartCallback
 {
-    public function __construct(protected EventDispatcherInterface $dispatcher, protected StdoutLoggerInterface $logger)
+    public function __construct(protected Dispatcher $dispatcher, protected StdoutLoggerInterface $logger)
     {
     }
 

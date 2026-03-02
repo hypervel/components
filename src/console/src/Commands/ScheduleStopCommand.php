@@ -16,7 +16,7 @@ class ScheduleStopCommand extends Command
      * The console signature name.
      */
     protected ?string $signature = 'schedule:stop
-        {--minutes=1 : Ttl in minutes for the stop signal}
+        {--minutes=1 : TTL in minutes for the stop signal}
     ';
 
     /**
@@ -47,6 +47,6 @@ class ScheduleStopCommand extends Command
             Date::now()->addMinutes((int) $this->option('minutes'))
         );
 
-        $this->info('Broadcasting schedule stop signal.');
+        $this->components->info('Broadcasting schedule stop signal.');
     }
 }

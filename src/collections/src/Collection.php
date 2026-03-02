@@ -1723,7 +1723,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param null|(callable(TValue, TKey): mixed)|string $key
      */
-    public function unique(callable|string|null $key = null, bool $strict = false): static
+    public function unique(callable|int|string|null $key = null, bool $strict = false): static
     {
         if (is_null($key) && $strict === false) {
             return new static(array_unique($this->items, SORT_REGULAR));

@@ -5,12 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Console;
 
 use Closure;
-use Hypervel\Console\ClosureCommand;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Foundation\Bus\PendingDispatch;
+use Hypervel\Foundation\Console\ClosureCommand;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 interface Kernel
 {
+    /**
+     * Handle an incoming console command.
+     */
+    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed;
+
     /**
      * Bootstrap the application for artisan commands.
      */
@@ -58,14 +66,9 @@ interface Kernel
     public function addCommandRoutePaths(array $paths): static;
 
     /**
-     * Get loadedPaths for the application.
-     */
-    public function getLoadedPaths(): array;
-
-    /**
      * Register the given command with the console application.
      */
-    public function registerCommand(string $command);
+    public function registerCommand(SymfonyCommand $command): void;
 
     /**
      * Run an Artisan console command by name.
@@ -73,6 +76,11 @@ interface Kernel
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null);
+
+    /**
+     * Queue the given console command.
+     */
+    public function queue(string $command, array $parameters = []): PendingDispatch;
 
     /**
      * Get all of the commands registered with the console.
@@ -88,6 +96,11 @@ interface Kernel
      * Set the Artisan application instance.
      */
     public function setArtisan(Application $artisan): void;
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(InputInterface $input, int $status): void;
 
     /**
      * Get the Artisan application instance.

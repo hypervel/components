@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Bootstrap;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Framework\Events\OnWorkerExit;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\Server;
 
 class WorkerExitCallback
 {
-    public function __construct(protected EventDispatcherInterface $dispatcher)
+    public function __construct(protected Dispatcher $dispatcher)
     {
     }
 

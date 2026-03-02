@@ -182,7 +182,7 @@ You cannot simply copy the ConfigProvider's `dependencies` array into a service 
 
 Find the equivalent Laravel service provider in the Laravel source reference. For example, `Illuminate\Auth\AuthServiceProvider` for the auth package. Read it completely — understand the binding keys, binding types (`singleton` vs `bind`), and how it constructs services.
 
-For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array, using closure-based singletons. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
+For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array. Use the binding patterns described in section 5 below. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
 
 ##### 2. Read the Hypervel ConfigProvider
 
@@ -229,13 +229,31 @@ Create the service provider in the package's `src/` directory, matching the Lara
 
 Match the binding pattern from the Laravel service provider. Key rules:
 
-**Always use closures for singleton bindings**, not string concretes:
-```php
-// WRONG — string concrete can cause circular dependency with aliases
-$this->app->singleton(AuthFactoryContract::class, AuthManager::class);
+**Choose the right binding form based on whether the abstract/concrete participate in `registerCoreContainerAliases()`:**
 
-// CORRECT — closure with direct instantiation, matches Laravel
+The container's `bind()`/`singleton()` stores bindings under the exact abstract key passed — it does NOT resolve aliases first. But `resolve()` DOES call `getAlias()` before looking up bindings. So if the abstract you pass is an alias for a canonical key, your binding is orphaned (never found). The `registerConfigProviderDependencies()` method works around this by explicitly calling `getAlias()` before storing, but regular service providers don't.
+
+**1. Abstract is a canonical alias key (e.g., `'auth'`, `'cache'`, `'hash'`, `'request'`) — use closure with `new`:**
+```php
+// The concrete (AuthManager) is listed as an alias for 'auth', so
+// singleton('auth', AuthManager::class) would create a circular resolution cycle:
+// 'auth' → build AuthManager → getAlias(AuthManager) → 'auth' → infinite loop
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
+```
+
+**2. Abstract is NOT in the alias table — use string concrete:**
+```php
+// Neither FormatterInterface nor DefaultFormatter are aliases for anything,
+// so the container can resolve this directly without cycles.
+$this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
+```
+
+**3. Abstract and concrete are the same class — don't bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+```php
+// WRONG — redundant, auto-singleton handles this
+$this->app->singleton(BroadcastManager::class);
+
+// CORRECT — just don't bind it. First make(BroadcastManager::class) auto-singletons it.
 ```
 
 **Use the same binding type as Laravel** — `singleton()` vs `bind()` matters:
@@ -276,26 +294,17 @@ Run the package's tests first, then the full suite. Circular dependency errors o
 
 #### Special cases
 
-**Early-bootstrap packages (config, events, framework):** The `config`, `event`, and `framework` packages have their dependencies loaded in `Application::registerConfigProviderDependencies()` — which runs in the Application constructor, before service providers are registered. These cannot be migrated to service providers without first refactoring the bootstrap sequence. Leave them for a dedicated task.
+**Early-bootstrap packages (config, framework):** The `config` and `framework` packages have their dependencies loaded in `Application::registerConfigProviderDependencies()` — which runs in the Application constructor, before service providers are registered. These cannot be migrated to service providers without first refactoring the bootstrap sequence. Leave them for a dedicated task.
+
+**Early-loading service providers (`registerBaseServiceProviders`):** When a service provider's bindings are needed before `registerConfigProviderDependencies()` runs (e.g., the event dispatcher, which `bootstrapWith()` requires), register it in `Application::registerBaseServiceProviders()` — called in the constructor immediately after `registerBaseBindings()`. This mirrors Laravel's pattern.
+
+It's safe to have the same provider listed in **both** `registerBaseServiceProviders()` and `extra.hypervel.providers` in `composer.json`. `Application::register()` deduplicates — `getProvider()` checks `$serviceProviders` by class name and returns the existing instance without re-registering. The `extra.hypervel.providers` entry ensures apps that install the package standalone (outside the components monorepo) still auto-discover the provider.
 
 **Packages with existing service providers:** Some packages already have service providers (e.g., `MailServiceProvider`, `NotificationServiceProvider`, `PermissionServiceProvider`). Add the ConfigProvider's dependency bindings to the existing provider's `register()` method rather than creating a new one.
 
-**Packages with listeners:** Listeners registered via the `listeners` config key use the Hyperf `ListenerInterface` pattern (`listen()` + `process()` methods). When migrating, register them in the service provider's `boot()` method. The event dispatcher calls listeners directly as callables (`$listener($eventName, $payload)`), so you must use closures that resolve from the container — do **not** pass `[ClassName::class, 'method']` arrays since `process()` is not static:
+**Packages with listeners:** Listeners registered via the `listeners` config key must be converted from Hyperf's `ListenerInterface` pattern to Laravel-style and registered in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below for the full conversion process.
 
-```php
-public function boot(): void
-{
-    $events = $this->app->make('events');
-
-    $events->listen(BeforeServerStart::class, function (BeforeServerStart $event) {
-        $this->app->make(CreateSwooleTable::class)->process($event);
-    });
-}
-```
-
-These listener classes will later be converted to standard Laravel listeners as part of the illuminate/events port.
-
-**`BootApplication` listeners:** Some ConfigProviders registered listeners on `BootApplication` (which fires in the Kernel constructor, before bootstrap). These should be replaced with direct calls in the service provider's `boot()` — e.g., the database package's `RegisterConnectionResolverListener` became a direct `Model::setConnectionResolver()` call in `DatabaseServiceProvider::boot()`.
+**`BootApplication` listeners:** Some ConfigProviders registered listeners on `BootApplication` (which fires in the Kernel constructor, before bootstrap). These should be replaced with direct calls in the service provider's `boot()` — e.g., the database package's `RegisterConnectionResolverListener` became a direct `Model::setConnectionResolver()` call in `DatabaseServiceProvider::boot()`. See "BootApplication listeners" under "Converting Hyperf Listeners and Events" for the pattern.
 
 #### Completed example
 
@@ -323,6 +332,107 @@ These listener classes will later be converted to standard Laravel listeners as 
 13. Remove ConfigProvider from root `composer.json` `extra.hyperf.config`
 14. Run phpstan, then full test suite
 15. Investigate any circular dependency errors — usually an alias direction issue
+
+### Converting Hyperf Listeners and Events
+
+When porting Hyperf packages, their `ListenerInterface` listeners and event classes must be converted to Laravel-style patterns.
+
+#### Converting listeners
+
+**Hyperf pattern** — `ListenerInterface` with `listen()` returning event class names, `process(object $event)` as the handler:
+
+```php
+use Hyperf\Event\Contract\ListenerInterface;
+
+class AfterWorkerStartListener implements ListenerInterface
+{
+    public function listen(): array
+    {
+        return [AfterWorkerStart::class];
+    }
+
+    public function process(object $event): void
+    {
+        /** @var AfterWorkerStart $event */
+        // ... logic
+    }
+}
+```
+
+**Hypervel pattern** — plain class with typed `handle()` method:
+
+```php
+class AfterWorkerStartListener
+{
+    public function handle(AfterWorkerStart $event): void
+    {
+        // ... same logic, typed parameter instead of docblock
+    }
+}
+```
+
+**Steps:**
+1. Remove `implements ListenerInterface` and the `use` import
+2. Delete the `listen()` method entirely
+3. Rename `process(object $event)` → `handle(SpecificEvent $event)` with the typed parameter
+4. Remove the `@var` docblock cast — the type hint replaces it
+
+**Multi-event listeners:** When a Hyperf listener handles multiple event types (returns multiple classes from `listen()`), use a union type parameter:
+
+```php
+// Hyperf: listen() returns [OnStart::class, OnManagerStart::class, AfterWorkerStart::class, BeforeProcessHandle::class]
+// Hypervel:
+public function handle(AfterWorkerStart|OnStart|OnManagerStart|BeforeProcessHandle $event): void
+```
+
+The service provider registers separate `$events->listen()` calls for each event type, all pointing to the same listener.
+
+#### Registering listeners in service providers
+
+Hyperf auto-discovered listeners via the ConfigProvider `listeners` array. In Hypervel, register them in the service provider's `boot()` method using closures that resolve from the container:
+
+```php
+public function boot(): void
+{
+    $events = $this->app->make('events');
+
+    $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+        $this->app->make(AfterWorkerStartListener::class)->handle($event);
+    });
+}
+```
+
+Resolve from the container (`$this->app->make(...)`) rather than injecting or instantiating directly — this ensures constructor dependencies are resolved and the listener benefits from auto-singleton caching.
+
+#### `BootApplication` listeners
+
+Some Hyperf listeners listen for `BootApplication`, which fires during kernel bootstrap (before the app is fully booted). These are not true event-driven listeners — they run setup logic that needs to happen early.
+
+Convert these to **direct calls** in the service provider's `boot()` method. No event dispatch:
+
+```php
+// Hyperf ConfigProvider: listeners => [ExceptionHandlerListener::class]
+// (with ExceptionHandlerListener::listen() returning [BootApplication::class])
+
+// Hypervel service provider:
+public function boot(): void
+{
+    $this->app->make(ExceptionHandlerListener::class)->handle(new BootApplication());
+}
+```
+
+If the listener only existed to run once at boot time and has no reason to be event-driven, calling it directly is simpler and more explicit than dispatching a synthetic event.
+
+#### Converting event classes
+
+Hyperf events are plain PHP classes — the conversion is minimal:
+
+1. **Namespace:** `Hyperf\{Package}\Event` → `Hypervel\{Package}\Events` (singular → plural, matching Laravel)
+2. **Modernize properties:** Add `readonly` to constructor-promoted properties where appropriate
+3. **Remove PSR interfaces:** Drop `StoppableEventInterface` and the `Stoppable` trait. Laravel handles propagation stopping via listener `return false` and the `until()` dispatch method — no interface needed.
+4. **Remove boilerplate:** Delete the Hyperf license header
+
+Event classes are just data carriers. Their structure is fundamentally the same in both systems — the differences are namespace and type modernization, not architectural.
 
 ## Porting Tests
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Testing;
 
 use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Console\OutputStyle;
+use Hypervel\Console\PromptValidationException;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
@@ -24,9 +26,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ChoiceQuestion;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 class PendingCommand
 {
@@ -68,7 +68,7 @@ class PendingCommand
     /**
      * Specify an expected question that will be asked when the command runs.
      */
-    public function expectsQuestion(string $question, bool|string $answer): static
+    public function expectsQuestion(string $question, array|bool|string $answer): static
     {
         $this->test->expectedQuestions[] = [$question, $answer];
 
@@ -366,10 +366,16 @@ class PendingCommand
             }
 
             throw $e;
+        } catch (PromptValidationException) {
+            $exitCode = Command::FAILURE;
         }
 
         if ($exception) {
-            throw $exception;
+            if ($exception instanceof PromptValidationException) {
+                $exitCode = Command::FAILURE;
+            } else {
+                throw $exception;
+            }
         }
 
         if ($this->expectedExitCode !== null) {
@@ -389,7 +395,7 @@ class PendingCommand
         $this->verifyExpectations();
         $this->flushExpectations();
 
-        $this->app->forgetInstance(OutputInterface::class);
+        $this->app->offsetUnset(OutputStyle::class);
 
         return $exitCode;
     }
@@ -438,7 +444,7 @@ class PendingCommand
     protected function mockConsoleOutput()
     {
         /* @var \Mockery\ExpectationInterface&\Mockery\MockeryInterface $mock */
-        $mock = Mockery::mock(SymfonyStyle::class . '[askQuestion]', [
+        $mock = Mockery::mock(OutputStyle::class . '[askQuestion]', [
             new ArrayInput($this->parameters),
             $this->createABufferedOutputMock(),
         ]);
@@ -464,7 +470,7 @@ class PendingCommand
                 });
         }
 
-        $this->app->instance(OutputInterface::class, $mock);
+        $this->app->bind(OutputStyle::class, fn () => $mock);
 
         return $mock;
     }

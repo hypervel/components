@@ -6,13 +6,13 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\ServerProcess\Stub\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Swoole\Server;
 
 /**
@@ -26,18 +26,6 @@ class BootProcessListenerTest extends TestCase
         parent::tearDown();
         ProcessManager::clear();
         ProcessManager::setRunning(false);
-    }
-
-    public function testListensForBeforeMainServerStart()
-    {
-        $listener = new BootProcessListener(
-            m::mock(ContainerContract::class),
-            m::mock(Repository::class),
-        );
-
-        $this->assertSame([
-            BeforeMainServerStart::class,
-        ], $listener->listen());
     }
 
     public function testBootsProcessesFromConfig()
@@ -56,7 +44,7 @@ class BootProcessListenerTest extends TestCase
         $listener = new BootProcessListener($container, $config);
         $event = new BeforeMainServerStart($server, ['processes' => []]);
 
-        $listener->process($event);
+        $listener->handle($event);
 
         $this->assertTrue(ProcessManager::isRunning());
     }
@@ -77,7 +65,7 @@ class BootProcessListenerTest extends TestCase
         $listener = new BootProcessListener($container, $config);
         $event = new BeforeMainServerStart($server, ['processes' => [FooProcess::class]]);
 
-        $listener->process($event);
+        $listener->handle($event);
 
         $this->assertTrue(ProcessManager::isRunning());
     }
@@ -98,7 +86,7 @@ class BootProcessListenerTest extends TestCase
         $listener = new BootProcessListener($container, $config);
         $event = new BeforeMainServerStart($server, []);
 
-        $listener->process($event);
+        $listener->handle($event);
 
         $this->assertTrue(ProcessManager::isRunning());
     }
@@ -126,7 +114,7 @@ class BootProcessListenerTest extends TestCase
         $listener = new BootProcessListener($container, $config);
         $event = new BeforeMainServerStart($server, []);
 
-        $listener->process($event);
+        $listener->handle($event);
     }
 
     public function testHandlesMissingProcessesKeyInServerConfig()
@@ -140,7 +128,7 @@ class BootProcessListenerTest extends TestCase
         $listener = new BootProcessListener($container, $config);
         $event = new BeforeMainServerStart($server, []);
 
-        $listener->process($event);
+        $listener->handle($event);
 
         $this->assertTrue(ProcessManager::isRunning());
     }
@@ -148,7 +136,7 @@ class BootProcessListenerTest extends TestCase
     private function makeSimpleContainer(): ContainerContract
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(false);
+        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
         return $container;
     }
 }

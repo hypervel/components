@@ -53,8 +53,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Filesystem\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Filesystem\\FilesystemServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

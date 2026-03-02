@@ -10,10 +10,9 @@ use Cron\CronExpression;
 use DateTimeInterface;
 use DateTimeZone;
 use GuzzleHttp\Client as HttpClient;
-use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hypervel\Console\Contracts\EventMutex;
+use Hypervel\Console\Application;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container;
@@ -39,6 +38,11 @@ class Event
     use ManagesFrequencies;
     use ReflectsClosures;
     use Tappable;
+
+    /**
+     * The command string.
+     */
+    public ?string $command = null;
 
     /**
      * The location that output should be sent to.
@@ -95,10 +99,11 @@ class Event
      */
     public function __construct(
         public EventMutex $mutex,
-        public ?string $command,
+        ?string $command = null,
         DateTimeZone|string|null $timezone = null,
         bool $isSystem = false
     ) {
+        $this->command = $command;
         $this->timezone = $timezone;
         $this->isSystem = $isSystem;
     }
@@ -145,7 +150,8 @@ class Event
      */
     public function shouldRepeatNow(): bool
     {
-        return $this->lastChecked?->diffInSeconds() >= ($this->repeatSeconds ?? 60);
+        return $this->isRepeatable()
+            && $this->lastChecked?->diffInSeconds() >= $this->repeatSeconds;
     }
 
     /**
@@ -246,7 +252,7 @@ class Event
      */
     public function isDue(ApplicationContract $app): bool
     {
-        if ($this->runsInMaintenanceMode()) {
+        if (! $this->runsInMaintenanceMode() && $app->isDownForMaintenance()) {
             return false;
         }
 
@@ -533,7 +539,7 @@ class Event
     /**
      * Get the Guzzle HTTP client to use to send pings.
      */
-    protected function getHttpClient(Container $container): ClientInterface
+    protected function getHttpClient(Container $container): HttpClientInterface
     {
         return match (true) {
             $container->bound(HttpClientInterface::class) => $container->make(HttpClientInterface::class),
@@ -711,7 +717,7 @@ class Event
         }
 
         return 'framework' . DIRECTORY_SEPARATOR . 'schedule-'
-            . sha1($this->expression . ($this->command ?? ''));
+            . sha1($this->expression . static::normalizeCommand($this->command ?? ''));
     }
 
     /**
@@ -734,5 +740,19 @@ class Event
         if ($this->withoutOverlapping) {
             $this->mutex->forget($this);
         }
+    }
+
+    /**
+     * Format the given command string with a normalized PHP binary path.
+     */
+    public static function normalizeCommand(string $command): string
+    {
+        return str_replace([
+            Application::phpBinary(),
+            Application::artisanBinary(),
+        ], [
+            'php',
+            preg_replace("#['\"]#", '', Application::artisanBinary()),
+        ], $command);
     }
 }

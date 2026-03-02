@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Jobs;
 
 use Hypervel\Bus\Batchable;
-use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;

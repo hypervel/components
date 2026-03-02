@@ -44,7 +44,7 @@ class SupervisorCommandTest extends IntegrationTestCase
         parent::setUp();
 
         $this->app->make(Kernel::class)
-            ->registerCommand(SupervisorCommand::class);
+            ->registerCommand($this->app->make(SupervisorCommand::class));
     }
 
     public function testSupervisorCommandCanStartSupervisorMonitoring()

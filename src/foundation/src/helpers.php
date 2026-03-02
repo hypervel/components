@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use Carbon\Carbon;
 use Hypervel\Broadcasting\PendingBroadcast;
-use Hypervel\Bus\PendingClosureDispatch;
-use Hypervel\Bus\PendingDispatch;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -23,6 +21,8 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Bus\PendingClosureDispatch;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\HttpMessage\Cookie\Cookie;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
@@ -392,16 +392,10 @@ if (! function_exists('dispatch_sync')) {
 if (! function_exists('event')) {
     /**
      * Dispatch an event and call the listeners.
-     *
-     * @template T of object
-     *
-     * @param T $event
-     *
-     * @return T
      */
-    function event(object $event)
+    function event(mixed ...$args): mixed
     {
-        return \Hypervel\Event\event($event);
+        return app('events')->dispatch(...$args);
     }
 }
 
@@ -411,7 +405,11 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
      */
     function fake(?string $locale = null): \Faker\Generator
     {
-        $locale ??= config('app.faker_locale', 'en_US');
+        if (app()->bound('config')) {
+            $locale ??= app('config')->get('app.faker_locale');
+        }
+
+        $locale ??= 'en_US';
 
         $abstract = \Faker\Generator::class . ':' . $locale;
 
@@ -419,7 +417,7 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
             app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
         }
 
-        return app()->get($abstract);
+        return app()->make($abstract);
     }
 }
 

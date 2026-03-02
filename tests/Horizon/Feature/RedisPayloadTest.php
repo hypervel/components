@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Mail\SendQueuedMailable;
@@ -24,7 +25,6 @@ use Hypervel\Tests\Horizon\Feature\Fixtures\FakeModel;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SilencedMailable;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Illuminate\Events\CallQueuedListener;
 use Mockery as m;
 use StdClass;
 

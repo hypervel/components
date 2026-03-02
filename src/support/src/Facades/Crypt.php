@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
-
 /**
  * @method static bool supported(string $key, string $cipher)
  * @method static string generateKey(string $cipher)
@@ -18,12 +16,12 @@ use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
  * @method static array getPreviousKeys()
  * @method static \Hypervel\Encryption\Encrypter previousKeys(array $keys)
  *
- * @see Hypervel\Encryption\Encrypter
+ * @see \Hypervel\Encryption\Encrypter
  */
 class Crypt extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return EncrypterContract::class;
+        return 'encrypter';
     }
 }

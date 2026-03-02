@@ -6,7 +6,6 @@ namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 

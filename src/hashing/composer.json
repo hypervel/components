@@ -28,14 +28,16 @@
     "require": {
         "php": "^8.4",
         "hypervel/context": "^0.4",
-        "hyperf/support": "~3.1.0"
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Hashing\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Hashing\\HashingServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Http\Request as RequestContract;
-
 /**
  * @method static array allFiles()
  * @method static bool anyFilled(array|string $keys)
@@ -145,6 +143,6 @@ class Request extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return RequestContract::class;
+        return 'request';
     }
 }

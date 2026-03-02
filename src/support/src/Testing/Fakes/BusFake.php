@@ -6,11 +6,11 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Bus\Batch;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\PendingBatch;
-use Hypervel\Bus\PendingChain;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ReflectsClosures;

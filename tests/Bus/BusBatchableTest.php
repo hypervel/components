@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

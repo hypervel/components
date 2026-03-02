@@ -8,7 +8,6 @@ use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 
 /**
@@ -18,7 +17,7 @@ use Hypervel\Framework\Events\BeforeWorkerStart;
  * database connection context cleared to prevent using stale connections
  * inherited from the parent process.
  */
-class UnsetContextInTaskWorkerListener implements ListenerInterface
+class UnsetContextInTaskWorkerListener
 {
     public function __construct(
         protected Container $container,
@@ -26,16 +25,12 @@ class UnsetContextInTaskWorkerListener implements ListenerInterface
     ) {
     }
 
-    public function listen(): array
+    /**
+     * Clear database connection context for task workers.
+     */
+    public function handle(BeforeWorkerStart $event): void
     {
-        return [
-            BeforeWorkerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
-    {
-        if (! $event instanceof BeforeWorkerStart || ! $event->server->taskworker) {
+        if (! $event->server->taskworker) {
             return;
         }
 

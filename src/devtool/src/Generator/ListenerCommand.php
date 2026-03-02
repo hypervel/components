@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:listener')]
-class ListenerCommand extends GeneratorCommand
+class ListenerCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:listener';
 
@@ -21,7 +20,7 @@ class ListenerCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/listener.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Listeners';
     }

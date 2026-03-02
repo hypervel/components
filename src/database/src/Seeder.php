@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
 use Hypervel\Console\Command;
+use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Support\Arr;

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:seeder')]
-class SeederCommand extends GeneratorCommand
+class SeederCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:seeder';
 
@@ -39,7 +38,7 @@ class SeederCommand extends GeneratorCommand
         return BASE_PATH . "/{$path}/{$name}.php";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

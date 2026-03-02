@@ -39,8 +39,10 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Socialite\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Socialite\\SocialiteServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

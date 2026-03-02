@@ -29,8 +29,10 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Devtool\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Devtool\\DevtoolServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

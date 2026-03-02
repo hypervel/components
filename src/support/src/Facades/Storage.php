@@ -6,7 +6,6 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemManager;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -166,6 +165,6 @@ class Storage extends Facade
 
     protected static function getFacadeAccessor(): string
     {
-        return FilesystemManager::class;
+        return 'filesystem';
     }
 }

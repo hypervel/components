@@ -6,24 +6,26 @@ namespace Hypervel\Server\Command;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Support\swoole_hook_flags;
 
+#[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class StartServer extends Command
 {
     public function __construct(private Container $container)
     {
-        parent::__construct('start');
-        $this->setDescription('Start hypervel servers.');
+        parent::__construct();
+        $this->setDescription('Start Hypervel servers.');
     }
 
     /**
@@ -34,7 +36,7 @@ class StartServer extends Command
         $this->checkEnvironment($output);
 
         $serverFactory = $this->container->make(ServerFactory::class)
-            ->setEventDispatcher($this->container->make(EventDispatcherInterface::class))
+            ->setEventDispatcher($this->container->make(DispatcherContract::class))
             ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
         $serverConfig = $this->container->make(Repository::class)->get('server', []);

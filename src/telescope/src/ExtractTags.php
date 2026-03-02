@@ -6,11 +6,10 @@ namespace Hypervel\Telescope;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Event\CallQueuedListener;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Collection;
-use Illuminate\Events\CallQueuedListener as IlluminateCallQueuedListener;
 use ReflectionClass;
 use ReflectionException;
 use stdClass;
@@ -62,7 +61,7 @@ class ExtractTags
      */
     protected static function extractExplicitTags(mixed $job): array
     {
-        return ($job instanceof CallQueuedListener || $job instanceof IlluminateCallQueuedListener)
+        return $job instanceof CallQueuedListener
             ? static::tagsForListener($job)
             : static::explicitTags(static::targetsFor($job));
     }
@@ -97,7 +96,7 @@ class ExtractTags
         switch (true) {
             case $job instanceof BroadcastEvent: // @phpstan-ignore-line
                 return [$job->event]; // @phpstan-ignore-line
-            case $job instanceof CallQueuedListener || $job instanceof IlluminateCallQueuedListener:
+            case $job instanceof CallQueuedListener:
                 return [static::extractEvent($job)];
             case $job instanceof SendQueuedMailable:
                 return [$job->mailable];

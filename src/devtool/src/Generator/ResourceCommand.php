@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:resource')]
-class ResourceCommand extends GeneratorCommand
+class ResourceCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:resource';
 
@@ -27,7 +26,7 @@ class ResourceCommand extends GeneratorCommand
         );
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Http\Resources';
     }

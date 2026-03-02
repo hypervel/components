@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -29,7 +28,7 @@ class ValidationEmailRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->singleton(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             $translator = new Translator(
                 new ArrayLoader(),
                 'en'

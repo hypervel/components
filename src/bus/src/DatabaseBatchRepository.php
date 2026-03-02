@@ -7,7 +7,6 @@ namespace Hypervel\Bus;
 use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
-use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Expression;

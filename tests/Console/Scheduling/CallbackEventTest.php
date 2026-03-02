@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\CallbackEvent;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use LogicException;

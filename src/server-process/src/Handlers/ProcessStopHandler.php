@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\ServerProcess\Handlers;
 
-use Hyperf\Signal\SignalHandlerInterface;
+use Hypervel\Contracts\Signal\SignalHandlerInterface;
 use Hypervel\ServerProcess\ProcessManager;
 
-/**
- * @TODO Update to Hypervel SignalHandlerInterface once the signal package is ported.
- */
 class ProcessStopHandler implements SignalHandlerInterface
 {
     /**

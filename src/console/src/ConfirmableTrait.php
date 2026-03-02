@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
-use Hypervel\Container\Container;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
+use function Hypervel\Prompts\confirm;
 use function value;
 
 trait ConfirmableTrait
@@ -17,23 +16,23 @@ trait ConfirmableTrait
      *
      * This method only asks for confirmation in production.
      */
-    public function confirmToProceed(string $warning = 'Application In Production!', bool|Closure|null $callback = null): bool
+    public function confirmToProceed(string $warning = 'Application In Production', bool|Closure|null $callback = null): bool
     {
-        $callback ??= $this->isShouldConfirm();
+        $callback ??= $this->getDefaultConfirmCallback();
 
         $shouldConfirm = value($callback);
 
         if ($shouldConfirm) {
-            if ($this->input->getOption('force')) {
+            if ($this->hasOption('force') && $this->option('force')) {
                 return true;
             }
 
-            $this->alert($warning);
+            $this->components->alert($warning);
 
-            $confirmed = $this->confirm('Are you sure you want to run this command?');
+            $confirmed = confirm('Are you sure you want to run this command?', default: false);
 
             if (! $confirmed) {
-                $this->comment('Command Cancelled!');
+                $this->components->warn('Command cancelled.');
 
                 return false;
             }
@@ -42,10 +41,13 @@ trait ConfirmableTrait
         return true;
     }
 
-    protected function isShouldConfirm(): bool
+    /**
+     * Get the default confirmation callback.
+     */
+    protected function getDefaultConfirmCallback(): Closure
     {
-        return Container::getInstance()
-            ->make(ApplicationContract::class)
-            ->isProduction();
+        return function () {
+            return $this->app->isProduction();
+        };
     }
 }

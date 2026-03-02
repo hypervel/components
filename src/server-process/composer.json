@@ -34,13 +34,13 @@
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "hypervel/engine": "^0.4",
-        "psr/container": "^1.0|^2.0",
-        "psr/event-dispatcher": "^1.0"
+        "hypervel/engine": "^0.4"
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ServerProcess\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\ServerProcess\\ServerProcessServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.4-dev"

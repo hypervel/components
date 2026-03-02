@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 
@@ -106,6 +105,6 @@ class Queue extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return FactoryContract::class;
+        return 'queue';
     }
 }

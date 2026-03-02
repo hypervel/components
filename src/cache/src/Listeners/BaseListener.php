@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Listeners;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Support\Collection;
 
-abstract class BaseListener implements ListenerInterface
+abstract class BaseListener
 {
     public function __construct(protected Container $container)
     {

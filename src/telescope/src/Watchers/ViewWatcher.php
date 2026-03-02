@@ -29,8 +29,14 @@ class ViewWatcher extends Watcher
     /**
      * Record an action.
      */
-    public function recordAction(string $event, ViewContract $view): void
+    public function recordAction(string $event, array $payload): void
     {
+        if (! isset($payload[0]) || ! $payload[0] instanceof ViewContract) {
+            return;
+        }
+
+        $view = $payload[0];
+
         if (! Telescope::isRecording()) {
             return;
         }

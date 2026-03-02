@@ -6,10 +6,10 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Laravel\SerializableClosure\SerializableClosure;
 use ReflectionFunction;
 use Throwable;

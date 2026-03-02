@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:queue-batches-table|queue:batches-table')]
-class BatchesTableCommand extends GeneratorCommand
+class BatchesTableCommand extends DevtoolGeneratorCommand
 {
     protected ?string $name = 'make:queue-batches-table|queue:batches-table';
 
@@ -79,7 +78,7 @@ class BatchesTableCommand extends GeneratorCommand
         ]);
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

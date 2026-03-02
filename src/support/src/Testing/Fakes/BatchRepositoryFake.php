@@ -7,9 +7,9 @@ namespace Hypervel\Support\Testing\Fakes;
 use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Bus\Batch;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 

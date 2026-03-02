@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Closure;
+use Hypervel\Console\OutputStyle;
+use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Formatter\OutputFormatterStyle;
@@ -14,16 +16,17 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 trait InteractsWithIO
 {
+    /**
+     * The console components factory.
+     */
+    protected ?Factory $components = null;
+
     protected ?InputInterface $input = null;
 
-    /**
-     * @var null|SymfonyStyle
-     */
-    protected ?OutputInterface $output = null;
+    protected ?OutputStyle $output = null;
 
     /**
      * The default verbosity of output commands.
@@ -191,8 +194,8 @@ trait InteractsWithIO
         $bar->start();
 
         if (is_iterable($totalSteps)) {
-            foreach ($totalSteps as $value) {
-                $callback($value, $bar);
+            foreach ($totalSteps as $key => $value) {
+                $callback($value, $bar, $key);
 
                 $bar->advance();
             }
@@ -299,22 +302,26 @@ trait InteractsWithIO
 
     /**
      * Set the output interface implementation.
-     *
-     * @param SymfonyStyle $output
      */
-    public function setOutput(OutputInterface $output): void
+    public function setOutput(OutputStyle $output): void
     {
         $this->output = $output;
     }
 
     /**
      * Get the output implementation.
-     *
-     * @return null|SymfonyStyle
      */
-    public function getOutput(): ?OutputInterface
+    public function getOutput(): ?OutputStyle
     {
         return $this->output;
+    }
+
+    /**
+     * Get the output component factory implementation.
+     */
+    public function outputComponents(): ?Factory
+    {
+        return $this->components;
     }
 
     /**

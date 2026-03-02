@@ -7,11 +7,10 @@ namespace Hypervel\ServerProcess\Listeners;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\ProcessManager;
 
-class BootProcessListener implements ListenerInterface
+class BootProcessListener
 {
     public function __construct(
         private Container $container,
@@ -20,23 +19,10 @@ class BootProcessListener implements ListenerInterface
     }
 
     /**
-     * Get the events the listener should handle.
-     *
-     * @return string[]
-     */
-    public function listen(): array
-    {
-        return [
-            BeforeMainServerStart::class,
-        ];
-    }
-
-    /**
      * Boot all registered server processes and bind them to the server.
      */
-    public function process(object $event): void
+    public function handle(BeforeMainServerStart $event): void
     {
-        /** @var BeforeMainServerStart $event */
         $server = $event->server;
         $serverConfig = $event->serverConfig;
 

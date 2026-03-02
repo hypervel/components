@@ -1608,7 +1608,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param null|(callable(TValue, TKey): mixed)|string $key
      * @return static<TKey, TValue>
      */
-    public function unique(callable|string|null $key = null, bool $strict = false): static
+    public function unique(callable|int|string|null $key = null, bool $strict = false): static
     {
         $callback = $this->valueRetriever($key);
 

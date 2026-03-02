@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Bus\PendingChain;
-use Hypervel\Bus\PendingDispatch;
-use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Support\Testing\Fakes\BusFake;
 
 /**
@@ -16,7 +16,7 @@ use Hypervel\Support\Testing\Fakes\BusFake;
  * @method static mixed dispatchNow(mixed $command, mixed $handler = null)
  * @method static \Hypervel\Bus\Batch|null findBatch(string $batchId)
  * @method static \Hypervel\Bus\PendingBatch batch(array|\Hypervel\Support\Collection|mixed $jobs)
- * @method static \Hypervel\Bus\PendingChain chain(\Hypervel\Support\Collection|array $jobs)
+ * @method static \Hypervel\Foundation\Bus\PendingChain chain(\Hypervel\Support\Collection|array $jobs)
  * @method static bool hasCommandHandler(mixed $command)
  * @method static bool|mixed getCommandHandler(mixed $command)
  * @method static mixed dispatchToQueue(mixed $command)

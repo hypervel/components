@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\ChannelManager;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 
 /**
@@ -86,6 +86,6 @@ class Notification extends Facade
 
     protected static function getFacadeAccessor(): string
     {
-        return NotificationDispatcher::class;
+        return ChannelManager::class;
     }
 }

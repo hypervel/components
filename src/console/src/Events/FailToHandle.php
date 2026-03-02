@@ -7,6 +7,9 @@ namespace Hypervel\Console\Events;
 use Hypervel\Console\Command;
 use Throwable;
 
+/**
+ * @deprecated will be removed once illuminate/events is ported
+ */
 class FailToHandle extends Event
 {
     public function __construct(Command $command, protected Throwable $throwable)

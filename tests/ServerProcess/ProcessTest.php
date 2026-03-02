@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\ServerProcess\Stub\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
 use Swoole\Server;
 
@@ -43,9 +43,9 @@ class ProcessTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
 
-        $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturn(true);
-        $container->shouldReceive('make')->with(EventDispatcherInterface::class)->andReturnUsing(function () {
-            $dispatcher = m::mock(EventDispatcherInterface::class);
+        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
+        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturnUsing(function () {
+            $dispatcher = m::mock(DispatcherContract::class);
             $dispatcher->shouldReceive('dispatch')->withAnyArgs()->andReturnUsing(function ($event) {
                 self::$dispatched[] = $event;
             });

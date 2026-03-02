@@ -8,7 +8,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Event\NullDispatcher;
+use Hypervel\Events\NullDispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
@@ -190,7 +190,7 @@ trait HasEvents
     /**
      * Register a model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     protected static function registerModelEvent(string $event, mixed $callback): void
     {
@@ -264,7 +264,7 @@ trait HasEvents
     /**
      * Register a retrieved model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function retrieved(mixed $callback): void
     {
@@ -274,7 +274,7 @@ trait HasEvents
     /**
      * Register a saving model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function saving(mixed $callback): void
     {
@@ -284,7 +284,7 @@ trait HasEvents
     /**
      * Register a saved model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function saved(mixed $callback): void
     {
@@ -294,7 +294,7 @@ trait HasEvents
     /**
      * Register an updating model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function updating(mixed $callback): void
     {
@@ -304,7 +304,7 @@ trait HasEvents
     /**
      * Register an updated model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function updated(mixed $callback): void
     {
@@ -314,7 +314,7 @@ trait HasEvents
     /**
      * Register a creating model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function creating(mixed $callback): void
     {
@@ -324,7 +324,7 @@ trait HasEvents
     /**
      * Register a created model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function created(mixed $callback): void
     {
@@ -334,7 +334,7 @@ trait HasEvents
     /**
      * Register a replicating model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function replicating(mixed $callback): void
     {
@@ -344,7 +344,7 @@ trait HasEvents
     /**
      * Register a deleting model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function deleting(mixed $callback): void
     {
@@ -354,7 +354,7 @@ trait HasEvents
     /**
      * Register a deleted model event with the dispatcher.
      *
-     * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
+     * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function deleted(mixed $callback): void
     {

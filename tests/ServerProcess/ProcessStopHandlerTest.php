@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
-use Hyperf\Signal\SignalHandlerInterface;
+use Hypervel\Contracts\Signal\SignalHandlerInterface;
 use Hypervel\ServerProcess\Handlers\ProcessStopHandler;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\TestCase;

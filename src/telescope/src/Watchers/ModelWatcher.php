@@ -54,10 +54,15 @@ class ModelWatcher extends Watcher
      * Record an action.
      *
      * @param string $eventName The event name (e.g., "eloquent.created: App\Models\User")
-     * @param Model $model The model instance
+     * @param array $payload The wildcard listener payload
      */
-    public function recordAction(string $eventName, Model $model): void
+    public function recordAction(string $eventName, array $payload): void
     {
+        if (! isset($payload[0]) || ! $payload[0] instanceof Model) {
+            return;
+        }
+
+        $model = $payload[0];
         $action = $this->extractAction($eventName);
 
         if (! Telescope::isRecording() || ! $this->shouldRecord($action, $model)) {

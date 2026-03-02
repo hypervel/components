@@ -6,7 +6,6 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hypervel\Bus\Events\BatchDispatched;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher;

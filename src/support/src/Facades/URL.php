@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
-
 /**
  * @method static string route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http')
  * @method static string to(string $path, array $extra = [], bool|null $secure = null)
@@ -43,6 +41,6 @@ class URL extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return UrlGeneratorContract::class;
+        return 'url';
     }
 }

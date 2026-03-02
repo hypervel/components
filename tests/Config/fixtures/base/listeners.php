@@ -11,5 +11,5 @@ declare(strict_types=1);
 return [
     'App\Listeners\EventLoggerListener',
     'App\Listeners\AuditListener',
-    'Hyperf\Command\Listener\RegisterCommandListener',
+    'App\Listeners\RegisterCommandListener',
 ];

@@ -5,25 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\ExceptionHandler\Listener;
 
 use ErrorException;
-use Hypervel\Event\Contracts\ListenerInterface;
 use Hypervel\Framework\Events\BootApplication;
 
-class ErrorExceptionHandler implements ListenerInterface
+class ErrorExceptionHandler
 {
     /**
-     * Get the events the listener should listen for.
+     * Register the error handler that converts errors to exceptions.
      */
-    public function listen(): array
-    {
-        return [
-            BootApplication::class,
-        ];
-    }
-
-    /**
-     * Handle the event.
-     */
-    public function process(object $event): void
+    public function handle(BootApplication $event): void
     {
         set_error_handler(static function ($level, $message, $file = '', $line = 0): bool {
             if (error_reporting() & $level) {

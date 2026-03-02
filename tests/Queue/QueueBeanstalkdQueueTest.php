@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
@@ -41,11 +42,15 @@ class QueueBeanstalkdQueueTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
         Uuid::setFactory(new UuidFactory());
     }
 
     public function testPushProperlyPushesJobOntoBeanstalkd()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -56,7 +61,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk = $this->queue->getPheanstalk();
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
-        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), 1024, 0, 60);
+        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]), 1024, 0, 60);
 
         $this->queue->push('foo', ['data'], 'stack');
         $this->queue->push('foo', ['data']);
@@ -66,6 +71,9 @@ class QueueBeanstalkdQueueTest extends TestCase
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
         $uuidFactory = m::mock(UuidFactoryInterface::class);
@@ -76,7 +84,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk = $this->queue->getPheanstalk();
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
         $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
-        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), Pheanstalk::DEFAULT_PRIORITY, 5, Pheanstalk::DEFAULT_TTR);
+        $pheanstalk->shouldReceive('put')->twice()->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 5]), Pheanstalk::DEFAULT_PRIORITY, 5, Pheanstalk::DEFAULT_TTR);
 
         $this->queue->later(5, 'foo', ['data'], 'stack');
         $this->queue->later(5, 'foo', ['data']);

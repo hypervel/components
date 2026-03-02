@@ -40,11 +40,13 @@
         "sort-packages": true
     },
     "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Serializer\\SerializerServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.4-dev"
-        },
-        "hyperf": {
-            "config": "Hypervel\\Serializer\\ConfigProvider"
         }
     }
 }

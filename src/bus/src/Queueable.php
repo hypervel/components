@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
@@ -28,6 +29,20 @@ trait Queueable
      * The name of the queue the job should be sent to.
      */
     public ?string $queue = null;
+
+    /**
+     * The message group the job should be sent to.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public ?string $messageGroup = null;
+
+    /**
+     * The deduplicator callback the job should use to generate the deduplication ID.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     */
+    public ?SerializableClosure $deduplicator = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -84,6 +99,32 @@ trait Queueable
         $value = enum_value($queue);
 
         $this->queue = is_null($value) ? null : $value;
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job message group.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public function onGroup(UnitEnum|string $group): static
+    {
+        $this->messageGroup = enum_value($group);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job deduplicator callback.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     */
+    public function withDeduplicator(?Closure $deduplicator): static
+    {
+        $this->deduplicator = $deduplicator instanceof Closure
+            ? new SerializableClosure($deduplicator)
+            : $deduplicator;
 
         return $this;
     }
@@ -187,9 +228,11 @@ trait Queueable
      */
     public function prependToChain(mixed $job): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect([$job]));
+        $jobs = ChainedBatch::prepareNestedBatches(Collection::wrap($job));
 
-        $this->chained = Arr::prepend($this->chained, $this->serializeJob($jobs->first()));
+        foreach ($jobs->reverse() as $job) {
+            $this->chained = Arr::prepend($this->chained, $this->serializeJob($job));
+        }
 
         return $this;
     }
@@ -199,9 +242,11 @@ trait Queueable
      */
     public function appendToChain(mixed $job): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect([$job]));
+        $jobs = ChainedBatch::prepareNestedBatches(Collection::wrap($job));
 
-        $this->chained = array_merge($this->chained, [$this->serializeJob($jobs->first())]);
+        foreach ($jobs as $job) {
+            $this->chained = array_merge($this->chained, [$this->serializeJob($job)]);
+        }
 
         return $this;
     }

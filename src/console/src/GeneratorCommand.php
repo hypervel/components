@@ -4,35 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
+use Closure;
+use Hypervel\Console\Concerns\CreatesMatchingTest;
+use Hypervel\Console\Concerns\FindsAvailableModels;
+use Hypervel\Contracts\Console\PromptsForMissingInput;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Finder\Finder;
 
-abstract class GeneratorCommand extends Command
+abstract class GeneratorCommand extends Command implements PromptsForMissingInput
 {
+    use FindsAvailableModels;
+
+    /**
+     * The filesystem instance.
+     */
+    protected Filesystem $files;
+
     /**
      * The type of class being generated.
      */
     protected string $type = '';
-
-    /**
-     * Reserved names that cannot be used for generation.
-     *
-     * @var string[]
-     */
-    protected array $reservedNames = [
-        '__halt_compiler', 'abstract', 'and', 'array', 'as', 'break', 'callable', 'case',
-        'catch', 'class', 'clone', 'const', 'continue', 'declare', 'default', 'die', 'do',
-        'echo', 'else', 'elseif', 'empty', 'enddeclare', 'endfor', 'endforeach', 'endif',
-        'endswitch', 'endwhile', 'enum', 'eval', 'exit', 'extends', 'false', 'final',
-        'finally', 'fn', 'for', 'foreach', 'function', 'global', 'goto', 'if', 'implements',
-        'include', 'include_once', 'instanceof', 'insteadof', 'interface', 'isset', 'list',
-        'match', 'namespace', 'new', 'or', 'parent', 'print', 'private', 'protected',
-        'public', 'readonly', 'require', 'require_once', 'return', 'self', 'static',
-        'switch', 'throw', 'trait', 'true', 'try', 'unset', 'use', 'var', 'while', 'xor',
-        'yield', '__CLASS__', '__DIR__', '__FILE__', '__FUNCTION__', '__LINE__',
-        '__METHOD__', '__NAMESPACE__', '__TRAIT__',
-    ];
 
     /**
      * Whether to execute in a coroutine environment.
@@ -40,17 +34,119 @@ abstract class GeneratorCommand extends Command
     protected bool $coroutine = false;
 
     /**
+     * Reserved names that cannot be used for generation.
+     *
+     * @var string[]
+     */
+    protected array $reservedNames = [
+        '__halt_compiler',
+        'abstract',
+        'and',
+        'array',
+        'as',
+        'break',
+        'callable',
+        'case',
+        'catch',
+        'class',
+        'clone',
+        'const',
+        'continue',
+        'declare',
+        'default',
+        'die',
+        'do',
+        'echo',
+        'else',
+        'elseif',
+        'empty',
+        'enddeclare',
+        'endfor',
+        'endforeach',
+        'endif',
+        'endswitch',
+        'endwhile',
+        'enum',
+        'eval',
+        'exit',
+        'extends',
+        'false',
+        'final',
+        'finally',
+        'fn',
+        'for',
+        'foreach',
+        'function',
+        'global',
+        'goto',
+        'if',
+        'implements',
+        'include',
+        'include_once',
+        'instanceof',
+        'insteadof',
+        'interface',
+        'isset',
+        'list',
+        'match',
+        'namespace',
+        'new',
+        'or',
+        'parent',
+        'print',
+        'private',
+        'protected',
+        'public',
+        'readonly',
+        'require',
+        'require_once',
+        'return',
+        'self',
+        'static',
+        'switch',
+        'throw',
+        'trait',
+        'true',
+        'try',
+        'unset',
+        'use',
+        'var',
+        'while',
+        'xor',
+        'yield',
+        '__CLASS__',
+        '__DIR__',
+        '__FILE__',
+        '__FUNCTION__',
+        '__LINE__',
+        '__METHOD__',
+        '__NAMESPACE__',
+        '__TRAIT__',
+    ];
+
+    /**
+     * Create a new generator command instance.
+     */
+    public function __construct(Filesystem $files = new Filesystem())
+    {
+        parent::__construct();
+
+        if (in_array(CreatesMatchingTest::class, class_uses_recursive($this))) {
+            $this->addTestOptions(); /* @phpstan-ignore-line */
+        }
+
+        $this->files = $files;
+    }
+
+    /**
      * Get the stub file for the generator.
      */
     abstract protected function getStub(): string;
 
     /**
-     * Get the default namespace for the class.
-     */
-    abstract protected function getDefaultNamespace(): string;
-
-    /**
      * Execute the console command.
+     *
+     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
      */
     public function handle(): bool|int
     {
@@ -59,19 +155,23 @@ abstract class GeneratorCommand extends Command
         // can error now and prevent from polluting the filesystem using invalid files.
         if ($this->isReservedName($this->getNameInput())) {
             $this->components->error('The name "' . $this->getNameInput() . '" is reserved by PHP.');
-            return self::FAILURE;
+
+            return false;
         }
 
         $name = $this->qualifyClass($this->getNameInput());
+
         $path = $this->getPath($name);
 
         // Next, We will check to see if the class already exists. If it does, we don't want
         // to create the class and overwrite the user's code. So, we will bail out so the
         // code is untouched. Otherwise, we will continue generating this class' files.
-        if ((! $this->hasOption('force') || ! $this->option('force'))
-            && $this->alreadyExists($this->getNameInput())) {
-            $this->components->error(($this->type ?: $name) . ' already exists.');
-            return self::FAILURE;
+        if ((! $this->hasOption('force')
+             || ! $this->option('force'))
+             && $this->alreadyExists($this->getNameInput())) {
+            $this->components->error($this->type . ' already exists.');
+
+            return false;
         }
 
         // Next, we will generate the path to the location where this class' file should get
@@ -79,13 +179,19 @@ abstract class GeneratorCommand extends Command
         // stub files so that it gets the correctly formatted namespace and class name.
         $this->makeDirectory($path);
 
-        file_put_contents($path, $this->sortImports($this->buildClass($name)));
+        $this->files->put($path, $this->sortImports($this->buildClass($name)));
 
-        $info = $this->type ?: $name;
+        $info = $this->type;
+
+        if (in_array(CreatesMatchingTest::class, class_uses_recursive($this))) {
+            $this->handleTestCreation($path); /* @phpstan-ignore-line */
+        }
+
+        if (windows_os()) {
+            $path = str_replace('/', '\\', $path);
+        }
 
         $this->components->info(sprintf('%s [%s] created successfully.', $info, $path));
-
-        $this->openWithIde($path);
 
         return self::SUCCESS;
     }
@@ -96,14 +202,78 @@ abstract class GeneratorCommand extends Command
     protected function qualifyClass(string $name): string
     {
         $name = ltrim($name, '\/');
+
         $name = str_replace('/', '\\', $name);
 
-        $namespace = $this->option('namespace');
-        if (empty($namespace)) {
-            $namespace = $this->getDefaultNamespace();
+        $rootNamespace = $this->rootNamespace();
+
+        if (Str::startsWith($name, $rootNamespace)) {
+            return $name;
         }
 
-        return $namespace . '\\' . $name;
+        return $this->qualifyClass(
+            $this->getDefaultNamespace(trim($rootNamespace, '\\')) . '\\' . $name
+        );
+    }
+
+    /**
+     * Qualify the given model class base name.
+     *
+     * @return class-string
+     */
+    protected function qualifyModel(string $model): string
+    {
+        $model = ltrim($model, '\/');
+
+        $model = str_replace('/', '\\', $model);
+
+        $rootNamespace = $this->rootNamespace();
+
+        if (Str::startsWith($model, $rootNamespace)) {
+            return $model;
+        }
+
+        return is_dir(app_path('Models'))
+            ? $rootNamespace . 'Models\\' . $model
+            : $rootNamespace . $model;
+    }
+
+    /**
+     * Get a list of possible model names.
+     *
+     * @return array<int, string>
+     */
+    protected function possibleModels(): array
+    {
+        return $this->findAvailableModels();
+    }
+
+    /**
+     * Get a list of possible event names.
+     *
+     * @return array<int, string>
+     */
+    protected function possibleEvents(): array
+    {
+        $eventPath = app_path('Events');
+
+        if (! is_dir($eventPath)) {
+            return [];
+        }
+
+        return (new Collection(Finder::create()->files()->depth(0)->in($eventPath)))
+            ->map(fn ($file) => $file->getBasename('.php'))
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the default namespace for the class.
+     */
+    protected function getDefaultNamespace(string $rootNamespace): string
+    {
+        return $rootNamespace;
     }
 
     /**
@@ -111,7 +281,7 @@ abstract class GeneratorCommand extends Command
      */
     protected function alreadyExists(string $rawName): bool
     {
-        return is_file($this->getPath($this->qualifyClass($rawName)));
+        return $this->files->exists($this->getPath($this->qualifyClass($rawName)));
     }
 
     /**
@@ -119,27 +289,9 @@ abstract class GeneratorCommand extends Command
      */
     protected function getPath(string $name): string
     {
-        if ($path = $this->option('path')) {
-            $className = Str::afterLast($name, '\\');
-
-            if (str_starts_with($path, '/')) {
-                return rtrim($path, '/') . '/' . $className . '.php';
-            }
-
-            return BASE_PATH . '/' . trim($path, '/') . '/' . $className . '.php';
-        }
-
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
 
         return $this->app->path() . '/' . str_replace('\\', '/', $name) . '.php';
-    }
-
-    /**
-     * Get the root namespace for the class.
-     */
-    protected function rootNamespace(): string
-    {
-        return $this->app->getNamespace();
     }
 
     /**
@@ -147,8 +299,8 @@ abstract class GeneratorCommand extends Command
      */
     protected function makeDirectory(string $path): string
     {
-        if (! is_dir(dirname($path))) {
-            mkdir(dirname($path), 0777, true);
+        if (! $this->files->isDirectory(dirname($path))) {
+            $this->files->makeDirectory(dirname($path), 0777, true, true);
         }
 
         return $path;
@@ -156,10 +308,12 @@ abstract class GeneratorCommand extends Command
 
     /**
      * Build the class with the given name.
+     *
+     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
      */
     protected function buildClass(string $name): string
     {
-        $stub = file_get_contents($this->getStub());
+        $stub = $this->files->get($this->getStub());
 
         return $this->replaceNamespace($stub, $name)->replaceClass($stub, $name);
     }
@@ -169,11 +323,19 @@ abstract class GeneratorCommand extends Command
      */
     protected function replaceNamespace(string &$stub, string $name): static
     {
-        $stub = str_replace(
-            ['%NAMESPACE%'],
-            [$this->getNamespace($name)],
-            $stub
-        );
+        $searches = [
+            ['DummyNamespace', 'DummyRootNamespace', 'NamespacedDummyUserModel'],
+            ['{{ namespace }}', '{{ rootNamespace }}', '{{ namespacedUserModel }}'],
+            ['{{namespace}}', '{{rootNamespace}}', '{{namespacedUserModel}}'],
+        ];
+
+        foreach ($searches as $search) {
+            $stub = str_replace(
+                $search,
+                [$this->getNamespace($name), $this->rootNamespace(), $this->userProviderModel()],
+                $stub
+            );
+        }
 
         return $this;
     }
@@ -193,7 +355,7 @@ abstract class GeneratorCommand extends Command
     {
         $class = str_replace($this->getNamespace($name) . '\\', '', $name);
 
-        return str_replace('%CLASS%', $class, $stub);
+        return str_replace(['DummyClass', '{{ class }}', '{{class}}'], $class, $stub);
     }
 
     /**
@@ -217,41 +379,33 @@ abstract class GeneratorCommand extends Command
      */
     protected function getNameInput(): string
     {
-        return trim($this->argument('name'));
+        $name = trim($this->argument('name'));
+
+        if (Str::endsWith($name, '.php')) {
+            return Str::substr($name, 0, -4);
+        }
+
+        return $name;
     }
 
     /**
-     * Get the console command arguments.
+     * Get the root namespace for the class.
      */
-    protected function getArguments(): array
+    protected function rootNamespace(): string
     {
-        return [
-            ['name', InputArgument::REQUIRED, 'The name of the class'],
-        ];
+        return $this->app->getNamespace();
     }
 
     /**
-     * Get the console command options.
+     * Get the model for the default guard's user provider.
      */
-    protected function getOptions(): array
+    protected function userProviderModel(): ?string
     {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Whether force to rewrite.'],
-            ['namespace', 'N', InputOption::VALUE_OPTIONAL, 'The namespace for class.', null],
-            ['path', null, InputOption::VALUE_OPTIONAL, 'The location where the file should be created.', null],
-        ];
-    }
+        $config = $this->app->make('config');
 
-    /**
-     * Get the custom config for generator.
-     */
-    protected function getConfig(): array
-    {
-        $class = Str::afterLast(static::class, '\\');
-        $class = Str::replaceLast('Command', '', $class);
-        $key = 'devtool.generator.' . Str::snake($class, '.');
+        $provider = $config->get('auth.guards.' . $config->get('auth.defaults.guard') . '.provider');
 
-        return $this->app->make('config')->get($key) ?? [];
+        return $config->get("auth.providers.{$provider}.model");
     }
 
     /**
@@ -266,48 +420,62 @@ abstract class GeneratorCommand extends Command
     }
 
     /**
-     * Get the editor file opener URL by its name.
+     * Get the first view directory path from the application configuration.
      */
-    protected function getEditorUrl(string $ide): string
+    protected function viewPath(string $path = ''): string
     {
-        return match ($ide) {
-            'sublime' => 'subl://open?url=file://%s',
-            'textmate' => 'txmt://open?url=file://%s',
-            'cursor' => 'cursor://file/%s',
-            'emacs' => 'emacs://open?url=file://%s',
-            'macvim' => 'mvim://open/?url=file://%s',
-            'phpstorm' => 'phpstorm://open?file=%s',
-            'idea' => 'idea://open?file=%s',
-            'vscode' => 'vscode://file/%s',
-            'vscode-insiders' => 'vscode-insiders://file/%s',
-            'vscode-remote' => 'vscode://vscode-remote/%s',
-            'vscode-insiders-remote' => 'vscode-insiders://vscode-remote/%s',
-            'atom' => 'atom://core/open/file?filename=%s',
-            'nova' => 'nova://core/open/file?filename=%s',
-            'netbeans' => 'netbeans://open/?f=%s',
-            'xdebug' => 'xdebug://%s',
-            default => '',
-        };
+        $views = $this->app->make('config')->get('view.paths')[0] ?? resource_path('views');
+
+        return $views . ($path ? DIRECTORY_SEPARATOR . $path : $path);
     }
 
     /**
-     * Open resulted file path with the configured IDE.
+     * Get the console command arguments.
      */
-    protected function openWithIde(string $path): void
+    protected function getArguments(): array
     {
-        $ide = (string) $this->app->make('config')->get('devtool.ide');
-        $openEditorUrl = $this->getEditorUrl($ide);
+        return [
+            ['name', InputArgument::REQUIRED, 'The name of the ' . strtolower($this->type)],
+        ];
+    }
 
-        if (! $openEditorUrl) {
-            return;
-        }
-
-        $url = sprintf($openEditorUrl, $path);
-        match (PHP_OS_FAMILY) {
-            'Windows' => exec('explorer ' . $url),
-            'Linux' => exec('xdg-open ' . $url),
-            'Darwin' => exec('open ' . $url),
-            default => null,
-        };
+    /**
+     * Prompt for missing input arguments using the returned questions.
+     *
+     * @return array<string, array{string, string}|Closure(): (array<int, string>|bool|int|string)|string>
+     */
+    protected function promptForMissingArgumentsUsing(): array
+    {
+        return [
+            'name' => [
+                'What should the ' . strtolower($this->type) . ' be named?',
+                match ($this->type) {
+                    'Cast' => 'E.g. Json',
+                    'Channel' => 'E.g. OrderChannel',
+                    'Console command' => 'E.g. SendEmails',
+                    'Component' => 'E.g. Alert',
+                    'Controller' => 'E.g. UserController',
+                    'Event' => 'E.g. PodcastProcessed',
+                    'Exception' => 'E.g. InvalidOrderException',
+                    'Factory' => 'E.g. PostFactory',
+                    'Job' => 'E.g. ProcessPodcast',
+                    'Listener' => 'E.g. SendPodcastNotification',
+                    'Mailable' => 'E.g. OrderShipped',
+                    'Middleware' => 'E.g. EnsureTokenIsValid',
+                    'Model' => 'E.g. Flight',
+                    'Notification' => 'E.g. InvoicePaid',
+                    'Observer' => 'E.g. UserObserver',
+                    'Policy' => 'E.g. PostPolicy',
+                    'Provider' => 'E.g. ElasticServiceProvider',
+                    'Request' => 'E.g. StorePodcastRequest',
+                    'Resource' => 'E.g. UserResource',
+                    'Rule' => 'E.g. Uppercase',
+                    'Scope' => 'E.g. TrendingScope',
+                    'Seeder' => 'E.g. UserSeeder',
+                    'Test' => 'E.g. UserTest',
+                    default => '',
+                },
+            ],
+        ];
     }
 }
