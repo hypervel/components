@@ -11,7 +11,7 @@ use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\ProcessCollector;
-use Hypervel\Tests\ServerProcess\Stub\FooProcess;
+use Hypervel\Tests\ServerProcess\Stubs\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;

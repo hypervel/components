@@ -8,7 +8,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
-use Hypervel\Tests\ServerProcess\Stub\FooProcess;
+use Hypervel\Tests\ServerProcess\Stubs\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;

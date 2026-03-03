@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\ServerProcess\Stub;
+namespace Hypervel\Tests\ServerProcess\Stubs;
 
 use Hypervel\ServerProcess\AbstractProcess;
 
