@@ -61,12 +61,7 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function getConnection(): Connection
     {
-        try {
-            return $this->getActiveConnection();
-        } catch (Throwable $exception) {
-            $this->logger->warning('Get connection failed, try again. ' . $exception);
-            return $this->getActiveConnection();
-        }
+        return $this->getActiveConnection();
     }
 
     /**
