@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Pool\Event;
+namespace Hypervel\Pool\Events;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
 

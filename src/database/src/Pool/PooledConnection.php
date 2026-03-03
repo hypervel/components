@@ -11,7 +11,7 @@ use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Events\ReleaseConnection;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;

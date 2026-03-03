@@ -9,7 +9,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Events\ReleaseConnection;
 use Throwable;
 
 /**

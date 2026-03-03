@@ -10,7 +10,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Events\ReleaseConnection;
 use ReflectionProperty;
 
 /**
