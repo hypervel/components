@@ -4,43 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Middleware;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Session\Session as SessionContract;
+use Closure;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Hypervel\Contracts\Support\MessageProvider;
+use Hypervel\Http\Request;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;
-use Hypervel\View\Contracts\Factory as FactoryContract;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class ValidationExceptionHandle implements MiddlewareInterface
+class ValidationExceptionHandle
 {
-    public function __construct(
-        protected ContainerContract $container,
-        protected SessionContract $session,
-        protected FactoryContract $view,
-        protected ResponseInterface $response
-    ) {
-    }
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
     {
         try {
-            $response = $handler->handle($request);
+            $response = $next($request);
         } catch (Throwable $throwable) {
             if ($throwable instanceof ValidationException) {
-                /* @var ValidationException $throwable */
-                $this->withErrors($throwable->errors(), $throwable->errorBag);
+                $this->withErrors($request, $throwable->errors(), $throwable->errorBag);
 
-                /* @phpstan-ignore-next-line */
-                return $this->response->redirect(
-                    $this->session->previousUrl()
-                );
+                return redirect($request->session()->previousUrl());
             }
 
             throw $throwable;
@@ -49,18 +36,20 @@ class ValidationExceptionHandle implements MiddlewareInterface
         return $response;
     }
 
-    public function withErrors($provider, $key = 'default'): static
+    /**
+     * Flash the validation errors to the session.
+     */
+    public function withErrors(Request $request, mixed $provider, string $key = 'default'): static
     {
         $value = $this->parseErrors($provider);
 
-        $errors = $this->session->get('errors', new ViewErrorBag());
+        $errors = $request->session()->get('errors', new ViewErrorBag());
 
         if (! $errors instanceof ViewErrorBag) {
             $errors = new ViewErrorBag();
         }
 
-        /* @phpstan-ignore-next-line */
-        $this->session->flash(
+        $request->session()->flash(
             'errors',
             $errors->put($key, $value)
         );
@@ -68,7 +57,10 @@ class ValidationExceptionHandle implements MiddlewareInterface
         return $this;
     }
 
-    protected function parseErrors($provider): MessageBagContract
+    /**
+     * Parse the given errors into a MessageBag instance.
+     */
+    protected function parseErrors(mixed $provider): MessageBagContract
     {
         if ($provider instanceof MessageProvider) {
             return $provider->getMessageBag();
