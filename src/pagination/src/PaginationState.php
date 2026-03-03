@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
-use Psr\Http\Message\ServerRequestInterface;
 
 class PaginationState
 {
@@ -18,7 +17,7 @@ class PaginationState
         Paginator::viewFactoryResolver(fn () => $app->make('view'));
 
         Paginator::currentPathResolver(function () use ($app): string {
-            if (! Context::has(ServerRequestInterface::class)) {
+            if (! RequestContext::has()) {
                 return '/';
             }
 
@@ -26,7 +25,7 @@ class PaginationState
         });
 
         Paginator::currentPageResolver(function (string $pageName = 'page') use ($app): int {
-            if (! Context::has(ServerRequestInterface::class)) {
+            if (! RequestContext::has()) {
                 return 1;
             }
 
@@ -40,7 +39,7 @@ class PaginationState
         });
 
         Paginator::queryStringResolver(function () use ($app): array {
-            if (! Context::has(ServerRequestInterface::class)) {
+            if (! RequestContext::has()) {
                 return [];
             }
 
@@ -48,7 +47,7 @@ class PaginationState
         });
 
         CursorPaginator::currentCursorResolver(function (string $cursorName = 'cursor') use ($app): ?Cursor {
-            if (! Context::has(ServerRequestInterface::class)) {
+            if (! RequestContext::has()) {
                 return null;
             }
 
