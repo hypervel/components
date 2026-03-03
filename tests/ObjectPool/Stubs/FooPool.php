@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\ObjectPool\Stub;
+namespace Hypervel\Tests\ObjectPool\Stubs;
 
 use Hypervel\ObjectPool\ObjectPool;
 use stdClass;
