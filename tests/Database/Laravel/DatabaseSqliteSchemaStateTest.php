@@ -35,11 +35,11 @@ class DatabaseSqliteSchemaStateTest extends TestCase
         $schemaState = new SqliteSchemaState($connection, null, $processFactory);
         $schemaState->load('database/schema/sqlite-schema.dump');
 
-        $this->assertSame('sqlite3 "${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"', $factoryCalledWith[0]);
+        $this->assertSame('sqlite3 "${:HYPERVEL_LOAD_DATABASE}" < "${:HYPERVEL_LOAD_PATH}"', $factoryCalledWith[0]);
 
         $process->shouldHaveReceived('mustRun')->with(null, [
-            'LARAVEL_LOAD_DATABASE' => 'database/database.sqlite',
-            'LARAVEL_LOAD_PATH' => 'database/schema/sqlite-schema.dump',
+            'HYPERVEL_LOAD_DATABASE' => 'database/database.sqlite',
+            'HYPERVEL_LOAD_PATH' => 'database/schema/sqlite-schema.dump',
         ]);
     }
 

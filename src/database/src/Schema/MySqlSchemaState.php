@@ -20,9 +20,9 @@ class MySqlSchemaState extends SchemaState
     public function dump(Connection $connection, string $path): void
     {
         $this->executeDumpProcess($this->makeProcess(
-            $this->baseDumpCommand() . ' --routines --result-file="${:LARAVEL_LOAD_PATH}" --no-data'
+            $this->baseDumpCommand() . ' --routines --result-file="${:HYPERVEL_LOAD_PATH}" --no-data'
         ), $this->output, array_merge($this->baseVariables($this->connection->getConfig()), [
-            'LARAVEL_LOAD_PATH' => $path,
+            'HYPERVEL_LOAD_PATH' => $path,
         ]));
 
         $this->removeAutoIncrementingState($path);
@@ -63,12 +63,12 @@ class MySqlSchemaState extends SchemaState
     #[Override]
     public function load(string $path): void
     {
-        $command = 'mysql ' . $this->connectionString() . ' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
+        $command = 'mysql ' . $this->connectionString() . ' --database="${:HYPERVEL_LOAD_DATABASE}" < "${:HYPERVEL_LOAD_PATH}"';
 
         $process = $this->makeProcess($command)->setTimeout(null);
 
         $process->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
-            'LARAVEL_LOAD_PATH' => $path,
+            'HYPERVEL_LOAD_PATH' => $path,
         ]));
     }
 
@@ -83,7 +83,7 @@ class MySqlSchemaState extends SchemaState
             $command .= ' --set-gtid-purged=OFF';
         }
 
-        return $command . ' "${:LARAVEL_LOAD_DATABASE}"';
+        return $command . ' "${:HYPERVEL_LOAD_DATABASE}"';
     }
 
     /**
@@ -91,17 +91,17 @@ class MySqlSchemaState extends SchemaState
      */
     protected function connectionString(): string
     {
-        $value = ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}"';
+        $value = ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}"';
 
         $config = $this->connection->getConfig();
 
         $value .= $config['unix_socket'] ?? false
-            ? ' --socket="${:LARAVEL_LOAD_SOCKET}"'
-            : ' --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}"';
+            ? ' --socket="${:HYPERVEL_LOAD_SOCKET}"'
+            : ' --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"';
 
         /* @phpstan-ignore class.notFound */
         if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA])) {
-            $value .= ' --ssl-ca="${:LARAVEL_LOAD_SSL_CA}"';
+            $value .= ' --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"';
         }
 
         // if (isset($config['options'][\PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT]) &&
@@ -121,13 +121,13 @@ class MySqlSchemaState extends SchemaState
         $config['host'] ??= '';
 
         return [
-            'LARAVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
-            'LARAVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
-            'LARAVEL_LOAD_PORT' => $config['port'] ?? '',
-            'LARAVEL_LOAD_USER' => $config['username'],
-            'LARAVEL_LOAD_PASSWORD' => $config['password'] ?? '',
-            'LARAVEL_LOAD_DATABASE' => $config['database'],
-            'LARAVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
+            'HYPERVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
+            'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
+            'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
+            'HYPERVEL_LOAD_USER' => $config['username'],
+            'HYPERVEL_LOAD_PASSWORD' => $config['password'] ?? '',
+            'HYPERVEL_LOAD_DATABASE' => $config['database'],
+            'HYPERVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
         ];
     }
 

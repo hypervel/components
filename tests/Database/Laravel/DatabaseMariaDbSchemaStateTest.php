@@ -42,14 +42,14 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
     public static function provider(): Generator
     {
         yield 'default' => [
-            ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}" --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}"', [
-                'LARAVEL_LOAD_SOCKET' => '',
-                'LARAVEL_LOAD_HOST' => '127.0.0.1',
-                'LARAVEL_LOAD_PORT' => '',
-                'LARAVEL_LOAD_USER' => 'root',
-                'LARAVEL_LOAD_PASSWORD' => '',
-                'LARAVEL_LOAD_DATABASE' => 'forge',
-                'LARAVEL_LOAD_SSL_CA' => '',
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
+                'HYPERVEL_LOAD_SOCKET' => '',
+                'HYPERVEL_LOAD_HOST' => '127.0.0.1',
+                'HYPERVEL_LOAD_PORT' => '',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => '',
             ], [
                 'username' => 'root',
                 'host' => '127.0.0.1',
@@ -58,14 +58,14 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_ca' => [
-            ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}" --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}" --ssl-ca="${:LARAVEL_LOAD_SSL_CA}"', [
-                'LARAVEL_LOAD_SOCKET' => '',
-                'LARAVEL_LOAD_HOST' => '',
-                'LARAVEL_LOAD_PORT' => '',
-                'LARAVEL_LOAD_USER' => 'root',
-                'LARAVEL_LOAD_PASSWORD' => '',
-                'LARAVEL_LOAD_DATABASE' => 'forge',
-                'LARAVEL_LOAD_SSL_CA' => 'ssl.ca',
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"', [
+                'HYPERVEL_LOAD_SOCKET' => '',
+                'HYPERVEL_LOAD_HOST' => '',
+                'HYPERVEL_LOAD_PORT' => '',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
             ], [
                 'username' => 'root',
                 'database' => 'forge',
@@ -76,14 +76,14 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'unix socket' => [
-            ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}" --socket="${:LARAVEL_LOAD_SOCKET}"', [
-                'LARAVEL_LOAD_SOCKET' => '/tmp/mysql.sock',
-                'LARAVEL_LOAD_HOST' => '',
-                'LARAVEL_LOAD_PORT' => '',
-                'LARAVEL_LOAD_USER' => 'root',
-                'LARAVEL_LOAD_PASSWORD' => '',
-                'LARAVEL_LOAD_DATABASE' => 'forge',
-                'LARAVEL_LOAD_SSL_CA' => '',
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}"', [
+                'HYPERVEL_LOAD_SOCKET' => '/tmp/mysql.sock',
+                'HYPERVEL_LOAD_HOST' => '',
+                'HYPERVEL_LOAD_PORT' => '',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => '',
             ], [
                 'username' => 'root',
                 'database' => 'forge',

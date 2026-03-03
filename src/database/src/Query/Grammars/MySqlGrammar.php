@@ -150,8 +150,8 @@ class MySqlGrammar extends Grammar
         $column = last(explode('.', $query->groupLimit['column']));
         $column = $this->wrap($column);
 
-        $partition = ', @laravel_row := if(@laravel_group = ' . $column . ', @laravel_row + 1, 1) as `laravel_row`';
-        $partition .= ', @laravel_group := ' . $column;
+        $partition = ', @hypervel_row := if(@hypervel_group = ' . $column . ', @hypervel_row + 1, 1) as `hypervel_row`';
+        $partition .= ', @hypervel_group := ' . $column;
 
         $orders = (array) $query->orders;
 
@@ -166,15 +166,15 @@ class MySqlGrammar extends Grammar
 
         $sql = $this->concatenate($components);
 
-        $from = '(select @laravel_row := 0, @laravel_group := 0) as `laravel_vars`, (' . $sql . ') as `laravel_table`';
+        $from = '(select @hypervel_row := 0, @hypervel_group := 0) as `hypervel_vars`, (' . $sql . ') as `hypervel_table`';
 
-        $sql = 'select `laravel_table`.*' . $partition . ' from ' . $from . ' having `laravel_row` <= ' . $limit;
+        $sql = 'select `hypervel_table`.*' . $partition . ' from ' . $from . ' having `hypervel_row` <= ' . $limit;
 
         if (isset($offset)) {
-            $sql .= ' and `laravel_row` > ' . $offset;
+            $sql .= ' and `hypervel_row` > ' . $offset;
         }
 
-        return $sql . ' order by `laravel_row`';
+        return $sql . ' order by `hypervel_row`';
     }
 
     /**

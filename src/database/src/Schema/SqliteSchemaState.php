@@ -64,10 +64,10 @@ class SqliteSchemaState extends SchemaState
             return;
         }
 
-        $process = $this->makeProcess($this->baseCommand() . ' < "${:LARAVEL_LOAD_PATH}"');
+        $process = $this->makeProcess($this->baseCommand() . ' < "${:HYPERVEL_LOAD_PATH}"');
 
         $process->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
-            'LARAVEL_LOAD_PATH' => $path,
+            'HYPERVEL_LOAD_PATH' => $path,
         ]));
     }
 
@@ -76,7 +76,7 @@ class SqliteSchemaState extends SchemaState
      */
     protected function baseCommand(): string
     {
-        return 'sqlite3 "${:LARAVEL_LOAD_DATABASE}"';
+        return 'sqlite3 "${:HYPERVEL_LOAD_DATABASE}"';
     }
 
     /**
@@ -86,7 +86,7 @@ class SqliteSchemaState extends SchemaState
     protected function baseVariables(array $config): array
     {
         return [
-            'LARAVEL_LOAD_DATABASE' => $config['database'],
+            'HYPERVEL_LOAD_DATABASE' => $config['database'],
         ];
     }
 }
