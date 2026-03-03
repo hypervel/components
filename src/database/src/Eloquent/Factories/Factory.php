@@ -99,7 +99,7 @@ abstract class Factory
     /**
      * The default namespace where factories reside.
      */
-    public static string $namespace = 'Database\Factories\\';
+    public static string $namespace = 'Database\\Factories\\';
 
     /**
      * @deprecated use $modelNameResolvers
@@ -918,7 +918,7 @@ abstract class Factory
         static::$modelNameResolver = null;
         static::$modelNameResolvers = [];
         static::$factoryNameResolver = null;
-        static::$namespace = 'Database\Factories\\';
+        static::$namespace = 'Database\\Factories\\';
         static::$expandRelationshipsByDefault = true;
     }
 
