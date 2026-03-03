@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Horizon\Controller;
+namespace Hypervel\Tests\Horizon\Controllers;
 
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
