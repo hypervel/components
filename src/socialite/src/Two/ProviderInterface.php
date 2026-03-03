@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
-use Psr\Http\Message\ResponseInterface;
+use Hypervel\Http\RedirectResponse;
 
 interface ProviderInterface
 {
     /**
      * Redirect the user to the authentication page for the provider.
      */
-    public function redirect(): ResponseInterface;
+    public function redirect(): RedirectResponse;
 
     /**
      * Get the User instance for the authenticated user.
