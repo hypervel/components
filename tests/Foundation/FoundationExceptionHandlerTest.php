@@ -5,27 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Di\MethodDefinitionCollector;
-use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Exceptions\Handler;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Server\Response as Psr7Response;
-use Hypervel\HttpMessage\Uri\Uri;
+use Hypervel\Routing\Redirector;
+use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\View;
@@ -40,12 +32,13 @@ use Hypervel\View\Contracts\View as ViewContract;
 use InvalidArgumentException;
 use Mockery as m;
 use OutOfRangeException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use stdClass;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 /**
@@ -74,12 +67,13 @@ class FoundationExceptionHandlerTest extends TestCase
             ConfigContract::class => fn () => $this->config,
             FactoryContract::class => fn () => new stdClass(),
             Request::class => fn () => $this->request,
-            ServerRequestInterface::class => fn () => m::mock(ServerRequestInterface::class),
-            ResponseContract::class => fn () => new Response(),
-            MethodDefinitionCollectorInterface::class => fn () => new MethodDefinitionCollector(),
         ]);
 
-        ResponseContext::set(new Psr7Response());
+        $this->container->instance(ResponseFactoryContract::class, new ResponseFactory(
+            m::mock(FactoryContract::class),
+            m::mock(Redirector::class),
+        ));
+
         Container::setInstance($this->container);
         View::shouldReceive('replaceNamespace')->once();
         Context::destroy(Store::CONTEXT_KEY);
@@ -92,7 +86,6 @@ class FoundationExceptionHandlerTest extends TestCase
         parent::tearDown();
 
         Context::destroy('__request.root.uri');
-        Context::destroy(ServerRequestInterface::class);
         Facade::clearResolvedInstances();
     }
 
@@ -234,7 +227,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $response = $this->handler->render(
             $this->request,
             new Exception('My custom error message')
-        )->getBody()->getContents();
+        )->getContent();
 
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
         $this->assertStringContainsString('"message":"My custom error message"', $response);
@@ -251,7 +244,7 @@ class FoundationExceptionHandlerTest extends TestCase
             return response()->json(['response' => 'My custom exception response']);
         });
 
-        $response = $this->handler->render($this->request, new CustomException())->getBody()->getContents();
+        $response = $this->handler->render($this->request, new CustomException())->getContent();
 
         $this->assertSame('{"response":"My custom exception response"}', $response);
     }
@@ -260,14 +253,14 @@ class FoundationExceptionHandlerTest extends TestCase
     {
         $this->handler->renderable(new CustomRenderer());
 
-        $response = $this->handler->render($this->request, new CustomException())->getBody()->getContents();
+        $response = $this->handler->render($this->request, new CustomException())->getContent();
 
         $this->assertSame('{"response":"The CustomRenderer response"}', $response);
     }
 
     public function testReturnsResponseFromRenderableException()
     {
-        $response = $this->handler->render($this->request, new RenderableException())->getBody()->getContents();
+        $response = $this->handler->render($this->request, new RenderableException())->getContent();
 
         $this->assertSame('{"response":"My renderable exception response"}', $response);
     }
@@ -276,14 +269,14 @@ class FoundationExceptionHandlerTest extends TestCase
     {
         $this->handler->map(RuntimeException::class, RenderableException::class);
 
-        $response = $this->handler->render($this->request, new RuntimeException())->getBody()->getContents();
+        $response = $this->handler->render($this->request, new RuntimeException())->getContent();
 
         $this->assertSame('{"response":"My renderable exception response"}', $response);
     }
 
     public function testReturnsCustomResponseWhenExceptionImplementsResponsable()
     {
-        $response = $this->handler->render($this->request, new ResponsableException())->getBody()->getContents();
+        $response = $this->handler->render($this->request, new ResponsableException())->getContent();
 
         $this->assertSame('{"response":"My responsable exception response"}', $response);
     }
@@ -293,7 +286,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
         $this->config->set('app.debug', false);
 
-        $response = $this->handler->render($this->request, new Exception('This error message should not be visible'))->getBody()->getContents();
+        $response = $this->handler->render($this->request, new Exception('This error message should not be visible'))->getContent();
 
         $this->assertStringContainsString('"message":"Server Error"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -308,7 +301,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
         $this->config->set('app.debug', false);
 
-        $response = $this->handler->render($this->request, new HttpException(403, 'My custom error message'))->getBody()->getContents();
+        $response = $this->handler->render($this->request, new HttpException(403, 'My custom error message'))->getContent();
 
         $this->assertStringContainsString('"message":"My custom error message"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -323,7 +316,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
         $this->config->set('app.debug', false);
 
-        $response = $this->handler->render($this->request, new AccessDeniedHttpException('My custom error message'))->getBody()->getContents();
+        $response = $this->handler->render($this->request, new AccessDeniedHttpException('My custom error message'))->getContent();
 
         $this->assertStringContainsString('"message":"My custom error message"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -338,11 +331,6 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request->shouldReceive('expectsJson')->once()->andReturn(false);
         $this->request->shouldReceive('all')->once()->andReturn(['foo' => 'bar']);
 
-        $psr7Request = m::mock(ServerRequestPlusInterface::class);
-        $psr7Request->shouldReceive('getUri')->andReturn(new Uri('http://localhost'));
-        $this->container->instance(ServerRequestInterface::class, $psr7Request);
-        RequestContext::set($psr7Request);
-
         $session = m::mock(SessionContract::class);
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
         $session->shouldReceive('flash')->with('errors', m::type(ViewErrorBag::class))->once();
@@ -350,12 +338,13 @@ class FoundationExceptionHandlerTest extends TestCase
         Context::set(Store::CONTEXT_KEY, $session);
         $this->container->instance(SessionContract::class, $session);
 
-        $urlGenerator = m::mock(UrlGeneratorContract::class);
-        $urlGenerator->shouldReceive('to')
-            ->with('redirectTo')
+        $redirectTo = 'http://localhost/redirectTo';
+        $redirector = m::mock(Redirector::class);
+        $redirector->shouldReceive('to')
+            ->with('redirectTo', 302, [], null)
             ->once()
-            ->andReturn($redirectTo = 'http://localhost/redirectTo');
-        $this->container->instance(UrlGeneratorContract::class, $urlGenerator);
+            ->andReturn(new RedirectResponse($redirectTo));
+        $this->container->instance('redirect', $redirector);
 
         $validator = m::mock(Validator::class);
         $validator->shouldReceive('errors')->andReturn(new MessageBag(['error' => 'My custom validation exception']));
@@ -366,9 +355,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $response = $this->handler->render($this->request, $validationException);
 
         $this->assertSame(302, $response->getStatusCode());
-        $this->assertSame($redirectTo, $response->getHeaderLine('Location'));
-
-        RequestContext::destroy();
+        $this->assertSame($redirectTo, $response->headers->get('Location'));
     }
 
     public function testModelNotFoundReturns404WithoutReporting()
@@ -379,7 +366,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $response = $this->handler->render($this->request, $exception = (new ModelNotFoundException())->setModel('foo'));
 
         $this->assertEquals(404, $response->getStatusCode());
-        $this->assertStringContainsString('"message":"No query results for model [foo]."', $response->getBody()->getContents());
+        $this->assertStringContainsString('"message":"No query results for model [foo]."', $response->getContent());
 
         $logger = m::mock(LoggerInterface::class);
         $this->container->instance(LoggerInterface::class, $logger);
@@ -455,6 +442,10 @@ class FoundationExceptionHandlerTest extends TestCase
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(true);
         $viewFactory->shouldReceive('make')->once()->with('errors::404', m::any())->andReturn($view);
         $this->container->instance(FactoryContract::class, $viewFactory);
+        $this->container->instance(ResponseFactoryContract::class, new ResponseFactory(
+            $viewFactory,
+            m::mock(Redirector::class),
+        ));
         $this->config->set('app.debug', true);
 
         $handler = new class($this->container) extends Handler {
@@ -510,15 +501,15 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testAfterResponseCallbacks()
     {
-        $this->handler->afterResponse(function (ResponseInterface $response) {
-            return $response->withHeader('X-After-Error', 'true');
+        $this->handler->afterResponse(function (SymfonyResponse $response) {
+            $response->headers->set('X-After-Error', 'true');
         });
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
 
         $response = $this->handler->render($this->request, new Exception('Test exception'));
 
-        $this->assertTrue($response->hasHeader('X-After-Error'));
-        $this->assertSame('true', $response->getHeaderLine('X-After-Error'));
+        $this->assertTrue($response->headers->has('X-After-Error'));
+        $this->assertSame('true', $response->headers->get('X-After-Error'));
     }
 
     protected function getConfig(array $config = []): Repository
@@ -536,7 +527,7 @@ class CustomException extends Exception
 
 class ResponsableException extends Exception implements Responsable
 {
-    public function toResponse(Request $request): ResponseInterface
+    public function toResponse(Request $request): SymfonyResponse
     {
         return response()->json(['response' => 'My responsable exception response']);
     }
