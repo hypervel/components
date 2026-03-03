@@ -15,7 +15,7 @@ use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
-use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
+use Hypervel\ExceptionHandler\Listeners\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;

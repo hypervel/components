@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\ExceptionHandler\Listener;
+namespace Hypervel\ExceptionHandler\Listeners;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Framework\Events\BootApplication;
