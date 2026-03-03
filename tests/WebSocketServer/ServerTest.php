@@ -7,10 +7,7 @@ namespace Hypervel\Tests\WebSocketServer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Dispatcher\HttpDispatcher;
-use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\HttpServer\ResponseEmitter;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\WebSocketServer\Stub\WebSocketStub;
@@ -37,15 +34,12 @@ class ServerTest extends TestCase
         WebSocketStub::$coroutineId = 0;
 
         $container = Mockery::mock(Container::class);
+        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(
+            Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()
+        );
         $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub());
 
-        $server = new Server(
-            $container,
-            Mockery::mock(HttpDispatcher::class),
-            Mockery::mock(ExceptionHandlerDispatcher::class),
-            Mockery::mock(ResponseEmitter::class),
-            Mockery::mock(StdoutLoggerInterface::class),
-        );
+        $server = new Server($container);
 
         $invoker = new ClassInvoker($server);
         $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
