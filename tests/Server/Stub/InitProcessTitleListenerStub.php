@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Server\Stub;
 
 use Hypervel\Context\Context;
-use Hypervel\Server\Listener\InitProcessTitleListener;
+use Hypervel\Server\Listeners\InitProcessTitleListener;
 
 class InitProcessTitleListenerStub extends InitProcessTitleListener
 {

@@ -30,7 +30,7 @@ use Hypervel\Foundation\Listeners\SetProcessTitle;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Http\Request;
-use Hypervel\Server\Listener\InitProcessTitleListener;
+use Hypervel\Server\Listeners\InitProcessTitleListener;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Symfony\Component\Console\Output\ConsoleOutput;

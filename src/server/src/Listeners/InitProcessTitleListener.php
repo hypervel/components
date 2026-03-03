@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Server\Listener;
+namespace Hypervel\Server\Listeners;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;

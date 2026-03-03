@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Server\Listener;
+namespace Hypervel\Server\Listeners;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Constant\SocketType;
