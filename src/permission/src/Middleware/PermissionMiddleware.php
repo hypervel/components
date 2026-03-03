@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Permission\Middlewares;
+namespace Hypervel\Permission\Middleware;
 
 use BackedEnum;
 use Closure;

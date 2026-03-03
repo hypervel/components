@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Permission\Middlewares;
+namespace Hypervel\Tests\Permission\Middleware;
 
 use Closure;
 use Hypervel\Auth\AuthManager;
@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Permission\Middlewares\RoleMiddleware;
+use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Tests\Permission\Enums\Role as RoleEnum;
 use Hypervel\Tests\Permission\Models\User;
