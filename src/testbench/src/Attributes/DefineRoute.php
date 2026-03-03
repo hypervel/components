@@ -7,7 +7,7 @@ namespace Hypervel\Testbench\Attributes;
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Router\Router;
+use Hypervel\Routing\Router;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 
 /**
@@ -28,7 +28,8 @@ final class DefineRoute implements Actionable
      */
     public function handle(ApplicationContract $app, Closure $action): mixed
     {
-        $router = $app->make(Router::class);
+        /** @var Router $router */
+        $router = $app->make('router');
 
         \call_user_func($action, $this->method, [$router]);
 
