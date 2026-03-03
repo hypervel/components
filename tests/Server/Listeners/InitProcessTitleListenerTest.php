@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Server\Listener;
+namespace Hypervel\Tests\Server\Listeners;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
