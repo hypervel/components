@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\ServiceProvider;
-use Psr\Http\Message\ServerRequestInterface;
 
 class HorizonApplicationServiceProvider extends ServiceProvider
 {
@@ -25,7 +25,7 @@ class HorizonApplicationServiceProvider extends ServiceProvider
     {
         $this->gate();
 
-        Horizon::auth(function (ServerRequestInterface $request) {
+        Horizon::auth(function (Request $request) {
             return Gate::check('viewHorizon', $request);
         });
     }

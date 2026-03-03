@@ -6,9 +6,9 @@ namespace Hypervel\Horizon;
 
 use Closure;
 use Exception;
+use Hypervel\Http\Request;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
-use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 class Horizon
@@ -51,7 +51,7 @@ class Horizon
     /**
      * Determine if the given request can access the Horizon dashboard.
      */
-    public static function check(?ServerRequestInterface $request): bool
+    public static function check(?Request $request): bool
     {
         return (static::$authUsing ?: function () {
             return app()->environment('local');
