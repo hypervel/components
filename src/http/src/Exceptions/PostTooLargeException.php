@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Exceptions;
 
-use Hypervel\HttpMessage\Exceptions\HttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class PostTooLargeException extends HttpException
@@ -14,6 +14,6 @@ class PostTooLargeException extends HttpException
      */
     public function __construct(string $message = '', ?Throwable $previous = null, array $headers = [], int $code = 0)
     {
-        parent::__construct(413, $message, $code, $previous, $headers);
+        parent::__construct(413, $message, $previous, $headers, $code);
     }
 }
