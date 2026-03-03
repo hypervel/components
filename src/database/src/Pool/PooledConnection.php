@@ -117,7 +117,8 @@ class PooledConnection implements PoolConnectionInterface
             $this->refresh($connection);
         });
 
-        // Dispatch connection established event
+        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
+        // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->has(Dispatcher::class)) {
             $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($this->connection)
@@ -246,7 +247,8 @@ class PooledConnection implements PoolConnectionInterface
             $this->logger->warning('Database connection refreshed.');
         }
 
-        // Dispatch connection established event (fetching from container to respect fakes)
+        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
+        // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->has(Dispatcher::class)) {
             $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($connection)
