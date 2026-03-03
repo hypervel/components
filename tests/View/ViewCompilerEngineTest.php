@@ -6,14 +6,14 @@ namespace Hypervel\Tests\View;
 
 use ErrorException;
 use Exception;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Http\Exceptions\FileNotFoundException;
-use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * @internal
@@ -21,11 +21,6 @@ use PHPUnit\Framework\TestCase;
  */
 class ViewCompilerEngineTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testViewsMayBeRecompiledAndRendered()
     {
         $engine = $this->getEngine();
