@@ -6,7 +6,7 @@ namespace Hypervel\Log;
 
 use Closure;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Server;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Psr\Log\LoggerInterface;
 use Swoole\Server as SwooleServer;
 

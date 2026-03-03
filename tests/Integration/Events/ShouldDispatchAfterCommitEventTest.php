@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Events\ShouldDispatchAfterCommitEventTest;
 
 use Exception;
-use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;

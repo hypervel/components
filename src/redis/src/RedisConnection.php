@@ -6,7 +6,7 @@ namespace Hypervel\Redis;
 
 use Generator;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Connection as BaseConnection;

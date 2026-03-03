@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel;
 
 use Carbon\CarbonInterval;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;

@@ -8,7 +8,7 @@ use ArrayObject;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Contracts\Routing\Registrar as RegistrarContract;
 use Hypervel\Contracts\Support\Arrayable;

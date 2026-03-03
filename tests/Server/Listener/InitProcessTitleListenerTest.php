@@ -8,7 +8,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\Server\Stub\DemoProcess;
 use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub;

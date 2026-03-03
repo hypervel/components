@@ -8,7 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;

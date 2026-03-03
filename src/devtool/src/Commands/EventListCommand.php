@@ -7,7 +7,7 @@ namespace Hypervel\Devtool\Commands;
 use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Events\Dispatcher;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\Table;

@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;

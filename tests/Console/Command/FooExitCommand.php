@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Command;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 
 class FooExitCommand extends Command

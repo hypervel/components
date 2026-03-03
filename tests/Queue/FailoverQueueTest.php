@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\RedisQueue;

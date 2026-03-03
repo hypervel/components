@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 

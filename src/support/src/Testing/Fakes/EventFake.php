@@ -6,8 +6,8 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
-use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Arr;

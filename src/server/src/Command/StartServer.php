@@ -6,7 +6,7 @@ namespace Hypervel\Server\Command;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Server\ServerFactory;

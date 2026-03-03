@@ -9,7 +9,7 @@ use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Queue\Events\JobExceptionOccurred;

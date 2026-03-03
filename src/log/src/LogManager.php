@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Str;

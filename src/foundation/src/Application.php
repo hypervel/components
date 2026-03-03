@@ -861,7 +861,7 @@ class Application extends Container implements ApplicationContract, CachesRoutes
             ],
             'events' => [
                 \Hypervel\Events\Dispatcher::class,
-                \Hypervel\Contracts\Event\Dispatcher::class,
+                \Hypervel\Contracts\Events\Dispatcher::class,
             ],
             'files' => [\Hypervel\Filesystem\Filesystem::class],
             'filesystem' => [

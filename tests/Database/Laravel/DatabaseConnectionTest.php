@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database\Laravel\DatabaseConnectionTest;
 use DateTime;
 use ErrorException;
 use Exception;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;

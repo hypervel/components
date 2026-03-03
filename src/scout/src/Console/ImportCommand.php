@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Symfony\Component\Console\Attribute\AsCommand;

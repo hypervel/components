@@ -8,7 +8,7 @@ use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\PromptValidationException;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\TestCase;

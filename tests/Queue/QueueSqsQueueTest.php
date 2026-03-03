@@ -10,7 +10,7 @@ use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SqsQueue;

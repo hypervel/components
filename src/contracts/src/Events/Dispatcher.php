@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Contracts\Event;
+namespace Hypervel\Contracts\Events;
 
 use Closure;
 use Hypervel\Events\QueuedClosure;

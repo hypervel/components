@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Console\KernelTerminateTest;
 
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;

@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;

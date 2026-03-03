@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Log;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Log\Logger;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Environment;

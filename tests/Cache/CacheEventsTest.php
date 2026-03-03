@@ -15,7 +15,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

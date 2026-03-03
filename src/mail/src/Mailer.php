@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;

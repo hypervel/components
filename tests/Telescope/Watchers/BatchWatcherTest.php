@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Events\BatchDispatched;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\BatchWatcher;
 use Hypervel\Telescope\Watchers\JobWatcher;

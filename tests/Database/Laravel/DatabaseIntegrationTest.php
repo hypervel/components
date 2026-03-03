@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Tests\TestCase;

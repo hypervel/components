@@ -8,7 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Routing\UrlRoutable;
