@@ -10,15 +10,15 @@ use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Router\UrlRoutable;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 abstract class Broadcaster implements BroadcasterContract
 {
@@ -47,7 +47,7 @@ abstract class Broadcaster implements BroadcasterContract
      *
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication.
      */
-    public function resolveAuthenticatedUser(RequestInterface $request): ?array
+    public function resolveAuthenticatedUser(Request $request): ?array
     {
         if ($this->authenticatedUserCallback) {
             return $this->authenticatedUserCallback->__invoke($request);
@@ -89,7 +89,7 @@ abstract class Broadcaster implements BroadcasterContract
      *
      * @throws AccessDeniedHttpException
      */
-    protected function verifyUserCanAccessChannel(RequestInterface $request, string $channel): mixed
+    protected function verifyUserCanAccessChannel(Request $request, string $channel): mixed
     {
         foreach (static::$channels as $pattern => $callback) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {

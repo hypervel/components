@@ -9,9 +9,9 @@ use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\Support\Str;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class AblyBroadcaster extends Broadcaster
 {
@@ -29,7 +29,7 @@ class AblyBroadcaster extends Broadcaster
      *
      * @throws AccessDeniedHttpException
      */
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         $channelName = $request->input('channel_name');
         $normalizeChannelName = $this->normalizeChannelName($channelName);
@@ -49,7 +49,7 @@ class AblyBroadcaster extends Broadcaster
     /**
      * Return the valid authentication response.
      */
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         $channelName = $request->input('channel_name');
         $socketId = $request->input('socket_id');
