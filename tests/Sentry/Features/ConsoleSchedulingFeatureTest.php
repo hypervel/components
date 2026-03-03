@@ -129,7 +129,7 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
     public function testScheduledClosureCreatesTransaction(): void
     {
         $this->getScheduler()->call(function () {
-        })->everySecond();
+        })->everyMinute();
 
         $this->artisan('schedule:run --once');
 
