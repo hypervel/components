@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer\Exception\Handler;
 
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Stream\SwooleStream;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class WebSocketExceptionHandler extends ExceptionHandler
@@ -18,16 +17,23 @@ class WebSocketExceptionHandler extends ExceptionHandler
     {
     }
 
-    public function handle(Throwable $throwable, ResponsePlusInterface $response)
+    /**
+     * Handle the exception and return a response.
+     */
+    public function handle(Throwable $throwable, Response $response): Response
     {
         $this->logger->warning($this->formatter->format($throwable));
-        if ($throwable instanceof HttpException) {
-            $response = $response->setStatus($throwable->getStatusCode());
-        }
-        $stream = new SwooleStream($throwable->getMessage());
-        return $response->setBody($stream);
+
+        $statusCode = $throwable instanceof HttpException
+            ? $throwable->getStatusCode()
+            : Response::HTTP_INTERNAL_SERVER_ERROR;
+
+        return new Response($throwable->getMessage(), $statusCode);
     }
 
+    /**
+     * Determine if this handler should handle the given exception.
+     */
     public function isValid(Throwable $throwable): bool
     {
         return true;
