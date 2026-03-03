@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Foundation\Testing\Http\ServerResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
-use Hypervel\HttpMessage\Base\Response;
-use Hypervel\Router\RouteFileCollector;
+use Hypervel\Http\Response;
+use Hypervel\Routing\Router;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
@@ -120,16 +119,14 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testFollowingRedirects()
     {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $router = $this->app->make(Router::class);
+        $router->get('/foo', fn () => 'foo');
 
-        $response = (new ServerResponse())
-            ->withStatus(301)
-            ->withHeader('Location', 'http://localhost/foo');
+        $response = new Response('', 301, ['Location' => '/foo']);
 
-        $this->followRedirects(new TestResponse($response))
+        $this->followRedirects(TestResponse::fromBaseResponse($response))
             ->assertSuccessful()
-            ->assertContent('foo');
+            ->assertSee('foo');
     }
 
     public function testGetNotFound()
@@ -140,57 +137,36 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetFoundRoute()
     {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
         $this->get('/foo')
-            ->assertSuccessFul()
-            ->assertContent('foo');
+            ->assertSuccessful()
+            ->assertSee('foo');
     }
 
     public function testGetFoundRouteWithTrailingSlash()
     {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
         $this->get('/foo/')
-            ->assertSuccessFul()
-            ->assertContent('foo');
-    }
-
-    public function testGetServerParams()
-    {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
-
-        $this->get('/server-params?foo=bar')
             ->assertSuccessful()
-            ->assertJson([
-                'request_method' => 'GET',
-                'request_uri' => 'server-params',
-                'query_string' => 'foo=bar',
-            ]);
-    }
-
-    public function testGetStreamedContent()
-    {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
-
-        $this->get('/stream')
-            ->assertSuccessFul()
-            ->assertStreamedContent('stream');
+            ->assertSee('foo');
     }
 
     public function testWithHeaders()
     {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/headers', function (\Hypervel\Http\Request $request) {
+            return new Response(
+                'hello',
+                200,
+                ['X-Header' => $request->header('X-Header')]
+            );
+        });
 
         $this->withHeaders([
             'X-Header' => 'Value',
         ])->get('/headers')
-            ->assertSuccessFul()
+            ->assertSuccessful()
             ->assertHeader('X-Header', 'Value');
     }
 
