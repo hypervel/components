@@ -156,12 +156,12 @@ class UploadedFileWithCustomImageSizeMethod extends UploadedFile
         return true;
     }
 
-    public function getExtension(): string
+    public function guessExtension(): ?string
     {
         return 'png';
     }
 
-    public function dimensions()
+    public function dimensions(): ?array
     {
         return [200, 200];
     }
