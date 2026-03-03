@@ -42,7 +42,6 @@ class DefaultProviders
             \Hypervel\Queue\QueueServiceProvider::class,
             \Hypervel\Redis\RedisServiceProvider::class,
             \Hypervel\Routing\RoutingServiceProvider::class,
-            \Hypervel\Serializer\SerializerServiceProvider::class,
             \Hypervel\Server\ServerServiceProvider::class,
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
             \Hypervel\Session\SessionServiceProvider::class,
