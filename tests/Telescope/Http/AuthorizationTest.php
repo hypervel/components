@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Telescope\Http;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Http\Request;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
@@ -48,7 +48,7 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testGuestsGetsUnauthorizedByGate()
     {
-        Telescope::auth(function (RequestContract $request) {
+        Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
@@ -66,7 +66,7 @@ class AuthorizationTest extends FeatureTestCase
     {
         $this->actingAs(new Authenticated());
 
-        Telescope::auth(function (RequestContract $request) {
+        Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
@@ -82,7 +82,7 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testGuestsCanBeAuthorized()
     {
-        Telescope::auth(function (RequestContract $request) {
+        Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
