@@ -6,11 +6,11 @@ namespace Hypervel\Engine;
 
 use Hypervel\Contracts\Engine\ResponseEmitterInterface;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\HttpMessage\Cookie\Cookie;
-use Hypervel\HttpMessage\Server\Response as HyperfResponse;
-use Hypervel\HttpMessage\Stream\FileInterface;
-use Psr\Http\Message\ResponseInterface;
-use Swoole\Http\Response;
+use Hypervel\Http\Response as HypervelResponse;
+use Swoole\Http\Response as SwooleResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ResponseEmitter implements ResponseEmitterInterface
@@ -25,74 +25,99 @@ class ResponseEmitter implements ResponseEmitterInterface
     /**
      * Emit the response to the client.
      *
-     * @param Response $connection
+     * @param SwooleResponse $connection
      */
-    public function emit(ResponseInterface $response, mixed $connection, bool $withContent = true): void
+    public function emit(Response $response, mixed $connection, bool $withContent = true): void
     {
         try {
             if (strtolower($connection->header['Upgrade'] ?? '') === 'websocket') {
                 return;
             }
-            $this->buildSwooleResponse($connection, $response);
-            $content = $response->getBody();
-            if ($content instanceof FileInterface) {
-                $connection->sendfile($content->getFilename());
+
+            // If the response was already streamed directly to the client
+            // (via Hypervel's Response::stream() direct Swoole write path),
+            // the data is already sent. Do not double-send.
+            if ($response instanceof HypervelResponse && $response->isStreamed()) {
+                $connection->end();
                 return;
             }
 
-            if ($withContent) {
-                $connection->end((string) $content);
-            } else {
+            if (! $withContent) {
+                $this->sendStatusAndHeaders($connection, $response);
                 $connection->end();
+                return;
             }
+
+            if ($response instanceof BinaryFileResponse) {
+                $this->sendStatusAndHeaders($connection, $response);
+                $connection->sendfile($response->getFile()->getPathname());
+                return;
+            }
+
+            if ($response instanceof StreamedResponse) {
+                $response->headers->remove('Content-Length');
+                $response->headers->remove('Transfer-Encoding');
+                $this->sendStatusAndHeaders($connection, $response);
+                $this->sendStreamedContent($response, $connection);
+                return;
+            }
+
+            $this->sendStatusAndHeaders($connection, $response);
+            $connection->end($response->getContent());
         } catch (Throwable $exception) {
             $this->logger?->critical((string) $exception);
         }
     }
 
     /**
-     * Build the Swoole response from a PSR-7 response.
+     * Send status code, headers, and cookies to Swoole.
      */
-    protected function buildSwooleResponse(Response $swooleResponse, ResponseInterface $response): void
+    protected function sendStatusAndHeaders(SwooleResponse $swooleResponse, Response $response): void
     {
-        // Headers
-        foreach ($response->getHeaders() as $key => $value) {
-            $swooleResponse->header($key, $value);
-        }
+        $swooleResponse->status($response->getStatusCode());
 
-        if ($response instanceof HyperfResponse) {
-            // Cookies
-            foreach ((array) $response->getCookies() as $domain => $paths) {
-                foreach ($paths ?? [] as $path => $item) {
-                    foreach ($item ?? [] as $name => $cookie) {
-                        if ($cookie instanceof Cookie) {
-                            $value = $cookie->isRaw() ? $cookie->getValue() : rawurlencode($cookie->getValue());
-                            $swooleResponse->rawcookie($cookie->getName(), $value, $cookie->getExpiresTime(), $cookie->getPath(), $cookie->getDomain(), $cookie->isSecure(), $cookie->isHttpOnly(), (string) $cookie->getSameSite());
-                        }
-                    }
-                }
-            }
-
-            // Trailers
-            foreach ($response->getTrailers() as $key => $value) {
-                $swooleResponse->trailer($key, $value);
+        foreach ($response->headers->allPreserveCaseWithoutCookies() as $name => $values) {
+            foreach ($values as $value) {
+                $swooleResponse->header($name, $value);
             }
         }
 
-        // Status code
-        $swooleResponse->status($response->getStatusCode(), $response->getReasonPhrase());
+        foreach ($response->headers->getCookies() as $cookie) {
+            $swooleResponse->cookie(
+                $cookie->getName(),
+                $cookie->getValue() ?? '',
+                $cookie->getExpiresTime(),
+                $cookie->getPath(),
+                $cookie->getDomain() ?? '',
+                $cookie->isSecure(),
+                $cookie->isHttpOnly(),
+                $cookie->getSameSite() ?? ''
+            );
+        }
     }
 
     /**
-     * Determine if all methods exist on an object.
+     * Stream a Symfony StreamedResponse through Swoole's write() method.
      */
-    protected function isMethodsExists(object $object, array $methods): bool
+    protected function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): void
     {
-        foreach ($methods as $method) {
-            if (! method_exists($object, $method)) {
-                return false;
+        $level = ob_get_level();
+
+        ob_start(function (string $chunk) use ($swooleResponse): string {
+            if (strlen($chunk) > 0) {
+                $swooleResponse->write($chunk);
+            }
+            return '';
+        }, 1);
+
+        try {
+            $response->sendContent();
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
             }
         }
-        return true;
+
+        $swooleResponse->end();
     }
 }
