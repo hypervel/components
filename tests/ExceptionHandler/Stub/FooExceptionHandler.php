@@ -6,12 +6,12 @@ namespace Hypervel\Tests\ExceptionHandler\Stub;
 
 use Hypervel\Context\Context;
 use Hypervel\ExceptionHandler\ExceptionHandler;
-use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class FooExceptionHandler extends ExceptionHandler
 {
-    public function handle(Throwable $throwable, ResponseInterface $response)
+    public function handle(Throwable $throwable, Response $response)
     {
         Context::set('test.exception-handler.latest-handler', static::class);
         return $response;
