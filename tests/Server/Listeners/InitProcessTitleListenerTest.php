@@ -10,9 +10,9 @@ use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
-use Hypervel\Tests\Server\Stub\DemoProcess;
-use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub;
-use Hypervel\Tests\Server\Stub\InitProcessTitleListenerStub2;
+use Hypervel\Tests\Server\Stubs\DemoProcess;
+use Hypervel\Tests\Server\Stubs\InitProcessTitleListenerStub;
+use Hypervel\Tests\Server\Stubs\InitProcessTitleListenerStub2;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
