@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\UsePusherChannelConventions;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -96,12 +96,12 @@ class FakeBroadcasterUsingPusherChannelsNames extends Broadcaster
 {
     use UsePusherChannelConventions;
 
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         return null;
     }
 
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         return null;
     }

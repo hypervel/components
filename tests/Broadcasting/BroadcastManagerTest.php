@@ -8,15 +8,13 @@ use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
-use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Cache\Factory as Cache;
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Foundation\Http\Kernel;
-use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
-use Hypervel\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
@@ -87,62 +85,62 @@ class BroadcastManagerTest extends TestCase
 
     public function testRoutesExcludesCsrfMiddleware(): void
     {
-        $capturedAttributes = null;
+        $route = m::mock(Route::class);
+        $route->shouldReceive('withoutMiddleware')
+            ->once()
+            ->with([PreventRequestForgery::class])
+            ->andReturnSelf();
 
         $router = m::mock('router');
-        $router->shouldReceive('addRoute')
+        $router->shouldReceive('group')
             ->once()
-            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
-                $capturedAttributes = $attributes;
+            ->withArgs(function ($attributes, $callback) use ($router) {
+                $this->assertSame(['middleware' => ['web']], $attributes);
+                $callback($router);
                 return true;
             });
-
-        $routerFactory = m::mock('routerFactory');
-        $routerFactory->shouldReceive('getRouter')
-            ->with('http')
-            ->andReturn($router);
-
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
-            ->with('server.kernels', [])
-            ->andReturn(['http' => []]);
+        $router->shouldReceive('match')
+            ->once()
+            ->withArgs(function ($methods, $path) {
+                return $methods === ['get', 'post'] && $path === '/broadcasting/auth';
+            })
+            ->andReturn($route);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
-        $app->shouldReceive('make')->with('config')->andReturn($config);
-        $app->shouldReceive('make')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+        $app->shouldReceive('offsetGet')->with('router')->andReturn($router);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->routes();
-
-        $this->assertSame(['web'], $capturedAttributes['middleware']);
-        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
     }
 
     public function testUserRoutesExcludesCsrfMiddleware(): void
     {
-        $capturedAttributes = null;
+        $route = m::mock(Route::class);
+        $route->shouldReceive('withoutMiddleware')
+            ->once()
+            ->with([PreventRequestForgery::class])
+            ->andReturnSelf();
 
         $router = m::mock('router');
-        $router->shouldReceive('addRoute')
+        $router->shouldReceive('group')
             ->once()
-            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
-                $capturedAttributes = $attributes;
+            ->withArgs(function ($attributes, $callback) use ($router) {
+                $this->assertSame(['middleware' => ['web']], $attributes);
+                $callback($router);
                 return true;
             });
-
-        $routerFactory = m::mock('routerFactory');
-        $routerFactory->shouldReceive('getRouter')
-            ->andReturn($router);
+        $router->shouldReceive('match')
+            ->once()
+            ->withArgs(function ($methods, $path) {
+                return $methods === ['get', 'post'] && $path === '/broadcasting/user-auth';
+            })
+            ->andReturn($route);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('make')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+        $app->shouldReceive('offsetGet')->with('router')->andReturn($router);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->userRoutes();
-
-        $this->assertSame(['web'], $capturedAttributes['middleware']);
-        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
     }
 }
 

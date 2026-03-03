@@ -7,11 +7,11 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpServer\Request;
+use Hypervel\Http\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Pusher\Pusher;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * @internal
