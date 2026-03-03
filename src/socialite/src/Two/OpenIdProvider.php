@@ -7,6 +7,7 @@ namespace Hypervel\Socialite\Two;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use GuzzleHttp\RequestOptions;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Socialite\Two\Exceptions\ConfigurationFetchingException;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
@@ -14,7 +15,6 @@ use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Socialite\Two\Exceptions\InvalidUserInfoUrlException;
 use Hypervel\Support\Str;
-use Psr\Http\Message\ResponseInterface;
 use Throwable;
 
 abstract class OpenIdProvider extends AbstractProvider
@@ -43,7 +43,7 @@ abstract class OpenIdProvider extends AbstractProvider
     /**
      * Redirect the user of the application to the provider's authentication screen.
      */
-    public function redirect(): ResponseInterface
+    public function redirect(): RedirectResponse
     {
         $state = null;
         $nonce = null;
@@ -60,9 +60,7 @@ abstract class OpenIdProvider extends AbstractProvider
             $this->request->session()->put('nonce', $nonce = $this->getNonce());
         }
 
-        return $this->response->redirect(
-            $this->getAuthUrl($state, $nonce)
-        );
+        return new RedirectResponse($this->getAuthUrl($state, $nonce));
     }
 
     /**
