@@ -10,7 +10,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -25,7 +25,7 @@ class JwtGuard implements Guard
         protected string $name,
         protected UserProvider $provider,
         protected ManagerContract $jwtManager,
-        protected RequestInterface $request,
+        protected Request $request,
         protected int $ttl = 120
     ) {
     }
