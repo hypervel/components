@@ -518,7 +518,7 @@ class DatabaseEloquentMorphTest extends TestCase
 
     protected function getNamespacedRelation($alias)
     {
-        require_once __DIR__ . '/stubs/EloquentModelNamespacedStub.php';
+        require_once __DIR__ . '/Stubs/EloquentModelNamespacedStub.php';
 
         Relation::morphMap([
             $alias => EloquentModelNamespacedStub::class,

@@ -113,7 +113,7 @@
     },
     "autoload-dev": {
         "files": [
-            "tests/Database/stubs/MigrationCreatorFakeMigration.php"
+            "tests/Database/Stubs/MigrationCreatorFakeMigration.php"
         ],        
         "psr-4": {
             "Hypervel\\Tests\\": "tests/"

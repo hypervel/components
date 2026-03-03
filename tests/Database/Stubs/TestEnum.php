@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\stubs;
+namespace Hypervel\Tests\Database\Stubs;
 
 enum TestEnum: string
 {
