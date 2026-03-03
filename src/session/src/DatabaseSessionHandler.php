@@ -13,7 +13,6 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
-use Hypervel\HttpServer\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
@@ -167,7 +166,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function addRequestInformation(array &$payload): static
     {
-        if ($this->container->has(Request::class)) {
+        if (RequestContext::has()) {
             $payload = array_merge($payload, [
                 'ip_address' => $this->ipAddress(),
                 'user_agent' => $this->userAgent(),
@@ -182,14 +181,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function ipAddress(): ?string
     {
-        if (! RequestContext::has()) {
-            return '127.0.0.1';
-        }
-
-        $request = $this->container->make(Request::class);
-
-        return $request->getHeaderLine('x-real-ip')
-            ?: $request->server('remote_addr');
+        return $this->container->make('request')->ip();
     }
 
     /**
@@ -197,7 +189,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userAgent(): string
     {
-        return substr((string) $this->container->make(Request::class)->header('User-Agent'), 0, 500);
+        return mb_substr(mb_convert_encoding((string) $this->container->make('request')->header('User-Agent'), 'UTF-8'), 0, 500);
     }
 
     public function destroy(string $sessionId): bool
