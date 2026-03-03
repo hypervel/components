@@ -4,30 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Context;
 
-use Hypervel\Contracts\Http\ResponsePlusInterface;
-use Psr\Http\Message\ResponseInterface;
-use RuntimeException;
+use Hypervel\Http\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ResponseContext
 {
     /**
      * Get the current response from context.
      */
-    public static function get(?int $coroutineId = null): ResponsePlusInterface
+    public static function get(?int $coroutineId = null): Response
     {
-        return Context::get(ResponseInterface::class, null, $coroutineId);
+        return Context::get(SymfonyResponse::class, null, $coroutineId);
     }
 
     /**
      * Set the current response in context.
      */
-    public static function set(ResponseInterface $response, ?int $coroutineId = null): ResponsePlusInterface
+    public static function set(Response $response, ?int $coroutineId = null): Response
     {
-        if (! $response instanceof ResponsePlusInterface) {
-            throw new RuntimeException('The response must instanceof ResponsePlusInterface');
-        }
-
-        return Context::set(ResponseInterface::class, $response, $coroutineId);
+        return Context::set(SymfonyResponse::class, $response, $coroutineId);
     }
 
     /**
@@ -35,14 +30,22 @@ class ResponseContext
      */
     public static function has(?int $coroutineId = null): bool
     {
-        return Context::has(ResponseInterface::class, $coroutineId);
+        return Context::has(SymfonyResponse::class, $coroutineId);
+    }
+
+    /**
+     * Remove the response from context.
+     */
+    public static function destroy(?int $coroutineId = null): void
+    {
+        Context::destroy(SymfonyResponse::class, $coroutineId);
     }
 
     /**
      * Get the current response from context, or null if not set.
      */
-    public static function getOrNull(?int $coroutineId = null): ?ResponsePlusInterface
+    public static function getOrNull(?int $coroutineId = null): ?Response
     {
-        return Context::get(ResponseInterface::class, null, $coroutineId);
+        return Context::get(SymfonyResponse::class, null, $coroutineId);
     }
 }

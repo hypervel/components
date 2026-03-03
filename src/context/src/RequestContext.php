@@ -4,30 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Context;
 
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use RuntimeException;
+use Hypervel\Http\Request;
 
 class RequestContext
 {
     /**
      * Get the current request from context.
      */
-    public static function get(?int $coroutineId = null): ServerRequestPlusInterface
+    public static function get(?int $coroutineId = null): Request
     {
-        return Context::get(ServerRequestInterface::class, null, $coroutineId);
+        return Context::get(Request::class, null, $coroutineId);
     }
 
     /**
      * Set the current request in context.
      */
-    public static function set(ServerRequestInterface $request, ?int $coroutineId = null): ServerRequestPlusInterface
+    public static function set(Request $request, ?int $coroutineId = null): Request
     {
-        if (! $request instanceof ServerRequestPlusInterface) {
-            throw new RuntimeException('The request must instanceof ServerRequestPlusInterface');
-        }
-
-        return Context::set(ServerRequestInterface::class, $request, $coroutineId);
+        return Context::set(Request::class, $request, $coroutineId);
     }
 
     /**
@@ -35,7 +29,7 @@ class RequestContext
      */
     public static function has(?int $coroutineId = null): bool
     {
-        return Context::has(ServerRequestInterface::class, $coroutineId);
+        return Context::has(Request::class, $coroutineId);
     }
 
     /**
@@ -43,14 +37,14 @@ class RequestContext
      */
     public static function destroy(?int $coroutineId = null): void
     {
-        Context::destroy(ServerRequestInterface::class, $coroutineId);
+        Context::destroy(Request::class, $coroutineId);
     }
 
     /**
      * Get the current request from context, or null if not set.
      */
-    public static function getOrNull(?int $coroutineId = null): ?ServerRequestPlusInterface
+    public static function getOrNull(?int $coroutineId = null): ?Request
     {
-        return Context::get(ServerRequestInterface::class, null, $coroutineId);
+        return Context::get(Request::class, null, $coroutineId);
     }
 }
