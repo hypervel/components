@@ -14,7 +14,7 @@ use GuzzleHttp\RequestOptions;
 use GuzzleHttp\TransferStats;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Guzzle\CoroutineHandler;
-use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
+use Hypervel\Tests\Guzzle\Stubs\CoroutineHandlerStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

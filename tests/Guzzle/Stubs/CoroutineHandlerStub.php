@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Guzzle\Stub;
+namespace Hypervel\Tests\Guzzle\Stubs;
 
 use Hypervel\Engine\Http\Client;
 use Hypervel\Engine\Http\RawResponse;

@@ -13,7 +13,7 @@ use Hypervel\Guzzle\HandlerStackFactory;
 use Hypervel\Guzzle\PoolHandler;
 use Hypervel\Guzzle\RetryMiddleware;
 use Hypervel\Pool\SimplePool\PoolFactory;
-use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
+use Hypervel\Tests\Guzzle\Stubs\CoroutineHandlerStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
