@@ -11,7 +11,7 @@ use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
-use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Jsonable;
