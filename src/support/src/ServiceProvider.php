@@ -6,9 +6,9 @@ namespace Hypervel\Support;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Translation\Loader as TranslationLoader;
 use Hypervel\Database\Migrations\Migrator;
-use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Contracts\Factory as ViewFactoryContract;
@@ -117,8 +117,9 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->make(RouteFileCollector::class)
-            ->addRouteFile($path);
+        if (! ($this->app instanceof CachesRoutes && $this->app->routesAreCached())) {
+            require $path;
+        }
     }
 
     /**
