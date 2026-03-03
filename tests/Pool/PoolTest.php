@@ -10,7 +10,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Pool\Pool;
-use Hypervel\Tests\Pool\Stub\FooPool;
+use Hypervel\Tests\Pool\Stubs\FooPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
