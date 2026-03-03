@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Pipeline;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Pipeline\Pipeline;
-use Hypervel\Tests\Pipeline\Stub\FooPipeline;
+use Hypervel\Tests\Pipeline\Stubs\FooPipeline;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;

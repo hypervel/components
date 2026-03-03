@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Pipeline\Stub;
+namespace Hypervel\Tests\Pipeline\Stubs;
 
 use Hypervel\Pipeline\Pipeline;
 
