@@ -12,7 +12,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use PHPUnit\Framework\ExpectationFailedException;
-use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
@@ -172,7 +172,7 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     /**
      * Render an exception into an HTTP response.
      */
-    public function render(Request $request, Throwable $e): ResponseInterface
+    public function render(Request $request, Throwable $e): Response
     {
         return $this->handler->render($request, $e);
     }
