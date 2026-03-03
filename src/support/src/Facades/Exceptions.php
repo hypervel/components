@@ -12,7 +12,7 @@ use Throwable;
 /**
  * @method static void report(\Throwable $e)
  * @method static bool shouldReport(\Throwable $e)
- * @method static \Psr\Http\Message\ResponseInterface render(\Hypervel\Http\Request $request, \Throwable $e)
+ * @method static \Symfony\Component\HttpFoundation\Response render(\Hypervel\Http\Request $request, \Throwable $e)
  * @method static void afterResponse(callable $callback)
  * @method static \Hypervel\Foundation\Exceptions\ReportableHandler reportable(callable $reportUsing)
  * @method static \Hypervel\Foundation\Exceptions\Handler renderable(callable $renderUsing)
