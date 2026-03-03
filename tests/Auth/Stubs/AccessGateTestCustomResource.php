@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stubs;
 
 class AccessGateTestCustomResource
 {

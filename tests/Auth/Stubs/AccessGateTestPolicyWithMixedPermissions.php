@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stubs;
 
-class AccessGateTestPolicyWithNoPermissions
+class AccessGateTestPolicyWithMixedPermissions
 {
     public function edit($user, AccessGateTestDummy $dummy)
     {
@@ -13,6 +13,6 @@ class AccessGateTestPolicyWithNoPermissions
 
     public function update($user, AccessGateTestDummy $dummy)
     {
-        return false;
+        return true;
     }
 }

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stubs;
 
 use Hypervel\Contracts\Auth\Authenticatable;
 
-class AccessGateTestPolicyThatAllowsGuests
+class AccessGateTestPolicyWithNonGuestBefore
 {
-    public function before(?Authenticatable $user)
+    public function before(Authenticatable $user)
     {
         $_SERVER['__hyperf.testBefore'] = true;
     }

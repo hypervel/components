@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stubs;
 
-class AccessGateTestPolicyWithMixedPermissions
+class AccessGateTestPolicyWithAllPermissions
 {
     public function edit($user, AccessGateTestDummy $dummy)
     {
-        return false;
+        return true;
     }
 
     public function update($user, AccessGateTestDummy $dummy)
