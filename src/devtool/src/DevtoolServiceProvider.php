@@ -12,14 +12,12 @@ use Hypervel\Devtool\Generator\CacheTableCommand;
 use Hypervel\Devtool\Generator\ChannelCommand;
 use Hypervel\Devtool\Generator\ComponentCommand;
 use Hypervel\Devtool\Generator\ConsoleCommand;
-use Hypervel\Devtool\Generator\ControllerCommand;
 use Hypervel\Devtool\Generator\EventCommand;
 use Hypervel\Devtool\Generator\ExceptionCommand;
 use Hypervel\Devtool\Generator\FactoryCommand;
 use Hypervel\Devtool\Generator\JobCommand;
 use Hypervel\Devtool\Generator\ListenerCommand;
 use Hypervel\Devtool\Generator\MailCommand;
-use Hypervel\Devtool\Generator\MiddlewareCommand;
 use Hypervel\Devtool\Generator\ModelCommand;
 use Hypervel\Devtool\Generator\NotificationCommand;
 use Hypervel\Devtool\Generator\NotificationTableCommand;
@@ -50,7 +48,6 @@ class DevtoolServiceProvider extends ServiceProvider
             ChannelCommand::class,
             ComponentCommand::class,
             ConsoleCommand::class,
-            ControllerCommand::class,
             EventCommand::class,
             EventListCommand::class,
             ExceptionCommand::class,
@@ -58,7 +55,6 @@ class DevtoolServiceProvider extends ServiceProvider
             JobCommand::class,
             ListenerCommand::class,
             MailCommand::class,
-            MiddlewareCommand::class,
             ModelCommand::class,
             NotificationCommand::class,
             NotificationTableCommand::class,
