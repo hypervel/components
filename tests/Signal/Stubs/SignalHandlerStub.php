@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Signal\Stub;
+namespace Hypervel\Tests\Signal\Stubs;
 
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Signal\SignalHandlerInterface;
