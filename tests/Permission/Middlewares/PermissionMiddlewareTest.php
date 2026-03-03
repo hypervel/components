@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middlewares;
 
+use Closure;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Http\Request;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middlewares\PermissionMiddleware;
@@ -14,9 +16,7 @@ use Hypervel\Tests\Permission\Enums\Permission as PermissionEnum;
 use Hypervel\Tests\Permission\Models\User;
 use Hypervel\Tests\Permission\PermissionTestCase;
 use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * @internal
@@ -26,11 +26,11 @@ class PermissionMiddlewareTest extends PermissionTestCase
 {
     protected PermissionMiddleware $middleware;
 
-    protected ServerRequestInterface $request;
+    protected Request $request;
 
-    protected RequestHandlerInterface $handler;
+    protected Closure $next;
 
-    protected ResponseInterface $response;
+    protected Response $response;
 
     protected Container $container;
 
@@ -47,9 +47,9 @@ class PermissionMiddlewareTest extends PermissionTestCase
             ->andReturn($this->authManager);
 
         $this->middleware = new PermissionMiddleware($this->container);
-        $this->request = m::mock(ServerRequestInterface::class);
-        $this->handler = m::mock(RequestHandlerInterface::class);
-        $this->response = m::mock(ResponseInterface::class);
+        $this->request = Request::create('http://example.com');
+        $this->response = new Response();
+        $this->next = fn () => $this->response;
     }
 
     protected function tearDown(): void
@@ -63,7 +63,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
         $this->expectException(UnauthorizedException::class);
 
-        $this->middleware->process($this->request, $this->handler, 'view');
+        $this->middleware->handle($this->request, $this->next, 'view');
     }
 
     public function testProcessThrowsUnauthorizedExceptionWhenUserMissingHasAnyPermissionMethod(): void
@@ -78,7 +78,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
             'User "" does not have the "hasAnyPermissions" method. Cannot check permissions: view'
         );
 
-        $this->middleware->process($this->request, $this->handler, 'view');
+        $this->middleware->handle($this->request, $this->next, 'view');
     }
 
     public function testProcessThrowsPermissionExceptionWhenUserLacksPermission(): void
@@ -95,7 +95,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
             'User "' . $user->getAuthIdentifier() . '" does not have any of the required permissions: view'
         );
 
-        $this->middleware->process($this->request, $this->handler, 'view');
+        $this->middleware->handle($this->request, $this->next, 'view');
     }
 
     public function testProcessSucceedsWhenUserHasPermission(): void
@@ -113,9 +113,8 @@ class PermissionMiddlewareTest extends PermissionTestCase
         $user->givePermissionTo('view');
 
         $this->authManager->shouldReceive('user')->once()->andReturn($user);
-        $this->handler->shouldReceive('handle')->once()->with($this->request)->andReturn($this->response);
 
-        $result = $this->middleware->process($this->request, $this->handler, 'view');
+        $result = $this->middleware->handle($this->request, $this->next, 'view');
 
         $this->assertSame($this->response, $result);
     }
@@ -135,9 +134,8 @@ class PermissionMiddlewareTest extends PermissionTestCase
         $user->givePermissionTo('view');
 
         $this->authManager->shouldReceive('user')->once()->andReturn($user);
-        $this->handler->shouldReceive('handle')->once()->with($this->request)->andReturn($this->response);
 
-        $result = $this->middleware->process($this->request, $this->handler, 'view', 'edit');
+        $result = $this->middleware->handle($this->request, $this->next, 'view', 'edit');
 
         $this->assertSame($this->response, $result);
     }
