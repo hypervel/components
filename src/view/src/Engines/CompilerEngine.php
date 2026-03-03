@@ -8,11 +8,11 @@ use Hypervel\Context\Context;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Str;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class CompilerEngine extends PhpEngine

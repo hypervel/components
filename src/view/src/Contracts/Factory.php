@@ -25,6 +25,11 @@ interface Factory
     public function make(string $view, Arrayable|array $data = [], array $mergeData = []): View;
 
     /**
+     * Get the first view that actually exists from the given list.
+     */
+    public function first(array $views, Arrayable|array $data = [], array $mergeData = []): View;
+
+    /**
      * Add a piece of shared data to the environment.
      */
     public function share(array|string $key, mixed $value = null): mixed;
