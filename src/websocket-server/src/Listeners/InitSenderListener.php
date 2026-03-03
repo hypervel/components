@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\WebSocketServer\Listener;
+namespace Hypervel\WebSocketServer\Listeners;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Framework\Events\AfterWorkerStart;

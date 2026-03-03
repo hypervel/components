@@ -7,8 +7,8 @@ namespace Hypervel\WebSocketServer;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnPipeMessage;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\WebSocketServer\Listener\InitSenderListener;
-use Hypervel\WebSocketServer\Listener\OnPipeMessageListener;
+use Hypervel\WebSocketServer\Listeners\InitSenderListener;
+use Hypervel\WebSocketServer\Listeners\OnPipeMessageListener;
 
 class WebSocketServerServiceProvider extends ServiceProvider
 {
