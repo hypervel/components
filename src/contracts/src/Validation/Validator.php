@@ -7,6 +7,7 @@ namespace Hypervel\Contracts\Validation;
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\ValidationException;
 
 interface Validator extends MessageProvider
@@ -64,6 +65,28 @@ interface Validator extends MessageProvider
      * Set the data under validation.
      */
     public function setData(array $data): static;
+
+    /**
+     * Get the validation rules with key placeholders removed.
+     */
+    public function getRulesWithoutPlaceholders(): array;
+
+    /**
+     * Set the validation rules.
+     */
+    public function setRules(array $rules): static;
+
+    /**
+     * Get a validated input container for the validated input.
+     */
+    public function safe(?array $keys = null): array|ValidatedInput;
+
+    /**
+     * Instruct the validator to stop validating after the first rule failure.
+     *
+     * @return $this
+     */
+    public function stopOnFirstFailure(bool $stopOnFirstFailure = true): static;
 
     /**
      * Get the exception to throw upon failed validation.

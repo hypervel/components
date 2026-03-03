@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Foundation;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 interface Application extends Container
 {
@@ -38,6 +38,11 @@ interface Application extends Container
      * Get the base path of the Hypervel installation.
      */
     public function basePath(string $path = ''): string;
+
+    /**
+     * Get the path to the bootstrap directory.
+     */
+    public function bootstrapPath(string $path = ''): string;
 
     /**
      * Get the path to the application "app" directory.
@@ -207,6 +212,33 @@ interface Application extends Container
      * Set the current application locale.
      */
     public function setLocale(string $locale): void;
+
+    /**
+     * Determine if the application routes are cached.
+     */
+    public function routesAreCached(): bool;
+
+    /**
+     * Get the path to the routes cache file.
+     */
+    public function getCachedRoutesPath(): string;
+
+    /**
+     * Determine if middleware has been disabled for the application.
+     */
+    public function shouldSkipMiddleware(): bool;
+
+    /**
+     * Register a terminating callback with the application.
+     *
+     * @return $this
+     */
+    public function terminating(callable|string $callback): static;
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(): void;
 
     /**
      * Get the application namespace.
