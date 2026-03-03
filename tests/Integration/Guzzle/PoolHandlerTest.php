@@ -13,7 +13,7 @@ use Hypervel\Pool\PoolOption;
 use Hypervel\Pool\SimplePool\Connection;
 use Hypervel\Pool\SimplePool\Pool;
 use Hypervel\Pool\SimplePool\PoolFactory;
-use Hypervel\Tests\Integration\Guzzle\Stub\PoolHandlerStub;
+use Hypervel\Tests\Integration\Guzzle\Stubs\PoolHandlerStub;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\CoversNothing;
 

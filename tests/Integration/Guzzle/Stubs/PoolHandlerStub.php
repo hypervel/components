@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Guzzle\Stub;
+namespace Hypervel\Tests\Integration\Guzzle\Stubs;
 
 use Hypervel\Engine\Http\Client;
 use Hypervel\Guzzle\PoolHandler;
