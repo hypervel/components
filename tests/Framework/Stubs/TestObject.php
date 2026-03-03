@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Framework\Stub;
+namespace Hypervel\Tests\Framework\Stubs;
 
 class TestObject
 {
