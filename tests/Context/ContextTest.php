@@ -7,13 +7,12 @@ namespace Hypervel\Tests\Context;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 use function Hypervel\Coroutine\run;
 
@@ -122,25 +121,25 @@ class ContextTest extends TestCase
 
     public function testRequestContext()
     {
-        $request = m::mock(ServerRequestPlusInterface::class);
+        $request = m::mock(Request::class);
         RequestContext::set($request);
         $this->assertSame($request, RequestContext::get());
 
-        Context::set(ServerRequestInterface::class, $req = m::mock(ServerRequestPlusInterface::class));
+        Context::set(Request::class, $req = m::mock(Request::class));
         $this->assertNotSame($request, RequestContext::get());
         $this->assertSame($req, RequestContext::get());
-        $this->assertSame($req, Context::get(ServerRequestInterface::class));
+        $this->assertSame($req, Context::get(Request::class));
     }
 
     public function testResponseContext()
     {
-        $response = m::mock(ResponsePlusInterface::class);
+        $response = m::mock(Response::class);
         ResponseContext::set($response);
         $this->assertSame($response, ResponseContext::get());
 
-        Context::set(ResponseInterface::class, $req = m::mock(ResponsePlusInterface::class));
+        Context::set(SymfonyResponse::class, $res = m::mock(Response::class));
         $this->assertNotSame($response, ResponseContext::get());
-        $this->assertSame($req, ResponseContext::get());
-        $this->assertSame($req, Context::get(ResponseInterface::class));
+        $this->assertSame($res, ResponseContext::get());
+        $this->assertSame($res, Context::get(SymfonyResponse::class));
     }
 }

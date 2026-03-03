@@ -7,12 +7,12 @@ namespace Hypervel\Tests\Context;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
@@ -101,7 +101,7 @@ class ContextCoroutineTest extends TestCase
 
     public function testResponseContextWithCoroutineId()
     {
-        $response = m::mock(ResponsePlusInterface::class);
+        $response = m::mock(Response::class);
         $chan = new Channel(1);
         $close = new Channel(1);
         go(function () use ($chan, $response, $close) {
@@ -118,7 +118,7 @@ class ContextCoroutineTest extends TestCase
 
     public function testRequestContextWithCoroutineId()
     {
-        $request = m::mock(ServerRequestPlusInterface::class);
+        $request = m::mock(Request::class);
         RequestContext::set($request);
         $id = Coroutine::id();
         (new Waiter())->wait(function () use ($id, $request) {
