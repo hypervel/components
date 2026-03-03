@@ -8,6 +8,7 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
@@ -153,6 +154,7 @@ class TestCase extends BaseTestCase
     {
         $app = new Application();
         $app->singleton(KernelContract::class, ConsoleKernel::class);
+        $app->singleton(HttpKernelContract::class, Http\Kernel::class);
         $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
         ApplicationContext::setContainer($app);
