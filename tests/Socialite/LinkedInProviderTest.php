@@ -7,8 +7,7 @@ namespace Hypervel\Tests\Socialite;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\LinkedInProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\TestCase;
@@ -31,7 +30,7 @@ class LinkedInProviderTest extends TestCase
 
     public function testMapUserWithoutEmailAndAddress()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->allows('input')->with('code')->andReturns('fake-code');
 
         $stream = m::mock(StreamInterface::class);
@@ -77,7 +76,6 @@ class LinkedInProviderTest extends TestCase
 
         $provider = new LinkedInProvider(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect'
