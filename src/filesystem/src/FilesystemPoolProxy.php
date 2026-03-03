@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\Cloud;
-use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Http\UploadedFile;
 use Hypervel\ObjectPool\PoolProxy;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
