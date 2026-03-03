@@ -7,7 +7,7 @@ namespace Hypervel\Engine\Http\V2;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\RequestInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
-use Hypervel\Engine\Exception\HttpClientException;
+use Hypervel\Engine\Exceptions\HttpClientException;
 use Swoole\Coroutine\Http2\Client as HTTP2Client;
 use Swoole\Http2\Request as SwRequest;
 use Swoole\Http2\Response as SwResponse;

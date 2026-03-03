@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Engine\Exception;
+namespace Hypervel\Engine\Exceptions;
 
 class RuntimeException extends \RuntimeException
 {

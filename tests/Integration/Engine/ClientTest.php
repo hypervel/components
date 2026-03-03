@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Engine;
 
 use GuzzleHttp;
-use Hypervel\Engine\Exception\HttpClientException;
+use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\Client;
 use Hypervel\Guzzle\CoroutineHandler;
 use Throwable;

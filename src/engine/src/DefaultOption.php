@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine;
 
 use Hypervel\Contracts\Engine\DefaultOptionInterface;
-use Hypervel\Engine\Exception\RuntimeException;
+use Hypervel\Engine\Exceptions\RuntimeException;
 
 class DefaultOption implements DefaultOptionInterface
 {

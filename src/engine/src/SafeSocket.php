@@ -6,8 +6,8 @@ namespace Hypervel\Engine;
 
 use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
 use Hypervel\Contracts\Engine\SocketInterface;
-use Hypervel\Engine\Exception\SocketClosedException;
-use Hypervel\Engine\Exception\SocketTimeoutException;
+use Hypervel\Engine\Exceptions\SocketClosedException;
+use Hypervel\Engine\Exceptions\SocketTimeoutException;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Socket;
 use Throwable;

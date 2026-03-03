@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine\Http;
 
 use BadMethodCallException;
-use Hypervel\Engine\Exception\RuntimeException;
+use Hypervel\Engine\Exceptions\RuntimeException;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
 use Throwable;

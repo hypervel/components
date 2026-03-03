@@ -8,7 +8,7 @@ use ArrayObject;
 use Hypervel\Contracts\Engine\CoroutineInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
-use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Throwable;

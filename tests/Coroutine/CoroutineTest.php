@@ -9,7 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
-use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
