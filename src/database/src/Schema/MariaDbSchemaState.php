@@ -14,7 +14,9 @@ class MariaDbSchemaState extends MySqlSchemaState
     #[Override]
     public function load(string $path): void
     {
-        $command = 'mariadb ' . $this->connectionString() . ' --database="${:HYPERVEL_LOAD_DATABASE}" < "${:HYPERVEL_LOAD_PATH}"';
+        $versionInfo = $this->detectClientVersion();
+
+        $command = 'mariadb ' . $this->connectionString($versionInfo) . ' --database="${:HYPERVEL_LOAD_DATABASE}" < "${:HYPERVEL_LOAD_PATH}"';
 
         $process = $this->makeProcess($command)->setTimeout(null);
 
@@ -29,7 +31,9 @@ class MariaDbSchemaState extends MySqlSchemaState
     #[Override]
     protected function baseDumpCommand(): string
     {
-        $command = 'mariadb-dump ' . $this->connectionString() . ' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc';
+        $versionInfo = $this->detectClientVersion();
+
+        $command = 'mariadb-dump ' . $this->connectionString($versionInfo) . ' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc';
 
         return $command . ' "${:HYPERVEL_LOAD_DATABASE}"';
     }

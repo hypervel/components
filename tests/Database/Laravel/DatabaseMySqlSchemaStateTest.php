@@ -28,9 +28,11 @@ class DatabaseMySqlSchemaStateTest extends TestCase
 
         $schemaState = new MySqlSchemaState($connection);
 
+        $versionInfo = ['version' => '8.0.0', 'isMariaDb' => false];
+
         // test connectionString
         $method = new ReflectionMethod(get_class($schemaState), 'connectionString');
-        $connString = $method->invoke($schemaState);
+        $connString = $method->invoke($schemaState, $versionInfo);
 
         self::assertEquals($expectedConnectionString, $connString);
 
@@ -52,6 +54,8 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'HYPERVEL_LOAD_PASSWORD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
+                'HYPERVEL_LOAD_SSL_CERT' => '',
+                'HYPERVEL_LOAD_SSL_KEY' => '',
             ], [
                 'username' => 'root',
                 'host' => '127.0.0.1',
@@ -68,6 +72,8 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'HYPERVEL_LOAD_PASSWORD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
+                'HYPERVEL_LOAD_SSL_CERT' => '',
+                'HYPERVEL_LOAD_SSL_KEY' => '',
             ], [
                 'username' => 'root',
                 'database' => 'forge',
@@ -77,23 +83,47 @@ class DatabaseMySqlSchemaStateTest extends TestCase
             ],
         ];
 
-        // yield 'no_ssl' => [
-        //     ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl=off', [
-        //         'HYPERVEL_LOAD_SOCKET' => '',
-        //         'HYPERVEL_LOAD_HOST' => '',
-        //         'HYPERVEL_LOAD_PORT' => '',
-        //         'HYPERVEL_LOAD_USER' => 'root',
-        //         'HYPERVEL_LOAD_PASSWORD' => '',
-        //         'HYPERVEL_LOAD_DATABASE' => 'forge',
-        //         'HYPERVEL_LOAD_SSL_CA' => '',
-        //     ], [
-        //         'username' => 'root',
-        //         'database' => 'forge',
-        //         'options' => [
-        //             \PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
-        //         ],
-        //     ],
-        // ];
+        yield 'ssl_cert_and_key' => [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}"', [
+                'HYPERVEL_LOAD_SOCKET' => '',
+                'HYPERVEL_LOAD_HOST' => '',
+                'HYPERVEL_LOAD_PORT' => '',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
+                'HYPERVEL_LOAD_SSL_CERT' => '/path/to/client-cert.pem',
+                'HYPERVEL_LOAD_SSL_KEY' => '/path/to/client-key.pem',
+            ], [
+                'username' => 'root',
+                'database' => 'forge',
+                'options' => [
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT => '/path/to/client-cert.pem',
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY => '/path/to/client-key.pem',
+                ],
+            ],
+        ];
+
+        yield 'no_ssl' => [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-mode=DISABLED', [
+                'HYPERVEL_LOAD_SOCKET' => '',
+                'HYPERVEL_LOAD_HOST' => '',
+                'HYPERVEL_LOAD_PORT' => '',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => '',
+                'HYPERVEL_LOAD_SSL_CERT' => '',
+                'HYPERVEL_LOAD_SSL_KEY' => '',
+            ], [
+                'username' => 'root',
+                'database' => 'forge',
+                'options' => [
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+                ],
+            ],
+        ];
 
         yield 'unix socket' => [
             ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}"', [
@@ -104,6 +134,8 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'HYPERVEL_LOAD_PASSWORD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
+                'HYPERVEL_LOAD_SSL_CERT' => '',
+                'HYPERVEL_LOAD_SSL_KEY' => '',
             ], [
                 'username' => 'root',
                 'database' => 'forge',
