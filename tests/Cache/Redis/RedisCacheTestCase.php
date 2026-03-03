@@ -12,7 +12,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stubs\FakeRedisClient;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Mockery as m;
 use Redis;
