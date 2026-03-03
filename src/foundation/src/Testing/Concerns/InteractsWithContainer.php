@@ -9,9 +9,7 @@ use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
-use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -97,8 +95,6 @@ trait InteractsWithContainer
         // before any command dependencies are captured.
         $this->app->make(ConsoleApplicationContract::class);
 
-        /* @phpstan-ignore-next-line */
-        $this->app->singleton(HttpDispatcher::class, TestingHttpDispatcher::class);
         $this->app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
         Model::setConnectionResolver($this->app->make(ConnectionResolverInterface::class));
     }
