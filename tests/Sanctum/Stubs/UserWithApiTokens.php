@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sanctum\Stub;
+namespace Hypervel\Tests\Sanctum\Stubs;
 
 use Hypervel\Sanctum\HasApiTokens;
 use Hypervel\Sanctum\PersonalAccessToken;

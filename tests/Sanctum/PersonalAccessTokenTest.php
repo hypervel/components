@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\PersonalAccessToken;
-use Hypervel\Tests\Sanctum\Stub\TokenAbility;
+use Hypervel\Tests\Sanctum\Stubs\TokenAbility;
 use PHPUnit\Framework\TestCase;
 
 /**

@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Sanctum;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\TokenAbility;
-use Hypervel\Tests\Sanctum\Stub\UserWithApiTokens;
+use Hypervel\Tests\Sanctum\Stubs\TokenAbility;
+use Hypervel\Tests\Sanctum\Stubs\UserWithApiTokens;
 
 /**
  * @internal

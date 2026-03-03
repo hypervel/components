@@ -13,7 +13,7 @@ use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\TestUser;
+use Hypervel\Tests\Sanctum\Stubs\TestUser;
 
 /**
  * @internal

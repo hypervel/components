@@ -15,7 +15,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Stubs\User;
 
 /**
  * @internal

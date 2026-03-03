@@ -15,7 +15,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\TestUser;
+use Hypervel\Tests\Sanctum\Stubs\TestUser;
 use Mockery as m;
 
 /**
