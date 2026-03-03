@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\WebSocketServer\Constant;
+namespace Hypervel\WebSocketServer\Constants;
 
 class Opcode
 {
