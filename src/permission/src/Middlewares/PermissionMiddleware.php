@@ -5,18 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
+use Closure;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Http\Request;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Support\Collection;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Response;
 use UnitEnum;
 
-class PermissionMiddleware implements MiddlewareInterface
+class PermissionMiddleware
 {
     /**
      * Create a new middleware instance.
@@ -25,11 +24,11 @@ class PermissionMiddleware implements MiddlewareInterface
     {
     }
 
-    public function process(
-        ServerRequestInterface $request,
-        RequestHandlerInterface $handler,
-        string ...$permissions
-    ): ResponseInterface {
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next, string ...$permissions): Response
+    {
         $auth = $this->container->make(AuthManager::class);
         $user = $auth->user();
         if (! $user) {
@@ -64,14 +63,14 @@ class PermissionMiddleware implements MiddlewareInterface
                     $user->getAuthIdentifier(),
                     self::parsePermissionsToString($permissions)
                 ),
-                0,
                 null,
                 [],
+                0,
                 $permissions
             );
         }
 
-        return $handler->handle($request);
+        return $next($request);
     }
 
     /**
