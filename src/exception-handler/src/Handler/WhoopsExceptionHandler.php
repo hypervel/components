@@ -6,11 +6,10 @@ namespace Hypervel\ExceptionHandler\Handler;
 
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Http\ResponsePlusInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
-use Hypervel\HttpMessage\Stream\SwooleStream;
 use Hypervel\Session\Store;
 use Hypervel\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 use Whoops\Handler\JsonResponseHandler;
 use Whoops\Handler\PlainTextHandler;
@@ -35,7 +34,7 @@ class WhoopsExceptionHandler extends ExceptionHandler
     /**
      * Handle the exception using Whoops.
      */
-    public function handle(Throwable $throwable, ResponsePlusInterface $response)
+    public function handle(Throwable $throwable, Response $response): Response
     {
         $whoops = new Run();
         [$handler, $contentType] = $this->negotiateHandler();
@@ -45,10 +44,8 @@ class WhoopsExceptionHandler extends ExceptionHandler
         ob_start();
         $whoops->{RunInterface::EXCEPTION_HANDLER}($throwable);
         $content = ob_get_clean();
-        return $response
-            ->setStatus(500)
-            ->addHeader('Content-Type', $contentType)
-            ->setBody(new SwooleStream($content));
+
+        return new Response($content, 500, ['Content-Type' => $contentType]);
     }
 
     /**
@@ -65,7 +62,7 @@ class WhoopsExceptionHandler extends ExceptionHandler
     protected function negotiateHandler(): array
     {
         $request = RequestContext::get();
-        $accepts = $request->getHeaderLine('accept');
+        $accepts = $request->headers->get('Accept', '');
         foreach (self::$preference as $contentType => $handler) {
             if (Str::contains($accepts, $contentType)) {
                 return [$this->setupHandler(new $handler()), $contentType];
@@ -87,12 +84,12 @@ class WhoopsExceptionHandler extends ExceptionHandler
             }
 
             $request = RequestContext::get();
-            $handler->addDataTableCallback('PSR7 Query', [$request, 'getQueryParams']);
-            $handler->addDataTableCallback('PSR7 Post', [$request, 'getParsedBody']);
-            $handler->addDataTableCallback('PSR7 Server', [$request, 'getServerParams']);
-            $handler->addDataTableCallback('PSR7 Cookie', [$request, 'getCookieParams']);
-            $handler->addDataTableCallback('PSR7 File', [$request, 'getUploadedFiles']);
-            $handler->addDataTableCallback('PSR7 Attribute', [$request, 'getAttributes']);
+            $handler->addDataTableCallback('Request Query', fn () => $request->query->all());
+            $handler->addDataTableCallback('Request Post', fn () => $request->request->all());
+            $handler->addDataTableCallback('Request Server', fn () => $request->server->all());
+            $handler->addDataTableCallback('Request Cookies', fn () => $request->cookies->all());
+            $handler->addDataTableCallback('Request Files', fn () => $request->files->all());
+            $handler->addDataTableCallback('Request Attributes', fn () => $request->attributes->all());
 
             $session = Context::get(Store::CONTEXT_KEY);
             if ($session) {
