@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pagination;
 
-use Hypervel\Context\Context;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
+use Hypervel\Context\RequestContext;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Cursor;
@@ -13,8 +12,6 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\PaginationState;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
-use Psr\Http\Message\ServerRequestInterface;
 use Swoole\Coroutine\Channel;
 
 use function Hypervel\Coroutine\go;
@@ -34,7 +31,7 @@ class PaginationResolverTest extends TestCase
 
     protected function tearDown(): void
     {
-        Context::destroy(ServerRequestInterface::class);
+        RequestContext::destroy();
 
         parent::tearDown();
     }
@@ -51,7 +48,7 @@ class PaginationResolverTest extends TestCase
     public function testCurrentPageResolverReturnsOneWhenNoRequest(): void
     {
         // No request in Context
-        Context::destroy(ServerRequestInterface::class);
+        RequestContext::destroy();
 
         PaginationState::resolveUsing($this->app);
 
@@ -92,7 +89,7 @@ class PaginationResolverTest extends TestCase
 
     public function testCurrentCursorResolverReturnsNullWhenNoRequest(): void
     {
-        Context::destroy(ServerRequestInterface::class);
+        RequestContext::destroy();
 
         PaginationState::resolveUsing($this->app);
 
@@ -119,7 +116,7 @@ class PaginationResolverTest extends TestCase
 
     public function testCurrentPathResolverReturnsSlashWhenNoRequest(): void
     {
-        Context::destroy(ServerRequestInterface::class);
+        RequestContext::destroy();
 
         PaginationState::resolveUsing($this->app);
 
@@ -137,7 +134,7 @@ class PaginationResolverTest extends TestCase
 
     public function testQueryStringResolverReturnsEmptyArrayWhenNoRequest(): void
     {
-        Context::destroy(ServerRequestInterface::class);
+        RequestContext::destroy();
 
         PaginationState::resolveUsing($this->app);
 
@@ -215,23 +212,15 @@ class PaginationResolverTest extends TestCase
     }
 
     /**
-     * Set up a mock request in Context with the given query parameters.
+     * Set up a request in Context with the given query parameters.
      */
     protected function setUpMockRequest(array $queryParams = [], string $url = 'https://example.com'): void
     {
-        $psrRequest = m::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn($queryParams);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([]);
+        $query = http_build_query($queryParams);
+        $fullUrl = $query ? $url . '?' . $query : $url;
 
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        // Create a Request instance that the resolvers will use
-        $request = m::mock(Request::class)->makePartial();
-        $request->shouldReceive('input')->andReturnUsing(function ($key, $default = null) use ($queryParams) {
-            return $queryParams[$key] ?? $default;
-        });
-        $request->shouldReceive('query')->andReturn($queryParams);
-        $request->shouldReceive('url')->andReturn($url);
+        $request = Request::create($fullUrl);
+        RequestContext::set($request);
 
         $this->app->instance('request', $request);
     }
