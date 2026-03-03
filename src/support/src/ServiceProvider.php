@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
+use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Translation\Loader as TranslationLoader;
 use Hypervel\Database\Migrations\Migrator;
-use Hypervel\Support\Facades\Artisan;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
@@ -330,7 +330,9 @@ abstract class ServiceProvider
      */
     public function commands(array $commands): void
     {
-        Artisan::addCommands($commands);
+        Artisan::starting(function ($artisan) use ($commands) {
+            $artisan->resolveCommands($commands);
+        });
     }
 
     /**
