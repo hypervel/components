@@ -4,57 +4,60 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Dispatcher\Pipeline;
-use Hypervel\HttpServer\Contracts\RequestInterface;
-use Hypervel\HttpServer\Contracts\ResponseInterface as HttpResponse;
+use Closure;
+use Hypervel\Http\Request;
+use Hypervel\Routing\Pipeline;
+use Hypervel\Sanctum\Sanctum;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Response;
 
-class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
+class EnsureFrontendRequestsAreStateful
 {
-    public function __construct(
-        protected Container $container,
-        protected RequestInterface $request,
-        protected HttpResponse $response,
-        protected Pipeline $pipeline
-    ) {
+    /**
+     * Handle the incoming requests.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
         $this->configureSecureCookieSessions();
+
+        return (new Pipeline(app()))->send($request)->through(
+            static::fromFrontend($request) ? $this->frontendMiddleware() : []
+        )->then(function ($request) use ($next) {
+            return $next($request);
+        });
     }
 
     /**
-     * Process the incoming request.
+     * Get the middleware that should be applied to requests from the "frontend".
+     *
+     * @return array<int, mixed>
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    protected function frontendMiddleware(): array
     {
-        if (static::fromFrontend($this->request)) {
-            // Mark request as stateful
-            $request = $request->withAttribute('sanctum', true);
+        $middleware = array_values(array_filter(array_unique([
+            config('sanctum.middleware.encrypt_cookies', \Hypervel\Cookie\Middleware\EncryptCookies::class),
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            config('sanctum.middleware.validate_csrf_token', \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class),
+            config('sanctum.middleware.authenticate_session'),
+        ])));
 
-            return $this->pipeline
-                ->send($request)
-                ->through(config('sanctum.middleware'))
-                ->then(function ($request) use ($handler) {
-                    return $handler->handle($request);
-                });
-        }
+        array_unshift($middleware, function (Request $request, Closure $next) {
+            $request->attributes->set('sanctum', true);
 
-        return $handler->handle($request);
+            return $next($request);
+        });
+
+        return $middleware;
     }
 
     /**
      * Determine if the given request is from the first-party application frontend.
      */
-    public static function fromFrontend(RequestInterface $request): bool
+    public static function fromFrontend(Request $request): bool
     {
-        $referer = $request->header('referer');
-        $origin = $request->header('origin');
-
-        $domain = $referer ?: $origin;
+        $domain = $request->headers->get('referer') ?: $request->headers->get('origin');
 
         if (is_null($domain)) {
             return false;
@@ -66,7 +69,9 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
 
         $stateful = array_filter(static::statefulDomains());
 
-        return Str::is(Collection::make($stateful)->map(function ($uri) {
+        return Str::is(Collection::make($stateful)->map(function ($uri) use ($request) {
+            $uri = $uri === Sanctum::$currentRequestHostPlaceholder ? $request->getHttpHost() : $uri;
+
             return trim($uri) . '/*';
         })->all(), $domain);
     }
