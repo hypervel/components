@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\JWT\Stub;
+namespace Hypervel\Tests\JWT\Stubs;
 
 use Hypervel\JWT\Validations\AbstractValidation;
 
