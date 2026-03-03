@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Command;
+namespace Hypervel\Tests\Console\Commands;
 
 use Hypervel\Console\Command;
 

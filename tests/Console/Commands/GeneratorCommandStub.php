@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Command;
+namespace Hypervel\Tests\Console\Commands;
 
 use Hypervel\Devtool\Generator\DevtoolGeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -68,7 +68,7 @@ class GeneratorCommandStub extends DevtoolGeneratorCommand
 
     protected function getStub(): string
     {
-        return __DIR__ . '/stubs/class.stub';
+        return __DIR__ . '/Stubs/class.stub';
     }
 
     protected function getDefaultNamespace(string $rootNamespace): string

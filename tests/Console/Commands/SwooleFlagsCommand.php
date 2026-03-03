@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Command;
+namespace Hypervel\Tests\Console\Commands;
 
 use Hypervel\Console\Command;
 
-class DefaultSwooleFlagsCommand extends Command
+class SwooleFlagsCommand extends Command
 {
+    protected int $hookFlags = SWOOLE_HOOK_CURL | SWOOLE_HOOK_ALL;
+
     public function handle(): void
     {
     }

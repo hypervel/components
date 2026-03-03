@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Command;
+namespace Hypervel\Tests\Console\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
-use RuntimeException;
 
-class FooExceptionCommand extends Command
+class FooExitCommand extends Command
 {
     public function __construct(?string $name = null)
     {
@@ -21,6 +20,6 @@ class FooExceptionCommand extends Command
 
     public function handle(): void
     {
-        throw new RuntimeException('xxx', 99);
+        exit('11xxx');
     }
 }
