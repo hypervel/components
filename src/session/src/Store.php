@@ -7,6 +7,7 @@ namespace Hypervel\Session;
 use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -650,5 +651,23 @@ class Store implements Session
     public function setHandler(SessionHandlerInterface $handler): SessionHandlerInterface
     {
         return $this->handler = $handler;
+    }
+
+    /**
+     * Determine if the session handler needs a request.
+     */
+    public function handlerNeedsRequest(): bool
+    {
+        return $this->handler instanceof CookieSessionHandler;
+    }
+
+    /**
+     * Set the request on the handler instance.
+     */
+    public function setRequestOnHandler(Request $request): void
+    {
+        if ($this->handler instanceof CookieSessionHandler) {
+            $this->handler->setRequest($request);
+        }
     }
 }
