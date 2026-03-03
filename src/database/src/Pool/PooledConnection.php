@@ -17,10 +17,10 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Wraps a database Connection for use with Hyperf's connection pool.
+ * Wraps a database Connection for use with Hypervel's connection pool.
  *
- * This adapter implements Hyperf's pool ConnectionInterface, allowing our
- * Laravel-ported Connection to work with Hyperf's pooling infrastructure.
+ * This adapter implements Hypervel's pool ConnectionInterface, allowing our
+ * Laravel-ported Connection to work with Hypervel's pooling infrastructure.
  */
 class PooledConnection implements PoolConnectionInterface
 {
