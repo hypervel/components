@@ -6,7 +6,7 @@ namespace Hypervel\WebSocketServer;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
-use Hypervel\WebSocketServer\Exception\WebSocketHandShakeException;
+use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
 use Symfony\Component\HttpFoundation\Response;
 
 class CoreMiddleware

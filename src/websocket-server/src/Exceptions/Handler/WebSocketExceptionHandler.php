@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\WebSocketServer\Exception\Handler;
+namespace Hypervel\WebSocketServer\Exceptions\Handler;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\ExceptionHandler\ExceptionHandler;
