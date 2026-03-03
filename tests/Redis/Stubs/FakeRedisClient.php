@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Redis\Stub;
+namespace Hypervel\Tests\Redis\Stubs;
 
 use Redis;
 
