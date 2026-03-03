@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Exceptions;
 
-use Hypervel\HttpMessage\Exceptions\HttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class UnauthorizedException extends HttpException
 {

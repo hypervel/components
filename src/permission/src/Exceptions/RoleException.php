@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Exceptions;
 
-use Hypervel\HttpMessage\Exceptions\HttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class RoleException extends HttpException
@@ -12,12 +12,12 @@ class RoleException extends HttpException
     public function __construct(
         int $statusCode,
         string $message = '',
-        int $code = 0,
         ?Throwable $previous = null,
-        protected array $headers = [],
+        array $headers = [],
+        int $code = 0,
         protected array $roles = []
     ) {
-        parent::__construct($statusCode, $message, $code, $previous);
+        parent::__construct($statusCode, $message, $previous, $headers, $code);
     }
 
     public function roles(): array
