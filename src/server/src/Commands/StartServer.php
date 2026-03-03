@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Server\Command;
+namespace Hypervel\Server\Commands;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
