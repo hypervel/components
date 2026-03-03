@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Pool\Exception;
+namespace Hypervel\Pool\Exceptions;
 
 use Exception;
 

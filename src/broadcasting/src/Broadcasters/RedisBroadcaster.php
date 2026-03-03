@@ -7,7 +7,7 @@ namespace Hypervel\Broadcasting\Broadcasters;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
-use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
 use RedisException;
