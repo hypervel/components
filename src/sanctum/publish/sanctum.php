@@ -74,10 +74,9 @@ return [
     */
 
     'middleware' => [
-        \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        \Hypervel\Session\Middleware\StartSession::class,
-        \Hypervel\Foundation\Http\Middleware\VerifyCsrfToken::class,
-        \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
+        'authenticate_session' => \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
+        'encrypt_cookies' => \Hypervel\Cookie\Middleware\EncryptCookies::class,
+        'validate_csrf_token' => \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class,
     ],
 
     /*
