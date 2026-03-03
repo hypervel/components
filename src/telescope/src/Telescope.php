@@ -10,7 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -165,14 +165,14 @@ class Telescope
      */
     public static function handlingApprovedRequest(ContainerContract $app): bool
     {
-        return static::requestIsToApprovedDomain($request = $app->make(RequestContract::class))
+        return static::requestIsToApprovedDomain($request = $app->make(Request::class))
             && static::requestIsToApprovedUri($request);
     }
 
     /**
      * Determine if the request is to an approved domain.
      */
-    protected static function requestIsToApprovedDomain(RequestContract $request): bool
+    protected static function requestIsToApprovedDomain(Request $request): bool
     {
         return is_null(config('telescope.domain'))
             || config('telescope.domain') !== $request->getHost();
@@ -181,7 +181,7 @@ class Telescope
     /**
      * Determine if the request is to an approved URI.
      */
-    protected static function requestIsToApprovedUri(RequestContract $request): bool
+    protected static function requestIsToApprovedUri(Request $request): bool
     {
         if (! empty($only = config('telescope.only_paths', []))) {
             return $request->is($only);
