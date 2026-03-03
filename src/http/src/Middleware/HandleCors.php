@@ -4,82 +4,87 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Middleware;
 
+use Closure;
+use Fruitcake\Cors\CorsService;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Http\Cors;
-use Hypervel\Support\Str;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use Throwable;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class HandleCors implements MiddlewareInterface
+class HandleCors
 {
-    protected array $config = [];
+    /**
+     * The container instance.
+     */
+    protected Container $container;
 
-    public function __construct(
-        protected Container $container,
-        protected ExceptionHandlerContract $exceptionHandler,
-        protected RequestContract $request,
-        protected Cors $cors,
-    ) {
-        $this->config = $container->make('config')->get('cors', []);
-    }
+    /**
+     * The CORS service instance.
+     */
+    protected CorsService $cors;
 
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * All of the registered skip callbacks.
+     *
+     * @var array<int, Closure(\Hypervel\Http\Request): bool>
+     */
+    protected static array $skipCallbacks = [];
+
+    /**
+     * Create a new middleware instance.
+     */
+    public function __construct(Container $container, CorsService $cors)
     {
-        if (! $this->hasMatchingPath($this->request)) {
-            return $handler->handle($request);
-        }
-
-        $cors = $this->getCors();
-
-        if ($cors->isPreflightRequest($this->request)) {
-            $response = $cors->handlePreflightRequest($this->request);
-            return $cors->varyHeader($response, 'Access-Control-Request-Method');
-        }
-
-        try {
-            $response = $handler->handle($request);
-        } catch (Throwable $e) {
-            $this->exceptionHandler->afterResponse(
-                fn (ResponseInterface $response) => $this->addRequestHeaders($response)
-            );
-
-            throw $e;
-        }
-
-        return $this->addRequestHeaders($response);
+        $this->container = $container;
+        $this->cors = $cors;
     }
 
     /**
-     * Add CORS headers to the response.
+     * Handle the incoming request.
      */
-    protected function addRequestHeaders(ResponseInterface $response): ResponseInterface
+    public function handle(Request $request, Closure $next): Response
     {
-        $cors = $this->getCors();
-
-        if ($this->request->getMethod() === 'OPTIONS') {
-            $response = $cors->varyHeader($response, 'Access-Control-Request-Method');
+        foreach (static::$skipCallbacks as $callback) {
+            if ($callback($request)) {
+                return $next($request);
+            }
         }
 
-        return $cors->addActualRequestHeaders($response, $this->request);
+        if (! $this->hasMatchingPath($request)) {
+            return $next($request);
+        }
+
+        $this->cors->setOptions($this->container['config']->get('cors', []));
+
+        if ($this->cors->isPreflightRequest($request)) {
+            $response = $this->cors->handlePreflightRequest($request);
+
+            $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+
+            return $response;
+        }
+
+        $response = $next($request);
+
+        if ($request->getMethod() === 'OPTIONS') {
+            $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+        }
+
+        return $this->cors->addActualRequestHeaders($response, $request);
     }
 
     /**
      * Get the path from the configuration to determine if the CORS service should run.
      */
-    protected function hasMatchingPath(RequestContract $request): bool
+    protected function hasMatchingPath(Request $request): bool
     {
         $paths = $this->getPathsByHost($request->getHost());
+
         foreach ($paths as $path) {
             if ($path !== '/') {
                 $path = trim($path, '/');
             }
 
-            if (Str::is($path, $request->fullUrl()) || Str::is($path, $request->decodedPath())) {
+            if ($request->fullUrlIs($path) || $request->is($path)) {
                 return true;
             }
         }
@@ -92,7 +97,7 @@ class HandleCors implements MiddlewareInterface
      */
     protected function getPathsByHost(string $host): array
     {
-        $paths = $this->config['paths'] ?? [];
+        $paths = $this->container['config']->get('cors.paths', []);
 
         if (isset($paths[$host])) {
             return $paths[$host];
@@ -104,18 +109,18 @@ class HandleCors implements MiddlewareInterface
     }
 
     /**
-     * Get the Cors service instance.
+     * Register a callback that instructs the middleware to be skipped.
      */
-    protected function getCors(): Cors
+    public static function skipWhen(Closure $callback): void
     {
-        return new Cors($this->getCorsConfig());
+        static::$skipCallbacks[] = $callback;
     }
 
     /**
-     * Get the CORS configuration.
+     * Flush the middleware's global state.
      */
-    protected function getCorsConfig(): array
+    public static function flushState(): void
     {
-        return $this->config;
+        static::$skipCallbacks = [];
     }
 }
