@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\WebSocketServer\Stub;
+namespace Hypervel\Tests\WebSocketServer\Stubs;
 
 use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Coroutine\Coroutine;

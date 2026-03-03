@@ -10,7 +10,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Hypervel\Tests\WebSocketServer\Stub\WebSocketStub;
+use Hypervel\Tests\WebSocketServer\Stubs\WebSocketStub;
 use Hypervel\WebSocketServer\Server;
 use Mockery;
 use Swoole\Http\Request as SwooleRequest;
