@@ -9,7 +9,7 @@ class AnonymousResourceCollection extends ResourceCollection
     /**
      * The name of the resource being collected.
      */
-    public ?string $collects = null;
+    public ?string $collects;
 
     /**
      * Indicates if the collection keys should be preserved.
