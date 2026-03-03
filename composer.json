@@ -114,7 +114,7 @@
     },
     "autoload-dev": {
         "files": [
-            "tests/Database/Laravel/stubs/MigrationCreatorFakeMigration.php"
+            "tests/Database/stubs/MigrationCreatorFakeMigration.php"
         ],        
         "psr-4": {
             "Hypervel\\Tests\\": "tests/"
