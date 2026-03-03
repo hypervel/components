@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hypervel\Coroutine\Exception\ParallelExecutionException;
+use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Engine\Channel;
 use Throwable;
 

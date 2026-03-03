@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
-use Hypervel\Coroutine\Exception\ExceptionThrower;
-use Hypervel\Coroutine\Exception\WaitTimeoutException;
+use Hypervel\Coroutine\Exceptions\ExceptionThrower;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
 use Throwable;
 

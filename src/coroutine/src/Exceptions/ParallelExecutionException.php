@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Coroutine\Exception;
+namespace Hypervel\Coroutine\Exceptions;
 
 use RuntimeException;
 use Throwable;

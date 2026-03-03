@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine\Channel;
 
 use Closure;
-use Hypervel\Coroutine\Exception\ChannelClosedException;
-use Hypervel\Coroutine\Exception\WaitTimeoutException;
+use Hypervel\Coroutine\Exceptions\ChannelClosedException;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
 
 class Caller

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Coroutine;
 
 use Exception;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\Exception\ParallelExecutionException;
+use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
