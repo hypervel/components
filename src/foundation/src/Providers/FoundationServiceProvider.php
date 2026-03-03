@@ -10,9 +10,8 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
@@ -20,16 +19,17 @@ use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
+use Hypervel\Foundation\Console\Commands\RouteCacheCommand;
+use Hypervel\Foundation\Console\Commands\RouteClearCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\Listeners\SetProcessTitle;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Framework\Events\BootApplication;
-use Hypervel\HttpServer\MiddlewareManager;
+use Hypervel\Http\Request;
 use Hypervel\Server\Listener\InitProcessTitleListener;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
@@ -86,14 +86,16 @@ class FoundationServiceProvider extends ServiceProvider
         $this->commands([
             AboutCommand::class,
             ConfigShowCommand::class,
+            RouteCacheCommand::class,
+            RouteClearCommand::class,
             ServerReloadCommand::class,
             VendorPublishCommand::class,
         ]);
 
-        $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
+        $this->callAfterResolving(Request::class, function (Request $request) {
             $request->setUserResolver(function (?string $guard = null) {
                 return $this->app
-                    ->get(AuthFactoryContract::class)
+                    ->make(AuthFactoryContract::class)
                     ->guard($guard)
                     ->user();
             });
@@ -144,29 +146,6 @@ class FoundationServiceProvider extends ServiceProvider
                 $this->config->set($key, $value);
             }
         }
-
-        $this->config->set('middlewares', $this->getMiddlewareConfig());
-    }
-
-    protected function getMiddlewareConfig(): array
-    {
-        if ($middleware = $this->config->get('middlewares', [])) {
-            foreach ($middleware as $server => $middlewareConfig) {
-                $middleware[$server] = MiddlewareManager::sortMiddlewares($middlewareConfig);
-            }
-        }
-
-        foreach ($this->config->get('server.kernels', []) as $server => $kernel) {
-            if (! is_string($kernel) || ! is_a($kernel, MiddlewareContract::class, true)) {
-                continue;
-            }
-            $middleware[$server] = array_merge(
-                $this->app->make($kernel)->getGlobalMiddleware(),
-                $middleware[$server] ?? [],
-            );
-        }
-
-        return $middleware;
     }
 
     protected function registerUriUrlGeneration(): void
