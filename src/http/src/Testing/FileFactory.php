@@ -11,7 +11,7 @@ class FileFactory
     /**
      * Create a new fake file.
      */
-    public function create(string $name, int|string $kilobytes = 0, ?string $mimeType = null): File
+    public function create(string $name, string|int $kilobytes = 0, ?string $mimeType = null): File
     {
         if (is_string($kilobytes)) {
             return $this->createWithContent($name, $kilobytes);
@@ -58,7 +58,7 @@ class FileFactory
      *
      * @throws LogicException
      */
-    protected function generateImage(int $width, int $height, string $extension)
+    protected function generateImage(int $width, int $height, string $extension): mixed
     {
         if (! function_exists('imagecreatetruecolor')) {
             throw new LogicException('GD extension is not installed.');
