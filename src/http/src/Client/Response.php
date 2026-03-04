@@ -49,6 +49,11 @@ class Response implements ArrayAccess, Stringable
     public ?TransferStats $transferStats = null;
 
     /**
+     * The length at which request exceptions will be truncated.
+     */
+    protected false|int|null $truncateExceptionsAt = null;
+
+    /**
      * Create a new response instance.
      */
     public function __construct(protected ResponseInterface $response)
@@ -283,7 +288,7 @@ class Response implements ArrayAccess, Stringable
     public function toException(): ?RequestException
     {
         if ($this->failed()) {
-            return new RequestException($this);
+            return new RequestException($this, $this->truncateExceptionsAt);
         }
 
         return null;
@@ -320,6 +325,16 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
+     * Throw an exception if a server or client error occurred and the given condition evaluates to false.
+     *
+     * @throws RequestException
+     */
+    public function throwUnless(bool|Closure $condition): static
+    {
+        return $this->throwIf(! value($condition, $this));
+    }
+
+    /**
      * Throw an exception if the response status code matches the given code.
      *
      * @param callable|int $statusCode
@@ -330,10 +345,10 @@ class Response implements ArrayAccess, Stringable
     {
         if (is_callable($statusCode)
             && $statusCode($this->status(), $this)) {
-            return $this->throw();
+            throw new RequestException($this, $this->truncateExceptionsAt);
         }
 
-        return $this->status() === $statusCode ? $this->throw() : $this;
+        return $this->status() === $statusCode ? throw new RequestException($this, $this->truncateExceptionsAt) : $this;
     }
 
     /**
@@ -346,10 +361,10 @@ class Response implements ArrayAccess, Stringable
     public function throwUnlessStatus($statusCode): static
     {
         if (is_callable($statusCode)) {
-            return $statusCode($this->status(), $this) ? $this : $this->throw();
+            return $statusCode($this->status(), $this) ? $this : throw new RequestException($this, $this->truncateExceptionsAt);
         }
 
-        return $this->status() === $statusCode ? $this : $this->throw();
+        return $this->status() === $statusCode ? $this : throw new RequestException($this, $this->truncateExceptionsAt);
     }
 
     /**
@@ -370,6 +385,26 @@ class Response implements ArrayAccess, Stringable
     public function throwIfServerError(): static
     {
         return $this->serverError() ? $this->throw() : $this;
+    }
+
+    /**
+     * Indicate that request exceptions should be truncated to the given length.
+     */
+    public function truncateExceptionsAt(int $length): static
+    {
+        $this->truncateExceptionsAt = $length;
+
+        return $this;
+    }
+
+    /**
+     * Indicate that request exceptions should not be truncated.
+     */
+    public function dontTruncateExceptions(): static
+    {
+        $this->truncateExceptionsAt = false;
+
+        return $this;
     }
 
     /**
