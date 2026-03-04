@@ -28,7 +28,11 @@
         ]
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/engine": "^0.4"
     },
     "config": {
         "sort-packages": true

@@ -34,7 +34,7 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/engine": "~0.3.0"
+        "hypervel/engine": "^0.4"
     },
     "config": {
         "sort-packages": true

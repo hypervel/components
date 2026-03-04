@@ -29,7 +29,13 @@
         }
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true

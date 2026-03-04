@@ -31,7 +31,28 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/pool": "^0.4"
+        "brick/math": "^0.12",
+        "nesbot/carbon": "^2.72.6",
+        "symfony/console": "^6.2|^7.0",
+        "symfony/process": "^6.2|^7.0",
+        "hypervel/broadcasting": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/framework": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/pagination": "^0.4",
+        "hypervel/pool": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "require-dev": {
         "fakerphp/faker": "^2.0"

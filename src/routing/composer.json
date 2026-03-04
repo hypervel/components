@@ -30,19 +30,26 @@
     },
     "require": {
         "php": "^8.4",
+        "symfony/console": "^6.2|^7.0",
+        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/http-kernel": "^7.0 || ^8.0",
+        "symfony/psr-http-message-bridge": "^7.4|^8.0",
+        "symfony/routing": "^7.0 || ^8.0",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
         "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/pipeline": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/http-foundation": "^7.0 || ^8.0",
-        "symfony/http-kernel": "^7.0 || ^8.0",
-        "symfony/routing": "^7.0 || ^8.0"
-    },
-    "suggest": {
-        "hypervel/cache": "Required to use throttle requests middleware.",
-        "hypervel/session": "Required to use session based previous() in UrlGenerator.",
-        "symfony/psr-http-message-bridge": "Required to use PSR-7 bridging features (^7.4|^8.0)."
+        "hypervel/view": "^0.4"
     },
     "config": {
         "sort-packages": true

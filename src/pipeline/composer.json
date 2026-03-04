@@ -29,7 +29,11 @@
         }
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true

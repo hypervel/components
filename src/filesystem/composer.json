@@ -29,11 +29,19 @@
     },
     "require": {
         "php": "^8.4",
+        "psr/http-message": "^2.0",
+        "symfony/finder": "^7.0 || ^8.0",
+        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/http-kernel": "^7.0 || ^8.0",
         "hypervel/collections": "^0.4",
-        "hypervel/macroable": "^0.4",
-        "hypervel/support": "^0.4",
         "hypervel/conditionable": "^0.4",
-        "hypervel/object-pool": "^0.4"
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/object-pool": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
@@ -45,8 +53,7 @@
         "league/flysystem-aws-s3-v3": "Required to use the Flysystem S3 driver (^3.0).",
         "league/flysystem-google-cloud-storage": "Required to use the Flysystem Google Cloud Storage driver (^3.0).",
         "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.0).",
-        "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.0).",
-        "hypervel/http": "Required to allow Storage::put to accept a StreamInterface."
+        "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.0)."
     },
     "config": {
         "sort-packages": true

@@ -33,6 +33,8 @@
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
+        "hypervel/framework": "^0.4",
+        "hypervel/server-process": "^0.4",
         "hypervel/support": "^0.4"
     },
     "extra": {

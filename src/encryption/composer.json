@@ -28,7 +28,11 @@
         "php": "^8.4",
         "ext-hash": "*",
         "ext-mbstring": "*",
-        "ext-openssl": "*"
+        "ext-openssl": "*",
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true

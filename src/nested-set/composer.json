@@ -26,7 +26,9 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/core": "^0.4",
+        "nesbot/carbon": "^2.72.6",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/support": "^0.4"
     },

@@ -30,10 +30,16 @@
         "ext-mbstring": "*",
         "brick/math": "^0.11|^0.12",
         "egulias/email-validator": "^3.2.5|^4.0",
+        "ramsey/uuid": "^4.7",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/translation": "^0.4",
-        "ramsey/uuid": "^4.7"
+        "hypervel/translation": "^0.4"
     },
     "config": {
         "sort-packages": true

@@ -26,17 +26,18 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/contracts": "^0.4",
-        "hypervel/http-server": "^0.4",
-        "hypervel/pool": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
         "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/object-pool": "^0.4",
+        "hypervel/pool": "^0.4",
         "hypervel/queue": "^0.4",
-        "hypervel/router": "^0.4",
-        "hypervel/support": "^0.4",
-        "hypervel/object-pool": "^0.4"
+        "hypervel/support": "^0.4"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",

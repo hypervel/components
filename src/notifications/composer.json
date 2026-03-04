@@ -26,15 +26,22 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/collections": "^0.4",
-        "hypervel/contracts": "^0.4",
-        "hypervel/context": "^0.4",
-        "hypervel/database": "^0.4",
+        "guzzlehttp/guzzle": "^7.8.2",
+        "psr/http-message": "^2.0",
+        "symfony/mailer": "^6.2",
         "hypervel/broadcasting": "^0.4",
-        "hypervel/support": "^0.4",
+        "hypervel/bus": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
         "hypervel/mail": "^0.4",
+        "hypervel/object-pool": "^0.4",
         "hypervel/queue": "^0.4",
-        "hypervel/object-pool": "^0.4"
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true

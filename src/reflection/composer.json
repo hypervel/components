@@ -32,7 +32,7 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/support": "self.version"
+        "hypervel/collections": "^0.4"
     },
     "config": {
         "sort-packages": true
