@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient;
+namespace Hypervel\Http\Client;
 
 use ArrayAccess;
 use Closure;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
-use Hypervel\HttpClient\Concerns\DeterminesStatusCode;
+use Hypervel\Http\Client\Concerns\DeterminesStatusCode;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Macroable;

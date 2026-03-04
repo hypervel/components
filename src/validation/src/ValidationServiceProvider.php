@@ -6,7 +6,7 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\HttpClient\Factory as HttpFactory;
+use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Support\ServiceProvider;
 
 class ValidationServiceProvider extends ServiceProvider

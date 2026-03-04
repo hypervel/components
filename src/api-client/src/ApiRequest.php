@@ -6,7 +6,7 @@ namespace Hypervel\ApiClient;
 
 use GuzzleHttp\Psr7\Uri;
 use Hypervel\Engine\Http\Stream;
-use Hypervel\HttpClient\Request as HttpClientRequest;
+use Hypervel\Http\Client\Request as HttpClientRequest;
 use Psr\Http\Message\RequestInterface;
 
 class ApiRequest extends HttpClientRequest

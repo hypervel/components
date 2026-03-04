@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient;
+namespace Hypervel\Http\Client;
 
 use Closure;
 use GuzzleHttp\Client;
@@ -24,7 +24,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Throwable;
 
 /**
- * @mixin \Hypervel\HttpClient\PendingRequest
+ * @mixin \Hypervel\Http\Client\PendingRequest
  */
 class Factory
 {

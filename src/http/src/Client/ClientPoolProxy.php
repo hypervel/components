@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient;
+namespace Hypervel\Http\Client;
 
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Promise\PromiseInterface;

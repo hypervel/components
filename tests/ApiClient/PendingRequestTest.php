@@ -7,7 +7,7 @@ namespace Hypervel\Tests\ApiClient;
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResponse;
-use Hypervel\HttpClient\Request;
+use Hypervel\Http\Client\Request;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;

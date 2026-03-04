@@ -49,7 +49,7 @@
             "Hypervel\\Hashing\\": "src/hashing/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\Http\\": "src/http/src/",
-            "Hypervel\\HttpClient\\": "src/http-client/src/",
+
             "Hypervel\\JWT\\": "src/jwt/src/",
             "Hypervel\\Log\\": "src/log/src/",
             "Hypervel\\Mail\\": "src/mail/src/",
@@ -200,7 +200,7 @@
         "hypervel/hashing": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
-        "hypervel/http-client": "self.version",
+
         "hypervel/jwt": "self.version",
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",

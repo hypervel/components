@@ -6,7 +6,7 @@ namespace Hypervel\Validation;
 
 use Exception;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
-use Hypervel\HttpClient\Factory as HttpClientFactory;
+use Hypervel\Http\Client\Factory as HttpClientFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 

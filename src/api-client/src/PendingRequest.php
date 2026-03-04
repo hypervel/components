@@ -6,9 +6,9 @@ namespace Hypervel\ApiClient;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Container\Container;
-use Hypervel\HttpClient\ConnectionException;
-use Hypervel\HttpClient\PendingRequest as ClientPendingRequest;
-use Hypervel\HttpClient\Request;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
+use Hypervel\Http\Client\Request;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Traits\Conditionable;

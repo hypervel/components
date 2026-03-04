@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient\Concerns;
+namespace Hypervel\Http\Client\Concerns;
 
 trait DeterminesStatusCode
 {

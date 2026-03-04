@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\HttpClient;
+namespace Hypervel\Tests\Http;
 
 use Exception;
 use GuzzleHttp\ClientInterface;
@@ -16,16 +16,16 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\Events\RequestSending;
+use Hypervel\Http\Client\Events\ResponseReceived;
+use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
+use Hypervel\Http\Client\ResponseSequence;
 use Hypervel\Http\Response as HttpResponse;
-use Hypervel\HttpClient\ConnectionException;
-use Hypervel\HttpClient\Events\RequestSending;
-use Hypervel\HttpClient\Events\ResponseReceived;
-use Hypervel\HttpClient\Factory;
-use Hypervel\HttpClient\PendingRequest;
-use Hypervel\HttpClient\Request;
-use Hypervel\HttpClient\RequestException;
-use Hypervel\HttpClient\Response;
-use Hypervel\HttpClient\ResponseSequence;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Support\Arr;

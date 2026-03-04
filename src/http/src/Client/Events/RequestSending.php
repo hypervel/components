@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient\Events;
+namespace Hypervel\Http\Client\Events;
 
-use Hypervel\HttpClient\Request;
+use Hypervel\Http\Client\Request;
 
 class RequestSending
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\HttpClient;
+namespace Hypervel\Http\Client;
 
 use Closure;
 use Exception;
@@ -17,9 +17,9 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\HttpClient\Events\ConnectionFailed;
-use Hypervel\HttpClient\Events\RequestSending;
-use Hypervel\HttpClient\Events\ResponseReceived;
+use Hypervel\Http\Client\Events\ConnectionFailed;
+use Hypervel\Http\Client\Events\RequestSending;
+use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
