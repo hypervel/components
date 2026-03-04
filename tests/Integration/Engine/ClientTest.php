@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Engine;
 use GuzzleHttp;
 use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\Client;
-use Hypervel\Guzzle\CoroutineHandler;
 use Throwable;
 
 /**
@@ -87,7 +86,6 @@ class ClientTest extends EngineIntegrationTestCase
     {
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
-            'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
             'cookies' => true,
         ]);
 
@@ -112,7 +110,6 @@ class ClientTest extends EngineIntegrationTestCase
 
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
-            'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
         ]);
 
         $response = $client->get('/header');
