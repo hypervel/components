@@ -53,9 +53,6 @@
         "branch-alias": {
             "dev-main": "0.4-dev"
         },
-        "hyperf": {
-            "config": "Hypervel\\Telescope\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Telescope\\TelescopeServiceProvider"
