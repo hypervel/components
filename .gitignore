@@ -6,7 +6,7 @@ composer.lock
 .phpunit.result.cache
 !tests/Foundation/fixtures/project1/composer.lock
 !tests/Support/fixtures/composer/composer.lock
-tests/Http/fixtures
+tests/Http/fixtures/sunk.txt
 .env
 !tests/Support/envs/**/.env
 /testing
