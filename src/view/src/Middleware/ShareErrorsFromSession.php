@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\View\Middleware;
 
 use Closure;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Http\Request;
 use Hypervel\Support\ViewErrorBag;
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Symfony\Component\HttpFoundation\Response;
 
 class ShareErrorsFromSession

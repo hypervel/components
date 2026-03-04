@@ -6,8 +6,8 @@ namespace Hypervel\View\Concerns;
 
 use Closure;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Str;
-use Hypervel\View\Contracts\View as ViewContract;
 
 trait ManagesEvents
 {

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Hypervel\Context\Context;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Str;
-use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 
 trait ManagesLayouts

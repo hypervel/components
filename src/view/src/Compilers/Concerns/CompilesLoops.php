@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers\Concerns;
 
 use Hypervel\Context\Context;
-use Hypervel\View\Contracts\ViewCompilationException;
+use Hypervel\Contracts\View\ViewCompilationException;
 
 trait CompilesLoops
 {

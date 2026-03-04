@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\View\Contracts;
+namespace Hypervel\Contracts\View;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;

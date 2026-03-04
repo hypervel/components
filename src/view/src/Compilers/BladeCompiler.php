@@ -8,14 +8,14 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface
