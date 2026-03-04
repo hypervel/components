@@ -142,19 +142,41 @@ class Factory
      * Create a new response instance for use during stubbing.
      */
     public static function response(
-        array|callable|int|PromiseInterface|Response|string|null $body = null,
+        array|string|null $body = null,
         int $status = 200,
         array $headers = []
     ): PromiseInterface {
+        return Create::promiseFor(
+            static::psr7Response($body, $status, $headers)
+        );
+    }
+
+    /**
+     * Create a new PSR-7 response instance for use during stubbing.
+     */
+    public static function psr7Response(
+        array|string|null $body = null,
+        int $status = 200,
+        array $headers = []
+    ): Psr7Response {
         if (is_array($body)) {
             $body = json_encode($body);
 
             $headers['Content-Type'] = 'application/json';
         }
 
-        $response = new Psr7Response($status, $headers, $body);
+        return new Psr7Response($status, $headers, $body);
+    }
 
-        return Create::promiseFor($response);
+    /**
+     * Create a new RequestException instance for use during stubbing.
+     */
+    public static function failedRequest(
+        array|string|null $body = null,
+        int $status = 200,
+        array $headers = []
+    ): RequestException {
+        return new RequestException(new Response(static::psr7Response($body, $status, $headers)));
     }
 
     /**
@@ -254,7 +276,7 @@ class Factory
             }
 
             if (is_int($callback) || is_string($callback)) {
-                return static::response($callback);
+                return static::response((string) $callback);
             }
 
             if ($callback instanceof Closure || $callback instanceof ResponseSequence) {
