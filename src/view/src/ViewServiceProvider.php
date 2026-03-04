@@ -8,8 +8,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
-use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\FileEngine;
@@ -33,7 +31,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerFactory(): void
     {
-        $this->app->bind(FactoryContract::class, function ($app) {
+        $this->app->bind('view', function ($app) {
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
@@ -77,7 +75,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerBladeCompiler(): void
     {
-        $this->app->bind(CompilerInterface::class, function ($app) {
+        $this->app->bind('blade.compiler', function ($app) {
             return tap(new BladeCompiler(
                 $app['files'],
                 $app['config']['view.compiled'],
@@ -138,7 +136,7 @@ class ViewServiceProvider extends ServiceProvider
             $app = Container::getInstance();
 
             return new CompilerEngine(
-                $app->make(CompilerInterface::class),
+                $app->make('blade.compiler'),
                 $app->make('files'),
             );
         });

@@ -917,8 +917,8 @@ class Application extends Container implements ApplicationContract, CachesRoutes
                 \Hypervel\Contracts\Validation\Factory::class,
             ],
             'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
-            \Hypervel\View\Contracts\Factory::class => ['view'],
-            \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
+            'view' => [\Hypervel\View\Factory::class, \Hypervel\Contracts\View\Factory::class],
+            'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
             'session' => [
                 \Hypervel\Session\SessionManager::class,
                 \Hypervel\Contracts\Session\Factory::class,

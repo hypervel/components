@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\View\Contracts\Factory as FactoryContract;
-
 /**
- * @method static \Hypervel\View\Contracts\View file(string $path, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
- * @method static \Hypervel\View\Contracts\View make(string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
- * @method static \Hypervel\View\Contracts\View first(array $views, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\Contracts\View\View file(string $path, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\Contracts\View\View make(string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hypervel\Contracts\View\View first(array $views, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderWhen(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderUnless(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderEach(string $view, array $data, string $iterator, string $empty = 'raw|')
  * @method static bool exists(string $view)
- * @method static \Hypervel\View\Contracts\Engine getEngineFromPath(string $path)
+ * @method static \Hypervel\Contracts\View\Engine getEngineFromPath(string $path)
  * @method static mixed share(array|string $key, mixed $value = null)
  * @method static void incrementRender()
  * @method static void decrementRender()
@@ -44,7 +42,7 @@ use Hypervel\View\Contracts\Factory as FactoryContract;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  * @method static void flushMacros()
- * @method static void startComponent(\Hypervel\View\Contracts\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string $view, array $data = [])
+ * @method static void startComponent(\Hypervel\Contracts\View\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string $view, array $data = [])
  * @method static void startComponentFirst(array $names, array $data = [])
  * @method static string renderComponent()
  * @method static mixed getConsumableComponentData(string $key, mixed $default = null)
@@ -53,19 +51,19 @@ use Hypervel\View\Contracts\Factory as FactoryContract;
  * @method static array creator(array|string $views, \Closure|string $callback)
  * @method static array composers(array $composers)
  * @method static array composer(array|string $views, \Closure|string $callback)
- * @method static void callComposer(\Hypervel\View\Contracts\View $view)
- * @method static void callCreator(\Hypervel\View\Contracts\View $view)
+ * @method static void callComposer(\Hypervel\Contracts\View\View $view)
+ * @method static void callCreator(\Hypervel\Contracts\View\View $view)
  * @method static void startFragment(string $fragment)
  * @method static string stopFragment()
  * @method static mixed getFragment(string $name, string|null $default = null)
  * @method static array getFragments()
  * @method static void flushFragments()
- * @method static void startSection(string $section, \Hypervel\View\Contracts\View|string|null $content = null)
+ * @method static void startSection(string $section, \Hypervel\Contracts\View\View|string|null $content = null)
  * @method static void inject(string $section, string $content)
  * @method static string yieldSection()
  * @method static string stopSection(bool $overwrite = false)
  * @method static string appendSection()
- * @method static string yieldContent(string $section, \Hypervel\View\Contracts\View|string $default = '')
+ * @method static string yieldContent(string $section, \Hypervel\Contracts\View\View|string $default = '')
  * @method static string getParentPlaceholder(string $section = '')
  * @method static bool hasSection(string $name)
  * @method static bool sectionMissing(string $name)
@@ -92,6 +90,6 @@ class View extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return FactoryContract::class;
+        return 'view';
     }
 }
