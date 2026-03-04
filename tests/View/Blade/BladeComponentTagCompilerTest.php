@@ -8,14 +8,14 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory;
+use Hypervel\Contracts\View\View;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
-use Hypervel\View\Contracts\Factory;
-use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 use Mockery as m;
 use Stringable;
@@ -938,8 +938,8 @@ namespace App\View\Components\Card;
 
 use Closure;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
 use Hypervel\View\Component;
-use Hypervel\View\Contracts\View;
 
 class Card extends Component
 {

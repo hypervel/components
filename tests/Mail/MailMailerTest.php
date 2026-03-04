@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -17,8 +19,6 @@ use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 
 /**

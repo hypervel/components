@@ -6,12 +6,12 @@ namespace Hypervel\Routing;
 
 use Closure;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Routing\Console\ControllerMakeCommand;
 use Hypervel\Routing\Console\MiddlewareMakeCommand;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 class RoutingServiceProvider extends ServiceProvider
 {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Http\Controllers;
 
+use Hypervel\Contracts\View\View;
 use Hypervel\Telescope\Telescope;
-use Hypervel\View\Contracts\View;
 
 class HomeController
 {

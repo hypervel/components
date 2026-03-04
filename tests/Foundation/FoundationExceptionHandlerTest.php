@@ -12,6 +12,8 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\RedirectResponse;
@@ -27,8 +29,6 @@ use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
-use Hypervel\View\Contracts\Factory as FactoryContract;
-use Hypervel\View\Contracts\View as ViewContract;
 use InvalidArgumentException;
 use Mockery as m;
 use OutOfRangeException;
@@ -65,7 +65,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
             ConfigContract::class => fn () => $this->config,
-            FactoryContract::class => fn () => new stdClass(),
+            'view' => fn () => new stdClass(),
             Request::class => fn () => $this->request,
         ]);
 
@@ -380,7 +380,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->with('errors::502')->andReturn(true);
 
-        $this->container->instance(FactoryContract::class, $viewFactory);
+        $this->container->instance('view', $viewFactory);
 
         View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
@@ -399,7 +399,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $viewFactory->shouldReceive('exists')->once()->with('errors::502')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::5xx')->andReturn(true);
 
-        $this->container->instance(FactoryContract::class, $viewFactory);
+        $this->container->instance('view', $viewFactory);
 
         View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
@@ -418,7 +418,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::4xx')->andReturn(false);
 
-        $this->container->instance(FactoryContract::class, $viewFactory);
+        $this->container->instance('view', $viewFactory);
 
         View::shouldReceive('replaceNamespace')->once();
         $handler = new class($this->container) extends Handler {
@@ -441,7 +441,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(true);
         $viewFactory->shouldReceive('make')->once()->with('errors::404', m::any())->andReturn($view);
-        $this->container->instance(FactoryContract::class, $viewFactory);
+        $this->container->instance('view', $viewFactory);
         $this->container->instance(ResponseFactoryContract::class, new ResponseFactory(
             $viewFactory,
             m::mock(Redirector::class),

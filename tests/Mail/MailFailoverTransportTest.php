@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Testbench\TestCase;
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\FailoverTransport;
 

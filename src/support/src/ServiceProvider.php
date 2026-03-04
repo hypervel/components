@@ -9,9 +9,9 @@ use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Translation\Loader as TranslationLoader;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 abstract class ServiceProvider
 {

@@ -6,12 +6,12 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Hypervel\View\Contracts\View as ViewContract;
 
 class ViewWatcher extends Watcher
 {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hypervel\Config\Repository;
-use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\View\Factory as FactoryContract;
 
 class MarkdownFactory
 {
