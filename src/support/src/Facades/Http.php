@@ -70,6 +70,7 @@ use Hypervel\Http\Client\Factory;
  * @method static \Hypervel\Http\Client\PendingRequest maxRedirects(int $max)
  * @method static \Hypervel\Http\Client\PendingRequest withoutRedirecting()
  * @method static \Hypervel\Http\Client\PendingRequest withoutVerifying()
+ * @method static \Hypervel\Http\Client\PendingRequest withoutTelescope()
  * @method static \Hypervel\Http\Client\PendingRequest sink(resource|string $to)
  * @method static \Hypervel\Http\Client\PendingRequest timeout(int|float $seconds)
  * @method static \Hypervel\Http\Client\PendingRequest connectTimeout(int|float $seconds)

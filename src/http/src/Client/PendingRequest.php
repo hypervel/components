@@ -591,6 +591,14 @@ class PendingRequest
     }
 
     /**
+     * Indicate that Telescope should not record this request.
+     */
+    public function withoutTelescope(): static
+    {
+        return $this->withAttributes(['telescope' => false]);
+    }
+
+    /**
      * Add a new "before sending" callback to the request.
      */
     public function beforeSending(callable $callback): static
