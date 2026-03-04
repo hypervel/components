@@ -21,6 +21,11 @@ class Request implements ArrayAccess
     protected array $data = [];
 
     /**
+     * The attribute data passed when building the PendingRequest.
+     */
+    protected array $attributes = [];
+
+    /**
      * Create a new request instance.
      */
     public function __construct(protected RequestInterface $request)
@@ -221,6 +226,24 @@ class Request implements ArrayAccess
             unset($query[$key]);
         }
         $this->request = $this->request->withUri($this->request->getUri()->withQuery(http_build_query($query)));
+
+        return $this;
+    }
+
+    /**
+     * Get the attribute data from the request.
+     */
+    public function attributes(): array
+    {
+        return $this->attributes;
+    }
+
+    /**
+     * Set the request's attribute data.
+     */
+    public function setRequestAttributes(array $attributes): static
+    {
+        $this->attributes = $attributes;
 
         return $this;
     }
