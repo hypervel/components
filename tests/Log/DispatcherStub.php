@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Log;
 
 use Closure;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Events\QueuedClosure;
 
 class DispatcherStub implements Dispatcher

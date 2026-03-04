@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Telescope\EntryType;

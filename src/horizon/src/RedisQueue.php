@@ -7,7 +7,7 @@ namespace Hypervel\Horizon;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\Events\JobPushed;

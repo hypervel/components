@@ -9,7 +9,7 @@ use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use TypeError;

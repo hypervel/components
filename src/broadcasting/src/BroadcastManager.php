@@ -20,12 +20,10 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory as Queue;
-use Hypervel\Foundation\Http\Kernel;
-use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
-use Hypervel\HttpServer\Contracts\RequestInterface;
-use Hypervel\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
@@ -70,27 +68,17 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Register the routes for handling broadcast channel authentication and sockets.
      */
-    public function routes(array $attributes = []): void
+    public function routes(?array $attributes = null): void
     {
-        if ($this->app->has(Kernel::class)) {
-            $attributes = $attributes ?: [
-                'middleware' => ['web'],
-                'without_middleware' => [VerifyCsrfToken::class],
-            ];
-        }
+        $attributes = $attributes ?: ['middleware' => ['web']];
 
-        $kernels = $this->app->make('config')
-            ->get('server.kernels', []);
-        foreach (array_keys($kernels) as $kernel) {
-            $this->app->make(RouterDispatcherFactory::class)
-                ->getRouter($kernel)
-                ->addRoute(
-                    ['GET', 'POST'],
-                    '/broadcasting/auth',
-                    [BroadcastController::class, 'authenticate'],
-                    $attributes,
-                );
-        }
+        $this->app['router']->group($attributes, function ($router) {
+            $router->match(
+                ['get', 'post'],
+                '/broadcasting/auth',
+                '\\' . BroadcastController::class . '@authenticate'
+            )->withoutMiddleware([PreventRequestForgery::class]);
+        });
     }
 
     /**
@@ -98,18 +86,15 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function userRoutes(?array $attributes = null): void
     {
-        $attributes = $attributes ?: [
-            'middleware' => ['web'],
-            'without_middleware' => [VerifyCsrfToken::class],
-        ];
+        $attributes = $attributes ?: ['middleware' => ['web']];
 
-        $this->app->make(RouterDispatcherFactory::class)->getRouter('http')
-            ->addRoute(
-                ['GET', 'POST'],
+        $this->app['router']->group($attributes, function ($router) {
+            $router->match(
+                ['get', 'post'],
                 '/broadcasting/user-auth',
-                [BroadcastController::class, 'authenticateUser'],
-                $attributes,
-            );
+                '\\' . BroadcastController::class . '@authenticateUser'
+            )->withoutMiddleware([PreventRequestForgery::class]);
+        });
     }
 
     /**
@@ -125,9 +110,13 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Get the socket ID for the given request.
      */
-    public function socket(?RequestInterface $request = null): ?string
+    public function socket(?Request $request = null): ?string
     {
-        $request ??= $this->app->make(RequestInterface::class);
+        if (! $request && ! $this->app->bound('request')) {
+            return null;
+        }
+
+        $request = $request ?: $this->app['request'];
 
         return $request->header('X-Socket-ID');
     }

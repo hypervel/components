@@ -6,7 +6,7 @@ namespace Hypervel\ServerProcess;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;

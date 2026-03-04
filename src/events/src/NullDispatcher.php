@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Events;
 
 use Closure;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Support\Traits\ForwardsCalls;
 
 class NullDispatcher implements DispatcherContract

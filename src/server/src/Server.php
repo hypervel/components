@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Server;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Framework\Bootstrap;
 use Hypervel\Framework\Events\BeforeMainServerStart;

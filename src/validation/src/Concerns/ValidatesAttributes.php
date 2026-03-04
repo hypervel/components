@@ -19,7 +19,7 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -1027,7 +1027,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        return in_array(strtolower($value->getExtension()), $parameters);
+        return in_array(strtolower($value->getClientOriginalExtension()), $parameters);
     }
 
     /**
@@ -1376,7 +1376,7 @@ trait ValidatesAttributes
             $parameters = array_unique(array_merge($parameters, ['jpg', 'jpeg']));
         }
 
-        return $value->getPath() !== '' && in_array($value->getExtension(), $parameters);
+        return $value->getPath() !== '' && in_array($value->guessExtension(), $parameters);
     }
 
     /**
@@ -1421,7 +1421,9 @@ trait ValidatesAttributes
             'phar',
         ];
 
-        return in_array(trim(strtolower($value->getExtension())), $phpExtensions);
+        return ($value instanceof UploadedFile)
+            ? in_array(trim(strtolower($value->getClientOriginalExtension())), $phpExtensions)
+            : in_array(trim(strtolower($value->getExtension())), $phpExtensions);
     }
 
     /**

@@ -10,7 +10,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Job as QueueJobContract;
 use Hypervel\Contracts\Queue\Queue;

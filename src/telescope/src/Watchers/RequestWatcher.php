@@ -6,50 +6,36 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
-use Hypervel\HttpServer\Router\Dispatched;
 use Hypervel\HttpServer\Server as HttpServer;
 use Hypervel\Server\Event;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Throwable;
+use Hypervel\View\View;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class RequestWatcher extends Watcher
 {
-    /**
-     * The request methods that should be ignored.
-     */
-    protected ?array $ignoreHttpMethods = null;
-
-    /**
-     * The container instance.
-     */
-    protected ?RequestContract $request = null;
-
     /**
      * The entries repository.
      */
     protected ?EntriesRepository $entriesRepository = null;
 
     /**
-     * The request options.
-     */
-    protected array $requestOptions = [];
-
-    /**
      * Register the watcher.
      */
     public function register(Container $app): void
     {
-        $this->request = $app->make(RequestContract::class);
         $this->entriesRepository = $app->make(EntriesRepository::class);
 
         $this->enableRequestEvents($app);
@@ -85,30 +71,28 @@ class RequestWatcher extends Watcher
     public function recordRequest(RequestHandled $event): void
     {
         if (! Telescope::isRecording()
-            || $this->shouldIgnoreHttpMethod($event->request)
-            || $this->shouldIgnoreStatusCode($event->response)
+            || $this->shouldIgnoreHttpMethod($event)
+            || $this->shouldIgnoreStatusCode($event)
         ) {
             return;
         }
 
-        $startTime = $event->request->getServerParams()['request_time_float'];
+        $startTime = (float) $event->request->server('REQUEST_TIME_FLOAT');
 
-        /** @var Dispatched $dispatched */
-        $dispatched = $event->request->getAttribute(Dispatched::class);
         Telescope::recordRequest(IncomingEntry::make([
-            'ip_address' => $this->request->ip(),
-            'uri' => str_replace($this->request->root(), '', $this->request->fullUrl()) ?: '/',
-            'method' => $this->request->method(),
-            'controller_action' => $dispatched->handler ? $dispatched->handler->callback : '',
-            'middleware' => Context::get('__request.middleware', []),
-            'headers' => $this->headers($this->request->getHeaders()),
-            'payload' => $this->payload($this->input()),
-            'session' => $this->payload($this->sessionVariables()),
-            'response_headers' => $this->headers($event->response->getHeaders()),
+            'ip_address' => $event->request->ip(),
+            'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
+            'method' => $event->request->method(),
+            'controller_action' => $event->request->route()?->getActionName(),
+            'middleware' => array_values($event->request->route()?->gatherMiddleware() ?? []),
+            'headers' => $this->headers($event->request->headers->all()),
+            'payload' => $this->payload($this->input($event->request)),
+            'session' => $this->payload($this->sessionVariables($event->request)),
+            'response_headers' => $this->headers($event->response->headers->all()),
             'response_status' => $event->response->getStatusCode(),
             'response' => $this->response($event->response),
             'context' => $this->getContext(),
-            'duration' => $startTime ? floor((microtime(true) - $startTime) * 1000) : null,
+            'duration' => $startTime > 0 ? floor((microtime(true) - $startTime) * 1000) : null,
             'memory' => round(memory_get_peak_usage(true) / 1024 / 1024, 1),
         ]));
 
@@ -119,27 +103,23 @@ class RequestWatcher extends Watcher
     /**
      * Determine if the request should be ignored based on its method.
      */
-    protected function shouldIgnoreHttpMethod(ServerRequestInterface $request): bool
+    protected function shouldIgnoreHttpMethod(RequestHandled $event): bool
     {
-        $ignoreHttpMethods = is_null($this->ignoreHttpMethods)
-            ? $this->ignoreHttpMethods = Collection::make($this->options['ignore_http_methods'] ?? [])->map(function ($method) {
+        return in_array(
+            strtolower($event->request->method()),
+            Collection::make($this->options['ignore_http_methods'] ?? [])->map(function ($method) {
                 return strtolower($method);
             })->all()
-            : $this->ignoreHttpMethods;
-
-        return in_array(
-            strtolower($request->getMethod()),
-            $ignoreHttpMethods
         );
     }
 
     /**
      * Determine if the request should be ignored based on its status code.
      */
-    protected function shouldIgnoreStatusCode(ResponseInterface $response): bool
+    protected function shouldIgnoreStatusCode(RequestHandled $event): bool
     {
         return in_array(
-            $response->getStatusCode(),
+            $event->response->getStatusCode(),
             $this->options['ignore_status_codes'] ?? []
         );
     }
@@ -162,8 +142,12 @@ class RequestWatcher extends Watcher
     /**
      * Format the given payload.
      */
-    protected function payload(array $payload): array
+    protected function payload(array|string $payload): array|string
     {
+        if (is_string($payload)) {
+            return $payload;
+        }
+
         return $this->hideParameters(
             $payload,
             Telescope::$hiddenRequestParameters
@@ -187,65 +171,65 @@ class RequestWatcher extends Watcher
     /**
      * Extract the session variables from the given request.
      */
-    private function sessionVariables(): array
+    private function sessionVariables(Request $request): array
     {
-        return $this->request->hasSession()
-            ? $this->request->session()->all()
-            : [];
+        return $request->hasSession() ? $request->session()->all() : [];
     }
 
     /**
      * Extract the input from the given request.
      */
-    private function input(): array
+    private function input(Request $request): array|string
     {
-        $files = $this->request->getUploadedFiles();
+        if (Str::startsWith(strtolower($request->headers->get('Content-Type') ?? ''), 'text/plain')) {
+            return (string) $request->getContent();
+        }
 
-        array_walk_recursive($files, static function (&$file) {
+        $files = $request->files->all();
+
+        array_walk_recursive($files, function (&$file) {
             $file = [
                 'name' => $file->getClientOriginalName(),
                 'size' => $file->isFile() ? ($file->getSize() / 1000) . 'KB' : '0',
             ];
         });
 
-        return array_replace_recursive($this->request->all(), $files);
+        return array_replace_recursive($request->input(), $files);
     }
 
     /**
      * Format the given response object.
      */
-    protected function response(ResponseInterface $response): array|string
+    protected function response(Response $response): array|string
     {
-        $stream = $response->getBody();
+        $content = $response->getContent();
 
-        try {
-            if ($stream->isSeekable()) {
-                $stream->rewind();
+        if (is_string($content)) {
+            if (is_array(json_decode($content, true))
+                && json_last_error() === JSON_ERROR_NONE
+            ) {
+                return $this->contentWithinLimits($content)
+                    ? $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters)
+                    : 'Purged By Telescope';
             }
 
-            $content = $stream->getContents();
-        } catch (Throwable $e) {
-            return 'Purged By Telescope: ' . $e->getMessage();
+            if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
+                return $this->contentWithinLimits($content) ? $content : 'Purged By Telescope';
+            }
         }
 
-        if (! $this->contentWithinLimits($content)) {
-            return 'Purged By Telescope';
-        }
-        if (is_array(json_decode($content, true))
-            && json_last_error() === JSON_ERROR_NONE
-        ) {
-            return $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters);
-        }
-        if (Str::startsWith(strtolower($response->getHeaderLine('Content-Type') ?: ''), 'text/plain')) {
-            return $content;
+        if ($response instanceof RedirectResponse) {
+            return 'Redirected to ' . $response->getTargetUrl();
         }
 
-        $statusCode = $response->getStatusCode();
-        if ($statusCode >= 300 && $statusCode < 400) {
-            return 'Redirected to ' . $response->getHeaderLine('Location');
+        if ($response instanceof HypervelResponse && $response->getOriginalContent() instanceof View) {
+            return [
+                'view' => $response->getOriginalContent()->getPath(),
+                'data' => $this->extractDataFromView($response->getOriginalContent()),
+            ];
         }
 
-        if (empty($content)) {
+        if (is_string($content) && empty($content)) {
             return 'Empty Response';
         }
 
@@ -260,6 +244,28 @@ class RequestWatcher extends Watcher
         $limit = $this->options['size_limit'] ?? 64;
 
         return intdiv(mb_strlen($content), 1000) <= $limit;
+    }
+
+    /**
+     * Extract the data from the given view in array form.
+     */
+    protected function extractDataFromView(View $view): array
+    {
+        return Collection::make($view->getData())->map(function ($value) {
+            if ($value instanceof Model) {
+                return FormatModel::given($value);
+            }
+            if (is_object($value)) {
+                return [
+                    'class' => get_class($value),
+                    'properties' => method_exists($value, 'formatForTelescope')
+                        ? $value->formatForTelescope()
+                        : json_decode(json_encode($value), true),
+                ];
+            }
+
+            return json_decode(json_encode($value), true);
+        })->toArray();
     }
 
     /**

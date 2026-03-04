@@ -17,7 +17,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;

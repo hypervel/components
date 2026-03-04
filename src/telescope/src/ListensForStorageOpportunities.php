@@ -9,8 +9,8 @@ use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
@@ -65,7 +65,7 @@ trait ListensForStorageOpportunities
         $app->make(Dispatcher::class)
             ->listen(RequestReceived::class, function ($event) use ($app) {
                 if (static::shouldListen()
-                    && static::requestIsToApprovedUri($app->make(RequestContract::class))
+                    && static::requestIsToApprovedUri($app->make(Request::class))
                 ) {
                     static::startRecording();
                 }

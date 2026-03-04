@@ -30,7 +30,6 @@
         "hypervel/validation": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
-        "hypervel/dispatcher": "^0.4",
         "hypervel/exception-handler": "^0.4",
         "hypervel/framework": "^0.4",
         "hypervel/http-server": "^0.4",

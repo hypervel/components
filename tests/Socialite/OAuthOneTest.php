@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\One\MissingTemporaryCredentialsException;
 use Hypervel\Socialite\One\MissingVerifierException;
 use Hypervel\Socialite\One\User as SocialiteUser;
@@ -17,7 +17,6 @@ use League\OAuth1\Client\Credentials\TokenCredentials;
 use League\OAuth1\Client\Server\Twitter;
 use League\OAuth1\Client\Server\User;
 use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
 
 /**
  * @internal
@@ -31,20 +30,17 @@ class OAuthOneTest extends TestCase
         $temp = m::mock(TemporaryCredentials::class);
         $server->expects('getTemporaryCredentials')->andReturns($temp);
         $server->expects('getAuthorizationUrl')->with($temp)->andReturns('http://auth.url');
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->once()
             ->andReturn($session = m::mock(SessionContract::class));
         $session->expects('put')->with('oauth.temp', $temp);
-        $response = m::mock(ResponseContract::class);
-        $response->shouldReceive('redirect')
-            ->once()
-            ->with('http://auth.url')
-            ->andReturn($redirectResponse = m::mock(ResponseInterface::class));
 
-        $provider = new OAuthOneTestProviderStub($request, $response, $server);
+        $provider = new OAuthOneTestProviderStub($request, $server);
+        $response = $provider->redirect();
 
-        $this->assertSame($redirectResponse, $provider->redirect());
+        $this->assertInstanceOf(RedirectResponse::class, $response);
+        $this->assertSame('http://auth.url', $response->getTargetUrl());
     }
 
     public function testUserReturnsAUserInstanceForTheAuthenticatedRequest()
@@ -61,7 +57,7 @@ class OAuthOneTest extends TestCase
         $user->email = 'foo@bar.com';
         $user->extra = ['extra' => 'extra'];
 
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('has')
             ->andReturn(true);
         $request->shouldReceive('input')
@@ -77,11 +73,7 @@ class OAuthOneTest extends TestCase
             ->andReturn($session = m::mock(SessionContract::class));
         $session->expects('get')->with('oauth.temp')->andReturns($temp);
 
-        $provider = new OAuthOneTestProviderStub(
-            $request,
-            m::mock(ResponseContract::class),
-            $server
-        );
+        $provider = new OAuthOneTestProviderStub($request, $server);
         $user = $provider->user();
 
         $this->assertInstanceOf(SocialiteUser::class, $user);
@@ -95,15 +87,11 @@ class OAuthOneTest extends TestCase
         $this->expectException(MissingVerifierException::class);
 
         $server = m::mock(Twitter::class);
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('has')
             ->andReturn(false);
 
-        $provider = new OAuthOneTestProviderStub(
-            $request,
-            m::mock(ResponseContract::class),
-            $server
-        );
+        $provider = new OAuthOneTestProviderStub($request, $server);
         $provider->user();
     }
 
@@ -112,7 +100,7 @@ class OAuthOneTest extends TestCase
         $this->expectException(MissingTemporaryCredentialsException::class);
 
         $server = m::mock(Twitter::class);
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('has')
             ->andReturn(true);
         $request->shouldReceive('session')
@@ -120,11 +108,7 @@ class OAuthOneTest extends TestCase
             ->andReturn($session = m::mock(SessionContract::class));
         $session->expects('get')->with('oauth.temp')->andReturns(null);
 
-        $provider = new OAuthOneTestProviderStub(
-            $request,
-            m::mock(ResponseContract::class),
-            $server
-        );
+        $provider = new OAuthOneTestProviderStub($request, $server);
         $provider->user();
     }
 }

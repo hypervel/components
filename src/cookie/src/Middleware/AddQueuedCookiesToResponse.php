@@ -4,33 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie\Middleware;
 
-use Hypervel\Context\Context;
+use Closure;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
-use Hypervel\Support\Arr;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class AddQueuedCookiesToResponse implements MiddlewareInterface
+class AddQueuedCookiesToResponse
 {
+    /**
+     * Create a new CookieQueue instance.
+     */
     public function __construct(
-        protected CookieContract $cookie
+        protected CookieContract $cookies,
     ) {
     }
 
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
     {
-        $response = $handler->handle($request);
-        if (! $cookies = $this->cookie->getQueuedCookies()) {
-            return $response;
-        }
+        $response = $next($request);
 
-        foreach (Arr::flatten($cookies) as $cookie) {
-            $response = $response->withCookie($cookie);
+        foreach ($this->cookies->getQueuedCookies() as $cookie) {
+            $response->headers->setCookie($cookie);
         }
-
-        Context::set(ResponseInterface::class, $response);
 
         return $response;
     }

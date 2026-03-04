@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Eloquent;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\NullDispatcher;
 use Hypervel\Testbench\TestCase;

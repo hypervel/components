@@ -9,7 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Exception;
 use Generator;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\Events\TransactionBeginning;

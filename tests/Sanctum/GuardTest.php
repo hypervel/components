@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
@@ -15,7 +15,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\TestUser;
+use Hypervel\Tests\Sanctum\Stubs\TestUser;
 use Mockery as m;
 
 /**

@@ -6,16 +6,18 @@ namespace Hypervel\Http\Resources\Json;
 
 use ArrayAccess;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Attributes\PreserveKeys;
 use Hypervel\Http\Resources\ConditionallyLoadsAttributes;
 use Hypervel\Http\Resources\DelegatesToResource;
 use JsonException;
 use JsonSerializable;
+use ReflectionClass;
 
 class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRoutable
 {
@@ -33,7 +35,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     public array $with = [];
 
     /**
-     * The additional meta data that should be added to the resource response.
+     * The additional metadata that should be added to the resource response.
      *
      * Added during response construction by the developer.
      */
@@ -71,9 +73,16 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     public static function collection(mixed $resource): AnonymousResourceCollection
     {
         return tap(static::newCollection($resource), function ($collection) {
-            if (property_exists(static::class, 'preserveKeys')) {
-                /* @phpstan-ignore property.notFound (checked by property_exists above) */
-                $collection->preserveKeys = (new static([]))->preserveKeys === true;
+            if (! array_key_exists(static::class, static::$cachedPreserveKeysAttributes)) {
+                static::$cachedPreserveKeysAttributes[static::class] = count(
+                    (new ReflectionClass(static::class))->getAttributes(PreserveKeys::class)
+                ) > 0;
+            }
+
+            if (static::$cachedPreserveKeysAttributes[static::class]) {
+                $collection->preserveKeys = true;
+            } elseif (property_exists(static::class, 'preserveKeys')) {
+                $collection->preserveKeys = (new static([]))->preserveKeys === true; /* @phpstan-ignore property.notFound (guarded by property_exists) */
             }
         });
     }
@@ -141,7 +150,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to JSON.
      *
-     * @throws JsonEncodingException
+     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
      */
     public function toJson(int $options = 0): string
     {
@@ -157,7 +166,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to pretty print formatted JSON.
      *
-     * @throws JsonEncodingException
+     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
      */
     public function toPrettyJson(int $options = 0): string
     {
@@ -173,7 +182,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     }
 
     /**
-     * Add additional meta data to the resource response.
+     * Add additional metadata to the resource response.
      */
     public function additional(array $data): static
     {
@@ -208,7 +217,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Set the string that should wrap the outer-most resource array.
      */
-    public static function wrap(?string $value): void
+    public static function wrap(string $value): void
     {
         static::$wrap = $value;
     }

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\FacebookProvider;
@@ -32,6 +30,23 @@ class SocialiteManager extends Manager implements Contracts\Factory
     public function with(string $driver): mixed
     {
         return $this->driver($driver);
+    }
+
+    /**
+     * Get a driver instance.
+     *
+     * Refreshes the request on cached providers so each coroutine
+     * gets the current request, not a stale one from first resolution.
+     */
+    public function driver(?string $driver = null): mixed
+    {
+        $provider = parent::driver($driver);
+
+        if ($provider instanceof Two\AbstractProvider || $provider instanceof One\AbstractProvider) {
+            $provider->setRequest($this->container->make('request'));
+        }
+
+        return $provider;
     }
 
     /**
@@ -191,8 +206,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
         }
 
         return (new $provider(
-            $this->container->make(RequestContract::class),
-            $this->container->make(ResponseContract::class),
+            $this->container->make('request'),
             $config['client_id'],
             $config['client_secret'],
             $this->formatRedirectUrl($config),

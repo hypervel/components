@@ -17,7 +17,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Database\Fixtures\Models\Price;
+use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use ReflectionClass;
 
 /**

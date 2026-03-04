@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ExceptionHandler;
 
-use Hypervel\Contracts\Http\ResponsePlusInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 abstract class ExceptionHandler
@@ -12,7 +12,7 @@ abstract class ExceptionHandler
     /**
      * Handle the exception, and return the specified result.
      */
-    abstract public function handle(Throwable $throwable, ResponsePlusInterface $response);
+    abstract public function handle(Throwable $throwable, Response $response);
 
     /**
      * Determine if the current exception handler should handle the exception.

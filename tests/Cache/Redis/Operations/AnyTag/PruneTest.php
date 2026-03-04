@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stubs\FakeRedisClient;
 use Mockery as m;
 
 /**

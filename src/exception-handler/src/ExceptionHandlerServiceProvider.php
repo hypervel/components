@@ -6,7 +6,7 @@ namespace Hypervel\ExceptionHandler;
 
 use Hypervel\ExceptionHandler\Formatter\DefaultFormatter;
 use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\ExceptionHandler\Listener\ExceptionHandlerListener;
+use Hypervel\ExceptionHandler\Listeners\ExceptionHandlerListener;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\ServiceProvider;
 

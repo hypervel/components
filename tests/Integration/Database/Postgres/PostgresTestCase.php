@@ -7,6 +7,10 @@ namespace Hypervel\Tests\Integration\Database\Postgres;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('pgsql')]
 abstract class PostgresTestCase extends DatabaseTestCase
 {

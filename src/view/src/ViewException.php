@@ -6,9 +6,9 @@ namespace Hypervel\View;
 
 use ErrorException;
 use Hypervel\Container\Container;
+use Hypervel\Http\Request;
 use Hypervel\Support\Reflector;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\HttpFoundation\Response;
 
 class ViewException extends ErrorException
 {
@@ -29,7 +29,7 @@ class ViewException extends ErrorException
     /**
      * Render the exception into an HTTP response.
      */
-    public function render(RequestInterface $request): ?ResponseInterface
+    public function render(Request $request): ?Response
     {
         $exception = $this->getPrevious();
 

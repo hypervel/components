@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Framework\Bootstrap;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Framework\Events\OnReceive;
 use Swoole\Server;
 

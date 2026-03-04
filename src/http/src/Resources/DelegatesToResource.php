@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http\Resources;
 
 use Exception;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 
@@ -35,7 +36,7 @@ trait DelegatesToResource
      *
      * @throws Exception
      */
-    public function resolveRouteBinding(mixed $value, ?string $field = null)
+    public function resolveRouteBinding(mixed $value, ?string $field = null): never
     {
         throw new Exception('Resources may not be implicitly resolved from route bindings.');
     }
@@ -45,48 +46,39 @@ trait DelegatesToResource
      *
      * @throws Exception
      */
-    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field = null)
+    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field = null): ?Model
     {
         throw new Exception('Resources may not be implicitly resolved from child route bindings.');
     }
 
     /**
      * Determine if the given attribute exists.
-     *
-     * @param mixed $offset
      */
-    public function offsetExists($offset): bool
+    public function offsetExists(mixed $offset): bool
     {
         return isset($this->resource[$offset]);
     }
 
     /**
      * Get the value for a given offset.
-     *
-     * @param mixed $offset
      */
-    public function offsetGet($offset): mixed
+    public function offsetGet(mixed $offset): mixed
     {
         return $this->resource[$offset];
     }
 
     /**
      * Set the value for a given offset.
-     *
-     * @param mixed $offset
-     * @param mixed $value
      */
-    public function offsetSet($offset, $value): void
+    public function offsetSet(mixed $offset, mixed $value): void
     {
         $this->resource[$offset] = $value;
     }
 
     /**
      * Unset the value for a given offset.
-     *
-     * @param mixed $offset
      */
-    public function offsetUnset($offset): void
+    public function offsetUnset(mixed $offset): void
     {
         unset($this->resource[$offset]);
     }

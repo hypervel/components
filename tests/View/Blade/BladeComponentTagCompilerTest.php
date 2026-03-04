@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;

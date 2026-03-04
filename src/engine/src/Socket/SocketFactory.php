@@ -7,7 +7,7 @@ namespace Hypervel\Engine\Socket;
 use Hypervel\Contracts\Engine\Socket\SocketFactoryInterface;
 use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
 use Hypervel\Contracts\Engine\SocketInterface;
-use Hypervel\Engine\Exception\SocketConnectException;
+use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\Socket;
 
 class SocketFactory implements SocketFactoryInterface

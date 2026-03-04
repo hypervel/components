@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console;
 
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Console\Command\GeneratorCommandStub;
+use Hypervel\Tests\Console\Commands\GeneratorCommandStub;
 use Mockery as m;
 use ReflectionProperty;
 use Symfony\Component\Console\Input\InputInterface;

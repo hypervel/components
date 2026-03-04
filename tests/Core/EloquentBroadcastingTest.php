@@ -10,7 +10,6 @@ use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
 use Hypervel\Database\Eloquent\BroadcastsEvents;
-use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -75,7 +74,6 @@ class EloquentBroadcastingTest extends TestCase
     {
         Event::fake([
             BroadcastableModelEventOccurred::class,
-            Created::class,
         ]);
 
         $model = new SoftDeletableTestEloquentBroadcastUser();

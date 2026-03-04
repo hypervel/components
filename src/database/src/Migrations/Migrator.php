@@ -12,7 +12,7 @@ use Hypervel\Console\View\Components\Task;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Events\MigrationEnded;

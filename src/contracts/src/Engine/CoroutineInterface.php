@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Engine;
 
 use ArrayObject;
-use Hypervel\Engine\Exception\CoroutineDestroyedException;
-use Hypervel\Engine\Exception\RunningInNonCoroutineException;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 
 interface CoroutineInterface
 {

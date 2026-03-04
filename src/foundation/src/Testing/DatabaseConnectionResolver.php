@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;

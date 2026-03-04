@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Support\Carbon;

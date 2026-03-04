@@ -10,8 +10,8 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
-use Hypervel\Pool\Exception\InvalidArgumentException;
-use Hypervel\Pool\Exception\SocketPopException;
+use Hypervel\Pool\Exceptions\InvalidArgumentException;
+use Hypervel\Pool\Exceptions\SocketPopException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 

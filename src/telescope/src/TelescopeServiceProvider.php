@@ -52,14 +52,10 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            config('telescope.path'),
-            __DIR__ . '/../routes/web.php',
-            [
-                'namespace' => 'Hypervel\Telescope\Http\Controllers',
-                'middleware' => config('telescope.middleware', []),
-            ]
-        );
+        Route::middleware(config('telescope.middleware', []))
+            ->prefix(config('telescope.path'))
+            ->namespace('Hypervel\Telescope\Http\Controllers')
+            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**

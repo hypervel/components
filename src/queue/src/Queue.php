@@ -11,7 +11,7 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;

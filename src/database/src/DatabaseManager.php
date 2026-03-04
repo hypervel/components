@@ -268,16 +268,24 @@ class DatabaseManager implements ConnectionResolverInterface
      * In pooled mode, this nulls the PDOs on the current coroutine's connection
      * (if one exists), forcing a reconnect on the next query. Does not clear
      * context or affect the pool - the connection is still released at coroutine end.
+     *
+     * In non-pooled mode (SimpleConnectionResolver), disconnects the connection
+     * stored in the $connections array.
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
         $name = enum_value($name) ?: $this->getDefaultConnection();
         $contextKey = $this->getConnectionContextKey($name);
 
-        // Only act if this coroutine already has a connection
+        // Pooled mode: disconnect the current coroutine's connection
         $connection = Context::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->disconnect();
+        }
+
+        // Non-pooled mode (SimpleConnectionResolver): disconnect from $connections array
+        if (isset($this->connections[$name])) {
+            $this->connections[$name]->disconnect();
         }
     }
 
@@ -285,14 +293,17 @@ class DatabaseManager implements ConnectionResolverInterface
      * Reconnect to the given database.
      *
      * In pooled mode, if this coroutine already has a connection, reconnects
-     * its PDOs and returns it. Otherwise gets a fresh connection from the pool.
+     * its PDOs and returns it. In non-pooled mode, refreshes the existing
+     * connection's PDOs in-place. Otherwise gets a fresh connection.
      */
     public function reconnect(UnitEnum|string|null $name = null): Connection
     {
         $name = enum_value($name) ?: $this->getDefaultConnection();
-        $contextKey = $this->getConnectionContextKey($name);
 
-        // If we already have a connection in this coroutine, reconnect it
+        $this->disconnect($name);
+
+        // Pooled mode: if we already have a connection in this coroutine, reconnect it
+        $contextKey = $this->getConnectionContextKey($name);
         $connection = Context::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->reconnect();
@@ -301,7 +312,14 @@ class DatabaseManager implements ConnectionResolverInterface
             return $connection;
         }
 
-        // Otherwise get a fresh one from the pool
+        // Non-pooled mode: refresh PDOs on existing connection in-place
+        if (isset($this->connections[$name])) {
+            return tap($this->refreshPdoConnections($name), function ($connection) {
+                $this->dispatchConnectionEstablishedEvent($connection);
+            });
+        }
+
+        // No existing connection — get a fresh one
         // @phpstan-ignore return.type (connection() returns ConnectionInterface but concrete Connection in practice)
         return $this->connection($name);
     }

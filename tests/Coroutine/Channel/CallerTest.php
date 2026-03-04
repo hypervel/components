@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine\Channel;
 
 use Hypervel\Coroutine\Channel\Caller;
-use Hypervel\Coroutine\Exception\WaitTimeoutException;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use stdClass;

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth\Access;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
-use Hypervel\Tests\Auth\Stub\AuthorizableStub;
+use Hypervel\Tests\Auth\Stubs\AuthorizableStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;

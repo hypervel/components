@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * @internal

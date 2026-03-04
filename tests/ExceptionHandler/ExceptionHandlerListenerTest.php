@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ExceptionHandler;
 
 use Hypervel\Config\Repository;
-use Hypervel\ExceptionHandler\Listener\ExceptionHandlerListener;
+use Hypervel\ExceptionHandler\Listeners\ExceptionHandlerListener;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Tests\TestCase;
 

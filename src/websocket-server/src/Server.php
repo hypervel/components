@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\WebSocketServer;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Contracts\Server\OnCloseInterface;
@@ -15,140 +16,134 @@ use Hypervel\Contracts\Server\OnMessageInterface;
 use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
-use Hypervel\Dispatcher\HttpDispatcher;
 use Hypervel\Engine\Http\FdGetter;
-use Hypervel\ExceptionHandler\ExceptionHandlerDispatcher;
-use Hypervel\HttpMessage\Base\Response;
-use Hypervel\HttpMessage\Server\Request as Psr7Request;
-use Hypervel\HttpMessage\Server\Response as Psr7Response;
-use Hypervel\HttpServer\Contracts\CoreMiddlewareInterface;
-use Hypervel\HttpServer\MiddlewareManager;
-use Hypervel\HttpServer\ResponseEmitter;
-use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\RequestBridge;
+use Hypervel\HttpServer\ResponseBridge;
+use Hypervel\Routing\Router;
+use Hypervel\Server\Option;
+use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WsContext;
-use Hypervel\WebSocketServer\Exception\Handler\WebSocketExceptionHandler;
-use Hypervel\WebSocketServer\Exception\WebSocketHandShakeException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
+use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\Server as SwooleServer;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 use function Hypervel\Coroutine\defer;
 
 class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
 {
-    protected ?CoreMiddlewareInterface $coreMiddleware = null;
+    protected ?KernelContract $kernel = null;
 
-    protected array $exceptionHandlers = [];
+    protected CoreMiddleware $coreMiddleware;
 
-    protected array $middlewares = [];
+    protected StdoutLoggerInterface $logger;
 
     protected string $serverName = 'websocket';
 
+    protected ?Option $option = null;
+
     public function __construct(
         protected Container $container,
-        protected HttpDispatcher $dispatcher,
-        protected ExceptionHandlerDispatcher $exceptionHandlerDispatcher,
-        protected ResponseEmitter $responseEmitter,
-        protected StdoutLoggerInterface $logger,
     ) {
+        $this->logger = $container->make(StdoutLoggerInterface::class);
     }
 
     /**
-     * Initialize the core middleware and load configuration.
+     * Bootstrap the application and initialize WebSocket components.
+     *
+     * Called by the server boot process (Server\Server::registerSwooleEvents)
+     * before $server->start(). Resolves the HTTP Kernel to ensure the
+     * application is bootstrapped (routes compiled, middleware synced) even
+     * in WS-only setups where HttpServer\Server may not be present.
+     * The hasBeenBootstrapped() guard makes this idempotent.
      */
     public function initCoreMiddleware(string $serverName): void
     {
         $this->serverName = $serverName;
-        $this->coreMiddleware = new CoreMiddleware($this->container, $serverName);
 
-        $config = $this->container->make(Repository::class);
-        $this->middlewares = $config->get('middlewares.' . $serverName, []);
-        $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, [
-            WebSocketExceptionHandler::class,
-        ]);
-    }
+        $this->kernel = $this->container->make(KernelContract::class);
+        $this->kernel->bootstrap();
 
-    /**
-     * Get the Swoole server instance.
-     */
-    public function getServer(): WebSocketServer
-    {
-        /** @var WebSocketServer */
-        return $this->container->make(SwooleServer::class);
-    }
+        // Compile routes and pre-warm all static caches. WS handshake
+        // routes through the Router, so this benefits WS performance too.
+        // Idempotent if HTTP server already ran.
+        $this->container->make(\Hypervel\Routing\Router::class)->compileAndWarm();
 
-    /**
-     * Get the WebSocket sender instance.
-     */
-    public function getSender(): Sender
-    {
-        return $this->container->make(Sender::class);
+        $this->coreMiddleware = new CoreMiddleware($this->container);
+
+        $this->initOption();
     }
 
     /**
      * Handle the WebSocket handshake request.
+     *
+     * Converts the Swoole request to HttpFoundation, validates the WebSocket
+     * security key, dispatches through the Router for route matching and
+     * middleware execution, then builds the 101 Switching Protocols response.
      */
     public function onHandShake(Request $request, SwooleResponse $response): void
     {
+        $httpResponse = null;
+
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
             Context::set(WsContext::FD, $fd);
-            $security = $this->container->make(Security::class);
 
-            $psr7Response = $this->initResponse();
-            $psr7Request = $this->initRequest($request);
+            // Create HttpFoundation request and seed contexts.
+            // RequestContext is needed for request() helper and container resolution.
+            $httpRequest = RequestBridge::createFromSwoole($request);
+            RequestContext::set($httpRequest);
 
             $this->logger->debug(sprintf('WebSocket: fd[%d] start a handshake request.', $fd));
 
-            $key = $psr7Request->getHeaderLine(Security::SEC_WEBSOCKET_KEY);
-            if ($security->isInvalidSecurityKey($key)) {
+            // Validate sec-websocket-key before routing
+            $key = $httpRequest->headers->get(Security::SEC_WEBSOCKET_KEY);
+            $security = $this->container->make(Security::class);
+            if (! $key || $security->isInvalidSecurityKey($key)) {
                 throw new WebSocketHandShakeException('sec-websocket-key is invalid!');
             }
 
-            $psr7Request = $this->coreMiddleware->dispatch($psr7Request);
-            $middlewares = $this->middlewares;
-            /** @var Dispatched $dispatched */
-            $dispatched = $psr7Request->getAttribute(Dispatched::class);
-            if ($dispatched->isFound()) {
-                $registeredMiddlewares = MiddlewareManager::get($this->serverName, $dispatched->handler->route, $psr7Request->getMethod());
-                $middlewares = array_merge($middlewares, $registeredMiddlewares);
-            }
+            // Route matching + middleware via Router.
+            // dispatchToCallback() performs the full Router context lifecycle
+            // (findRoute, context setup, RouteMatched event, middleware pipeline)
+            // but calls our handshake handler instead of the route's controller.
+            $router = $this->container->make(Router::class);
+            $httpResponse = $router->dispatchToCallback(
+                $httpRequest,
+                fn (HttpRequest $req) => $this->coreMiddleware->handleHandshake($req)
+            );
 
-            /** @var Response $psr7Response */
-            $psr7Response = $this->dispatcher->dispatch($psr7Request, $middlewares, $this->coreMiddleware);
-
-            $class = $psr7Response->getAttribute(CoreMiddleware::HANDLER_NAME);
-
-            if (empty($class)) {
-                $this->logger->warning('WebSocket handshake failed, because the class does not exists.');
+            // If middleware rejected (non-101 response), don't register the fd
+            if ($httpResponse->getStatusCode() !== 101) {
                 return;
             }
+
+            // Get handler class from the matched route
+            $class = $httpRequest->route()->getControllerClass();
 
             FdCollector::set($fd, $class);
             $server = $this->getServer();
             $this->deferOnOpen($request, $class, $server, $fd);
         } catch (Throwable $throwable) {
-            // Delegate the exception to exception handler.
-            $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
-                return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
-            }, static function () {
-                return (new Psr7Response())->withStatus(400);
-            });
+            $httpResponse = $this->container->make(SafeCaller::class)->call(
+                fn () => $this->handleException($throwable),
+                static fn () => new Response('Bad Request', 400)
+            );
 
             isset($fd) && FdCollector::del($fd);
             isset($fd) && WsContext::release($fd);
         } finally {
-            // Send the Response to client.
-            if (isset($psr7Response) && $psr7Response instanceof ResponseInterface) {
-                $this->responseEmitter->emit($psr7Response, $response, true);
+            if ($httpResponse instanceof Response) {
+                ResponseBridge::send($httpResponse, $response);
             }
         }
     }
@@ -210,6 +205,56 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     }
 
     /**
+     * Handle an exception that occurred during the handshake.
+     *
+     * Subclasses (e.g. Foundation\Http\WebsocketKernel) override this to
+     * use the application's exception handler instead of the default.
+     */
+    protected function handleException(Throwable $throwable): Response
+    {
+        $handler = $this->container->make(WebSocketExceptionHandler::class);
+
+        return $handler->handle($throwable, new Response());
+    }
+
+    /**
+     * Get the Swoole server instance.
+     */
+    public function getServer(): WebSocketServer
+    {
+        /** @var WebSocketServer */
+        return $this->container->make(SwooleServer::class);
+    }
+
+    /**
+     * Get the WebSocket sender instance.
+     */
+    public function getSender(): Sender
+    {
+        return $this->container->make(Sender::class);
+    }
+
+    /**
+     * Get the server name.
+     */
+    public function getServerName(): string
+    {
+        return $this->serverName;
+    }
+
+    /**
+     * Set the server name.
+     *
+     * @return $this
+     */
+    public function setServerName(string $serverName): static
+    {
+        $this->serverName = $serverName;
+
+        return $this;
+    }
+
+    /**
      * Get the file descriptor from the response.
      */
     protected function getFd(SwooleResponse $response): int
@@ -231,22 +276,21 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     }
 
     /**
-     * Initialize PSR-7 Request from the Swoole request.
+     * Initialize the server option from the server config.
      */
-    protected function initRequest(Request $request): ServerRequestInterface
+    protected function initOption(): void
     {
-        $psr7Request = Psr7Request::loadFromSwooleRequest($request);
-        Context::set(ServerRequestInterface::class, $psr7Request);
-        WsContext::set(ServerRequestInterface::class, $psr7Request);
-        return $psr7Request;
-    }
+        $ports = $this->container->make(ServerFactory::class)->getConfig()?->getServers();
+        if (! $ports) {
+            return;
+        }
 
-    /**
-     * Initialize PSR-7 Response.
-     */
-    protected function initResponse(): ResponseInterface
-    {
-        Context::set(ResponseInterface::class, $psr7Response = new Psr7Response());
-        return $psr7Response;
+        foreach ($ports as $port) {
+            if ($port->getName() === $this->serverName) {
+                $this->option = $port->getOptions();
+            }
+        }
+
+        $this->option ??= Option::make([]);
     }
 }

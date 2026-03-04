@@ -7,14 +7,12 @@ namespace Hypervel\Http\Resources\Json;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
-use Override;
 
 class PaginatedResourceResponse extends ResourceResponse
 {
     /**
      * Create an HTTP response that represents the object.
      */
-    #[Override]
     public function toResponse(Request $request): JsonResponse
     {
         return tap(response()->json(
@@ -79,7 +77,7 @@ class PaginatedResourceResponse extends ResourceResponse
     }
 
     /**
-     * Gather the meta data for the response.
+     * Gather the metadata for the response.
      */
     protected function meta(array $paginated): array
     {

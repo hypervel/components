@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pool;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\Pool;
 use Hypervel\Pool\PoolOption;
-use Hypervel\Tests\Pool\Stub\ActiveConnectionStub;
+use Hypervel\Tests\Pool\Stubs\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

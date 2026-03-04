@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Events\ReleaseConnection;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
 /**
- * Wraps a database Connection for use with Hyperf's connection pool.
+ * Wraps a database Connection for use with Hypervel's connection pool.
  *
- * This adapter implements Hyperf's pool ConnectionInterface, allowing our
- * Laravel-ported Connection to work with Hyperf's pooling infrastructure.
+ * This adapter implements Hypervel's pool ConnectionInterface, allowing our
+ * Laravel-ported Connection to work with Hypervel's pooling infrastructure.
  */
 class PooledConnection implements PoolConnectionInterface
 {
@@ -61,12 +61,7 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function getConnection(): Connection
     {
-        try {
-            return $this->getActiveConnection();
-        } catch (Throwable $exception) {
-            $this->logger->warning('Get connection failed, try again. ' . $exception);
-            return $this->getActiveConnection();
-        }
+        return $this->getActiveConnection();
     }
 
     /**
@@ -122,7 +117,8 @@ class PooledConnection implements PoolConnectionInterface
             $this->refresh($connection);
         });
 
-        // Dispatch connection established event
+        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
+        // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->has(Dispatcher::class)) {
             $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($this->connection)
@@ -251,7 +247,8 @@ class PooledConnection implements PoolConnectionInterface
             $this->logger->warning('Database connection refreshed.');
         }
 
-        // Dispatch connection established event (fetching from container to respect fakes)
+        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
+        // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->has(Dispatcher::class)) {
             $this->container->make(Dispatcher::class)->dispatch(
                 new ConnectionEstablished($connection)

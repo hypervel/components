@@ -13,7 +13,7 @@ use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Traits\Macroable;

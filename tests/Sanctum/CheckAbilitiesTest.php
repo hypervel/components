@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\CheckAbilities;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * @internal
@@ -55,8 +55,8 @@ class CheckAbilitiesTest extends TestCase
             }
         };
 
-        $request = m::mock(ServerRequestInterface::class);
-        $response = m::mock(ResponseInterface::class);
+        $request = Request::create('http://example.com');
+        $response = new Response();
 
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('user')->andReturn($user);
@@ -111,7 +111,7 @@ class CheckAbilitiesTest extends TestCase
             }
         };
 
-        $request = m::mock(ServerRequestInterface::class);
+        $request = Request::create('http://example.com');
 
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('user')->andReturn($user);
@@ -130,7 +130,7 @@ class CheckAbilitiesTest extends TestCase
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $request = m::mock(ServerRequestInterface::class);
+        $request = Request::create('http://example.com');
 
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('user')->once()->andReturn(null);
@@ -176,7 +176,7 @@ class CheckAbilitiesTest extends TestCase
             }
         };
 
-        $request = m::mock(ServerRequestInterface::class);
+        $request = Request::create('http://example.com');
 
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('user')->andReturn($user);

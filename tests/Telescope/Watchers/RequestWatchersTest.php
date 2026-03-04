@@ -146,8 +146,8 @@ class RequestWatchersTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame(EntryType::REQUEST, $entry->type);
-        $this->assertSame('first, second', $entry->content['headers']['X-Bar']);
-        $this->assertSame('third, fourth', $entry->content['response_headers']['X-Foo']);
+        $this->assertSame('first, second', $entry->content['headers']['x-bar']);
+        $this->assertSame('third, fourth', $entry->content['response_headers']['x-foo']);
     }
 
     #[RequiresPhpExtension('gd')]

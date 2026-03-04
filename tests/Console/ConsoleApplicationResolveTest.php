@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithArrayInputPrompting;

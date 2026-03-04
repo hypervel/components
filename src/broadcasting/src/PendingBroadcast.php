@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use UnitEnum;
 
 class PendingBroadcast

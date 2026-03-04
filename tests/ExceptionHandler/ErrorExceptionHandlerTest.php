@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ExceptionHandler;
 
 use ErrorException;
-use Hypervel\ExceptionHandler\Listener\ErrorExceptionHandler;
+use Hypervel\ExceptionHandler\Listeners\ErrorExceptionHandler;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\WithoutErrorHandler;

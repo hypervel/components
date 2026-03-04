@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;

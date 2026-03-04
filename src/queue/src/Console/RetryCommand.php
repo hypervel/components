@@ -8,7 +8,7 @@ use __PHP_Incomplete_Class;
 use DateTimeInterface;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;

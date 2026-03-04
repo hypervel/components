@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;

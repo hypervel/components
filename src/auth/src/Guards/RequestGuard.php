@@ -9,7 +9,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
@@ -21,7 +21,7 @@ class RequestGuard implements Guard
     /**
      * The request instance.
      */
-    protected RequestInterface $request;
+    protected Request $request;
 
     /**
      * The callback that should be used to authenticate users.
@@ -34,7 +34,7 @@ class RequestGuard implements Guard
     ) {
         $this->callback = $callback;
         $this->request = Container::getInstance()
-            ->make(RequestInterface::class);
+            ->make(Request::class);
     }
 
     public function user(): ?Authenticatable

@@ -14,7 +14,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
-use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;

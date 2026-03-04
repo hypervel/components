@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -44,7 +44,7 @@ class SanctumServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('sanctum', function ($name, $config) use ($authManager) {
-                $request = $this->app->make(RequestInterface::class);
+                $request = $this->app->make(Request::class);
 
                 // Get the provider
                 $provider = $authManager->createUserProvider($config['provider'] ?? null);
@@ -74,13 +74,8 @@ class SanctumServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            '/',
-            __DIR__ . '/../routes/web.php',
-            [
-                'middleware' => config('sanctum.middleware', 'web'),
-            ]
-        );
+        Route::middleware(config('sanctum.middleware', 'web'))
+            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**

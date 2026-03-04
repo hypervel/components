@@ -9,7 +9,7 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

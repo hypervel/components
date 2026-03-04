@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Routing;
+
+use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
+use ReflectionFunction;
+use ReflectionMethod;
+
+class CallableDispatcher implements CallableDispatcherContract
+{
+    use ResolvesRouteDependencies;
+
+    /**
+     * Cached ReflectionFunction instances keyed by closure object ID.
+     *
+     * Only Closures are cached — they have stable spl_object_id() for the
+     * worker lifetime. Other callable shapes (array, invokable object, string)
+     * are not cached — they're extremely rare in route dispatch.
+     *
+     * @var array<int, ReflectionFunction>
+     */
+    protected static array $reflectionCache = [];
+
+    /**
+     * The container instance.
+     */
+    protected Container $container;
+
+    /**
+     * Create a new callable dispatcher instance.
+     */
+    public function __construct(Container $container)
+    {
+        $this->container = $container;
+    }
+
+    /**
+     * Dispatch a request to a given callable.
+     */
+    public function dispatch(Route $route, callable $callable): mixed
+    {
+        return $callable(...array_values($this->resolveParameters($route, $callable)));
+    }
+
+    /**
+     * Resolve the parameters for the callable.
+     *
+     * Handles all callable shapes that can reach this method via Route::runCallable():
+     * - Closure (most common — direct closure or deserialized SerializableClosure)
+     * - Array callable [ClassName::class, 'method'] (via RouteAction::findCallable())
+     * - Invokable object (via RouteAction::parse() with non-array callable)
+     * - String function name (theoretical — makeInvokable() catches most)
+     */
+    protected function resolveParameters(Route $route, callable $callable): array
+    {
+        if ($callable instanceof Closure) {
+            $reflector = static::$reflectionCache[spl_object_id($callable)]
+                ??= new ReflectionFunction($callable);
+        } elseif (is_array($callable)) {
+            $reflector = new ReflectionMethod($callable[0], $callable[1]);
+        } elseif (is_object($callable)) {
+            $reflector = new ReflectionMethod($callable, '__invoke');
+        } else {
+            $reflector = new ReflectionFunction($callable);
+        }
+
+        return $this->resolveMethodDependencies($route->parametersWithoutNulls(), $reflector);
+    }
+
+    /**
+     * Flush the static reflection cache.
+     */
+    public static function flushCache(): void
+    {
+        static::$reflectionCache = [];
+    }
+}

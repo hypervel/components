@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine\WebSocket;
 
 use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
-use Hypervel\Engine\Exception\InvalidArgumentException;
+use Hypervel\Engine\Exceptions\InvalidArgumentException;
 use Hypervel\Engine\Http\Stream;
 use Psr\Http\Message\StreamInterface;
 use Swoole\WebSocket\Frame as SwooleFrame;

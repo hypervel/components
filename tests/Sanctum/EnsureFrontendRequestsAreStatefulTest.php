@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 
 /**
  * @internal
@@ -24,65 +23,35 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testRequestFromFrontendIsIdentified(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn('https://test.com');
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn(null);
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://test.com']);
 
         $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
     public function testRequestNotFromFrontend(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn('https://wrong.com');
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn(null);
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://wrong.com']);
 
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
     public function testOriginFallback(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn(null);
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn('test.com');
+        $request = Request::create('http://localhost', server: ['HTTP_ORIGIN' => 'test.com']);
 
         $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
     public function testWildcardDomainMatching(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn('https://subdomain.test.com');
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn(null);
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://subdomain.test.com']);
 
         $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
     public function testRequestsWithoutRefererOrOrigin(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn(null);
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn(null);
+        $request = Request::create('http://localhost');
 
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
@@ -98,13 +67,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
     public function testStatefulDomainsCanBeOverridden(): void
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('referer')
-            ->andReturn('https://custom.example.com');
-        $request->shouldReceive('header')
-            ->with('origin')
-            ->andReturn(null);
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://custom.example.com']);
 
         // Default middleware should NOT match custom domain
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));

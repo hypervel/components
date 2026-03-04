@@ -6,7 +6,7 @@ namespace Hypervel\Validation\Concerns;
 
 use Closure;
 use Hypervel\Contracts\Validation\Validator;
-use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 

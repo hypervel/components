@@ -6,7 +6,7 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Contracts\Console\Isolatable;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;

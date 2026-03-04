@@ -9,6 +9,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Support\Str;
 use Override;
 use PDO;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class MySqlSchemaState extends SchemaState
@@ -20,9 +21,9 @@ class MySqlSchemaState extends SchemaState
     public function dump(Connection $connection, string $path): void
     {
         $this->executeDumpProcess($this->makeProcess(
-            $this->baseDumpCommand() . ' --routines --result-file="${:LARAVEL_LOAD_PATH}" --no-data'
+            $this->baseDumpCommand() . ' --routines --result-file="${:HYPERVEL_LOAD_PATH}" --no-data'
         ), $this->output, array_merge($this->baseVariables($this->connection->getConfig()), [
-            'LARAVEL_LOAD_PATH' => $path,
+            'HYPERVEL_LOAD_PATH' => $path,
         ]));
 
         $this->removeAutoIncrementingState($path);
@@ -63,12 +64,14 @@ class MySqlSchemaState extends SchemaState
     #[Override]
     public function load(string $path): void
     {
-        $command = 'mysql ' . $this->connectionString() . ' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
+        $versionInfo = $this->detectClientVersion();
+
+        $command = 'mysql ' . $this->connectionString($versionInfo) . ' --database="${:HYPERVEL_LOAD_DATABASE}" < "${:HYPERVEL_LOAD_PATH}"';
 
         $process = $this->makeProcess($command)->setTimeout(null);
 
         $process->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
-            'LARAVEL_LOAD_PATH' => $path,
+            'HYPERVEL_LOAD_PATH' => $path,
         ]));
     }
 
@@ -77,37 +80,57 @@ class MySqlSchemaState extends SchemaState
      */
     protected function baseDumpCommand(): string
     {
-        $command = 'mysqldump ' . $this->connectionString() . ' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --column-statistics=0';
+        $versionInfo = $this->detectClientVersion();
+
+        $command = 'mysqldump ' . $this->connectionString($versionInfo) . ' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --column-statistics=0';
 
         if (! $this->connection->isMaria()) {
             $command .= ' --set-gtid-purged=OFF';
         }
 
-        return $command . ' "${:LARAVEL_LOAD_DATABASE}"';
+        return $command . ' "${:HYPERVEL_LOAD_DATABASE}"';
     }
 
     /**
      * Generate a basic connection string (--socket, --host, --port, --user, --password) for the database.
+     *
+     * @param array{version: string, isMariaDb: bool} $versionInfo
      */
-    protected function connectionString(): string
+    protected function connectionString(array $versionInfo): string
     {
-        $value = ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}"';
+        $value = ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}"';
 
         $config = $this->connection->getConfig();
 
         $value .= $config['unix_socket'] ?? false
-            ? ' --socket="${:LARAVEL_LOAD_SOCKET}"'
-            : ' --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}"';
+            ? ' --socket="${:HYPERVEL_LOAD_SOCKET}"'
+            : ' --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"';
 
         /* @phpstan-ignore class.notFound */
         if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA])) {
-            $value .= ' --ssl-ca="${:LARAVEL_LOAD_SSL_CA}"';
+            $value .= ' --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"';
         }
 
-        // if (isset($config['options'][\PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT]) &&
-        //     $config['options'][\PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] === false) {
-        //     $value .= ' --ssl=off';
-        // }
+        /* @phpstan-ignore class.notFound */
+        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT])) {
+            $value .= ' --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}"';
+        }
+
+        /* @phpstan-ignore class.notFound */
+        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY])) {
+            $value .= ' --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}"';
+        }
+
+        /** @phpstan-ignore class.notFound */
+        $verifyCertOption = PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
+
+        if (isset($config['options'][$verifyCertOption]) && $config['options'][$verifyCertOption] === false) {
+            if (version_compare($versionInfo['version'], '5.7.11', '>=') && ! $versionInfo['isMariaDb']) {
+                $value .= ' --ssl-mode=DISABLED';
+            } else {
+                $value .= ' --ssl=off';
+            }
+        }
 
         return $value;
     }
@@ -121,13 +144,15 @@ class MySqlSchemaState extends SchemaState
         $config['host'] ??= '';
 
         return [
-            'LARAVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
-            'LARAVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
-            'LARAVEL_LOAD_PORT' => $config['port'] ?? '',
-            'LARAVEL_LOAD_USER' => $config['username'],
-            'LARAVEL_LOAD_PASSWORD' => $config['password'] ?? '',
-            'LARAVEL_LOAD_DATABASE' => $config['database'],
-            'LARAVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
+            'HYPERVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
+            'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
+            'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
+            'HYPERVEL_LOAD_USER' => $config['username'],
+            'HYPERVEL_LOAD_PASSWORD' => $config['password'] ?? '',
+            'HYPERVEL_LOAD_DATABASE' => $config['database'],
+            'HYPERVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
+            'HYPERVEL_LOAD_SSL_CERT' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT] ?? '', // @phpstan-ignore class.notFound
+            'HYPERVEL_LOAD_SSL_KEY' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY] ?? '', // @phpstan-ignore class.notFound
         ];
     }
 
@@ -159,5 +184,31 @@ class MySqlSchemaState extends SchemaState
         }
 
         return $process;
+    }
+
+    /**
+     * Detect the MySQL client version.
+     *
+     * @return array{version: string, isMariaDb: bool}
+     */
+    protected function detectClientVersion(): array
+    {
+        [$version, $isMariaDb] = ['8.0.0', false];
+
+        try {
+            $versionOutput = $this->makeProcess('mysql --version')->mustRun()->getOutput();
+
+            if (preg_match('/(\d+\.\d+\.\d+)/', $versionOutput, $matches)) {
+                $version = $matches[1];
+            }
+
+            $isMariaDb = stripos($versionOutput, 'mariadb') !== false;
+        } catch (ProcessFailedException) {
+        }
+
+        return [
+            'version' => $version,
+            'isMariaDb' => $isMariaDb,
+        ];
     }
 }

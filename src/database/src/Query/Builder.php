@@ -2772,13 +2772,13 @@ class Builder implements BuilderContract
      */
     protected function withoutGroupLimitKeys(Collection $items): Collection
     {
-        $keysToRemove = ['laravel_row'];
+        $keysToRemove = ['hypervel_row'];
 
         if (is_string($this->groupLimit['column'])) {
             $column = last(explode('.', $this->groupLimit['column']));
 
-            $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap($column);
-            $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap('pivot_' . $column);
+            $keysToRemove[] = '@hypervel_group := ' . $this->grammar->wrap($column);
+            $keysToRemove[] = '@hypervel_group := ' . $this->grammar->wrap('pivot_' . $column);
         }
 
         $items->each(function ($item) use ($keysToRemove) {

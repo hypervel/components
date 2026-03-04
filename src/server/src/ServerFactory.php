@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Server;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Server\Entry\EventDispatcher;
 use Hypervel\Server\Entry\Logger;
 use Psr\Log\LoggerInterface;

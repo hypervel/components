@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Resources;
 
-use ArrayIterator;
+use Hypervel\Http\Resources\Attributes\Collects;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
@@ -18,12 +18,16 @@ use Traversable;
 trait CollectsResources
 {
     /**
-     * Map the given collection resource into its individual resources.
+     * The cached Collects attribute values.
      *
-     * @param mixed $resource
-     * @return mixed
+     * @var array<class-string, class-string|false>
      */
-    protected function collectResource($resource)
+    protected static array $cachedCollectsAttributes = [];
+
+    /**
+     * Map the given collection resource into its individual resources.
+     */
+    protected function collectResource(mixed $resource): mixed
     {
         if ($resource instanceof MissingValue) {
             return $resource;
@@ -47,13 +51,23 @@ trait CollectsResources
     /**
      * Get the resource that this resource collects.
      *
-     * @return null|class-string<JsonResource>
+     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
      */
     protected function collects(): ?string
     {
         $collects = null;
 
-        if ($this->collects) {
+        if (! array_key_exists(static::class, static::$cachedCollectsAttributes)) {
+            $attribute = (new ReflectionClass($this))->getAttributes(Collects::class);
+
+            static::$cachedCollectsAttributes[static::class] = count($attribute) > 0
+                ? $attribute[0]->newInstance()->class
+                : false;
+        }
+
+        if (static::$cachedCollectsAttributes[static::class]) {
+            $collects = static::$cachedCollectsAttributes[static::class];
+        } elseif ($this->collects) {
             $collects = $this->collects;
         } elseif (str_ends_with(class_basename($this), 'Collection')
             && (class_exists($class = Str::replaceLast('Collection', '', get_class($this)))
@@ -88,8 +102,6 @@ trait CollectsResources
 
     /**
      * Get an iterator for the resource collection.
-     *
-     * @return ArrayIterator
      */
     public function getIterator(): Traversable
     {

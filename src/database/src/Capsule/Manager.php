@@ -7,7 +7,7 @@ namespace Hypervel\Database\Capsule;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;

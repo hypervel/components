@@ -6,15 +6,16 @@ namespace Hypervel\Filesystem;
 
 use BadMethodCallException;
 use Closure;
+use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
-use Hypervel\Http\HeaderUtils;
+use Hypervel\Http\File;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Http\StreamOutput;
-use Hypervel\HttpMessage\Upload\UploadedFile;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -39,10 +40,11 @@ use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
 use League\Flysystem\Visibility;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\HeaderUtils;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * @mixin \League\Flysystem\FilesystemOperator
@@ -239,38 +241,68 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Create a streamed response for a given file.
      */
-    public function response(string $path, ?string $name = null, array $headers = [], ?string $disposition = 'inline'): ResponseInterface
+    public function response(string $path, ?string $name = null, array $headers = [], ?string $disposition = 'inline'): Response
     {
         $container = Container::getInstance();
-        $request = $container->make(RequestContract::class);
-        $response = $container->make(ResponseContract::class);
+        $request = $container->make(Request::class);
+        $response = $container->make(Response::class);
 
         $headers['Content-Type'] ??= $this->mimeType($path);
         $fileSize = $this->size($path);
 
         if (! array_key_exists('Content-Disposition', $headers)) {
-            $disposition = HeaderUtils::makeDisposition(
+            $filename = $name ?? basename($path);
+
+            $headers['Content-Disposition'] = HeaderUtils::makeDisposition(
                 $disposition,
-                $filename = $name ?? basename($path),
+                $filename,
                 $this->fallbackName($filename)
             );
-
-            $headers['Content-Disposition'] = $disposition;
         }
 
+        // Set Accept-Ranges header based on HTTP method safety
+        $isMethodSafe = in_array($request->getMethod(), ['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+        $headers['Accept-Ranges'] = $isMethodSafe ? 'bytes' : 'none';
+
+        // Apply all headers to the response before range processing so that
+        // If-Range validation can check ETag/Last-Modified on the response.
+        foreach ($headers as $key => $value) {
+            $response->headers->set($key, $value);
+        }
+
+        // Range-specific headers that will be added during range processing
+        $rangeHeaders = [];
         $stream = null;
-        if ($request->isRange()) {
-            [$start, $end] = HeaderUtils::validateRangeHeaders(
-                $request->header('Range'),
-                $fileSize
-            );
-            $response->withRangeHeaders($fileSize);
-            $stream = $this->readStreamRange($path, $start, $end);
-        } else {
+
+        if ($request->headers->has('Range')
+            && $request->getMethod() === 'GET'
+            && str_starts_with($request->headers->get('Range', ''), 'bytes=')
+        ) {
+            // Validate If-Range header — if present and doesn't match, serve full content
+            $ifRange = $request->headers->get('If-Range');
+
+            if ($ifRange === null || $this->hasValidIfRangeHeader($response, $ifRange)) {
+                [$start, $end] = static::validateRangeHeaders(
+                    $request->headers->get('Range'),
+                    $fileSize
+                );
+
+                $response->setStatusCode(206);
+
+                $rangeEnd = $end !== null ? $end : '*';
+                $totalSize = $fileSize;
+                $rangeHeaders['Content-Range'] = sprintf('bytes %d-%s/%s', $start, $rangeEnd, $totalSize);
+
+                $stream = $this->readStreamRange($path, $start, $end);
+            }
+        }
+
+        if ($stream === null) {
             $stream = $this->readStream($path);
         }
 
         $chunkSize = 64 * 1024;
+
         return $response->stream(function (StreamOutput $output) use ($stream, $chunkSize) {
             while (! feof($stream)) {
                 if (! $content = fread($stream, $chunkSize)) {
@@ -280,13 +312,13 @@ class FilesystemAdapter implements CloudFilesystemContract
             }
 
             fclose($stream);
-        }, $headers);
+        }, $rangeHeaders);
     }
 
     /**
      * Create a streamed download response for a given file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): ResponseInterface
+    public function download(string $path, ?string $name = null, array $headers = []): Response
     {
         return $this->response($path, $name, $headers, 'attachment');
     }
@@ -300,9 +332,73 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * Validate and parse a Range header value.
+     *
+     * @return array{0: int, 1: null|int} The start and end byte positions
+     *
+     * @throws HttpException When the range is not satisfiable (416)
+     */
+    protected static function validateRangeHeaders(string $rangeHeader, ?int $fileSize = null): array
+    {
+        [$start, $end] = explode('-', substr($rangeHeader, 6), 2) + [1 => ''];
+
+        if ($start === '') {
+            // Suffix range: "bytes=-100" means last 100 bytes
+            if ($fileSize === null) {
+                throw new HttpException(416, '', null, ['Content-Range' => 'bytes */*']);
+            }
+            $start = $fileSize - (int) $end;
+            $end = $fileSize - 1;
+        } else {
+            $start = (int) $start;
+        }
+
+        // Convert end position
+        if ($end === '') {
+            $end = $fileSize !== null ? $fileSize - 1 : null;
+        } else {
+            $end = (int) $end;
+        }
+
+        // Validate the requested range
+        if ($start < 0 || ($end !== null && $start > $end) || ($fileSize !== null && $start >= $fileSize)) {
+            throw new HttpException(416, '', null, [
+                'Content-Range' => sprintf('bytes */%s', $fileSize !== null ? $fileSize : '*'),
+            ]);
+        }
+
+        // Ensure the end position does not exceed the file size
+        if ($fileSize !== null) {
+            $end = min($end, $fileSize - 1);
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * Determine if the If-Range header matches the response's ETag or Last-Modified.
+     */
+    protected function hasValidIfRangeHeader(Response $response, string $header): bool
+    {
+        if ($response->headers->get('ETag') === $header) {
+            return true;
+        }
+
+        $lastModified = $response->headers->get('Last-Modified');
+        if ($lastModified === null) {
+            return false;
+        }
+
+        $lastModified = DateTimeImmutable::createFromFormat(DATE_RFC2822, $lastModified);
+
+        return $lastModified !== false
+            && $lastModified->format('D, d M Y H:i:s') . ' GMT' === $header;
+    }
+
+    /**
      * Write the contents of a file.
      *
-     * @param resource|StreamInterface|string|UploadedFile $contents
+     * @param File|resource|StreamInterface|string|UploadedFile $contents
      */
     public function put(string $path, mixed $contents, mixed $options = []): bool|string
     {
@@ -313,7 +409,8 @@ class FilesystemAdapter implements CloudFilesystemContract
         // If the given contents is actually a file or uploaded file instance than we will
         // automatically store the file using a stream. This provides a convenient path
         // for the developer to store streams without managing them manually in code.
-        if ($contents instanceof UploadedFile) {
+        if ($contents instanceof File
+            || $contents instanceof UploadedFile) {
             return $this->putFile($path, $contents, $options);
         }
 
@@ -339,30 +436,21 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Store the uploaded file on the disk.
      */
-    public function putFile(string|UploadedFile $path, array|string|UploadedFile|null $file = null, mixed $options = []): false|string
+    public function putFile(string|File|UploadedFile $path, array|string|File|UploadedFile|null $file = null, mixed $options = []): false|string
     {
         if (is_null($file) || is_array($file)) {
             [$path, $file, $options] = ['', $path, $file ?? []];
         }
 
-        // Avoid buggy getExtension() of UploadedFile
-        if ($file instanceof UploadedFile && ! $file->getClientFilename()) {
-            $file = $file->toArray()['tmp_file'];
-        }
+        $file = is_string($file) ? new File($file) : $file;
 
-        if (is_string($file)) {
-            $file = new UploadedFile($file, filesize($file), UPLOAD_ERR_OK, basename($file));
-        }
-
-        $filename = Str::random(40) . '.' . $file->getExtension();
-
-        return $this->putFileAs($path, $file, $filename, $options);
+        return $this->putFileAs($path, $file, $file->hashName(), $options);
     }
 
     /**
      * Store the uploaded file on the disk with a given name.
      */
-    public function putFileAs(string|UploadedFile $path, array|string|UploadedFile|null $file, array|string|null $name = null, mixed $options = []): false|string
+    public function putFileAs(string|File|UploadedFile $path, array|string|File|UploadedFile|null $file, array|string|null $name = null, mixed $options = []): false|string
     {
         if (is_null($name) || is_array($name)) {
             [$path, $file, $name, $options] = ['', $path, $file, $name ?? []];

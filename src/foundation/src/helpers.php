@@ -11,9 +11,7 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
-use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Responsable;
@@ -23,20 +21,29 @@ use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
-use Hypervel\HttpMessage\Cookie\Cookie;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\HttpResponseException;
-use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
 use Hypervel\Support\Stringable;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View as ViewContract;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Support\enum_value;
+
+if (! function_exists('action')) {
+    /**
+     * Generate the URL to a controller action.
+     */
+    function action(array|string $name, array|string $parameters = [], bool $absolute = true): string
+    {
+        return app('url')->action($name, $parameters, $absolute);
+    }
+}
 
 if (! function_exists('abort')) {
     /**
@@ -510,23 +517,23 @@ if (! function_exists('request')) {
     /**
      * Get an instance of the current request or an input item from the request.
      *
-     * @return ($key is null ? RequestContract : ($key is string ? mixed : array<string, mixed>))
+     * @param null|list<string>|string $key
      *
-     * @throws TypeError
+     * @return ($key is null ? \Hypervel\Http\Request : ($key is string ? mixed : array<string, mixed>))
      */
     function request(array|string|null $key = null, mixed $default = null): mixed
     {
-        $request = app(RequestContract::class);
-
         if (is_null($key)) {
-            return $request;
+            return app('request');
         }
 
         if (is_array($key)) {
-            return $request->inputs($key, value($default));
+            return app('request')->only($key);
         }
 
-        return $request->input($key, value($default));
+        $value = app('request')->__get($key);
+
+        return is_null($value) ? value($default) : $value;
     }
 }
 
@@ -534,28 +541,31 @@ if (! function_exists('response')) {
     /**
      * Return a new response from the application.
      *
-     * @return ($content is null ? ResponseContract : ResponseInterface)
+     * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
      */
-    function response(mixed $content = null, int $status = 200, array $headers = []): ResponseContract|ResponseInterface
+    function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
     {
-        $response = app(ResponseContract::class);
+        $factory = app(\Hypervel\Contracts\Routing\ResponseFactory::class);
 
         if (func_num_args() === 0) {
-            return $response;
+            return $factory;
         }
 
-        return $response->make($content ?? '', $status, $headers);
+        return $factory->make($content ?? '', $status, $headers);
     }
 }
 
 if (! function_exists('redirect')) {
     /**
-     * Return a new response from the application.
+     * Get an instance of the redirector or create a redirect response.
      */
-    function redirect(string $toUrl, int $status = 302, string $schema = 'http'): ResponseInterface
+    function redirect(?string $to = null, int $status = 302, array $headers = [], ?bool $secure = null): \Hypervel\Routing\Redirector|\Hypervel\Http\RedirectResponse
     {
-        return app(ResponseContract::class)
-            ->redirect($toUrl, $status, $schema);
+        if (is_null($to)) {
+            return app('redirect');
+        }
+
+        return app('redirect')->to($to, $status, $headers, $secure);
     }
 }
 
@@ -563,16 +573,9 @@ if (! function_exists('to_route')) {
     /**
      * Create a new redirect response to a named route.
      */
-    function to_route(string $route, array $parameters = [], int $status = 302, array $headers = []): ResponseInterface
+    function to_route(string $route, array $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
     {
-        $response = redirect(route($route, $parameters), $status);
-        if ($headers) {
-            foreach ($headers as $key => $value) {
-                $response = $response->withHeader($key, $value);
-            }
-        }
-
-        return $response;
+        return redirect()->route($route, $parameters, $status, $headers);
     }
 }
 
@@ -660,33 +663,41 @@ if (! function_exists('validator')) {
 
 if (! function_exists('route')) {
     /**
-     * Get the URL to a named route.
+     * Generate the URL to a named route.
+     *
+     * @param mixed $parameters
      *
      * @throws InvalidArgumentException
      */
-    function route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http'): string
+    function route(BackedEnum|string $name, array $parameters = [], bool $absolute = true): string
     {
-        return \Hypervel\Router\route($name, $parameters, $absolute, $server);
+        return app('url')->route($name, $parameters, $absolute);
     }
 }
 
 if (! function_exists('url')) {
     /**
-     * Generate a url for the application.
+     * Generate a URL for the application.
+     *
+     * @return ($path is null ? UrlGeneratorContract : string)
      */
     function url(?string $path = null, array $extra = [], ?bool $secure = null): string|UrlGeneratorContract
     {
-        return \Hypervel\Router\url($path, $extra, $secure);
+        if (is_null($path)) {
+            return app(UrlGeneratorContract::class);
+        }
+
+        return app(UrlGeneratorContract::class)->to($path, $extra, $secure);
     }
 }
 
 if (! function_exists('secure_url')) {
     /**
-     * Generate a secure, absolute URL to the given path.
+     * Generate a HTTPS URL for the application.
      */
     function secure_url(string $path, array $extra = []): string
     {
-        return \Hypervel\Router\secure_url($path, $extra);
+        return url($path, $extra, true);
     }
 }
 
@@ -696,7 +707,7 @@ if (! function_exists('asset')) {
      */
     function asset(string $path, ?bool $secure = null): string
     {
-        return \Hypervel\Router\asset($path, $secure);
+        return app('url')->asset($path, $secure);
     }
 }
 

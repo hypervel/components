@@ -70,9 +70,34 @@ interface Session
     public function put(array|UnitEnum|string $key, mixed $value = null): void;
 
     /**
+     * Replace the given session attributes entirely.
+     */
+    public function replace(array $attributes): void;
+
+    /**
      * Flash a key / value pair to the session.
      */
     public function flash(UnitEnum|string $key, mixed $value = true): void;
+
+    /**
+     * Flash an array of input to the session.
+     */
+    public function flashInput(array $value): void;
+
+    /**
+     * Get a subset of the session data.
+     */
+    public function only(array $keys): array;
+
+    /**
+     * Determine if the flashed input contains an item.
+     */
+    public function hasOldInput(UnitEnum|string|null $key = null): bool;
+
+    /**
+     * Get the requested item from the flashed input array.
+     */
+    public function getOldInput(UnitEnum|string|null $key = null, mixed $default = null): mixed;
 
     /**
      * Get the CSRF token value.
@@ -133,4 +158,14 @@ interface Session
      * Get the session handler instance.
      */
     public function getHandler(): SessionHandlerInterface;
+
+    /**
+     * Determine if the session handler needs a request.
+     */
+    public function handlerNeedsRequest(): bool;
+
+    /**
+     * Set the request on the handler instance.
+     */
+    public function setRequestOnHandler(\Hypervel\Http\Request $request): void;
 }

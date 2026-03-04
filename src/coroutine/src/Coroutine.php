@@ -8,8 +8,8 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Engine\Coroutine as Co;
-use Hypervel\Engine\Exception\CoroutineDestroyedException;
-use Hypervel\Engine\Exception\RunningInNonCoroutineException;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 use Throwable;
 
 class Coroutine

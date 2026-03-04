@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Concerns;
 
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Router\Router;
+use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
 
 /**

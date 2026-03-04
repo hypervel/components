@@ -9,8 +9,8 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Pool\Channel;
 use Hypervel\Pool\Pool;
-use Hypervel\Tests\Pool\Stub\ConstantFrequencyStub;
-use Hypervel\Tests\Pool\Stub\FrequencyStub;
+use Hypervel\Tests\Pool\Stubs\ConstantFrequencyStub;
+use Hypervel\Tests\Pool\Stubs\FrequencyStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

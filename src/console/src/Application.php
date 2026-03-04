@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\ProcessUtils;
 use Override;

@@ -9,21 +9,24 @@ use Hypervel\Config\ProviderConfig;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Events\LocaleUpdated;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Env;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 use function Hypervel\Filesystem\join_paths;
 
-class Application extends Container implements ApplicationContract
+class Application extends Container implements ApplicationContract, CachesRoutes
 {
     use Macroable;
 
@@ -38,6 +41,13 @@ class Application extends Container implements ApplicationContract
      * The base path for the Hypervel installation.
      */
     protected string $basePath = '';
+
+    /**
+     * The prefixes that indicate an absolute cache path.
+     *
+     * @var string[]
+     */
+    protected array $absoluteCachePathPrefixes = ['/', '\\'];
 
     /**
      * Indicates if the application has been bootstrapped before.
@@ -62,6 +72,13 @@ class Application extends Container implements ApplicationContract
      * @var callable[]
      */
     protected array $bootedCallbacks = [];
+
+    /**
+     * The array of terminating callbacks.
+     *
+     * @var array<callable|string>
+     */
+    protected array $terminatingCallbacks = [];
 
     /**
      * The array of registered callbacks.
@@ -274,6 +291,14 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Get the path to the bootstrap directory.
+     */
+    public function bootstrapPath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('bootstrap'), $path);
+    }
+
+    /**
      * Get the path to the application configuration files.
      */
     public function configPath(string $path = ''): string
@@ -334,6 +359,36 @@ class Application extends Container implements ApplicationContract
     public function storagePath(string $path = ''): string
     {
         return $this->joinPaths($this->basePath('storage'), $path);
+    }
+
+    /**
+     * Determine if the application routes are cached.
+     */
+    public function routesAreCached(): bool
+    {
+        return is_file($this->getCachedRoutesPath());
+    }
+
+    /**
+     * Get the path to the routes cache file.
+     */
+    public function getCachedRoutesPath(): string
+    {
+        return $this->normalizeCachePath('APP_ROUTES_CACHE', 'cache/routes-v7.php');
+    }
+
+    /**
+     * Normalize a relative or absolute path to a cache file.
+     */
+    protected function normalizeCachePath(string $key, string $default): string
+    {
+        if (is_null($env = Env::get($key))) {
+            return $this->bootstrapPath($default);
+        }
+
+        return Str::startsWith($env, $this->absoluteCachePathPrefixes)
+            ? $env
+            : $this->basePath($env);
     }
 
     /**
@@ -406,6 +461,15 @@ class Application extends Container implements ApplicationContract
     public function isDownForMaintenance(): bool
     {
         return false;
+    }
+
+    /**
+     * Determine if middleware has been disabled for the application.
+     */
+    public function shouldSkipMiddleware(): bool
+    {
+        return $this->bound('middleware.disable')
+            && $this->make('middleware.disable') === true;
     }
 
     /**
@@ -634,6 +698,28 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Register a terminating callback with the application.
+     *
+     * @return $this
+     */
+    public function terminating(callable|string $callback): static
+    {
+        $this->terminatingCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(): void
+    {
+        foreach ($this->terminatingCallbacks as $callback) {
+            $this->call($callback);
+        }
+    }
+
+    /**
      * Call the booting callbacks for the application.
      *
      * @param callable[] $callbacks
@@ -657,11 +743,11 @@ class Application extends Container implements ApplicationContract
      */
     public function abort(int $code, string $message = '', array $headers = []): void
     {
-        if ($code == 404) {
-            throw new NotFoundHttpException($message, 0, null, $headers);
+        if ($code === 404) {
+            throw new NotFoundHttpException($message, headers: $headers);
         }
 
-        throw new HttpException($code, $message, 0, null, $headers);
+        throw new HttpException($code, $message, headers: $headers);
     }
 
     /**
@@ -775,7 +861,7 @@ class Application extends Container implements ApplicationContract
             ],
             'events' => [
                 \Hypervel\Events\Dispatcher::class,
-                \Hypervel\Contracts\Event\Dispatcher::class,
+                \Hypervel\Contracts\Events\Dispatcher::class,
             ],
             'files' => [\Hypervel\Filesystem\Filesystem::class],
             'filesystem' => [
@@ -811,22 +897,20 @@ class Application extends Container implements ApplicationContract
             'queue.worker' => [\Hypervel\Queue\Worker::class],
             'redis' => [\Hypervel\Redis\Redis::class],
             'request' => [
-                \Psr\Http\Message\ServerRequestInterface::class,
-                \Hypervel\HttpServer\Contracts\RequestInterface::class,
-                \Hypervel\HttpServer\Request::class,
-                \Hypervel\Contracts\Http\Request::class,
                 \Hypervel\Http\Request::class,
+                \Symfony\Component\HttpFoundation\Request::class,
             ],
-            'response' => [
-                \Hypervel\Contracts\Http\Response::class,
-                \Hypervel\HttpServer\Contracts\ResponseInterface::class,
-                \Hypervel\HttpServer\Response::class,
-                \Hypervel\Http\Response::class,
+            'router' => [
+                \Hypervel\Routing\Router::class,
+                \Hypervel\Contracts\Routing\Registrar::class,
+                \Hypervel\Contracts\Routing\BindingRegistrar::class,
             ],
-            'router' => [\Hypervel\Router\Router::class],
+            'redirect' => [
+                \Hypervel\Routing\Redirector::class,
+            ],
             'url' => [
-                \Hypervel\Contracts\Router\UrlGenerator::class,
-                \Hypervel\Router\UrlGenerator::class,
+                \Hypervel\Routing\UrlGenerator::class,
+                \Hypervel\Contracts\Routing\UrlGenerator::class,
             ],
             'validator' => [
                 \Hypervel\Validation\Factory::class,

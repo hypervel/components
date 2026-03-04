@@ -9,7 +9,7 @@ use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;

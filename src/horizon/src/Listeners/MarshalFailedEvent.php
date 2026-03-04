@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\JobFailed;
 use Hypervel\Queue\Events\JobFailed as LaravelJobFailed;
 use Hypervel\Queue\Jobs\RedisJob;

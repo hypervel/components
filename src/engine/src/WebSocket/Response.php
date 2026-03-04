@@ -6,7 +6,7 @@ namespace Hypervel\Engine\WebSocket;
 
 use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
 use Hypervel\Contracts\Engine\WebSocket\ResponseInterface;
-use Hypervel\Engine\Exception\InvalidArgumentException;
+use Hypervel\Engine\Exceptions\InvalidArgumentException;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\WebSocket\Frame as SwooleFrame;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
-use Hypervel\HttpServer\Request;
+use Hypervel\Http\Request;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
 
@@ -41,7 +41,7 @@ class CookieSessionHandler implements SessionHandlerInterface
 
     public function read(string $sessionId): false|string
     {
-        $value = $this->request->cookie($sessionId);
+        $value = $this->request->cookies->get($sessionId) ?: '';
 
         if (! is_null($decoded = json_decode($value, true))
             && is_array($decoded)

@@ -20,7 +20,7 @@ class CoroutineAspect extends AbstractAspect
 
     protected array $keys = [
         SentrySdk::class,
-        \Psr\Http\Message\ServerRequestInterface::class,
+        \Hypervel\Http\Request::class,
     ];
 
     public function __construct(protected Switcher $switcher)

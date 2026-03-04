@@ -12,8 +12,8 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
@@ -34,7 +34,7 @@ class SanctumGuard implements GuardContract
     public function __construct(
         protected string $name,
         protected UserProvider $provider,
-        protected RequestInterface $request,
+        protected Request $request,
         protected ?Dispatcher $events = null,
         protected ?int $expiration = null
     ) {

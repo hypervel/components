@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Framework\Bootstrap;
 
 use Hypervel\Contracts\Config\Repository;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Framework\Events\OnTask;
 use Swoole\Server;
 use Swoole\Server\Task;

@@ -8,10 +8,10 @@ use Ably\AblyRest;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpServer\Request;
+use Hypervel\Http\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * @internal

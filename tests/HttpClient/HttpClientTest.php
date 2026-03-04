@@ -14,7 +14,7 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\HttpClient\ConnectionException;

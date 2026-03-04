@@ -6,12 +6,12 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\HttpServer\Contracts\RequestInterface;
-use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Http\Request;
+use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
 use RedisException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class RedisBroadcaster extends Broadcaster
 {
@@ -33,7 +33,7 @@ class RedisBroadcaster extends Broadcaster
      *
      * @throws AccessDeniedHttpException
      */
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         $channelName = $request->input('channel_name');
         $normalizeChannelName = $this->normalizeChannelName(
@@ -55,7 +55,7 @@ class RedisBroadcaster extends Broadcaster
     /**
      * Return the valid authentication response.
      */
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         if (is_bool($result)) {
             return json_encode($result);

@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Jobs;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;

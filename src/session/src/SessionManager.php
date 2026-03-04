@@ -11,7 +11,7 @@ use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\HttpServer\Request;
+use Hypervel\Http\Request;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 

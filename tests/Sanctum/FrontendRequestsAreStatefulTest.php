@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Middleware\Authenticate;
-use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
-use Hypervel\Router\Router;
+use Hypervel\Routing\Router;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Stubs\User;
 
 /**
  * @internal
@@ -49,7 +49,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
             'auth.providers.users.model' => User::class,
             'sanctum.middleware' => [
                 StartSession::class,
-                VerifyCsrfToken::class,
+                PreventRequestForgery::class,
             ],
         ]);
 
@@ -65,7 +65,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
 
         $webMiddleware = [
             StartSession::class,
-            VerifyCsrfToken::class,
+            PreventRequestForgery::class,
             Authenticate::class . ':session',
         ];
         $apiMiddleware = [
@@ -128,8 +128,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
         $response = $this->get('/sanctum/csrf-cookie', [
             'origin' => config('app.url'),
         ])->assertNoContent();
-        $cookies = Collection::make($response->getCookies())
-            ->flatten();
+        $cookies = Collection::make($response->headers->getCookies());
 
         $csrfToken = $cookies->where(function ($cookie) {
             return $cookie->getName() === 'XSRF-TOKEN';

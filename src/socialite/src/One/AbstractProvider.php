@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\One;
 
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\HasProviderContext;
 use League\OAuth1\Client\Credentials\TokenCredentials;
 use League\OAuth1\Client\Server\Server;
-use Psr\Http\Message\ResponseInterface;
 
 abstract class AbstractProvider implements ProviderContract
 {
@@ -19,13 +18,11 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Create a new provider instance.
      *
-     * @param RequestContract $request the HTTP request instance
-     * @param ResponseContract $response the HTTP response instance
+     * @param Request $request the HTTP request instance
      * @param Server $server the OAuth server implementation
      */
     public function __construct(
-        protected RequestContract $request,
-        protected ResponseContract $response,
+        protected Request $request,
         protected Server $server
     ) {
     }
@@ -33,16 +30,14 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Redirect the user to the authentication page for the provider.
      */
-    public function redirect(): ResponseInterface
+    public function redirect(): RedirectResponse
     {
         $this->request->session()->put(
             'oauth.temp',
             $temp = $this->server->getTemporaryCredentials()
         );
 
-        return $this->response->redirect(
-            $this->server->getAuthorizationUrl($temp)
-        );
+        return new RedirectResponse($this->server->getAuthorizationUrl($temp));
     }
 
     /**
@@ -167,7 +162,7 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Set the request instance.
      */
-    public function setRequest(RequestContract $request): static
+    public function setRequest(Request $request): static
     {
         $this->request = $request;
 

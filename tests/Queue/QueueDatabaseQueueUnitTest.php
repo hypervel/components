@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;

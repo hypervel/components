@@ -4,39 +4,45 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\Context\ResponseContext;
-use Hypervel\HttpMessage\Base\Response;
-use Hypervel\HttpServer\CoreMiddleware as HttpCoreMiddleware;
-use Hypervel\HttpServer\Router\Dispatched;
-use Hypervel\WebSocketServer\Exception\WebSocketHandShakeException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Http\Request;
+use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
+use Symfony\Component\HttpFoundation\Response;
 
-class CoreMiddleware extends HttpCoreMiddleware
+class CoreMiddleware
 {
-    public const HANDLER_NAME = 'class';
+    public function __construct(
+        protected Container $container,
+    ) {
+    }
 
     /**
-     * Handle the response when found.
+     * Build the WebSocket handshake response for a matched route.
+     *
+     * Validates that the matched route's controller class exists (it will be
+     * used as the WS handler for subsequent onMessage/onClose callbacks),
+     * then builds the 101 Switching Protocols response with the required
+     * WebSocket headers.
      */
-    protected function handleFound(Dispatched $dispatched, ServerRequestInterface $request): ResponseInterface
+    public function handleHandshake(Request $request): Response
     {
-        [$controller] = $this->prepareHandler($dispatched->handler->callback);
-        if (! $this->container->has($controller)) {
-            throw new WebSocketHandShakeException('Router not exist.');
-        }
+        $route = $request->route();
+        $controller = $route->getControllerClass();
 
-        /** @var Response $response */
-        $response = ResponseContext::get();
+        if (! $controller || ! class_exists($controller)) {
+            throw new WebSocketHandShakeException('WebSocket handler not found.');
+        }
 
         $security = $this->container->make(Security::class);
 
-        $key = $request->getHeaderLine(Security::SEC_WEBSOCKET_KEY);
-        $response = $response->setStatus(101)->setHeaders($security->handshakeHeaders($key));
-        if ($wsProtocol = $request->getHeaderLine(Security::SEC_WEBSOCKET_PROTOCOL)) {
-            $response = $response->setHeader(Security::SEC_WEBSOCKET_PROTOCOL, $wsProtocol);
+        $key = $request->headers->get(Security::SEC_WEBSOCKET_KEY);
+
+        $headers = $security->handshakeHeaders($key);
+
+        if ($wsProtocol = $request->headers->get(Security::SEC_WEBSOCKET_PROTOCOL)) {
+            $headers[Security::SEC_WEBSOCKET_PROTOCOL] = $wsProtocol;
         }
 
-        return $response->setAttribute(self::HANDLER_NAME, $controller);
+        return new Response('', 101, $headers);
     }
 }

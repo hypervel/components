@@ -14,7 +14,7 @@ use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;

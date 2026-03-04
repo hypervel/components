@@ -4,27 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Http\Middleware;
 
-use Hypervel\Contracts\Http\Request as RequestContract;
-use Hypervel\HttpMessage\Exceptions\HttpException;
+use Closure;
+use Hypervel\Http\Request;
 use Hypervel\Telescope\Telescope;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
-class Authorize implements MiddlewareInterface
+class Authorize
 {
-    public function __construct(
-        protected RequestContract $request
-    ) {
-    }
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
     {
-        if (! Telescope::check($this->request)) {
+        if (! Telescope::check($request)) {
             throw new HttpException(403);
         }
 
-        return $handler->handle($request);
+        return $next($request);
     }
 }

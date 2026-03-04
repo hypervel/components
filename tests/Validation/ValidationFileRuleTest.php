@@ -402,7 +402,7 @@ class ValidationFileRuleTest extends TestCase
         file_put_contents($path = __DIR__ . '/test.json', 'this-is-a-test');
 
         // $file = new \Illuminate\Http\File($path);
-        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, null, true);
+        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, true);
 
         $this->fails(
             ['max:0'],

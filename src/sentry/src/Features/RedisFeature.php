@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;

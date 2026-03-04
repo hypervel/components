@@ -4,38 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Session\Middleware;
 
-use Carbon\Carbon;
+use Closure;
 use DateTimeInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Session\Session;
-use Hypervel\Cookie\Cookie;
-use Hypervel\HttpServer\Request;
-use Hypervel\HttpServer\Router\Dispatched;
+use Hypervel\Http\Request;
+use Hypervel\Routing\Route;
 use Hypervel\Session\SessionManager;
 use Hypervel\Session\Store;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class StartSession implements MiddlewareInterface
+class StartSession
 {
     /**
      * Create a new session middleware.
-     *
-     * @param SessionManager $manager the session manager
-     * @param CacheFactoryContract $cache the cache factory
-     * @param Request $request Hyperf's request proxy
-     * @param ExceptionHandlerContract $exceptionHandler the exception handler
      */
     public function __construct(
         protected SessionManager $manager,
         protected CacheFactoryContract $cache,
-        protected Request $request,
         protected ExceptionHandlerContract $exceptionHandler,
     ) {
     }
@@ -43,45 +36,33 @@ class StartSession implements MiddlewareInterface
     /**
      * Handle an incoming request.
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    public function handle(Request $request, Closure $next): Response
     {
         if (! $this->sessionConfigured()) {
-            return $handler->handle($request);
+            return $next($request);
         }
 
-        $session = $this->getSession();
+        $session = $this->getSession($request);
 
-        $blockingOptions = $this->getBlockingOptions();
-        if ($blockingOptions || $this->manager->shouldBlock()) {
-            return $this->handleRequestWhileBlocking($request, $session, $handler, $blockingOptions);
+        if ($this->manager->shouldBlock()
+            || ($request->route() instanceof Route && $request->route()->locksFor())) { // @phpstan-ignore instanceof.alwaysTrue
+            return $this->handleRequestWhileBlocking($request, $session, $next);
         }
 
-        return $this->handleStatefulRequest($request, $session, $handler);
-    }
-
-    /**
-     * Get the blocking options for the request.
-     *
-     * @return array{lock?: int, wait?: int}|array{}
-     */
-    protected function getBlockingOptions(): array
-    {
-        if (! $dispatched = $this->request->getAttribute(Dispatched::class)) {
-            return [];
-        }
-
-        return $dispatched->handler->options['block'] ?? [];
+        return $this->handleStatefulRequest($request, $session, $next);
     }
 
     /**
      * Handle the given request within session state.
      */
-    protected function handleRequestWhileBlocking(ServerRequestInterface $request, Session $session, RequestHandlerInterface $handler, array $blockingOptions): mixed
+    protected function handleRequestWhileBlocking(Request $request, Session $session, Closure $next): Response
     {
-        $lockFor = $blockingOptions['lock']
-            ?? $this->manager->defaultRouteBlockLockSeconds();
-        $waitFor = ($blockingOptions['wait']
-            ?? $this->manager->defaultRouteBlockWaitSeconds());
+        if (! $request->route() instanceof Route) { // @phpstan-ignore instanceof.alwaysTrue
+            return $this->handleStatefulRequest($request, $session, $next);
+        }
+
+        $lockFor = $request->route()->locksFor()
+            ?: $this->manager->defaultRouteBlockLockSeconds();
 
         /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */ // @phpstan-ignore varTag.nativeType
         $store = $this->cache->store($this->manager->blockDriver());
@@ -90,9 +71,13 @@ class StartSession implements MiddlewareInterface
             ->betweenBlockedAttemptsSleepFor(50);
 
         try {
-            $lock->block((int) $waitFor);
+            $lock->block(
+                ! is_null($request->route()->waitsFor())
+                    ? $request->route()->waitsFor()
+                    : $this->manager->defaultRouteBlockWaitSeconds()
+            );
 
-            return $this->handleStatefulRequest($request, $session, $handler);
+            return $this->handleStatefulRequest($request, $session, $next);
         } finally {
             $lock->release();
         }
@@ -101,32 +86,37 @@ class StartSession implements MiddlewareInterface
     /**
      * Handle the given request within session state.
      */
-    protected function handleStatefulRequest(ServerRequestInterface $request, Session $session, RequestHandlerInterface $handler): mixed
+    protected function handleStatefulRequest(Request $request, Session $session, Closure $next): Response
     {
         try {
             // If a session driver has been configured, we will need to start the session here
             // so that the data is ready for an application. Note that the Hypervel sessions
             // do not make use of PHP "native" sessions in any way since they are crappy.
+            $request->setLaravelSession(
+                $this->startSession($request, $session)
+            );
+
+            // Store the session in coroutine Context so that code outside the
+            // middleware pipeline (exception handlers, etc.) can access it.
             Context::set(Store::CONTEXT_KEY, $session);
-            $session->start();
 
             $this->collectGarbage($session);
 
-            $response = $handler->handle($request);
+            $response = $next($request);
 
-            $this->storeCurrentUrl($session);
+            $this->storeCurrentUrl($request, $session);
 
-            $response = $this->addCookieToResponse($response, $session);
+            $this->addCookieToResponse($response, $session);
 
             // Again, if the session has been configured we will need to close out the session
             // so that the attributes may be persisted to some storage medium. We will also
             // add the session identifier cookie to the application response headers now.
-            $this->saveSession();
+            $this->saveSession($request);
 
             return $response;
         } catch (Throwable $e) {
             $this->exceptionHandler->afterResponse(
-                fn () => $this->saveSession()
+                fn () => $this->saveSession($request)
             );
 
             throw $e;
@@ -134,12 +124,24 @@ class StartSession implements MiddlewareInterface
     }
 
     /**
+     * Start the session for the given request.
+     */
+    protected function startSession(Request $request, Session $session): Session
+    {
+        return tap($session, function (Session $session) use ($request) {
+            $session->setRequestOnHandler($request);
+
+            $session->start();
+        });
+    }
+
+    /**
      * Get the session implementation from the manager.
      */
-    public function getSession(): Session
+    public function getSession(Request $request): Session
     {
-        return tap($this->manager->driver(), function ($session) {
-            $session->setId($this->request->cookie($session->getName()));
+        return tap($this->manager->driver(), function ($session) use ($request) {
+            $session->setId($request->cookies->get($session->getName()));
         });
     }
 
@@ -169,56 +171,49 @@ class StartSession implements MiddlewareInterface
     /**
      * Store the current URL for the request if necessary.
      */
-    protected function storeCurrentUrl(Session $session): void
+    protected function storeCurrentUrl(Request $request, Session $session): void
     {
-        if ($this->request->isMethod('GET')
-            && $this->request->header('X-Requested-With') !== 'XMLHttpRequest' // is not ajax
-            && ! $this->isPrefetch()
-        ) {
-            $session->setPreviousUrl($this->request->fullUrl());
-        }
-    }
+        if ($request->isMethod('GET')
+            && $request->route() instanceof Route // @phpstan-ignore instanceof.alwaysTrue
+            && ! $request->ajax()
+            && ! $request->prefetch()
+            && ! $request->isPrecognitive()) {
+            $session->setPreviousUrl($request->fullUrl());
 
-    /**
-     * Determine if the request is prefetch.
-     */
-    protected function isPrefetch(): bool
-    {
-        return strcasecmp($this->request->server('HTTP_X_MOZ') ?? '', 'prefetch') === 0
-            || strcasecmp($this->request->header('Purpose') ?? '', 'prefetch') === 0
-            || strcasecmp($this->request->header('Sec-Purpose') ?? '', 'prefetch') === 0;
+            if (method_exists($session, 'setPreviousRoute')) {
+                $session->setPreviousRoute($request->route()->getName());
+            }
+        }
     }
 
     /**
      * Add the session cookie to the application response.
      */
-    protected function addCookieToResponse(ResponseInterface $response, Session $session): ResponseInterface
+    protected function addCookieToResponse(Response $response, Session $session): void
     {
-        if (! $this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
-            return $response;
+        if ($this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
+            $cookieConfig = $this->getSessionCookieConfig($config);
+
+            $response->headers->setCookie(new Cookie(
+                $session->getName(),
+                $session->getId(),
+                $this->getCookieExpirationDate(),
+                $cookieConfig['path'],
+                $cookieConfig['domain'],
+                $cookieConfig['secure'],
+                $cookieConfig['http_only'],
+                false,
+                $cookieConfig['same_site'],
+                $cookieConfig['partitioned']
+            ));
         }
-
-        $cookieConfig = $this->getSessionCookieConfig($config);
-
-        $cookie = new Cookie(
-            $session->getName(),
-            $session->getId(),
-            $this->getCookieExpirationDate(),
-            $cookieConfig['path'],
-            $cookieConfig['domain'],
-            $cookieConfig['secure'],
-            $cookieConfig['http_only'],
-            false,
-            $cookieConfig['same_site'],
-            $cookieConfig['partitioned']
-        );
-
-        /** @var \Hypervel\HttpMessage\Server\Response $response */
-        return $response->withCookie($cookie);
     }
 
     /**
      * Get the session cookie configuration.
+     *
+     * Extracted as an extension point so subclasses can provide dynamic
+     * cookie settings without duplicating the rest of addCookieToResponse.
      *
      * @return array{path: string, domain: string, secure: bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
@@ -237,9 +232,11 @@ class StartSession implements MiddlewareInterface
     /**
      * Save the session data to storage.
      */
-    protected function saveSession(): void
+    protected function saveSession(Request $request): void
     {
-        $this->manager->driver()->save();
+        if (! $request->isPrecognitive()) {
+            $this->manager->driver()->save();
+        }
     }
 
     /**
@@ -255,11 +252,11 @@ class StartSession implements MiddlewareInterface
      */
     protected function getCookieExpirationDate(): DateTimeInterface|int
     {
-        $config = $this->manager->getSessionConfig();
+        $expiresOnClose = $this->manager->getSessionConfig()['expire_on_close'];
 
-        return ($config['expire_on_close'] ?? null)
-            ? 0
-            : Carbon::now()->addRealMinutes($config['lifetime']);
+        return $expiresOnClose ? 0 : Date::instance(
+            Carbon::now()->addSeconds($this->getSessionLifetimeInSeconds())
+        );
     }
 
     /**

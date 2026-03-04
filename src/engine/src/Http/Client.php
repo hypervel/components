@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine\Http;
 
 use Hypervel\Contracts\Engine\Http\ClientInterface;
-use Hypervel\Engine\Exception\HttpClientException;
+use Hypervel\Engine\Exceptions\HttpClientException;
 use Swoole\Coroutine\Http\Client as HttpClient;
 
 class Client extends HttpClient implements ClientInterface

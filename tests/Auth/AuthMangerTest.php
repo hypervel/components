@@ -18,7 +18,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -143,7 +143,7 @@ class AuthMangerTest extends TestCase
     public function testViaRequest()
     {
         $manager = new AuthManager($container = $this->getContainer());
-        $container->instance(RequestInterface::class, m::mock(RequestInterface::class));
+        $container->instance(Request::class, m::mock(Request::class));
 
         Container::setInstance($container);
 

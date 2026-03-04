@@ -89,9 +89,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationships onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @return $this
      */
-    public function load($relations)
+    public function load(array|string $relations): static
     {
         if ($this->isNotEmpty()) {
             if (is_string($relations)) {
@@ -110,11 +109,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of aggregations over relationship's column onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param string $column
-     * @param null|string $function
-     * @return $this
      */
-    public function loadAggregate($relations, $column, $function = null)
+    public function loadAggregate(array|string $relations, string $column, ?string $function = null): static
     {
         if ($this->isEmpty()) {
             return $this;
@@ -147,9 +143,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship counts onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @return $this
      */
-    public function loadCount($relations)
+    public function loadCount(array|string $relations): static
     {
         return $this->loadAggregate($relations, '*', 'count');
     }
@@ -158,10 +153,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's max column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param string $column
-     * @return $this
      */
-    public function loadMax($relations, $column)
+    public function loadMax(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'max');
     }
@@ -170,10 +163,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's min column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param string $column
-     * @return $this
      */
-    public function loadMin($relations, $column)
+    public function loadMin(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'min');
     }
@@ -182,10 +173,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's column summations onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param string $column
-     * @return $this
      */
-    public function loadSum($relations, $column)
+    public function loadSum(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'sum');
     }
@@ -194,10 +183,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's average column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param string $column
-     * @return $this
      */
-    public function loadAvg($relations, $column)
+    public function loadAvg(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'avg');
     }
@@ -206,9 +193,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of related existences onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @return $this
      */
-    public function loadExists($relations)
+    public function loadExists(array|string $relations): static
     {
         return $this->loadAggregate($relations, '*', 'exists');
     }
@@ -217,9 +203,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationships onto the collection if they are not already eager loaded.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @return $this
      */
-    public function loadMissing($relations)
+    public function loadMissing(array|string $relations): static
     {
         if (is_string($relations)) {
             $relations = func_get_args();
@@ -286,7 +271,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param \Hypervel\Database\Eloquent\Collection<int, TModel> $models
      */
-    protected function loadMissingRelation(self $models, array $path)
+    protected function loadMissingRelation(self $models, array $path): void
     {
         $relation = array_shift($path);
 
@@ -315,11 +300,9 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param string $relation
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>  $relations
-     * @return $this
      */
-    public function loadMorph($relation, $relations)
+    public function loadMorph(string $relation, array $relations): static
     {
         $this->pluck($relation)
             ->filter()
@@ -332,11 +315,9 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param string $relation
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>  $relations
-     * @return $this
      */
-    public function loadMorphCount($relation, $relations)
+    public function loadMorphCount(string $relation, array $relations): static
     {
         $this->pluck($relation)
             ->filter()
@@ -383,7 +364,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return array<int, array-key>
      */
-    public function modelKeys()
+    public function modelKeys(): array
     {
         return array_map(fn ($model) => $model->getKey(), $this->items);
     }
@@ -444,9 +425,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Reload a fresh model instance from the database for all the entities.
      *
      * @param array<array-key, string>|string $with
-     * @return static
      */
-    public function fresh($with = [])
+    public function fresh(array|string $with = []): static
     {
         if ($this->isEmpty()) {
             return new static();
@@ -565,9 +545,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
-     * @return $this
      */
-    public function makeHidden($attributes)
+    public function makeHidden(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->makeHidden($attributes);
@@ -577,9 +556,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
-     * @return $this
      */
-    public function mergeHidden($attributes)
+    public function mergeHidden(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->mergeHidden($attributes);
@@ -589,9 +567,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the hidden attributes across the entire collection.
      *
      * @param array<int, string> $hidden
-     * @return $this
      */
-    public function setHidden($hidden)
+    public function setHidden(array $hidden): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setHidden($hidden);
@@ -601,9 +578,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
-     * @return $this
      */
-    public function makeVisible($attributes)
+    public function makeVisible(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->makeVisible($attributes);
@@ -613,9 +589,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
-     * @return $this
      */
-    public function mergeVisible($attributes)
+    public function mergeVisible(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->mergeVisible($attributes);
@@ -625,9 +600,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the visible attributes across the entire collection.
      *
      * @param array<int, string> $visible
-     * @return $this
      */
-    public function setVisible($visible)
+    public function setVisible(array $visible): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setVisible($visible);
@@ -637,9 +611,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Append an attribute across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
-     * @return $this
      */
-    public function append($attributes)
+    public function append(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->append($attributes);
@@ -649,9 +622,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Sets the appends on every element of the collection, overwriting the existing appends for each.
      *
      * @param array<array-key, mixed> $appends
-     * @return $this
      */
-    public function setAppends(array $appends)
+    public function setAppends(array $appends): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setAppends($appends);
@@ -659,10 +631,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Remove appended properties from every element in the collection.
-     *
-     * @return $this
      */
-    public function withoutAppends()
+    public function withoutAppends(): static
     {
         return $this->setAppends([]);
     }
@@ -673,7 +643,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param null|iterable<array-key, TModel> $items
      * @return array<array-key, TModel>
      */
-    public function getDictionary($items = null)
+    public function getDictionary(?iterable $items = null): array
     {
         $items = is_null($items) ? $this->items : $items;
 
@@ -789,10 +759,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Enable relationship autoloading for all models in this collection.
-     *
-     * @return $this
      */
-    public function withRelationshipAutoloading()
+    public function withRelationshipAutoloading(): static
     {
         $callback = fn ($tuples) => $this->loadMissingRelationshipChain($tuples);
 
@@ -829,11 +797,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Get the queueable class name for the given model.
-     *
-     * @param \Hypervel\Database\Eloquent\Model $model
-     * @return string
      */
-    protected function getQueueableModelClass($model)
+    protected function getQueueableModelClass(mixed $model): string
     {
         return method_exists($model, 'getQueueableClassName')
             ? $model->getQueueableClassName()
@@ -906,7 +871,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @throws LogicException
      */
-    public function toQuery()
+    public function toQuery(): Builder
     {
         $model = $this->first();
 

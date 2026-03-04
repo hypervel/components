@@ -7,7 +7,7 @@ namespace Hypervel\Notifications;
 use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Telescope\EntryType;

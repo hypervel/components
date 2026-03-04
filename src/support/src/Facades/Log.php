@@ -32,8 +32,8 @@ namespace Hypervel\Support\Facades;
  * @method static array getContext()
  * @method static void listen(\Closure $callback)
  * @method static \Psr\Log\LoggerInterface getLogger()
- * @method static \Hypervel\Contracts\Event\Dispatcher getEventDispatcher()
- * @method static \Hypervel\Log\Logger setEventDispatcher(\Hypervel\Contracts\Event\Dispatcher $dispatcher)
+ * @method static \Hypervel\Contracts\Events\Dispatcher getEventDispatcher()
+ * @method static \Hypervel\Log\Logger setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $dispatcher)
  *
  * @see \Hypervel\Log\LogManager
  */

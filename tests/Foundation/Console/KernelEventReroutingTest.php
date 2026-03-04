@@ -8,7 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 
 /**

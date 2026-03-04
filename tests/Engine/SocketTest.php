@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Engine;
 
-use Hypervel\Engine\Exception\SocketClosedException;
-use Hypervel\Engine\Exception\SocketConnectException;
+use Hypervel\Engine\Exceptions\SocketClosedException;
+use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;

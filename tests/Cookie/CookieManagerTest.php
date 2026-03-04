@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cookie;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Http\ServerRequestPlusInterface;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieManager;
-use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use TypeError;
@@ -45,34 +44,29 @@ class CookieManagerTest extends TestCase
 
     public function testHas()
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('foo', null)->andReturn('bar');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertTrue($manager->has('foo'));
     }
 
     public function testGet()
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('foo', null)->andReturn('bar');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertEquals('bar', $manager->get('foo'));
     }
 
     public function testMake()
     {
-        $request = m::mock(RequestInterface::class);
-        $request->shouldReceive('cookie')->with('foo', null)->andReturn('bar');
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertInstanceOf(Cookie::class, $manager->make('foo', 'bar'));
     }
@@ -146,57 +140,51 @@ class CookieManagerTest extends TestCase
 
     public function testHasAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('session_id', null)->andReturn('abc123');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertTrue($manager->has(CookieManagerTestNameEnum::Session));
     }
 
     public function testHasAcceptsUnitEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('theme', null)->andReturn('dark');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertTrue($manager->has(CookieManagerTestNameUnitEnum::theme));
     }
 
     public function testGetAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('session_id', null)->andReturn('abc123');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertSame('abc123', $manager->get(CookieManagerTestNameEnum::Session));
     }
 
     public function testGetAcceptsUnitEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('cookie')->with('theme', null)->andReturn('dark');
+        RequestContext::set($request);
 
-        RequestContext::set(m::mock(ServerRequestPlusInterface::class), null);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
 
         $this->assertSame('dark', $manager->get(CookieManagerTestNameUnitEnum::theme));
     }
 
     public function testMakeAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->make(CookieManagerTestNameEnum::Session, 'abc123');
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -206,9 +194,7 @@ class CookieManagerTest extends TestCase
 
     public function testMakeAcceptsUnitEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->make(CookieManagerTestNameUnitEnum::theme, 'dark');
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -218,9 +204,7 @@ class CookieManagerTest extends TestCase
 
     public function testForeverAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->forever(CookieManagerTestNameEnum::Remember, 'token123');
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -230,9 +214,7 @@ class CookieManagerTest extends TestCase
 
     public function testForeverAcceptsUnitEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->forever(CookieManagerTestNameUnitEnum::locale, 'en');
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -242,9 +224,7 @@ class CookieManagerTest extends TestCase
 
     public function testForgetAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->forget(CookieManagerTestNameEnum::Session);
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -254,9 +234,7 @@ class CookieManagerTest extends TestCase
 
     public function testForgetAcceptsUnitEnum(): void
     {
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->forget(CookieManagerTestNameUnitEnum::theme);
 
         $this->assertInstanceOf(Cookie::class, $cookie);
@@ -268,9 +246,7 @@ class CookieManagerTest extends TestCase
     {
         $this->expectException(TypeError::class);
 
-        $request = m::mock(RequestInterface::class);
-
-        $manager = new CookieManager($request);
+        $manager = new CookieManager();
         $cookie = $manager->make(CookieManagerTestNameIntEnum::First, 'value');
         $cookie->getName(); // TypeError thrown here
     }

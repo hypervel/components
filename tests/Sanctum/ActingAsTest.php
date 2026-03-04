@@ -9,7 +9,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Stubs\User;
 
 /**
  * @internal

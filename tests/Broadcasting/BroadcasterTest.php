@@ -12,13 +12,11 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Server\Request as ServerRequest;
-use Hypervel\HttpServer\Contracts\RequestInterface;
-use Hypervel\HttpServer\Request;
+use Hypervel\Http\Request;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * @internal
@@ -327,7 +325,7 @@ class BroadcasterTest extends TestCase
         });
 
         $this->mockRequest('http://exa.com/foo?socket_id=1234.1234#boom');
-        $user = $this->broadcaster->resolveAuthenticatedUser(new Request());
+        $user = $this->broadcaster->resolveAuthenticatedUser(RequestContext::get());
 
         $this->assertSame([
             'id' => '12345',
@@ -337,9 +335,7 @@ class BroadcasterTest extends TestCase
 
     private function mockRequest(?string $uri = null): void
     {
-        $request = new ServerRequest('GET', $uri ?: 'http://example.com/foo?bar=baz#boom');
-        parse_str($request->getUri()->getQuery(), $result);
-        $request = $request->withQueryParams($result);
+        $request = Request::create($uri ?: 'http://example.com/foo?bar=baz#boom');
 
         RequestContext::set($request);
     }
@@ -351,7 +347,7 @@ class BroadcasterTest extends TestCase
         });
 
         $this->mockRequest('http://exa.com/foo?socket_id=1234.1234#boom');
-        $user = $this->broadcaster->resolveAuthenticatedUser(new Request());
+        $user = $this->broadcaster->resolveAuthenticatedUser(RequestContext::get());
 
         $this->assertNull($user);
     }
@@ -359,7 +355,7 @@ class BroadcasterTest extends TestCase
     public function testUserAuthenticationWithoutResolve()
     {
         $this->mockRequest('http://exa.com/foo?socket_id=1234.1234#boom');
-        $this->assertNull($this->broadcaster->resolveAuthenticatedUser(new Request()));
+        $this->assertNull($this->broadcaster->resolveAuthenticatedUser(RequestContext::get()));
     }
 
     #[DataProvider('channelNameMatchPatternProvider')]
@@ -413,12 +409,12 @@ class FakeBroadcaster extends Broadcaster
     ) {
     }
 
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         return null;
     }
 
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         return null;
     }

@@ -6,7 +6,7 @@ namespace Hypervel\Engine\Http;
 
 use Hypervel\Contracts\Engine\Http\ServerInterface;
 use Hypervel\Engine\Coroutine;
-use Hypervel\HttpMessage\Server\Request;
+use Hypervel\HttpServer\RequestBridge;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Http\Server as HttpServer;
 use Throwable;
@@ -62,7 +62,7 @@ class Server implements ServerInterface
                 try {
                     $handler = $this->handler;
 
-                    $handler(Request::loadFromSwooleRequest($request), $response);
+                    $handler(RequestBridge::createFromSwoole($request), $response);
                 } catch (Throwable $exception) {
                     $this->logger->critical((string) $exception);
                 }

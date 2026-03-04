@@ -6,7 +6,7 @@ namespace Hypervel\Coroutine;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Coroutine\Exception\InvalidArgumentException;
+use Hypervel\Coroutine\Exceptions\InvalidArgumentException;
 use Hypervel\Engine\Channel;
 use Throwable;
 
