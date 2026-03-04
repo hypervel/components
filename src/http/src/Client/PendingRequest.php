@@ -27,11 +27,9 @@ use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use JsonSerializable;
-use OutOfBoundsException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
-use RuntimeException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 
@@ -130,6 +128,11 @@ class PendingRequest
     protected Collection $beforeSendingCallbacks;
 
     /**
+     * The callbacks that should execute after the response is built.
+     */
+    protected Collection $afterResponseCallbacks;
+
+    /**
      * The stub callables that will handle requests.
      */
     protected ?Collection $stubCallbacks = null;
@@ -153,6 +156,11 @@ class PendingRequest
      * Whether the requests should be asynchronous.
      */
     protected bool $async = false;
+
+    /**
+     * The attributes to track with the request.
+     */
+    protected array $attributes = [];
 
     /**
      * The pending request promise.
@@ -187,6 +195,11 @@ class PendingRequest
     ];
 
     /**
+     * The length at which request exceptions will be truncated.
+     */
+    protected false|int|null $truncateExceptionsAt = null;
+
+    /**
      * Create a new HTTP Client instance.
      */
     public function __construct(
@@ -212,6 +225,8 @@ class PendingRequest
                 $pendingRequest->dispatchRequestSendingEvent();
             },
         ]);
+
+        $this->afterResponseCallbacks = new Collection();
     }
 
     /**
@@ -392,6 +407,16 @@ class PendingRequest
     }
 
     /**
+     * Specify the NTLM authentication username and password for the request.
+     */
+    public function withNtlmAuth(string $username, string $password): static
+    {
+        return tap($this, function () use ($username, $password) {
+            $this->options['auth'] = [$username, $password, 'ntlm'];
+        });
+    }
+
+    /**
      * Specify an authorization token for the request.
      */
     public function withToken(string $token, string $type = 'Bearer'): static
@@ -556,6 +581,16 @@ class PendingRequest
     }
 
     /**
+     * Set arbitrary attributes to store with the request.
+     */
+    public function withAttributes(array $attributes): static
+    {
+        $this->attributes = array_merge_recursive($this->attributes, $attributes);
+
+        return $this;
+    }
+
+    /**
      * Add a new "before sending" callback to the request.
      */
     public function beforeSending(callable $callback): static
@@ -563,6 +598,16 @@ class PendingRequest
         return tap($this, function () use ($callback) {
             $this->beforeSendingCallbacks[] = $callback;
         });
+    }
+
+    /**
+     * Add a new callback to execute after the response is built.
+     */
+    public function afterResponse(callable $callback): static
+    {
+        $this->afterResponseCallbacks[] = $callback;
+
+        return $this;
     }
 
     /**
@@ -737,10 +782,12 @@ class PendingRequest
             try {
                 return tap(
                     $this->newResponse($this->sendRequest($method, $url, $options)),
-                    function (Response $response) use ($attempt, &$shouldRetry) {
+                    function (&$response) use ($attempt, &$shouldRetry) {
                         $this->populateResponse($response);
 
                         $this->dispatchResponseReceivedEvent($response);
+
+                        $response = $this->runAfterResponseCallbacks($response);
 
                         if (! $response->successful()) {
                             try {
@@ -775,15 +822,20 @@ class PendingRequest
                         }
                     }
                 );
-            } catch (ConnectException $e) {
-                $exception = new ConnectionException($e->getMessage(), 0, $e);
-                $request = new Request($e->getRequest());
+            } catch (TransferException $e) {
+                if ($e instanceof ConnectException) {
+                    $this->marshalConnectionException($e);
+                }
 
-                $this->factory?->recordRequestResponsePair($request, null);
+                if ($e instanceof RequestException && ! $e->hasResponse()) {
+                    $this->marshalRequestExceptionWithoutResponse($e);
+                }
 
-                $this->dispatchConnectionFailedEvent($request, $exception);
+                if ($e instanceof RequestException && $e->hasResponse()) {
+                    $this->marshalRequestExceptionWithResponse($e);
+                }
 
-                throw $exception;
+                throw $e;
             }
         }, $this->retryDelay ?? 100, function ($exception) use (&$shouldRetry) {
             $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
@@ -845,7 +897,19 @@ class PendingRequest
     protected function parseMultipartBodyFormat(array $data): array
     {
         return (new Collection($data))
-            ->map(fn ($value, $key) => is_array($value) ? $value : ['name' => $key, 'contents' => $value])
+            ->flatMap(function ($value, $key) {
+                if (is_array($value)) {
+                    if (isset($value['name'], $value['contents'])) {
+                        return [$value];
+                    }
+
+                    return (new Collection($value))->map(function ($item) use ($key) {
+                        return ['name' => $key . '[]', 'contents' => $item];
+                    });
+                }
+
+                return [['name' => $key, 'contents' => $value]];
+            })
             ->values()
             ->all();
     }
@@ -859,16 +923,25 @@ class PendingRequest
     {
         return $this->promise = $this->sendRequest($method, $url, $options)
             ->then(function (ResponseInterface $message) {
-                return tap($this->newResponse($message), function ($response) {
-                    $this->populateResponse($response);
-                    $this->dispatchResponseReceivedEvent($response);
-                });
+                $response = $this->newResponse($message);
+
+                $this->populateResponse($response);
+                $this->dispatchResponseReceivedEvent($response);
+
+                return $this->runAfterResponseCallbacks($response);
             })
-            ->otherwise(function (OutOfBoundsException|TransferException $e) {
+            ->otherwise(function (Throwable $e) {
+                if ($e instanceof StrayRequestException) {
+                    throw $e;
+                }
+
                 if ($e instanceof ConnectException || ($e instanceof RequestException && ! $e->hasResponse())) {
                     $exception = new ConnectionException($e->getMessage(), 0, $e);
 
-                    $this->dispatchConnectionFailedEvent(new Request($e->getRequest()), $exception);
+                    $this->dispatchConnectionFailedEvent(
+                        (new Request($e->getRequest()))->setRequestAttributes($this->attributes),
+                        $exception
+                    );
 
                     return $exception;
                 }
@@ -878,7 +951,7 @@ class PendingRequest
                 ) : $e;
             })
             ->then(
-                function (ConnectionException|Response|TransferException $response) use (
+                function (Response|Throwable $response) use (
                     $method,
                     $url,
                     $options,
@@ -895,7 +968,7 @@ class PendingRequest
      * @throws Exception
      */
     protected function handlePromiseResponse(
-        ConnectionException|Response|TransferException $response,
+        Response|Throwable $response,
         string $method,
         string $url,
         array $options,
@@ -969,7 +1042,7 @@ class PendingRequest
         };
 
         $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions([
-            'data' => $data,
+            'hypervel_data' => $data,
             'on_stats' => $onStats,
         ], $options));
 
@@ -1105,7 +1178,9 @@ class PendingRequest
 
                 return $promise->then(function ($response) use ($request, $options) {
                     $this->factory?->recordRequestResponsePair(
-                        (new Request($request))->withData($options['data']),
+                        (new Request($request))
+                            ->withData($options['hypervel_data'])
+                            ->setRequestAttributes($this->attributes),
                         $this->newResponse($response)
                     );
 
@@ -1124,15 +1199,13 @@ class PendingRequest
             return function ($request, $options) use ($handler) {
                 $response = ($this->stubCallbacks ?? new Collection())
                     ->map
-                    ->__invoke((new Request($request))->withData($options['data']), $options)
+                    ->__invoke((new Request($request))->withData($options['hypervel_data'])->setRequestAttributes($this->attributes), $options)
                     ->filter()
                     ->first();
 
                 if (is_null($response)) {
                     if (! $this->isAllowedRequestUrl((string) $request->getUri())) {
-                        throw new RuntimeException(
-                            'Attempted request to [' . (string) $request->getUri() . '] without a matching fake.'
-                        );
+                        throw new StrayRequestException((string) $request->getUri());
                     }
 
                     return $handler($request, $options);
@@ -1181,7 +1254,9 @@ class PendingRequest
             $this->beforeSendingCallbacks->each(function ($callback) use (&$request, $options) {
                 $callbackResult = call_user_func(
                     $callback,
-                    (new Request($request))->withData($options['data']),
+                    (new Request($request))
+                        ->withData($options['hypervel_data'])
+                        ->setRequestAttributes($this->attributes),
                     $options,
                     $this
                 );
@@ -1211,7 +1286,31 @@ class PendingRequest
      */
     protected function newResponse(PromiseInterface|ResponseInterface $response): Response
     {
-        return new Response($response);
+        return tap(new Response($response), function (Response $response) {
+            if ($this->truncateExceptionsAt === null) {
+                return;
+            }
+
+            $this->truncateExceptionsAt === false
+                ? $response->dontTruncateExceptions()
+                : $response->truncateExceptionsAt($this->truncateExceptionsAt);
+        });
+    }
+
+    /**
+     * Execute the "after response" callbacks.
+     */
+    protected function runAfterResponseCallbacks(Response $response): Response
+    {
+        foreach ($this->afterResponseCallbacks as $callback) {
+            $returnedResponse = $callback($response);
+
+            if ($returnedResponse instanceof Response) {
+                $response = $returnedResponse;
+            }
+        }
+
+        return $response;
     }
 
     /**
@@ -1312,6 +1411,80 @@ class PendingRequest
         if ($dispatcher = $this->factory?->getDispatcher()) {
             $dispatcher->dispatch(new ConnectionFailed($request, $exception));
         }
+    }
+
+    /**
+     * Indicate that request exceptions should be truncated to the given length.
+     */
+    public function truncateExceptionsAt(int $length): static
+    {
+        $this->truncateExceptionsAt = $length;
+
+        return $this;
+    }
+
+    /**
+     * Indicate that request exceptions should not be truncated.
+     */
+    public function dontTruncateExceptions(): static
+    {
+        $this->truncateExceptionsAt = false;
+
+        return $this;
+    }
+
+    /**
+     * Handle the given connection exception.
+     *
+     * @throws ConnectionException
+     */
+    protected function marshalConnectionException(ConnectException $e): void
+    {
+        $exception = new ConnectionException($e->getMessage(), 0, $e);
+
+        $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
+
+        $this->factory?->recordRequestResponsePair($request, null);
+
+        $this->dispatchConnectionFailedEvent($request, $exception);
+
+        throw $exception;
+    }
+
+    /**
+     * Handle the given request exception with no response.
+     *
+     * @throws ConnectionException
+     */
+    protected function marshalRequestExceptionWithoutResponse(RequestException $e): void
+    {
+        $exception = new ConnectionException($e->getMessage(), 0, $e);
+
+        $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
+
+        $this->factory?->recordRequestResponsePair($request, null);
+
+        $this->dispatchConnectionFailedEvent($request, $exception);
+
+        throw $exception;
+    }
+
+    /**
+     * Handle the given request exception with a response.
+     *
+     * @throws ConnectionException
+     * @throws \Hypervel\Http\Client\RequestException
+     */
+    protected function marshalRequestExceptionWithResponse(RequestException $e): void
+    {
+        $response = $this->populateResponse($this->newResponse($e->getResponse()));
+
+        $this->factory?->recordRequestResponsePair(
+            (new Request($e->getRequest()))->setRequestAttributes($this->attributes),
+            $response
+        );
+
+        throw $response->toException() ?? new ConnectionException($e->getMessage(), 0, $e);
     }
 
     /**
