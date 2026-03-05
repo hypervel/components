@@ -53,6 +53,10 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
             ]);
 
         tap($app->make('config'), function (Repository $config) {
+            // Set a dummy DSN so the ServiceProvider boots features in active mode.
+            // The before_send callback below returns null to suppress actual sending.
+            $config->set('sentry.dsn', 'https://key@sentry.test/1');
+
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
