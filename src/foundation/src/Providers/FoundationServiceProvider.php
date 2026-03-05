@@ -10,7 +10,6 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -66,6 +65,10 @@ class FoundationServiceProvider extends ServiceProvider
         $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
             $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
         });
+
+        $this->publishes([
+            __DIR__ . '/../../config/app.php' => config_path('app.php'),
+        ], 'app-config');
     }
 
     /**
@@ -73,7 +76,8 @@ class FoundationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->overrideHyperfConfigs();
+        $this->mergeConfigFrom(__DIR__ . '/../../config/app.php', 'app');
+
         $this->listenCommandException();
         $this->registerUriUrlGeneration();
 
@@ -127,21 +131,6 @@ class FoundationServiceProvider extends ServiceProvider
         $connection = $this->config->get('database.default', 'mysql');
         $this->app->make(ConnectionResolverInterface::class)
             ->setDefaultConnection($connection);
-    }
-
-    protected function overrideHyperfConfigs(): void
-    {
-        $configs = [
-            'app_name' => $this->config->get('app.name'),
-            'app_env' => $this->config->get('app.env'),
-            StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
-        ];
-
-        foreach ($configs as $key => $value) {
-            if (! $this->config->has($key)) {
-                $this->config->set($key, $value);
-            }
-        }
     }
 
     protected function registerUriUrlGeneration(): void

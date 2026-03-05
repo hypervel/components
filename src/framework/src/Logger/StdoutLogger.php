@@ -79,10 +79,10 @@ class StdoutLogger implements StdoutLoggerInterface
      */
     public function log($level, $message, array $context = []): void
     {
-        $config = $this->config->get(StdoutLoggerInterface::class, ['log_level' => []]);
+        $logLevel = $this->config->get('app.stdout_log_level', []);
 
         // Check if the log level is allowed
-        if (! in_array($level, $config['log_level'], true)) {
+        if (! in_array($level, $logLevel, true)) {
             return;
         }
 
