@@ -294,9 +294,7 @@
     "extra": {
         "hyperf": {
             "config": [
-                "Hypervel\\Config\\ConfigProvider",
-                "Hypervel\\Sanctum\\ConfigProvider",
-                "Hypervel\\Permission\\ConfigProvider"
+                "Hypervel\\Config\\ConfigProvider"
             ]
         },
         "hypervel": {
