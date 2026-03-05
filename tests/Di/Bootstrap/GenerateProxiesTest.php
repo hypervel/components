@@ -69,11 +69,11 @@ class GenerateProxiesTest extends TestCase
         // Use a controlled ClassLoader with an empty class map but a PSR-4
         // prefix that can resolve a known class. This avoids dependency on
         // whether the real autoloader is optimized or not.
-        $testClass = 'Hypervel\\Support\\Composer';
+        $testClass = 'Hypervel\Support\Composer';
 
         $loader = new ClassLoader();
         // No class map entries — simulates a non-optimized autoloader
-        $loader->addPsr4('Hypervel\\Support\\', [__DIR__ . '/../../../src/support/src/']);
+        $loader->addPsr4('Hypervel\Support\\', [__DIR__ . '/../../../src/support/src/']);
         $loader->register();
 
         $this->originalLoader = Composer::setLoader($loader);
