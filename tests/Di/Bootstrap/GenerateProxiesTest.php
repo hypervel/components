@@ -58,14 +58,21 @@ class GenerateProxiesTest extends TestCase
 
     public function testBuildClassMapResolvesPsr4ClassesViaFindFile()
     {
-        // Hypervel\Support\Composer is PSR-4 loaded — NOT in Composer's static class map
-        $testClass = Composer::class;
+        // Use a class under a PSR-4 prefix registered at test time, so it's
+        // guaranteed to never be in the static class map — even with an
+        // optimized autoloader (`composer dump-autoload -o`).
+        $testClass = 'Hypervel\Tests\Di\Stub\Psr4Only\UnmappedService';
         $loader = Composer::getLoader();
+
+        $loader->addPsr4(
+            'Hypervel\Tests\Di\Stub\Psr4Only\\',
+            [__DIR__ . '/../Stub/Psr4Only/']
+        );
 
         $this->assertArrayNotHasKey($testClass, $loader->getClassMap(), 'Test class must not be in static class map');
         $this->assertNotFalse($loader->findFile($testClass), 'Test class must be findable via PSR-4');
 
-        AspectCollector::setAround('TestAspect', [$testClass . '::getLoader']);
+        AspectCollector::setAround('TestAspect', [$testClass . '::handle']);
 
         $bootstrapper = new GenerateProxies();
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
@@ -73,7 +80,7 @@ class GenerateProxiesTest extends TestCase
         $classMap = $reflection->invoke($bootstrapper);
 
         $this->assertArrayHasKey($testClass, $classMap);
-        $this->assertStringContainsString('Composer.php', $classMap[$testClass]);
+        $this->assertStringContainsString('UnmappedService.php', $classMap[$testClass]);
     }
 
     public function testBuildClassMapSkipsWildcardRules()
