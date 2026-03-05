@@ -17,6 +17,8 @@ class EncryptionServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/encryption.php', 'encryption');
+
         $this->registerEncrypter();
         $this->registerSerializableClosureSecurityKey();
 
@@ -84,5 +86,15 @@ class EncryptionServiceProvider extends ServiceProvider
                 throw new MissingAppKeyException();
             }
         });
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/encryption.php' => config_path('encryption.php'),
+        ], 'encryption-config');
     }
 }

@@ -13,8 +13,20 @@ class HashingServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/hashing.php', 'hashing');
+
         $this->app->singleton('hash', fn ($app) => new HashManager($app));
 
         $this->app->singleton('hash.driver', fn ($app) => $app->make('hash')->driver());
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/hashing.php' => config_path('hashing.php'),
+        ], 'hashing-config');
     }
 }

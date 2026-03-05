@@ -16,6 +16,8 @@ class JWTServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/jwt.php', 'jwt');
+
         $this->app->singleton(BlacklistContract::class, function ($app) {
             $config = $app->make('config');
 
@@ -33,5 +35,15 @@ class JWTServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton('jwt', fn ($app) => new JWTManager($app));
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/jwt.php' => config_path('jwt.php'),
+        ], 'jwt-config');
     }
 }

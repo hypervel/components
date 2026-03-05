@@ -16,6 +16,8 @@ class MailServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/mail.php', 'mail');
+
         $this->app->singleton(FactoryContract::class, fn ($app) => $app->build(MailManager::class));
 
         $this->app->singleton(MailerContract::class, fn ($app) => $app->make(FactoryContract::class)->mailer());
@@ -32,11 +34,11 @@ class MailServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../publish/mail.php' => BASE_PATH . '/config/autoload/mail.php',
-        ]);
+            __DIR__ . '/../config/mail.php' => config_path('mail.php'),
+        ], 'mail-config');
 
         $this->publishes([
-            __DIR__ . '/../publish/resources/views/' => BASE_PATH . '/storage/view/mail/',
-        ]);
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/mail'),
+        ], 'hypervel-mail');
     }
 }

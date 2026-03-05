@@ -24,7 +24,7 @@ class PermissionServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../publish/permission.php',
+            __DIR__ . '/../config/permission.php',
             'permission'
         );
 
@@ -38,7 +38,7 @@ class PermissionServiceProvider extends ServiceProvider
     public function registerPublishing(): void
     {
         $this->publishes([
-            __DIR__ . '/../publish/permission.php' => config_path('permission.php'),
+            __DIR__ . '/../config/permission.php' => config_path('permission.php'),
         ], 'permission-config');
 
         $this->publishes([

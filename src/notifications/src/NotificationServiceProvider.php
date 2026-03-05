@@ -26,6 +26,10 @@ class NotificationServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->loadViewsFrom(dirname(__DIR__) . '/publish/resources/views', 'notifications');
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'notifications');
+
+        $this->publishes([
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/notifications'),
+        ], 'hypervel-notifications');
     }
 }

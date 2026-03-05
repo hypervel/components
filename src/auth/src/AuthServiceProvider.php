@@ -16,6 +16,8 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/auth.php', 'auth');
+
         $this->registerAuthenticator();
         $this->registerUserResolver();
         $this->registerAccessGate();
@@ -55,7 +57,7 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../publish/auth.php' => BASE_PATH . '/config/autoload/auth.php',
-        ]);
+            __DIR__ . '/../config/auth.php' => config_path('auth.php'),
+        ], 'auth-config');
     }
 }

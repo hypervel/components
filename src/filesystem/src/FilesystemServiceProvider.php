@@ -13,6 +13,8 @@ class FilesystemServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/filesystems.php', 'filesystems');
+
         $this->registerNativeFilesystem();
         $this->registerFlysystem();
     }
@@ -59,5 +61,15 @@ class FilesystemServiceProvider extends ServiceProvider
     protected function getCloudDriver(): string
     {
         return $this->app['config']['filesystems.cloud'];
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/filesystems.php' => config_path('filesystems.php'),
+        ], 'filesystems-config');
     }
 }

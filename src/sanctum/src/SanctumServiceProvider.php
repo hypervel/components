@@ -21,7 +21,7 @@ class SanctumServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../publish/sanctum.php',
+            __DIR__ . '/../config/sanctum.php',
             'sanctum'
         );
     }
@@ -84,7 +84,7 @@ class SanctumServiceProvider extends ServiceProvider
     protected function registerPublishing(): void
     {
         $this->publishes([
-            __DIR__ . '/../publish/sanctum.php' => config_path('sanctum.php'),
+            __DIR__ . '/../config/sanctum.php' => config_path('sanctum.php'),
         ], 'sanctum-config');
 
         $this->publishes([

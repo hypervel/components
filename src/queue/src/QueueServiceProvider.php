@@ -37,6 +37,8 @@ class QueueServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/queue.php', 'queue');
+
         $this->configureSerializableClosureUses();
 
         $this->registerManager();
@@ -190,5 +192,15 @@ class QueueServiceProvider extends ServiceProvider
 
             return new NullFailedJobProvider();
         });
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/queue.php' => config_path('queue.php'),
+        ], 'queue-config');
     }
 }
