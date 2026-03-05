@@ -61,12 +61,12 @@ class GenerateProxiesTest extends TestCase
         // Use a class under a PSR-4 prefix registered at test time, so it's
         // guaranteed to never be in the static class map — even with an
         // optimized autoloader (`composer dump-autoload -o`).
-        $testClass = 'Hypervel\Tests\Di\Stub\Psr4Only\UnmappedService';
+        $testClass = 'Hypervel\Tests\Di\Stub\Psr4\UnmappedService';
         $loader = Composer::getLoader();
 
         $loader->addPsr4(
-            'Hypervel\Tests\Di\Stub\Psr4Only\\',
-            [__DIR__ . '/../Stub/Psr4Only/']
+            'Hypervel\Tests\Di\Stub\Psr4\\',
+            [__DIR__ . '/../Stub/Psr4/']
         );
 
         $this->assertArrayNotHasKey($testClass, $loader->getClassMap(), 'Test class must not be in static class map');

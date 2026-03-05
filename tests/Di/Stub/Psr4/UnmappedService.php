@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Di\Stub\Psr4Only;
+namespace Hypervel\Tests\Di\Stub\Psr4;
 
 /**
  * This class exists solely to test PSR-4 resolution in buildClassMap().
