@@ -38,8 +38,8 @@ class CacheFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable(static::FEATURE_KEY)
-            || $this->switcher->isBreadcrumbEnable(static::FEATURE_KEY);
+        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
     }
 
     public function onBoot(): void
@@ -51,7 +51,7 @@ class CacheFeature extends Feature
         }
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->make(Dispatcher::class);
-        if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
                 CacheMissed::class,
@@ -60,7 +60,7 @@ class CacheFeature extends Feature
             ], [$this, 'handleCacheEventsForBreadcrumbs']);
         }
 
-        if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 RetrievingKey::class,
                 RetrievingManyKeys::class,

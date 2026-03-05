@@ -58,9 +58,9 @@ class QueueFeature extends Feature
             return false;
         }
 
-        return $this->switcher->isBreadcrumbEnable(static::QUEUE_BREADCRUMB_FEATURE_KEY)
-            || $this->switcher->isTracingEnable(static::QUEUE_TRACING_JOBS_FEATURE_KEY)
-            || $this->switcher->isTracingEnable(static::QUEUE_TRACING_JOB_TRANSACTIONS_FEATURE_KEY);
+        return $this->isBreadcrumbFeatureEnabled(static::QUEUE_BREADCRUMB_FEATURE_KEY)
+            || $this->isTracingFeatureEnabled(static::QUEUE_TRACING_JOBS_FEATURE_KEY)
+            || $this->isTracingFeatureEnabled(static::QUEUE_TRACING_JOB_TRANSACTIONS_FEATURE_KEY);
     }
 
     public function onBoot(): void
@@ -75,8 +75,8 @@ class QueueFeature extends Feature
         $dispatcher->listen(WorkerStopping::class, [$this, 'handleWorkerStoppingQueueEvent']);
         $dispatcher->listen(JobExceptionOccurred::class, [$this, 'handleJobExceptionOccurredQueueEvent']);
 
-        if ($this->switcher->isTracingEnable(static::QUEUE_TRACING_JOBS_FEATURE_KEY)
-            || $this->switcher->isTracingEnable(static::QUEUE_TRACING_JOB_TRANSACTIONS_FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(static::QUEUE_TRACING_JOBS_FEATURE_KEY)
+            || $this->isTracingFeatureEnabled(static::QUEUE_TRACING_JOB_TRANSACTIONS_FEATURE_KEY)) {
             Queue::createPayloadUsing(function (?string $connection, ?string $queue, ?array $payload): ?array {
                 $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
@@ -144,7 +144,7 @@ class QueueFeature extends Feature
 
         $this->pushScope();
 
-        if ($this->switcher->isBreadcrumbEnable(static::QUEUE_BREADCRUMB_FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(static::QUEUE_BREADCRUMB_FEATURE_KEY)) {
             Integration::addBreadcrumb(
                 new Breadcrumb(
                     Breadcrumb::LEVEL_INFO,
@@ -165,14 +165,14 @@ class QueueFeature extends Feature
         $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
         // If there is no tracing span active and we don't trace jobs as transactions there is no need to handle the event
-        if ($parentSpan === null && ! $this->switcher->isTracingEnable(
+        if ($parentSpan === null && ! $this->isTracingFeatureEnabled(
             static::QUEUE_TRACING_JOB_TRANSACTIONS_FEATURE_KEY
         )) {
             return;
         }
 
         // If there is a parent span we can record the job as a child unless the parent is not sample or we are configured to not do so
-        if ($parentSpan !== null && (! $parentSpan->getSampled() || ! $this->switcher->isTracingEnable(
+        if ($parentSpan !== null && (! $parentSpan->getSampled() || ! $this->isTracingFeatureEnabled(
             static::QUEUE_TRACING_JOBS_FEATURE_KEY
         ))) {
             return;

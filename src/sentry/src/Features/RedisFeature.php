@@ -22,7 +22,7 @@ class RedisFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable('redis_commands');
+        return $this->isTracingFeatureEnabled('redis_commands');
     }
 
     public function onBoot(): void
@@ -90,7 +90,7 @@ class RedisFeature extends Feature
             $data['db.redis.parameters'] = $this->replaceSessionKeys($event->parameters);
         }
 
-        if ($this->switcher->isTracingEnable('redis_origin')) {
+        if ($this->isTracingFeatureEnabled('redis_origin')) {
             $commandOrigin = $this->resolveEventOrigin();
 
             if ($commandOrigin !== null) {

@@ -23,14 +23,14 @@ class NotificationsFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable(static::FEATURE_KEY)
-            || $this->switcher->isBreadcrumbEnable(static::FEATURE_KEY);
+        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
         $dispatcher = $this->container->make(Dispatcher::class);
-        if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
         }
 
@@ -54,7 +54,7 @@ class NotificationsFeature extends Feature
                 'notifiable' => $this->formatNotifiable($event->notifiable),
                 'notification' => get_class($event->notification),
             ])
-            ->setOrigin('auto.laravel.notifications')
+            ->setOrigin('auto.hypervel.notifications')
             ->setDescription($event->channel);
 
         $this->pushSpan($parentSpan->startChild($context));
@@ -64,7 +64,7 @@ class NotificationsFeature extends Feature
     {
         $this->maybeFinishSpan(SpanStatus::ok());
 
-        if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
             Integration::addBreadcrumb(
                 new Breadcrumb(
                     Breadcrumb::LEVEL_INFO,

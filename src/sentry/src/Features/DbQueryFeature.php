@@ -23,8 +23,8 @@ class DbQueryFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isBreadcrumbEnable(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)
-            || $this->switcher->isBreadcrumbEnable(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY);
+        return $this->isBreadcrumbFeatureEnabled(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY);
     }
 
     public function onBoot(): void
@@ -39,7 +39,7 @@ class DbQueryFeature extends Feature
 
     public function handleQueryExecutedEvent(QueryExecuted $event): void
     {
-        if (! $this->switcher->isBreadcrumbEnable(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)) {
+        if (! $this->isBreadcrumbFeatureEnabled(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)) {
             return;
         }
 
@@ -49,7 +49,7 @@ class DbQueryFeature extends Feature
             $data['executionTimeMs'] = $event->time;
         }
 
-        if ($this->switcher->isBreadcrumbEnable(static::SQL_BINDINGS_BREADCRUMB_FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(static::SQL_BINDINGS_BREADCRUMB_FEATURE_KEY)) {
             $data['bindings'] = $event->bindings;
         }
 
@@ -67,7 +67,7 @@ class DbQueryFeature extends Feature
     public function handleTransactionEvent(
         TransactionBeginning|TransactionCommitted|TransactionRolledBack|ConnectionEvent $event
     ): void {
-        if (! $this->switcher->isBreadcrumbEnable(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY)) {
+        if (! $this->isBreadcrumbFeatureEnabled(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY)) {
             return;
         }
 

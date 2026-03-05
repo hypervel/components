@@ -113,14 +113,14 @@ class ConsoleSchedulingFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable('console_scheduling')
-            || $this->switcher->isBreadcrumbEnable('console_scheduling');
+        return $this->isTracingFeatureEnabled('console_scheduling')
+            || $this->isBreadcrumbFeatureEnabled('console_scheduling');
     }
 
     public function onBoot(): void
     {
         $this->shouldHandleCheckIn = true;
-        $dispatcher = $this->container()->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
 
         $dispatcher->listen(ScheduledTaskStarting::class, [$this, 'handleScheduledTaskStarting']);
         $dispatcher->listen(ScheduledTaskFinished::class, [$this, 'handleScheduledTaskFinished']);
