@@ -232,7 +232,10 @@
         "audit": {
             "ignore": ["PKSA-z3gr-8qht-p93v"]
         },
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
     },
     "extra": {
         "hyperf": {

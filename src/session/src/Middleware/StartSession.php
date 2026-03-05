@@ -11,6 +11,7 @@ use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Cache\Contracts\LockProvider;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Session\Contracts\Session;
@@ -82,8 +83,9 @@ class StartSession implements MiddlewareInterface
         $waitFor = ($blockingOptions['wait']
             ?? $this->manager->defaultRouteBlockWaitSeconds());
 
-        /* @phpstan-ignore-next-line */
-        $lock = $this->cache->store($this->manager->blockDriver())
+        /** @var \Hypervel\Cache\Contracts\Repository&LockProvider $store */ // @phpstan-ignore varTag.nativeType
+        $store = $this->cache->store($this->manager->blockDriver());
+        $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)
             ->betweenBlockedAttemptsSleepFor(50);
 
@@ -92,7 +94,7 @@ class StartSession implements MiddlewareInterface
 
             return $this->handleStatefulRequest($request, $session, $handler);
         } finally {
-            $lock?->release();
+            $lock->release();
         }
     }
 
