@@ -55,7 +55,9 @@ class LogsHandler extends AbstractProcessingHandler
             $logs[] = $this->processRecord($r);
         }
 
-        $record['context']['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
+        if ($logs) { /* @phpstan-ignore if.alwaysTrue */
+            $record['context']['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
+        }
 
         $this->handle($record);
     }
@@ -83,16 +85,19 @@ class LogsHandler extends AbstractProcessingHandler
     }
 
     /**
-     * @suppress PhanTypeMismatchArgument
+     * Write a record to the handler.
      *
+     * @suppress PhanTypeMismatchArgument
      * @param mixed $record
      */
     protected function doWrite($record): void
     {
-        $exception = $record['context']['exception'] ?? null;
+        $context = $record['context'];
+        $exception = $context['exception'] ?? null;
 
         if ($exception instanceof Throwable) {
-            return;
+            // Unset the exception object from the log context
+            unset($context['exception']);
         }
 
         \Sentry\logger()->aggregator()->add(
@@ -102,7 +107,7 @@ class LogsHandler extends AbstractProcessingHandler
             ),
             $record['message'],
             [],
-            array_merge($record['context'], $record['extra'])
+            array_merge($context, $record['extra'], ['sentry.origin' => 'auto.logger.monolog'])
         );
     }
 
