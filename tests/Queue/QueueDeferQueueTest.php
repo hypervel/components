@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use DateInterval;
 use Exception;
+use Hyperf\Coordinator\Timer;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Database\TransactionManager;
@@ -13,6 +15,7 @@ use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
 use Hypervel\Queue\DeferQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -90,6 +93,93 @@ class QueueDeferQueueTest extends TestCase
         run(fn () => $defer->push(new DeferQueueAfterCommitInterfaceJob()));
     }
 
+    public function testLaterSchedulesJobWithDelay()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) {
+                $callback();
+                return 1;
+            });
+
+        $defer = new DeferQueue(timer: $timer);
+        $defer->setConnectionName('defer');
+        $container = $this->getContainer();
+        $defer->setContainer($container);
+
+        unset($_SERVER['__defer.later.test']);
+
+        run(fn () => $defer->later(5, DeferQueueLaterTestHandler::class, ['foo' => 'bar']));
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__defer.later.test'][0]);
+        $this->assertEquals(['foo' => 'bar'], $_SERVER['__defer.later.test'][1]);
+    }
+
+    public function testLaterWithDateInterval()
+    {
+        $timer = m::mock(Timer::class);
+        $interval = new DateInterval('PT10S');
+
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(10.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) {
+                $callback();
+                return 1;
+            });
+
+        $defer = new DeferQueue(timer: $timer);
+        $defer->setConnectionName('defer');
+        $container = $this->getContainer();
+        $defer->setContainer($container);
+
+        unset($_SERVER['__defer.later.interval.test']);
+
+        run(fn () => $defer->later($interval, DeferQueueLaterIntervalTestHandler::class, ['baz' => 'qux']));
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__defer.later.interval.test'][0]);
+        $this->assertEquals(['baz' => 'qux'], $_SERVER['__defer.later.interval.test'][1]);
+    }
+
+    public function testLaterWithDateTime()
+    {
+        Carbon::setTestNow('2024-01-01 12:00:00');
+
+        $timer = m::mock(Timer::class);
+        $dateTime = Carbon::parse('2024-01-01 12:00:15');
+
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(15.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) {
+                $callback();
+                return 1;
+            });
+
+        $defer = new DeferQueue(timer: $timer);
+        $defer->setConnectionName('defer');
+        $container = $this->getContainer();
+        $defer->setContainer($container);
+
+        unset($_SERVER['__defer.later.datetime.test']);
+
+        run(fn () => $defer->later($dateTime, DeferQueueLaterDateTimeTestHandler::class, ['test' => 'data']));
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__defer.later.datetime.test'][0]);
+        $this->assertEquals(['test' => 'data'], $_SERVER['__defer.later.datetime.test'][1]);
+
+        Carbon::setTestNow();
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        Carbon::setTestNow();
+        m::close();
+    }
+
     protected function getContainer(): Container
     {
         return new Container(
@@ -154,5 +244,29 @@ class DeferQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
 
     public function handle()
     {
+    }
+}
+
+class DeferQueueLaterTestHandler
+{
+    public function fire($job, $data)
+    {
+        $_SERVER['__defer.later.test'] = func_get_args();
+    }
+}
+
+class DeferQueueLaterIntervalTestHandler
+{
+    public function fire($job, $data)
+    {
+        $_SERVER['__defer.later.interval.test'] = func_get_args();
+    }
+}
+
+class DeferQueueLaterDateTimeTestHandler
+{
+    public function fire($job, $data)
+    {
+        $_SERVER['__defer.later.datetime.test'] = func_get_args();
     }
 }
