@@ -1,0 +1,51 @@
+{
+    "name": "hypervel/di",
+    "type": "library",
+    "description": "The Hypervel DI package providing AOP (Aspect-Oriented Programming) and class map functionality.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "di",
+        "aop",
+        "aspect",
+        "proxy",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Di\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/pipeline": "^0.4",
+        "hypervel/support": "^0.4",
+        "nikic/php-parser": "^5.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}
