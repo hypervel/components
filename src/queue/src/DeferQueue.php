@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use DateInterval;
+use DateTimeInterface;
+use Hyperf\Coordinator\Timer;
 use Hyperf\Engine\Coroutine;
 use Hypervel\Database\TransactionManager;
 use Throwable;
@@ -16,6 +19,18 @@ class DeferQueue extends SyncQueue
      * @var null|callable
      */
     protected $exceptionCallback;
+
+    /**
+     * Create a new defer queue instance.
+     */
+    public function __construct(
+        protected bool $dispatchAfterCommit = false,
+        protected ?Timer $timer = null
+    ) {
+        if (! $this->timer) {
+            $this->timer = new Timer();
+        }
+    }
 
     /**
      * Push a new job onto the queue.
@@ -34,6 +49,17 @@ class DeferQueue extends SyncQueue
         $this->deferJob($job, $data, $queue);
 
         return null;
+    }
+
+    /**
+     * Push a new job onto the queue after (n) seconds.
+     */
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    {
+        return $this->timer->after(
+            (float) $this->secondsUntil($delay),
+            fn () => $this->deferJob($job, $data, $queue)
+        );
     }
 
     /**
