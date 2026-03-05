@@ -11,7 +11,11 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Translation\Loader as TranslationLoader;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\View\Compilers\CompilerInterface;
+use ReflectionClass;
+use ReflectionProperty;
 
 abstract class ServiceProvider
 {
@@ -336,7 +340,53 @@ abstract class ServiceProvider
     }
 
     /**
-     * Get the default providers for a Laravel application.
+     * Register AOP aspects.
+     *
+     * Reads `$classes` and `$priority` from each aspect class's default
+     * property values via reflection (without instantiating the aspect).
+     * Must be called during register(), before boot().
+     *
+     * @param array<int, string>|string $aspects
+     */
+    protected function aspects(string|array $aspects): void
+    {
+        $aspects = is_array($aspects) ? $aspects : func_get_args();
+
+        foreach ($aspects as $aspect) {
+            $reflectionClass = new ReflectionClass($aspect);
+            $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
+
+            $classes = [];
+            $priority = null;
+
+            foreach ($properties as $property) {
+                if ($property->getName() === 'classes') {
+                    $classes = $property->getDefaultValue();
+                } elseif ($property->getName() === 'priority') {
+                    $priority = $property->getDefaultValue();
+                }
+            }
+
+            AspectCollector::setAround($aspect, $classes, $priority);
+        }
+    }
+
+    /**
+     * Register class map overrides.
+     *
+     * Applies entries to the Composer autoloader immediately.
+     * Fails hard if any target class is already loaded.
+     * Must be called during register(), before the target class is autoloaded.
+     *
+     * @param array<class-string, string> $map originalClass => replacementFilePath
+     */
+    protected function classMap(array $map): void
+    {
+        ClassMapManager::add($map);
+    }
+
+    /**
+     * Get the default providers for a Hypervel application.
      */
     public static function defaultProviders(): DefaultProviders
     {
