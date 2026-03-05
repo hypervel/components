@@ -173,13 +173,6 @@ class QueueCoroutineQueueTest extends TestCase
         Carbon::setTestNow();
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        Carbon::setTestNow();
-        m::close();
-    }
-
     protected function getContainer(): Container
     {
         return new Container(
