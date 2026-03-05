@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Di\Bootstrap;
 
+use Composer\Autoload\ClassLoader;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\AspectManager;
 use Hypervel\Di\Aop\AstVisitorRegistry;
@@ -20,8 +21,15 @@ use ReflectionMethod;
  */
 class GenerateProxiesTest extends TestCase
 {
+    private ?ClassLoader $originalLoader = null;
+
     protected function tearDown(): void
     {
+        if ($this->originalLoader !== null) {
+            Composer::setLoader($this->originalLoader);
+            $this->originalLoader = null;
+        }
+
         AspectCollector::clear();
         AspectManager::clear();
         AstVisitorRegistry::clear();
@@ -58,21 +66,22 @@ class GenerateProxiesTest extends TestCase
 
     public function testBuildClassMapResolvesPsr4ClassesViaFindFile()
     {
-        // Use a class under a PSR-4 prefix registered at test time, so it's
-        // guaranteed to never be in the static class map — even with an
-        // optimized autoloader (`composer dump-autoload -o`).
-        $testClass = 'Hypervel\Tests\Di\Stub\Psr4\UnmappedService';
-        $loader = Composer::getLoader();
+        // Use a controlled ClassLoader with an empty class map but a PSR-4
+        // prefix that can resolve a known class. This avoids dependency on
+        // whether the real autoloader is optimized or not.
+        $testClass = 'Hypervel\\Support\\Composer';
 
-        $loader->addPsr4(
-            'Hypervel\Tests\Di\Stub\Psr4\\',
-            [__DIR__ . '/../Stub/Psr4/']
-        );
+        $loader = new ClassLoader();
+        // No class map entries — simulates a non-optimized autoloader
+        $loader->addPsr4('Hypervel\\Support\\', [__DIR__ . '/../../../src/support/src/']);
+        $loader->register();
 
-        $this->assertArrayNotHasKey($testClass, $loader->getClassMap(), 'Test class must not be in static class map');
-        $this->assertNotFalse($loader->findFile($testClass), 'Test class must be findable via PSR-4');
+        $this->originalLoader = Composer::setLoader($loader);
 
-        AspectCollector::setAround('TestAspect', [$testClass . '::handle']);
+        $this->assertArrayNotHasKey($testClass, $loader->getClassMap());
+        $this->assertNotFalse($loader->findFile($testClass));
+
+        AspectCollector::setAround('TestAspect', [$testClass . '::getLoader']);
 
         $bootstrapper = new GenerateProxies();
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
@@ -80,7 +89,7 @@ class GenerateProxiesTest extends TestCase
         $classMap = $reflection->invoke($bootstrapper);
 
         $this->assertArrayHasKey($testClass, $classMap);
-        $this->assertStringContainsString('UnmappedService.php', $classMap[$testClass]);
+        $this->assertStringContainsString('Composer.php', $classMap[$testClass]);
     }
 
     public function testBuildClassMapSkipsWildcardRules()
