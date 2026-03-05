@@ -46,7 +46,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
         $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
-            'app_name' => $name,
+            'app' => ['name' => $name],
         ]));
 
         $listener = new InitProcessTitleListenerStub($container);
@@ -68,7 +68,7 @@ class InitProcessTitleListenerTest extends TestCase
         $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
         $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
         $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
-            'app_name' => $name,
+            'app' => ['name' => $name],
         ]));
 
         $listener = new InitProcessTitleListenerStub2($container);

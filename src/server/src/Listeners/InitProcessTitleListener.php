@@ -20,7 +20,7 @@ class InitProcessTitleListener
     public function __construct(Container $container)
     {
         if ($container->has(Repository::class)) {
-            if ($name = $container->make(Repository::class)->get('app_name')) {
+            if ($name = $container->make(Repository::class)->get('app.name')) {
                 $this->name = $name;
             }
         }

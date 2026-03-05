@@ -26,11 +26,9 @@ use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
-use Hypervel\Foundation\Listeners\SetProcessTitle;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Http\Request;
-use Hypervel\Server\Listeners\InitProcessTitleListener;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -80,8 +78,6 @@ class FoundationServiceProvider extends ServiceProvider
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
-
-        $this->app->singleton(InitProcessTitleListener::class, SetProcessTitle::class);
 
         $this->commands([
             AboutCommand::class,
