@@ -292,11 +292,6 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": [
-                "Hypervel\\Config\\ConfigProvider"
-            ]
-        },
         "hypervel": {
             "dont-discover": [
                 "hyperf/command"
