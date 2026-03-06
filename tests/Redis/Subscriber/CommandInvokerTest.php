@@ -22,15 +22,6 @@ class CommandInvokerTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // RunTestsInCoroutine resumes the WORKER_EXIT coordinator after each test,
-        // closing its channel. Clear it so each test gets a fresh coordinator.
-        CoordinatorManager::clear(Constants::WORKER_EXIT);
-    }
-
     public function testInvokeSendsCommandAndCollectsResults()
     {
         // Simulate a subscribe confirmation response:

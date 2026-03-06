@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis\Subscriber;
 
-use Hypervel\Coordinator\Constants;
-use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\Subscriber;
@@ -30,15 +28,6 @@ class SubscriberIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
     use RunTestsInCoroutine;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // RunTestsInCoroutine resumes the WORKER_EXIT coordinator after each test,
-        // closing its channel. Clear it so each test gets a fresh coordinator.
-        CoordinatorManager::clear(Constants::WORKER_EXIT);
-    }
 
     public function testSubscribeReceivesMessage()
     {

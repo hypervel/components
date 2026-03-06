@@ -7,8 +7,6 @@ namespace Hypervel\Tests\Pool;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Coordinator\Constants;
-use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Pool\Stubs\HeartbeatPoolStub;
@@ -23,15 +21,6 @@ use Mockery as m;
 class HeartbeatConnectionTest extends TestCase
 {
     use RunTestsInCoroutine;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // RunTestsInCoroutine resumes the WORKER_EXIT coordinator after each test,
-        // closing its channel. Clear it so each test gets a fresh coordinator.
-        CoordinatorManager::clear(Constants::WORKER_EXIT);
-    }
 
     protected function tearDown(): void
     {
