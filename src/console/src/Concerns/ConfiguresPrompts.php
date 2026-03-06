@@ -29,11 +29,11 @@ trait ConfiguresPrompts
     {
         Prompt::setOutput($this->output);
 
-        Prompt::interactive(($input->isInteractive() && defined('STDIN') && stream_isatty(STDIN)) || $this->app->runningUnitTests());
+        Prompt::interactive(($input->isInteractive() && defined('STDIN') && stream_isatty(STDIN)) || $this->hypervel->runningUnitTests());
 
         Prompt::validateUsing(fn (Prompt $prompt) => $this->validatePrompt($prompt->value(), $prompt->validate));
 
-        Prompt::fallbackWhen(windows_os() || $this->app->runningUnitTests());
+        Prompt::fallbackWhen(windows_os() || $this->hypervel->runningUnitTests());
 
         TextPrompt::fallbackUsing(fn (TextPrompt $prompt) => $this->promptUntilValid(
             fn () => $this->components->ask($prompt->label, $prompt->default ?: null) ?? '',
@@ -130,7 +130,7 @@ trait ConfiguresPrompts
             if ($required && ($result === '' || $result === [] || $result === false)) {
                 $this->components->error(is_string($required) ? $required : 'Required.');
 
-                if ($this->app->runningUnitTests()) {
+                if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException();
                 }
                 continue;
@@ -141,7 +141,7 @@ trait ConfiguresPrompts
             if (is_string($error) && strlen($error) > 0) {
                 $this->components->error($error);
 
-                if ($this->app->runningUnitTests()) {
+                if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException();
                 }
                 continue;
@@ -195,7 +195,7 @@ trait ConfiguresPrompts
      */
     protected function getPromptValidatorInstance($field, $value, $rules, array $messages = [], array $attributes = [])
     {
-        return $this->app['validator']->make(
+        return $this->hypervel['validator']->make(
             [$field => $value],
             [$field => $rules],
             empty($messages) ? $this->validationMessages() : $messages,
@@ -263,7 +263,7 @@ trait ConfiguresPrompts
     {
         $default = $default !== [] ? implode(',', $default) : null;
 
-        if ($required === false && ! $this->app->runningUnitTests()) {
+        if ($required === false && ! $this->hypervel->runningUnitTests()) {
             $options = array_is_list($options)
                 ? ['None', ...$options]
                 : ['' => 'None'] + $options;

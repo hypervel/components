@@ -47,7 +47,7 @@ trait ConfirmableTrait
     protected function getDefaultConfirmCallback(): Closure
     {
         return function () {
-            return $this->app->isProduction();
+            return $this->getHypervel()->isProduction();
         };
     }
 }
