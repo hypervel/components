@@ -197,7 +197,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     public function addCommand(SymfonyCommand|callable $command): ?SymfonyCommand
     {
         if ($command instanceof Command) {
-            $command->setApp($this->container);
+            $command->setHypervel($this->container);
         }
 
         return $this->addToParent($command);
@@ -360,9 +360,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     }
 
     /**
-     * Get the application instance.
+     * Get the Hypervel application instance.
      */
-    public function getApp(): ApplicationContract
+    public function getHypervel(): ApplicationContract
     {
         return $this->container;
     }

@@ -12,9 +12,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 interface Application
 {
     /**
-     * Get the application instance.
+     * Get the Hypervel application instance.
      */
-    public function getApp(): ApplicationContract;
+    public function getHypervel(): ApplicationContract;
 
     public function add(SymfonyCommand $command);
 
