@@ -41,6 +41,16 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     protected string $basePath = '';
 
     /**
+     * The custom environment path defined by the developer.
+     */
+    protected ?string $environmentPath = null;
+
+    /**
+     * The environment file to load during bootstrapping.
+     */
+    protected ?string $environmentFile = null;
+
+    /**
      * The prefixes that indicate an absolute cache path.
      *
      * @var string[]
@@ -51,6 +61,11 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      * Indicates if the application has been bootstrapped before.
      */
     protected bool $hasBeenBootstrapped = false;
+
+    /**
+     * Indicates if the application is running in the console.
+     */
+    protected ?bool $isRunningInConsole = null;
 
     /**
      * Indicates if the application has "booted".
@@ -309,6 +324,62 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     }
 
     /**
+     * Get the path to the environment file directory.
+     */
+    public function environmentPath(): string
+    {
+        return $this->environmentPath ?: $this->basePath;
+    }
+
+    /**
+     * Set the directory for the environment file.
+     *
+     * @return $this
+     */
+    public function useEnvironmentPath(string $path): static
+    {
+        $this->environmentPath = $path;
+
+        return $this;
+    }
+
+    /**
+     * Set the environment file to be loaded during bootstrapping.
+     *
+     * @return $this
+     */
+    public function loadEnvironmentFrom(string $file): static
+    {
+        $this->environmentFile = $file;
+
+        return $this;
+    }
+
+    /**
+     * Get the environment file the application is using.
+     */
+    public function environmentFile(): string
+    {
+        return $this->environmentFile ?: '.env';
+    }
+
+    /**
+     * Get the fully qualified path to the environment file.
+     */
+    public function environmentFilePath(): string
+    {
+        return $this->environmentPath() . DIRECTORY_SEPARATOR . $this->environmentFile();
+    }
+
+    /**
+     * Determine if the application configuration is cached.
+     */
+    public function configurationIsCached(): bool
+    {
+        return is_file($this->getCachedConfigPath());
+    }
+
+    /**
      * Get the path to the configuration cache file.
      */
     public function getCachedConfigPath(): string
@@ -391,9 +462,50 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      */
     public function detectEnvironment(Closure $callback): string
     {
-        $args = isset($_SERVER['argv']) ? $_SERVER['argv'] : null;
+        $args = $this->runningInConsole() && isset($_SERVER['argv'])
+            ? $_SERVER['argv']
+            : null;
 
         return $this['env'] = (new EnvironmentDetector())->detect($callback, $args);
+    }
+
+    /**
+     * Determine if the application is running in the console.
+     *
+     * In Swoole, PHP_SAPI is always 'cli', so this defaults to true.
+     * The server command sets it to false before starting the HTTP server,
+     * and workers inherit that value.
+     */
+    public function runningInConsole(): bool
+    {
+        if ($this->isRunningInConsole !== null) {
+            return $this->isRunningInConsole;
+        }
+
+        return $this->isRunningInConsole = (bool) (Env::get('APP_RUNNING_IN_CONSOLE') ?? true);
+    }
+
+    /**
+     * Determine if the application is running any of the given console commands.
+     */
+    public function runningConsoleCommand(string|array ...$commands): bool
+    {
+        if (! $this->runningInConsole()) {
+            return false;
+        }
+
+        return in_array(
+            $_SERVER['argv'][1] ?? null,
+            is_array($commands[0] ?? null) ? $commands[0] : $commands
+        );
+    }
+
+    /**
+     * Set whether the application is running in the console.
+     */
+    public function setRunningInConsole(bool $runningInConsole): void
+    {
+        $this->isRunningInConsole = $runningInConsole;
     }
 
     /**
