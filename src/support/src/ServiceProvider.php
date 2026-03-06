@@ -392,12 +392,4 @@ abstract class ServiceProvider
     {
         return new DefaultProviders();
     }
-
-    /**
-     * Get the provider config for Hyperf framework.
-     */
-    public static function getProviderConfig(): array
-    {
-        return [];
-    }
 }
