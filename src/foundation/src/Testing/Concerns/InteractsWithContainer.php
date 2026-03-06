@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
-use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -83,30 +79,17 @@ trait InteractsWithContainer
         $this->app = null;
     }
 
+    /**
+     * Refresh the application instance.
+     */
     protected function refreshApplication(): void
     {
         $this->app = $this->createApplication();
-
-        $this->defineEnvironment($this->app);
-
-        // Bootstrap the application (registers and boots all service providers).
-        // Commands are lazily resolved via ContainerCommandLoader, so they are
-        // not constructed during bootstrap — test overrides below take effect
-        // before any command dependencies are captured.
-        $this->app->make(ConsoleApplicationContract::class);
-
-        $this->app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
-        Model::setConnectionResolver($this->app->make(ConnectionResolverInterface::class));
     }
 
     /**
-     * Define environment setup.
+     * Create the application.
      */
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        // Override in subclass.
-    }
-
     protected function createApplication(): ApplicationContract
     {
         return require BASE_PATH . '/bootstrap/app.php';
