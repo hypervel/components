@@ -139,7 +139,6 @@ use Acme\ProviderOrderingTest\DiscoveredNegativePriorityProvider;
 use App\Providers\ProviderOrderingTest\AppAlphaProvider;
 use App\Providers\ProviderOrderingTest\AppBetaProvider;
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -446,7 +445,7 @@ class ProviderOrderingTest extends TestCase
         // Use an Application subclass that returns our test discovered providers
         $app = new TestApplication('base_path', $discoveredProviders);
 
-        $app->singleton(ConfigContract::class, fn () => $config);
+        $app->singleton('config', fn () => $config);
 
         // Track registration order
         $app->instance('registration_order', []);

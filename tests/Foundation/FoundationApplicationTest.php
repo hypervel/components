@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Config\Repository;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
-use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -96,9 +96,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironment()
     {
-        $app = $this->getApplication([
-            Environment::class => fn () => new Environment('foo', true),
-        ]);
+        $app = $this->getApplication();
+        $app->instance('env', 'foo');
 
         $this->assertSame('foo', $app->environment());
 
@@ -115,25 +114,22 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironmentHelpers()
     {
-        $local = $this->getApplication([
-            Environment::class => fn () => new Environment('local', true),
-        ]);
+        $local = $this->getApplication();
+        $local->instance('env', 'local');
 
         $this->assertTrue($local->isLocal());
         $this->assertFalse($local->isProduction());
         $this->assertFalse($local->runningUnitTests());
 
-        $production = $this->getApplication([
-            Environment::class => fn () => new Environment('production', true),
-        ]);
+        $production = $this->getApplication();
+        $production->instance('env', 'production');
 
         $this->assertTrue($production->isProduction());
         $this->assertFalse($production->isLocal());
         $this->assertFalse($production->runningUnitTests());
 
-        $testing = $this->getApplication([
-            Environment::class => fn () => new Environment('testing', true),
-        ]);
+        $testing = $this->getApplication();
+        $testing->instance('env', 'testing');
 
         $this->assertTrue($testing->runningUnitTests());
         $this->assertFalse($testing->isLocal());
@@ -142,15 +138,13 @@ class FoundationApplicationTest extends TestCase
 
     public function testDebugHelper()
     {
-        $debugOff = $this->getApplication([
-            Environment::class => fn () => new Environment('production', false),
-        ]);
+        $debugOff = $this->getApplication();
+        $debugOff->instance('config', new Repository(['app' => ['debug' => false]]));
 
         $this->assertFalse($debugOff->hasDebugModeEnabled());
 
-        $debugOn = $this->getApplication([
-            Environment::class => fn () => new Environment('production', true),
-        ]);
+        $debugOn = $this->getApplication();
+        $debugOn->instance('config', new Repository(['app' => ['debug' => true]]));
 
         $this->assertTrue($debugOn->hasDebugModeEnabled());
     }

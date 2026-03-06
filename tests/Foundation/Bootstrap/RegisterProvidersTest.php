@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
@@ -50,7 +49,7 @@ class RegisterProvidersTest extends TestCase
             });
 
         $app = $this->getApplication([
-            ConfigContract::class => fn () => $config,
+            'config' => fn () => $config,
         ]);
 
         Composer::setBasePath(dirname(__DIR__) . '/fixtures/project1');

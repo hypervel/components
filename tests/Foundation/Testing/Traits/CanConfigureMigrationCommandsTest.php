@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Traits;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
@@ -92,7 +91,7 @@ class CanConfigureMigrationCommandsTestMockClass
     public function __construct()
     {
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
         ]);
     }
 

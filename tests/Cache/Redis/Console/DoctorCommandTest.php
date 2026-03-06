@@ -13,7 +13,6 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -70,7 +69,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->instance(ConfigContract::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -126,7 +125,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->instance(ConfigContract::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -172,7 +171,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->instance(ConfigContract::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
@@ -221,7 +220,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->instance(ConfigContract::class, $config);
+        $this->app->instance('config', $config);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -247,7 +246,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->instance(ConfigContract::class, $config);
+        $this->app->instance('config', $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')

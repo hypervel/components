@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
@@ -64,7 +63,7 @@ class RefreshDatabaseTest extends TestCase
             ])->andReturn(0);
 
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -85,7 +84,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -106,7 +105,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => true,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -127,7 +126,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seeder' => 'seeder',
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -64,7 +63,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -88,7 +87,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -112,7 +111,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -136,7 +135,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigContract::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 

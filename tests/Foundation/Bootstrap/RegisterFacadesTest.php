@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Support\Composer;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -31,7 +30,7 @@ class RegisterFacadesTest extends TestCase
             ]);
 
         $app = $this->getApplication([
-            ConfigContract::class => fn () => $config,
+            'config' => fn () => $config,
         ]);
 
         $bootstrapper = $this->createPartialMock(

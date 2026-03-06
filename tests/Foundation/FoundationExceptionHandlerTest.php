@@ -8,7 +8,6 @@ use Exception;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
@@ -64,7 +63,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
-            ConfigContract::class => fn () => $this->config,
+            'config' => fn () => $this->config,
             'view' => fn () => new stdClass(),
             Request::class => fn () => $this->request,
         ]);
