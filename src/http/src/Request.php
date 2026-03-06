@@ -429,7 +429,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         $request->setJson($from->json());
 
         if ($from->hasSession()) {
-            $request->setLaravelSession($from->session());
+            $request->setHypervelSession($from->session());
         }
 
         $request->setUserResolver($from->getUserResolver());
@@ -527,7 +527,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      *
      * @param \Hypervel\Contracts\Session\Session $session
      */
-    public function setLaravelSession($session): void
+    public function setHypervelSession($session): void
     {
         $this->session = new SymfonySessionDecorator($session);
     }

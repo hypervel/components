@@ -92,7 +92,7 @@ class StartSession
             // If a session driver has been configured, we will need to start the session here
             // so that the data is ready for an application. Note that the Hypervel sessions
             // do not make use of PHP "native" sessions in any way since they are crappy.
-            $request->setLaravelSession(
+            $request->setHypervelSession(
                 $this->startSession($request, $session)
             );
 
