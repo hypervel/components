@@ -117,7 +117,7 @@ class ConfiguresPromptsTest extends TestCase
     protected function runCommand($command, $expectations)
     {
         $application = m::mock(Application::class);
-        $command->setApp($application);
+        $command->setHypervel($application);
 
         $application->shouldReceive('make')->withArgs(fn ($abstract) => $abstract === OutputStyle::class)->andReturn($outputStyle = m::mock(OutputStyle::class));
         $application->shouldReceive('make')->withArgs(fn ($abstract) => $abstract === Factory::class)->andReturn($factory = m::mock(Factory::class));

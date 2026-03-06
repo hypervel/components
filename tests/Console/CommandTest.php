@@ -176,7 +176,7 @@ class CommandTest extends TestCase
         };
 
         $app = m::mock(\Hypervel\Contracts\Foundation\Application::class);
-        $command->setApp($app);
+        $command->setHypervel($app);
 
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $app->shouldReceive('make')->with(OutputStyle::class, m::any())->andReturn($output);
@@ -189,6 +189,7 @@ class CommandTest extends TestCase
             $app->shouldReceive('make')->once()->with(Command::class)->andReturn($commandCalled);
 
             $commandCalled->shouldReceive('setApplication')->once()->with(null);
+            $commandCalled->shouldReceive('setHypervel')->once();
             $commandCalled->shouldReceive('run')->once();
 
             $command->call(Command::class);

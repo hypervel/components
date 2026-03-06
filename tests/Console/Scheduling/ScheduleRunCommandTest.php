@@ -216,7 +216,7 @@ class ScheduleRunCommandTest extends TestCase
     protected function makeCommand(): ScheduleRunCommand
     {
         $command = new ScheduleRunCommand();
-        $command->setApp($this->app);
+        $command->setHypervel($this->app);
 
         // Set dependencies that are normally injected via handle().
         (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));

@@ -27,7 +27,7 @@ class CallCommandsTest extends TestCase
         });
 
         Artisan::command('test:caller-by-instance', function () {
-            $this->call($this->app->make(CalleeCommand::class));
+            $this->call($this->getHypervel()->make(CalleeCommand::class));
         });
 
         $app->make(\Hypervel\Contracts\Console\Kernel::class)

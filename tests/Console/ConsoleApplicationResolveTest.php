@@ -162,12 +162,12 @@ class ConsoleApplicationResolveTest extends TestCase
     // addCommand (container propagation)
     // ---------------------------------------------------------------
 
-    public function testAddCommandSetsAppOnHypervelCommands()
+    public function testAddCommandSetsHypervelOnHypervelCommands()
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
         $command = m::mock(Command::class);
-        $command->shouldReceive('setApp')->once()->with(m::type(Application::class));
+        $command->shouldReceive('setHypervel')->once()->with(m::type(Application::class));
         $artisan->expects($this->once())->method('addToParent')->with($command)->willReturn($command);
 
         $result = $artisan->add($command);
@@ -175,12 +175,12 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame($command, $result);
     }
 
-    public function testAddCommandDoesNotSetAppOnSymfonyCommands()
+    public function testAddCommandDoesNotSetHypervelOnSymfonyCommands()
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
         $command = m::mock(SymfonyCommand::class);
-        $command->shouldNotReceive('setApp');
+        $command->shouldNotReceive('setHypervel');
         $artisan->expects($this->once())->method('addToParent')->with($command)->willReturn($command);
 
         $result = $artisan->add($command);
@@ -317,7 +317,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $artisan = $this->createApp($this->app);
 
         $artisan->addCommands([$command = new FakeCommandWithInputPrompting()]);
-        $command->setApp($this->app);
+        $command->setHypervel($this->app);
 
         $exitCode = $artisan->call('fake-command-for-testing');
 
@@ -346,7 +346,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $artisan = $this->createApp($this->app);
 
         $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting()]);
-        $command->setApp($this->app);
+        $command->setHypervel($this->app);
 
         $exitCode = $artisan->call('fake-command-for-testing-array');
 
@@ -375,7 +375,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $artisan = $this->createApp($this->app);
 
         $artisan->addCommands([$command = new FakeCommandWithInputPrompting()]);
-        $command->setApp($this->app);
+        $command->setHypervel($this->app);
 
         $exitCode = $artisan->call($command);
 
