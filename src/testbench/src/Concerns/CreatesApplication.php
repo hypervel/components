@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -107,8 +106,6 @@ trait CreatesApplication
         $app->singleton(KernelContract::class, \Hypervel\Testbench\Console\Kernel::class);
         $app->singleton(HttpKernelContract::class, \Hypervel\Testbench\Http\Kernel::class);
         $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
-
-        ApplicationContext::setContainer($app);
 
         return $app;
     }

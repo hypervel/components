@@ -43,7 +43,6 @@ define('TESTBENCH_WORKING_PATH', $workingPath);
 // Bootstrap the testbench environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, etc.)
 Hypervel\Testbench\Bootstrapper::bootstrap();
 
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Application;
@@ -56,8 +55,6 @@ use Workbench\App\Exceptions\ExceptionHandler;
 $app = new Application();
 $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
-
-ApplicationContext::setContainer($app);
 
 // Get console kernel and run
 $kernel = $app->make(KernelContract::class);
