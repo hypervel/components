@@ -88,7 +88,7 @@ class QueueTableCommand extends DevtoolGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return $this->app->make('config')
+        return $this->hypervel->make('config')
             ->get('queue.connections.database.table', 'jobs');
     }
 }

@@ -88,7 +88,7 @@ class CacheTableCommand extends DevtoolGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return $this->app->make('config')
+        return $this->hypervel->make('config')
             ->get('cache.stores.database.table', 'cache');
     }
 }

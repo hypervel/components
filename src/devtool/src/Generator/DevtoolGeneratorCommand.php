@@ -111,7 +111,7 @@ abstract class DevtoolGeneratorCommand extends GeneratorCommand
 
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
 
-        return $this->app->path() . '/' . str_replace('\\', '/', $name) . '.php';
+        return $this->hypervel->path() . '/' . str_replace('\\', '/', $name) . '.php';
     }
 
     /**
@@ -181,7 +181,7 @@ abstract class DevtoolGeneratorCommand extends GeneratorCommand
         $class = Str::replaceLast('Command', '', $class);
         $key = 'devtool.generator.' . Str::snake($class, '.');
 
-        return $this->app->make('config')->get($key) ?? [];
+        return $this->hypervel->make('config')->get($key) ?? [];
     }
 
     /**
@@ -214,7 +214,7 @@ abstract class DevtoolGeneratorCommand extends GeneratorCommand
      */
     protected function openWithIde(string $path): void
     {
-        $ide = (string) $this->app->make('config')->get('devtool.ide');
+        $ide = (string) $this->hypervel->make('config')->get('devtool.ide');
         $openEditorUrl = $this->getEditorUrl($ide);
 
         if (! $openEditorUrl) {

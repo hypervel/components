@@ -85,8 +85,8 @@ class SeedCommand extends Command
             $class = 'DatabaseSeeder';
         }
 
-        return $this->app->make($class)
-            ->setContainer($this->app)
+        return $this->hypervel->make($class)
+            ->setContainer($this->hypervel)
             ->setCommand($this);
     }
 
@@ -98,7 +98,7 @@ class SeedCommand extends Command
         $database = $this->input->getOption('database');
 
         return $database
-            ?: $this->app->make('config')
+            ?: $this->hypervel->make('config')
                 ->get('database.default');
     }
 
