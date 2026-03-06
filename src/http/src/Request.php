@@ -68,7 +68,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Create a new HTTP request from PHP superglobals.
      *
-     * @throws \RuntimeException Always — superglobals don't exist in Swoole workers.
+     * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
     public static function createFromGlobals(): static
     {

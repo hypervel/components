@@ -291,9 +291,6 @@
     },
     "extra": {
         "hypervel": {
-            "dont-discover": [
-                "hyperf/command"
-            ],
             "providers": [
                 "Hypervel\\Auth\\AuthServiceProvider",
                 "Hypervel\\Broadcasting\\BroadcastServiceProvider",
