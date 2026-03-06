@@ -66,6 +66,16 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     protected ?string $cachedAcceptHeader = null;
 
     /**
+     * Create a new HTTP request from PHP superglobals.
+     *
+     * @throws \RuntimeException Always — superglobals don't exist in Swoole workers.
+     */
+    public static function createFromGlobals(): static
+    {
+        throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
+    }
+
+    /**
      * Return the Request instance.
      *
      * @return $this
