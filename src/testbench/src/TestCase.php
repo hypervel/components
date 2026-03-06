@@ -53,6 +53,7 @@ class TestCase extends BaseTestCase
         $this->afterApplicationCreated(function () {
             Timer::clearAll();
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+            CoordinatorManager::clear(Constants::WORKER_EXIT);
 
             // Setup routes after application is created (providers are booted)
             $this->setUpApplicationRoutes($this->app);

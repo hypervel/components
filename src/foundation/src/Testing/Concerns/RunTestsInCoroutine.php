@@ -51,6 +51,7 @@ trait RunTestsInCoroutine
                 $this->cleanupTestContext();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+                CoordinatorManager::clear(Constants::WORKER_EXIT);
             }
         });
 
