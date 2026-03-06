@@ -57,9 +57,9 @@ abstract class MigrationGeneratorCommand extends Command
      */
     protected function createBaseMigration(string $table): string
     {
-        return $this->app['migration.creator']->create(
+        return $this->hypervel['migration.creator']->create(
             'create_' . $table . '_table',
-            $this->app->databasePath('/migrations')
+            $this->hypervel->databasePath('/migrations')
         );
     }
 
@@ -83,7 +83,7 @@ abstract class MigrationGeneratorCommand extends Command
     protected function migrationExists(string $table): bool
     {
         return count($this->files->glob(
-            join_paths($this->app->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php')
+            join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php')
         )) !== 0;
     }
 }
