@@ -52,7 +52,7 @@ class RedisSubscribeIntegrationTest extends TestCase
     {
         $config = $app->make('config');
         $this->configureRedisForTesting($config);
-        $this->connectionName = $this->createRedisConnectionWithPrefix('');
+        $this->connectionName = $this->createRedisConnectionWithPrefix('', $app);
     }
 
     public function testSubscribeExitsCleanlyWithNoMessages()

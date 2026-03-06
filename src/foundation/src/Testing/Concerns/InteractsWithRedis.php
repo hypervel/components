@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -208,13 +209,15 @@ trait InteractsWithRedis
      * Create a Redis connection with a specific OPT_PREFIX for testing.
      *
      * @param string $optPrefix The OPT_PREFIX to set (empty string for none)
+     * @param null|ApplicationContract $app Application instance (required when called from defineEnvironment where $this->app is not yet set)
      * @return string The connection name to use
      */
-    protected function createRedisConnectionWithPrefix(string $optPrefix): string
+    protected function createRedisConnectionWithPrefix(string $optPrefix, ?ApplicationContract $app = null): string
     {
+        $app ??= $this->app;
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
 
-        $config = $this->app->make('config');
+        $config = $app->make('config');
 
         // Check if already exists
         if ($config->get("database.redis.{$connectionName}") !== null) {
@@ -242,7 +245,7 @@ trait InteractsWithRedis
         $config->set("database.redis.{$connectionName}", $connectionConfig);
 
         // RedisFactory snapshots configured pools in __construct, so reset it after adding runtime test pools.
-        $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
+        $app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
 
         return $connectionName;
     }
