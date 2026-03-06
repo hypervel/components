@@ -251,4 +251,37 @@ class Response extends SymfonyResponse
 
         return $this->stream($callback, $downloadHeaders);
     }
+
+    /**
+     * Send HTTP headers.
+     *
+     * @throws RuntimeException always — Swoole manages headers via its own API
+     */
+    #[Override]
+    public function sendHeaders(?int $statusCode = null): static
+    {
+        throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
+    }
+
+    /**
+     * Send response content.
+     *
+     * @throws RuntimeException always — Swoole has no SAPI output stream
+     */
+    #[Override]
+    public function sendContent(): static
+    {
+        throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
+    }
+
+    /**
+     * Send HTTP headers and content.
+     *
+     * @throws RuntimeException always — Swoole manages response emission
+     */
+    #[Override]
+    public function send(bool $flush = true): static
+    {
+        throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
+    }
 }
