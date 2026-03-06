@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
-use Hypervel\Config\ProviderConfig;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -111,7 +110,6 @@ class Application extends Container implements ApplicationContract, CachesRoutes
         $this->registerBaseBindings();
         $this->registerBaseServiceProviders();
         $this->registerCoreContainerAliases();
-        $this->registerConfigProviderDependencies();
     }
 
     /**
@@ -168,56 +166,6 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     public function has(string $id): bool
     {
         return parent::has($id) || class_exists($id);
-    }
-
-    /**
-     * Register ConfigProvider dependencies as singletons.
-     *
-     * This is a temporary bridge that replaces the old DefinitionSourceFactory system
-     * which pre-loaded ConfigProvider dependencies into the Hyperf container before
-     * the Application existed. Once all packages are migrated to ServiceProviders,
-     * this method can be removed.
-     */
-    protected function registerConfigProviderDependencies(): void
-    {
-        if (! class_exists(ProviderConfig::class) || ! defined('BASE_PATH')) {
-            return;
-        }
-
-        $dependencies = ProviderConfig::load()['dependencies'] ?? [];
-
-        $paths = [
-            $this->basePath('config/autoload/dependencies.php'),
-            $this->basePath('config/dependencies.php'),
-        ];
-
-        foreach ($paths as $path) {
-            if (file_exists($path)) {
-                $definitions = include $path;
-                $dependencies = array_replace($dependencies, $definitions ?? []);
-            }
-        }
-
-        foreach ($dependencies as $abstract => $concrete) {
-            // Resolve alias chain so bindings are stored under the canonical
-            // abstract, not under an alias key that getAlias() would skip.
-            $abstract = $this->getAlias($abstract);
-
-            if ($concrete instanceof Closure) {
-                $this->singleton($abstract, $concrete);
-            } elseif (is_string($concrete) && class_exists($concrete) && method_exists($concrete, '__invoke')) {
-                // Hyperf factory pattern: classes with __invoke() are factories
-                // that produce the actual service when called.
-                $this->singleton($abstract, function ($app) use ($concrete) {
-                    return $app->make($concrete)($app);
-                });
-            } elseif (is_string($concrete)) {
-                // Use a closure to build the concrete class directly, bypassing
-                // the alias chain. Without this, string concretes that are also
-                // aliased back to the abstract create infinite resolution cycles.
-                $this->singleton($abstract, fn ($app) => $app->build($concrete));
-            }
-        }
     }
 
     /**
