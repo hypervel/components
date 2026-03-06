@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Composer;
 use InvalidArgumentException;
@@ -34,6 +35,8 @@ class StartServer extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->checkEnvironment($output);
+
+        Application::getInstance()->setRunningInConsole(false);
 
         $serverFactory = $this->container->make(ServerFactory::class)
             ->setEventDispatcher($this->container->make(DispatcherContract::class))
