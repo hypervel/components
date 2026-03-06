@@ -28,7 +28,7 @@ class FlushFailedCommand extends Command
     {
         $hours = $this->option('hours');
 
-        $this->app->make(FailedJobProviderInterface::class)
+        $this->hypervel->make(FailedJobProviderInterface::class)
             ->flush($hours ? (int) $hours : null);
 
         if ($this->option('hours')) {

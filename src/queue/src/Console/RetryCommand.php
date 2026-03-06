@@ -60,7 +60,7 @@ class RetryCommand extends Command
             if (is_null($job)) {
                 $this->error("Unable to find failed job with ID [{$id}].");
             } else {
-                $this->app->make(Dispatcher::class)->dispatch(new JobRetryRequested($job));
+                $this->hypervel->make(Dispatcher::class)->dispatch(new JobRetryRequested($job));
 
                 $this->retryJob($job);
 
@@ -137,7 +137,7 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $this->app->make(QueueFactory::class)->connection($job->connection)->pushRaw(
+        $this->hypervel->make(QueueFactory::class)->connection($job->connection)->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),
             $job->queue
         );
@@ -174,8 +174,8 @@ class RetryCommand extends Command
 
         if (str_starts_with($payload['data']['command'], 'O:')) {
             $instance = unserialize($payload['data']['command']);
-        } elseif ($this->app->has(Encrypter::class)) {
-            $instance = unserialize($this->app->make(Encrypter::class)->decrypt($payload['data']['command']));
+        } elseif ($this->hypervel->has(Encrypter::class)) {
+            $instance = unserialize($this->hypervel->make(Encrypter::class)->decrypt($payload['data']['command']));
         }
 
         if (! isset($instance)) {

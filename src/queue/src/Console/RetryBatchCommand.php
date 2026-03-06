@@ -34,7 +34,7 @@ class RetryBatchCommand extends Command
         }
 
         foreach ($ids as $batchId) {
-            $batch = $this->app->make(BatchRepository::class)->find($batchId);
+            $batch = $this->hypervel->make(BatchRepository::class)->find($batchId);
 
             if (! $batch) {
                 $this->error("Unable to find a batch with ID [{$batchId}].");
