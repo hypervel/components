@@ -117,7 +117,7 @@ class ScheduleRunCommand extends Command
         $noEventsAlerted = false;
         while (! $this->shouldStop()) {
             $this->runEvents(
-                $this->schedule->dueEvents($this->app),
+                $this->schedule->dueEvents($this->hypervel),
                 Date::now()
             );
 
@@ -153,7 +153,7 @@ class ScheduleRunCommand extends Command
     {
         $this->startedAt = Date::now();
 
-        $events = $this->schedule->dueEvents($this->app);
+        $events = $this->schedule->dueEvents($this->hypervel);
 
         if ($events->contains->isRepeatable()) {
             $this->clearShouldStop();
@@ -189,13 +189,13 @@ class ScheduleRunCommand extends Command
                     continue;
                 }
 
-                $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->app->isDownForMaintenance();
+                $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->hypervel->isDownForMaintenance();
 
                 if ($hasEnteredMaintenanceMode && ! $event->runsInMaintenanceMode()) {
                     continue;
                 }
 
-                if (! $event->filtersPass($this->app)) {
+                if (! $event->filtersPass($this->hypervel)) {
                     $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
 
                     continue;
@@ -221,7 +221,7 @@ class ScheduleRunCommand extends Command
                 continue;
             }
 
-            if (! $event->filtersPass($this->app)) {
+            if (! $event->filtersPass($this->hypervel)) {
                 $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
 
                 continue;
@@ -284,7 +284,7 @@ class ScheduleRunCommand extends Command
         $start = microtime(true);
 
         try {
-            $event->run($this->app);
+            $event->run($this->hypervel);
 
             $this->dispatcher->dispatch(new ScheduledTaskFinished(
                 $event,

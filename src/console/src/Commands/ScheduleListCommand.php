@@ -297,7 +297,7 @@ class ScheduleListCommand extends Command
 
             return sprintf(
                 '%s:%s',
-                str_replace($this->app->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''), /* @phpstan-ignore-line */
+                str_replace($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''), /* @phpstan-ignore-line */
                 $function->getStartLine()
             );
         }

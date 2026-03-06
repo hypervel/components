@@ -30,7 +30,7 @@ class ScheduleTestCommand extends Command
      */
     public function handle()
     {
-        $commands = $this->app->make(Schedule::class)->events();
+        $commands = $this->hypervel->make(Schedule::class)->events();
 
         $commandNames = [];
 
@@ -84,7 +84,7 @@ class ScheduleTestCommand extends Command
 
         $event->runInBackground = false;
 
-        $this->components->task($description, fn () => $event->run($this->app));
+        $this->components->task($description, fn () => $event->run($this->hypervel));
 
         if (! $event instanceof CallbackEvent) {
             $this->components->bulletList([$event->getSummaryForDisplay()]);
