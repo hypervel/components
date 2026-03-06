@@ -125,6 +125,19 @@ interface Application extends Container
     public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
+     * Determine if the application is running in the console.
+     *
+     * In Swoole, PHP_SAPI is always 'cli', so the value is determined by
+     * explicit framework signals rather than SAPI detection.
+     */
+    public function runningInConsole(): bool;
+
+    /**
+     * Determine if the application is running any of the given console commands.
+     */
+    public function runningConsoleCommand(string|array ...$commands): bool;
+
+    /**
      * Determine if the application is running unit tests.
      */
     public function runningUnitTests(): bool;
