@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -28,12 +27,6 @@ class RedisProxyIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
     use RunTestsInCoroutine;
-
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        $config = $app->make('config');
-        $this->configureRedisForTesting($config);
-    }
 
     public function testRedisOptionPrefix(): void
     {
@@ -583,7 +576,7 @@ class RedisProxyIntegrationTest extends TestCase
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', $this->redisTestDatabase),
+            'db' => (int) env('REDIS_DB', 0),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => $maxConnections,

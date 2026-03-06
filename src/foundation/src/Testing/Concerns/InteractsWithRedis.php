@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Config\Repository;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -16,17 +14,13 @@ use Throwable;
  * - setUpInteractsWithRedis() runs after app boots
  * - tearDownInteractsWithRedis() runs via beforeApplicationDestroyed()
  *
- * Features:
- * - Auto-skip: Skips tests if Redis unavailable on default host/port
- * - Configurable via environment variables
- *
- * Usage: Add `use InteractsWithRedis;` to your test case and call
- * configureRedisForTesting() from defineEnvironment().
+ * Tests that need Redis config overrides (prefix, DB number) should set
+ * them in defineEnvironment() via $app->make('config')->set(...).
  *
  * Environment Variables:
  * - REDIS_HOST: Redis host (default: 127.0.0.1)
  * - REDIS_PORT: Redis port (default: 6379)
- * - REDIS_DB: Redis database number (default: 8 for tests)
+ * - REDIS_DB: Redis database number (default: 0)
  * - REDIS_AUTH: Redis password (optional)
  */
 trait InteractsWithRedis
@@ -35,16 +29,6 @@ trait InteractsWithRedis
      * Indicates if connection failed once with defaults, skip all subsequent tests.
      */
     private static bool $connectionFailedOnceWithDefaultsSkip = false;
-
-    /**
-     * The test prefix for key isolation.
-     */
-    protected string $redisTestPrefix = '';
-
-    /**
-     * Default Redis database number for integration tests.
-     */
-    protected int $redisTestDatabase = 8;
 
     /**
      * Set up Redis for testing (auto-called by setUpTraits).
@@ -95,46 +79,6 @@ trait InteractsWithRedis
     }
 
     /**
-     * Configure Redis connection for testing.
-     *
-     * Call from defineEnvironment() to set up Redis config.
-     */
-    protected function configureRedisForTesting(Repository $config): void
-    {
-        $this->computeRedisTestPrefix();
-
-        $connectionConfig = [
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'auth' => env('REDIS_AUTH', null) ?: null,
-            'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', $this->redisTestDatabase),
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => 10,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-            'options' => [
-                'prefix' => $this->redisTestPrefix,
-            ],
-        ];
-
-        $config->set('database.redis.default', $connectionConfig);
-    }
-
-    /**
-     * Compute the test prefix.
-     *
-     * Uses REDIS_PREFIX env var if set, otherwise defaults to 'test:'.
-     */
-    protected function computeRedisTestPrefix(): void
-    {
-        $this->redisTestPrefix = env('REDIS_PREFIX', 'test:');
-    }
-
-    /**
      * Flush the Redis database.
      */
     protected function flushRedis(): void
@@ -148,14 +92,6 @@ trait InteractsWithRedis
     protected function hasExplicitRedisConfig(): bool
     {
         return env('REDIS_HOST') !== null;
-    }
-
-    /**
-     * Get the Redis test prefix.
-     */
-    protected function getRedisTestPrefix(): string
-    {
-        return $this->redisTestPrefix;
     }
 
     /**
@@ -187,7 +123,7 @@ trait InteractsWithRedis
             $client->auth($auth);
         }
 
-        $client->select((int) env('REDIS_DB', $this->redisTestDatabase));
+        $client->select((int) env('REDIS_DB', 0));
 
         return $client;
     }
@@ -206,18 +142,17 @@ trait InteractsWithRedis
     }
 
     /**
-     * Create a Redis connection with a specific OPT_PREFIX for testing.
+     * Create a named Redis connection with a specific OPT_PREFIX for testing.
      *
-     * @param string $optPrefix The OPT_PREFIX to set (empty string for none)
-     * @param null|ApplicationContract $app Application instance (required when called from defineEnvironment where $this->app is not yet set)
-     * @return string The connection name to use
+     * Use this when a test needs multiple connections with different prefixes.
+     * For a single no-prefix connection, just set the prefix on the default
+     * connection in defineEnvironment() instead.
      */
-    protected function createRedisConnectionWithPrefix(string $optPrefix, ?ApplicationContract $app = null): string
+    protected function createRedisConnectionWithPrefix(string $optPrefix): string
     {
-        $app ??= $this->app;
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
 
-        $config = $app->make('config');
+        $config = $this->app->make('config');
 
         // Check if already exists
         if ($config->get("database.redis.{$connectionName}") !== null) {
@@ -228,7 +163,7 @@ trait InteractsWithRedis
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', $this->redisTestDatabase),
+            'db' => (int) env('REDIS_DB', 0),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,
@@ -245,7 +180,7 @@ trait InteractsWithRedis
         $config->set("database.redis.{$connectionName}", $connectionConfig);
 
         // RedisFactory snapshots configured pools in __construct, so reset it after adding runtime test pools.
-        $app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
+        $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
 
         return $connectionName;
     }

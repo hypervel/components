@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testbench\TestCase;
@@ -24,12 +23,6 @@ class RedisConnectionIntegrationTest extends TestCase
     use RunTestsInCoroutine;
 
     protected bool $isOlderThan6 = false;
-
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        $config = $app->make('config');
-        $this->configureRedisForTesting($config);
-    }
 
     protected function setUp(): void
     {
@@ -71,7 +64,7 @@ class RedisConnectionIntegrationTest extends TestCase
         }
 
         $this->assertTrue(
-            $redis->select((int) env('REDIS_DB', $this->redisTestDatabase))
+            $redis->select((int) env('REDIS_DB', 0))
         );
 
         $ping = $redis->ping();

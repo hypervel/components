@@ -38,13 +38,7 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->make('config');
-
-        // Configure Redis (prefix comes from REDIS_PREFIX env var set by bootstrap)
-        $this->configureRedisForTesting($config);
-
-        // Set Redis as cache driver
-        $config->set('cache.default', 'redis');
+        $app->make('config')->set('cache.default', 'redis');
     }
 
     /**

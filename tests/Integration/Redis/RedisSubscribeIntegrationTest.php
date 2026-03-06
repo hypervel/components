@@ -37,8 +37,6 @@ class RedisSubscribeIntegrationTest extends TestCase
     use InteractsWithRedis;
     use RunTestsInCoroutine;
 
-    protected string $connectionName;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -50,9 +48,7 @@ class RedisSubscribeIntegrationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->make('config');
-        $this->configureRedisForTesting($config);
-        $this->connectionName = $this->createRedisConnectionWithPrefix('', $app);
+        $app->make('config')->set('database.redis.default.options.prefix', '');
     }
 
     public function testSubscribeExitsCleanlyWithNoMessages()
@@ -61,7 +57,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $subscribed = new Channel(1);
 
         go(function () use ($channelName, $subscribed) {
-            Redis::connection($this->connectionName)->subscribe([$channelName], function () use ($subscribed) {
+            Redis::connection()->subscribe([$channelName], function () use ($subscribed) {
                 $subscribed->push(true);
             });
         });
@@ -83,7 +79,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $resultChannel = new Channel(1);
 
         go(function () use ($channelName, $resultChannel) {
-            Redis::connection($this->connectionName)->subscribe([$channelName], function ($message, $channel) use ($resultChannel) {
+            Redis::connection()->subscribe([$channelName], function ($message, $channel) use ($resultChannel) {
                 $resultChannel->push(['message' => $message, 'channel' => $channel]);
             });
         });
@@ -105,7 +101,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $resultChannel = new Channel(1);
 
         go(function () use ($pattern, $resultChannel) {
-            Redis::connection($this->connectionName)->psubscribe([$pattern], function ($message, $channel) use ($resultChannel) {
+            Redis::connection()->psubscribe([$pattern], function ($message, $channel) use ($resultChannel) {
                 $resultChannel->push(['message' => $message, 'channel' => $channel]);
             });
         });
@@ -126,7 +122,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $resultChannel = new Channel(1);
 
         go(function () use ($channelName, $resultChannel) {
-            Redis::connection($this->connectionName)->subscribe($channelName, function ($message, $channel) use ($resultChannel) {
+            Redis::connection()->subscribe($channelName, function ($message, $channel) use ($resultChannel) {
                 $resultChannel->push(['message' => $message, 'channel' => $channel]);
             });
         });
@@ -143,7 +139,7 @@ class RedisSubscribeIntegrationTest extends TestCase
     public function testSubscriberReturnsChannelBasedApi()
     {
         $channelName = 'test_redis_subscriber_' . uniqid();
-        $subscriber = Redis::connection($this->connectionName)->subscriber();
+        $subscriber = Redis::connection()->subscriber();
 
         $subscriber->subscribe($channelName);
 
