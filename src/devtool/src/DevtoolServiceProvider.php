@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Devtool;
 
 use Hypervel\Devtool\Commands\EventListCommand;
-use Hypervel\Devtool\Commands\WatchCommand;
 use Hypervel\Devtool\Generator\BatchesTableCommand;
 use Hypervel\Devtool\Generator\CacheLocksTableCommand;
 use Hypervel\Devtool\Generator\CacheTableCommand;
@@ -69,7 +68,6 @@ class DevtoolServiceProvider extends ServiceProvider
             SeederCommand::class,
             SessionTableCommand::class,
             TestCommand::class,
-            WatchCommand::class,
         ]);
     }
 }

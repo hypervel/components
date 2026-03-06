@@ -82,6 +82,7 @@
             "Hypervel\\Engine\\": "src/engine/src/",
             "Hypervel\\ExceptionHandler\\": "src/exception-handler/src/",
             "Hypervel\\HttpServer\\": "src/http-server/src/",
+            "Hypervel\\Watcher\\": "src/watcher/src/",
             "Hypervel\\WebSocketServer\\": "src/websocket-server/src/"
         },
         "files": [
@@ -126,6 +127,7 @@
         "ext-mbstring": "*",
         "ext-openssl": "*",
         "ext-pdo": "*",
+        "ext-posix": "*",
         "ext-redis": "*",
         "ext-session": "*",
         "ext-tokenizer": "*",
@@ -238,6 +240,7 @@
         "hypervel/http-server": "self.version",
         "hypervel/server": "self.version",
         "hypervel/server-process": "self.version",
+        "hypervel/watcher": "self.version",
         "hypervel/websocket-server": "self.version"
     },
     "suggest": {
@@ -326,6 +329,7 @@
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider",
+                "Hypervel\\Watcher\\WatcherServiceProvider",
                 "Hypervel\\Devtool\\DevtoolServiceProvider",
                 "Hypervel\\View\\ViewServiceProvider"
             ]
