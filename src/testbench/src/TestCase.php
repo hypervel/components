@@ -4,15 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
-use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -20,12 +13,9 @@ use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Queue\Queue;
-use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\HandlesAttributes;
 use Hypervel\Testbench\Concerns\InteractsWithTestCase;
-use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Swoole\Timer;
-use Workbench\App\Exceptions\ExceptionHandler;
 
 /**
  * Base test case for package testing with testbench features.
@@ -73,31 +63,6 @@ class TestCase extends BaseTestCase
         // Execute BeforeEach attributes INSIDE coroutine context
         // (matches where setUpTraits runs in Foundation TestCase)
         $this->runInCoroutine(fn () => $this->setUpTheTestEnvironmentUsingTestCase());
-    }
-
-    /**
-     * Define environment setup.
-     *
-     * DefineEnvironment attributes are processed here (before providers boot)
-     * so they can set database config and other settings that must be configured
-     * before connections are established. In Swoole, once connections are pooled,
-     * you cannot change the underlying config.
-     */
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        // Process DefineEnvironment attributes at the same time as the method override
-        // This must happen BEFORE providers boot so database config can be set
-        $this->resolvePhpUnitAttributes()
-            ->filter(static fn ($attrs, string $key) => $key === DefineEnvironment::class)
-            ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof Actionable)
-            ->each(fn ($instance) => $instance->handle(
-                $app,
-                fn ($method, $parameters) => $this->{$method}(...$parameters)
-            ));
-
-        $this->registerPackageProviders($app);
-        $this->registerPackageAliases($app);
     }
 
     /**
@@ -150,16 +115,12 @@ class TestCase extends BaseTestCase
         return $uses;
     }
 
-    protected function createApplication(): ApplicationContract
+    /**
+     * Refresh the application instance.
+     */
+    protected function refreshApplication(): void
     {
-        $app = new Application();
-        $app->singleton(KernelContract::class, ConsoleKernel::class);
-        $app->singleton(HttpKernelContract::class, Http\Kernel::class);
-        $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
-
-        ApplicationContext::setContainer($app);
-
-        return $app;
+        $this->app = $this->createApplication();
     }
 
     protected function tearDown(): void
