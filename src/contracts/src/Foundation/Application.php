@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Foundation;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
@@ -87,6 +88,11 @@ interface Application extends Container
     public function storagePath(string $path = ''): string;
 
     /**
+     * Get the path to the configuration cache file.
+     */
+    public function getCachedConfigPath(): string;
+
+    /**
      * Join the given paths together.
      */
     public function joinPaths(string $basePath, string $path = ''): string;
@@ -107,6 +113,16 @@ interface Application extends Container
      * Determine if the application is in the production environment.
      */
     public function isProduction(): bool;
+
+    /**
+     * Detect the application's current environment.
+     */
+    public function detectEnvironment(Closure $callback): string;
+
+    /**
+     * Set the callback to resolve the application's environment.
+     */
+    public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
      * Determine if the application is running unit tests.
