@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Sentry;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Testbench\ConfigProviderRegister;
 use ReflectionException;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -79,17 +78,11 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         });
     }
 
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        ConfigProviderRegister::add(SentryServiceProvider::class);
-        parent::setUp();
-    }
-
-    protected function refreshApplication(): void
-    {
-        parent::refreshApplication();
-        $this->defineEnvironment($this->app);
-        $this->app->register(SentryServiceProvider::class, true);
+        return [
+            SentryServiceProvider::class,
+        ];
     }
 
     protected function getSentryHubFromContainer(): HubInterface
