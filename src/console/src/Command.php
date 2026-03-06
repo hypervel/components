@@ -101,7 +101,10 @@ class Command extends SymfonyCommand
      */
     protected int $exitCode = self::SUCCESS;
 
-    protected ApplicationContract $app;
+    /**
+     * The Hypervel application instance.
+     */
+    protected ApplicationContract $hypervel;
 
     public function __construct(?string $name = null)
     {
@@ -146,7 +149,7 @@ class Command extends SymfonyCommand
         }
 
         /* @phpstan-ignore assign.propertyType */
-        $this->app = Container::getInstance();
+        $this->hypervel = Container::getInstance();
 
         if ($this instanceof Isolatable) {
             $this->configureIsolation();
@@ -158,12 +161,12 @@ class Command extends SymfonyCommand
      */
     public function run(InputInterface $input, OutputInterface $output): int
     {
-        $this->output = $output instanceof OutputStyle ? $output : $this->app->make(
+        $this->output = $output instanceof OutputStyle ? $output : $this->hypervel->make(
             OutputStyle::class,
             ['input' => $input, 'output' => $output]
         );
 
-        $this->components = $this->app->make(Factory::class, ['output' => $this->output]);
+        $this->components = $this->hypervel->make(Factory::class, ['output' => $this->output]);
 
         $this->configurePrompts($input);
 
@@ -263,7 +266,7 @@ class Command extends SymfonyCommand
             try {
                 $this->eventDispatcher?->dispatch(new BeforeHandle($this));
                 /* @phpstan-ignore-next-line */
-                $statusCode = $this->app->call([$this, $method]);
+                $statusCode = $this->hypervel->call([$this, $method]);
                 if (is_int($statusCode)) {
                     $this->exitCode = $statusCode;
                 }
@@ -313,15 +316,15 @@ class Command extends SymfonyCommand
      */
     protected function commandIsolationMutex(): CommandMutex
     {
-        return $this->app->bound(CommandMutex::class)
-            ? $this->app->make(CommandMutex::class)
-            : $this->app->make(CacheCommandMutex::class);
+        return $this->hypervel->bound(CommandMutex::class)
+            ? $this->hypervel->make(CommandMutex::class)
+            : $this->hypervel->make(CacheCommandMutex::class);
     }
 
     protected function replaceOutput(): void
     {
-        if ($this->app->bound(OutputStyle::class)) {
-            $this->output = $this->app->make(OutputStyle::class);
+        if ($this->hypervel->bound(OutputStyle::class)) {
+            $this->output = $this->hypervel->make(OutputStyle::class);
         }
     }
 
@@ -353,7 +356,7 @@ class Command extends SymfonyCommand
                 return $this->getApplication()->find($command);
             }
 
-            $command = $this->app->make($command);
+            $command = $this->hypervel->make($command);
         }
 
         if ($command instanceof SymfonyCommand) {
@@ -361,7 +364,7 @@ class Command extends SymfonyCommand
         }
 
         if ($command instanceof self) {
-            $command->app = $this->app;
+            $command->setHypervel($this->getHypervel());
         }
 
         return $command;
@@ -386,11 +389,19 @@ class Command extends SymfonyCommand
     }
 
     /**
-     * Set the application instance.
+     * Get the Hypervel application instance.
      */
-    public function setApp(ApplicationContract $app): void
+    public function getHypervel(): ApplicationContract
     {
-        $this->app = $app;
+        return $this->hypervel;
+    }
+
+    /**
+     * Set the Hypervel application instance.
+     */
+    public function setHypervel(ApplicationContract $hypervel): void
+    {
+        $this->hypervel = $hypervel;
     }
 
     /**
