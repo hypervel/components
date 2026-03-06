@@ -66,16 +66,6 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     protected ?string $cachedAcceptHeader = null;
 
     /**
-     * Create a new HTTP request from server variables.
-     */
-    public static function capture(): static
-    {
-        static::enableHttpMethodParameterOverride();
-
-        return static::createFromBase(SymfonyRequest::createFromGlobals());
-    }
-
-    /**
      * Return the Request instance.
      *
      * @return $this
