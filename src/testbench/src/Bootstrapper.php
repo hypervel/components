@@ -60,7 +60,6 @@ class Bootstrapper
                     'name' => 'hypervel-testbench',
                     'extra' => [
                         'hypervel' => [
-                            'config' => static::getConfigProviders(),
                             'providers' => static::$config['providers'] ?? [],
                             'dont-discover' => static::$config['dont-discover'] ?? [],
                         ],
@@ -104,15 +103,6 @@ class Bootstrapper
             join_paths(BASE_PATH, '/.env'),
             implode(PHP_EOL, $env)
         );
-    }
-
-    protected static function getConfigProviders(): array
-    {
-        ConfigProviderRegister::add(
-            static::$config['config-providers'] ?? []
-        );
-
-        return ConfigProviderRegister::get();
     }
 
     protected static function registerPurgeFiles(): void
