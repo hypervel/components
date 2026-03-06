@@ -38,7 +38,7 @@
         "hypervel/filesystem": "^0.4",
         "hypervel/pipeline": "^0.4",
         "hypervel/support": "^0.4",
-        "nikic/php-parser": "^5.0"
+        "nikic/php-parser": "^5.7"
     },
     "config": {
         "sort-packages": true
