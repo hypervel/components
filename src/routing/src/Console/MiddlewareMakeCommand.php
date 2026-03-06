@@ -41,7 +41,7 @@ class MiddlewareMakeCommand extends GeneratorCommand
      */
     protected function resolveStubPath(string $stub): string
     {
-        return file_exists($customPath = $this->app->basePath(trim($stub, '/')))
+        return file_exists($customPath = $this->hypervel->basePath(trim($stub, '/')))
             ? $customPath
             : __DIR__ . $stub;
     }

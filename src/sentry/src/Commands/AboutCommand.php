@@ -20,7 +20,7 @@ class AboutCommand extends Command
 
     public function handle(): void
     {
-        $hub = $this->app->make(HubInterface::class);
+        $hub = $this->hypervel->make(HubInterface::class);
         $options = $this->getSentryOptions($hub);
         $this->table(
             ['Option', 'Value'],
