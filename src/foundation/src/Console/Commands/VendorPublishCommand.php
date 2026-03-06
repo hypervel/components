@@ -170,7 +170,7 @@ class VendorPublishCommand extends Command
         if ($publishing === false) {
             $this->components->info('No publishable resources for tag [' . $tag . '].');
         } else {
-            $this->app['events']->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            $this->hypervel['events']->dispatch(new VendorTagPublished($tag, $pathsToPublish));
 
             $this->newLine();
         }

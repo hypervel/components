@@ -41,7 +41,7 @@ class RouteClearCommand extends Command
      */
     public function handle(): void
     {
-        $this->files->delete($this->app->getCachedRoutesPath());
+        $this->files->delete($this->hypervel->getCachedRoutesPath());
 
         $this->components->info('Route cache cleared successfully.');
     }

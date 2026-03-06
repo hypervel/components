@@ -98,11 +98,11 @@ class AboutCommand extends Command
 
         $data['Environment'] = [
             'Application Name' => $this->config->get('app.name'),
-            'Hypervel Version' => $this->app->version(), /* @phpstan-ignore-line */
+            'Hypervel Version' => $this->hypervel->version(), /* @phpstan-ignore-line */
             'PHP Version' => phpversion(),
             'Swoole Version' => swoole_version(),
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
-            'Environment' => $this->app->environment(), /* @phpstan-ignore-line */
+            'Environment' => $this->hypervel->environment(), /* @phpstan-ignore-line */
             'Debug Mode' => $this->format($this->config->get('app.debug'), console: $formatEnabledStatus),
             'URL' => Str::of($this->config->get('app.url'))->replace(['http://', 'https://'], ''),
             'Timezone' => $this->config->get('app.timezone'),
@@ -110,8 +110,8 @@ class AboutCommand extends Command
         ];
 
         $data['Cache'] = [
-            'Runtime Proxy' => static::format($this->hasPhpFiles($this->app->basePath('runtime/container'), 'cache'), console: $formatCachedStatus), /* @phpstan-ignore-line */
-            'Views' => static::format($this->hasPhpFiles($this->app->storagePath('framework/views')), console: $formatCachedStatus), /* @phpstan-ignore-line */
+            'Runtime Proxy' => static::format($this->hasPhpFiles($this->hypervel->basePath('runtime/container'), 'cache'), console: $formatCachedStatus), /* @phpstan-ignore-line */
+            'Views' => static::format($this->hasPhpFiles($this->hypervel->storagePath('framework/views')), console: $formatCachedStatus), /* @phpstan-ignore-line */
         ];
 
         $data['Drivers'] = array_filter([

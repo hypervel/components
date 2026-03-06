@@ -59,7 +59,7 @@ class RouteCacheCommand extends Command
         }
 
         $this->files->put(
-            $this->app->getCachedRoutesPath(),
+            $this->hypervel->getCachedRoutesPath(),
             $this->buildRouteCacheFile($routes)
         );
 
@@ -82,7 +82,7 @@ class RouteCacheCommand extends Command
      */
     protected function getFreshApplication(): Application
     {
-        return tap(require $this->app->bootstrapPath('app.php'), function (Application $app): void {
+        return tap(require $this->hypervel->bootstrapPath('app.php'), function (Application $app): void {
             $app->make(ConsoleKernelContract::class)->bootstrap();
         });
     }

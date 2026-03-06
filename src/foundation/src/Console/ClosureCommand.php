@@ -48,7 +48,7 @@ class ClosureCommand extends Command
         }
 
         try {
-            return (int) $this->app->call(
+            return (int) $this->hypervel->call(
                 $this->callback->bindTo($this, $this),
                 $parameters
             );
