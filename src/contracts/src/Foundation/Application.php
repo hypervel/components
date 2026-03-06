@@ -109,11 +109,6 @@ interface Application extends Container
     public function isProduction(): bool;
 
     /**
-     * Detect the application's current environment.
-     */
-    public function detectEnvironment(): string;
-
-    /**
      * Determine if the application is running unit tests.
      */
     public function runningUnitTests(): bool;

@@ -14,7 +14,6 @@ use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
-use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -310,6 +309,14 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     }
 
     /**
+     * Get the path to the configuration cache file.
+     */
+    public function getCachedConfigPath(): string
+    {
+        return $this->normalizeCachePath('APP_CONFIG_CACHE', 'cache/config.php');
+    }
+
+    /**
      * Determine if the application routes are cached.
      */
     public function routesAreCached(): bool
@@ -355,10 +362,12 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     public function environment(...$environments): bool|string
     {
         if (count($environments) > 0) {
-            return $this->get(Environment::class)->is(...$environments);
+            $patterns = is_array($environments[0]) ? $environments[0] : $environments;
+
+            return Str::is($patterns, $this['env']);
         }
 
-        return $this->detectEnvironment();
+        return $this['env'];
     }
 
     /**
@@ -366,7 +375,7 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      */
     public function isLocal(): bool
     {
-        return $this->get(Environment::class)->is('local');
+        return $this['env'] === 'local';
     }
 
     /**
@@ -374,15 +383,17 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      */
     public function isProduction(): bool
     {
-        return $this->get(Environment::class)->is('production');
+        return $this['env'] === 'production';
     }
 
     /**
      * Detect the application's current environment.
      */
-    public function detectEnvironment(): string
+    public function detectEnvironment(Closure $callback): string
     {
-        return $this->get(Environment::class)->get();
+        $args = isset($_SERVER['argv']) ? $_SERVER['argv'] : null;
+
+        return $this['env'] = (new EnvironmentDetector())->detect($callback, $args);
     }
 
     /**
@@ -390,7 +401,7 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      */
     public function runningUnitTests(): bool
     {
-        return $this->get(Environment::class)->is('testing');
+        return $this->bound('env') && $this['env'] === 'testing';
     }
 
     /**
@@ -398,7 +409,7 @@ class Application extends Container implements ApplicationContract, CachesRoutes
      */
     public function hasDebugModeEnabled(): bool
     {
-        return $this->get(Environment::class)->isDebug();
+        return (bool) $this['config']->get('app.debug');
     }
 
     /**
@@ -791,9 +802,9 @@ class Application extends Container implements ApplicationContract, CachesRoutes
                 \Hypervel\Cache\Repository::class,
                 \Hypervel\Contracts\Cache\Repository::class,
             ],
-            \Hypervel\Contracts\Config\Repository::class => [
-                'config',
+            'config' => [
                 \Hypervel\Config\Repository::class,
+                \Hypervel\Contracts\Config\Repository::class,
             ],
             'cookie' => [
                 \Hypervel\Cookie\CookieManager::class,
