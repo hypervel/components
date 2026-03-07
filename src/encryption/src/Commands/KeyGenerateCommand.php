@@ -56,8 +56,7 @@ class KeyGenerateCommand extends Command
      */
     protected function generateRandomKey(): string
     {
-        $cipher = $this->config->get('app.cipher')
-            ?: $this->config->get('encryption.cipher');
+        $cipher = $this->config->get('app.cipher');
 
         return 'base64:' . base64_encode(
             Encrypter::generateKey($cipher)
@@ -69,8 +68,7 @@ class KeyGenerateCommand extends Command
      */
     protected function setKeyInEnvironmentFile(string $key): bool
     {
-        $currentKey = $this->config->get('app.key')
-            ?: $this->config->get('encryption.key');
+        $currentKey = $this->config->get('app.key');
 
         if (strlen($currentKey ?: '') !== 0 && (! $this->confirmToProceed())) {
             return false;
@@ -112,8 +110,7 @@ class KeyGenerateCommand extends Command
      */
     protected function keyReplacementPattern(): string
     {
-        $key = $this->config->get('app.key')
-            ?: $this->config->get('encryption.key');
+        $key = $this->config->get('app.key');
 
         $escaped = preg_quote('=' . $key, '/');
 

@@ -17,8 +17,6 @@ class EncryptionServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/encryption.php', 'encryption');
-
         $this->registerEncrypter();
         $this->registerSerializableClosureSecurityKey();
 
@@ -33,12 +31,7 @@ class EncryptionServiceProvider extends ServiceProvider
     protected function registerEncrypter(): void
     {
         $this->app->singleton('encrypter', function ($app) {
-            $config = $app->make('config');
-
-            // Fallback to the encryption config if key is not set in app config.
-            $config = ($config->has('app.cipher') && $config->has('app.key'))
-                ? $config->get('app')
-                : $config->get('encryption', []);
+            $config = $app->make('config')->get('app');
 
             return (new Encrypter($this->parseKey($config), $config['cipher']))
                 ->previousKeys(array_map(
@@ -86,15 +79,5 @@ class EncryptionServiceProvider extends ServiceProvider
                 throw new MissingAppKeyException();
             }
         });
-    }
-
-    /**
-     * Bootstrap the service provider.
-     */
-    public function boot(): void
-    {
-        $this->publishes([
-            __DIR__ . '/../config/encryption.php' => config_path('encryption.php'),
-        ], 'encryption-config');
     }
 }
