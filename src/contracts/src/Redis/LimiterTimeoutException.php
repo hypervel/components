@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Limiters;
+namespace Hypervel\Contracts\Redis;
 
 use Exception;
 
