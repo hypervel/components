@@ -21,13 +21,29 @@ class DotenvManager
      * This is a one-shot method — subsequent calls return early if values
      * have already been loaded. Use reload() to re-read the env file.
      */
-    public static function load(array $paths): void
+    public static function load(array $paths, ?string $name = null): void
     {
         if (static::$cachedValues !== null) {
             return;
         }
 
-        static::$cachedValues = static::createDotenv($paths)->load();
+        static::$cachedValues = static::createDotenv($paths, $name)->load();
+    }
+
+    /**
+     * Load environment variables, ignoring missing files.
+     *
+     * Same one-shot semantics as load(), but uses Dotenv's safeLoad()
+     * which returns an empty array if the file doesn't exist instead
+     * of throwing. InvalidFileException is still thrown for malformed files.
+     */
+    public static function safeLoad(array $paths, ?string $name = null): void
+    {
+        if (static::$cachedValues !== null) {
+            return;
+        }
+
+        static::$cachedValues = static::createDotenv($paths, $name)->safeLoad();
     }
 
     /**
@@ -37,10 +53,10 @@ class DotenvManager
      * repository's ImmutableWriter so it treats all keys as writable,
      * then re-reads the env file.
      */
-    public static function reload(array $paths): void
+    public static function reload(array $paths, ?string $name = null): void
     {
         if (static::$cachedValues === null) {
-            static::load($paths);
+            static::load($paths, $name);
 
             return;
         }
@@ -48,7 +64,7 @@ class DotenvManager
         Env::deleteMany(array_keys(static::$cachedValues));
         Env::resetRepository();
 
-        static::$cachedValues = static::createDotenv($paths)->load();
+        static::$cachedValues = static::createDotenv($paths, $name)->load();
     }
 
     /**
@@ -71,8 +87,8 @@ class DotenvManager
     /**
      * Create a Dotenv instance using Env's repository.
      */
-    protected static function createDotenv(array $paths): Dotenv
+    protected static function createDotenv(array $paths, ?string $name = null): Dotenv
     {
-        return Dotenv::create(Env::getRepository(), $paths);
+        return Dotenv::create(Env::getRepository(), $paths, $name);
     }
 }
