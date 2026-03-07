@@ -150,17 +150,6 @@ class Blueprint
     }
 
     /**
-     * Get all of the commands matching the given names.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function commandsNamed(array $names): Collection
-    {
-        return (new Collection($this->commands))
-            ->filter(fn ($command) => in_array($command->name, $names));
-    }
-
-    /**
      * Add the commands that are implied by the blueprint's state.
      */
     protected function addImpliedCommands(): void
@@ -1450,16 +1439,6 @@ class Blueprint
     }
 
     /**
-     * Get the table prefix.
-     *
-     * @deprecated Use DB::getTablePrefix()
-     */
-    public function getPrefix(): string
-    {
-        return $this->connection->getTablePrefix();
-    }
-
-    /**
      * Get the columns on the blueprint.
      *
      * @return \Hypervel\Database\Schema\ColumnDefinition[]
@@ -1504,20 +1483,6 @@ class Blueprint
     {
         return array_filter($this->columns, function ($column) {
             return ! $column->change;
-        });
-    }
-
-    /**
-     * Get the columns on the blueprint that should be changed.
-     *
-     * @deprecated will be removed in a future Laravel version
-     *
-     * @return \Hypervel\Database\Schema\ColumnDefinition[]
-     */
-    public function getChangedColumns(): array
-    {
-        return array_filter($this->columns, function ($column) {
-            return (bool) $column->change;
         });
     }
 

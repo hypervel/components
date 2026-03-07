@@ -10,18 +10,6 @@ use Override;
 class MySqlProcessor extends Processor
 {
     /**
-     * Process the results of a column listing query.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    public function processColumnListing(array $results): array
-    {
-        return array_map(function ($result) {
-            return ((object) $result)->column_name;
-        }, $results);
-    }
-
-    /**
      * Process an "insert get ID" query.
      */
     #[Override]
