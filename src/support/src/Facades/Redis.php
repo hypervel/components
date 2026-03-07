@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string $name = 'default')
- * @method static mixed withConnection(callable $callback)
+ * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string|null $name = null)
+ * @method static void subscribe(array|string $channels, \Closure $callback)
+ * @method static void psubscribe(array|string $channels, \Closure $callback)
+ * @method static mixed command(string $method, array $parameters = [])
+ * @method static \Hypervel\Redis\Limiters\DurationLimiterBuilder throttle(string $name)
+ * @method static \Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder funnel(string $name)
+ * @method static mixed withConnection(callable $callback, bool $transform = true)
  * @method static void release()
  * @method static \Hypervel\Redis\RedisConnection shouldTransform(bool $shouldTransform = true)
  * @method static bool getShouldTransform()
