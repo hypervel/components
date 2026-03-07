@@ -986,7 +986,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
             'queue.listener' => [\Hypervel\Queue\Listener::class],
             'queue.worker' => [\Hypervel\Queue\Worker::class],
-            'redis' => [\Hypervel\Redis\Redis::class],
+            'redis' => [
+                \Hypervel\Redis\Redis::class,
+                \Hypervel\Contracts\Redis\Factory::class,
+            ],
+            'redis.connection' => [
+                \Hypervel\Contracts\Redis\Connection::class,
+            ],
             'request' => [
                 \Hypervel\Http\Request::class,
                 \Symfony\Component\HttpFoundation\Request::class,
