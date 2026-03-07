@@ -5,20 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Dotenv\Dotenv;
-use Dotenv\Repository\Adapter\AdapterInterface;
-use Dotenv\Repository\Adapter\PutenvAdapter;
-use Dotenv\Repository\RepositoryBuilder;
 
 class DotenvManager
 {
-    protected static ?AdapterInterface $adapter = null;
-
-    protected static ?Dotenv $dotenv = null;
-
+    /**
+     * The keys and values loaded from the last load/reload call.
+     *
+     * @var null|array<string, string>
+     */
     protected static ?array $cachedValues = null;
 
     /**
      * Load environment variables from the given paths.
+     *
+     * This is a one-shot method — subsequent calls return early if values
+     * have already been loaded. Use reload() to re-read the env file.
      */
     public static function load(array $paths): void
     {
@@ -26,13 +27,17 @@ class DotenvManager
             return;
         }
 
-        static::$cachedValues = static::getDotenv($paths)->load();
+        static::$cachedValues = static::createDotenv($paths)->load();
     }
 
     /**
      * Reload environment variables from the given paths.
+     *
+     * Deletes previously loaded env vars from putenv, resets the Env
+     * repository's ImmutableWriter so it treats all keys as writable,
+     * then re-reads the env file.
      */
-    public static function reload(array $paths, bool $force = false): void
+    public static function reload(array $paths): void
     {
         if (static::$cachedValues === null) {
             static::load($paths);
@@ -40,59 +45,34 @@ class DotenvManager
             return;
         }
 
-        foreach (static::$cachedValues as $deletedEntry => $value) {
-            static::getAdapter()->delete($deletedEntry);
-        }
+        Env::deleteMany(array_keys(static::$cachedValues));
+        Env::resetRepository();
 
-        static::$cachedValues = static::getDotenv($paths, $force)->load();
+        static::$cachedValues = static::createDotenv($paths)->load();
     }
 
     /**
      * Reset all static state, allowing load() to run again.
      *
-     * Removes any previously loaded env vars from putenv before clearing
+     * Removes any previously loaded env vars before clearing
      * the internal tracking, so immutable repositories don't see stale values.
      */
     public static function reset(): void
     {
         if (static::$cachedValues !== null) {
-            foreach (static::$cachedValues as $name => $value) {
-                static::getAdapter()->delete($name);
-            }
+            Env::deleteMany(array_keys(static::$cachedValues));
         }
+
+        Env::resetRepository();
 
         static::$cachedValues = null;
-        static::$dotenv = null;
-        static::$adapter = null;
     }
 
     /**
-     * Get or create the Dotenv instance.
+     * Create a Dotenv instance using Env's repository.
      */
-    protected static function getDotenv(array $paths, bool $force = false): Dotenv
+    protected static function createDotenv(array $paths): Dotenv
     {
-        if (static::$dotenv !== null && ! $force) {
-            return static::$dotenv;
-        }
-
-        return static::$dotenv = Dotenv::create(
-            RepositoryBuilder::createWithNoAdapters()
-                ->addAdapter(static::getAdapter($force))
-                ->immutable()
-                ->make(),
-            $paths
-        );
-    }
-
-    /**
-     * Get or create the environment adapter.
-     */
-    protected static function getAdapter(bool $force = false): AdapterInterface
-    {
-        if (static::$adapter !== null && ! $force) {
-            return static::$adapter;
-        }
-
-        return static::$adapter = PutenvAdapter::create()->get();
+        return Dotenv::create(Env::getRepository(), $paths);
     }
 }
