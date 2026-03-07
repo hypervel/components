@@ -33,7 +33,6 @@ trait FetchesStackTrace
     {
         $ignoredPaths = $this->shouldIgnoredVendorPath()
             ? [
-                base_path('vendor' . DIRECTORY_SEPARATOR . 'hyperf'),
                 base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
             ]
             : [];

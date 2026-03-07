@@ -15,7 +15,7 @@ use ReflectionProperty;
 
 /**
  * Tests for PooledConnection — the adapter that wraps a database Connection
- * for use with Hyperf's connection pool infrastructure.
+ * for use with Hypervel's connection pool infrastructure.
  *
  * Uses in-memory SQLite via the pool to avoid requiring an external database.
  *

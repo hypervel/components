@@ -46,7 +46,7 @@ class ContextCoroutineTest extends TestCase
         $id = Coroutine::id();
         parallel([
             function () use ($id, $uid) {
-                Context::set('test.store.name', 'Hyperf');
+                Context::set('test.store.name', 'Hypervel');
                 Context::copy($id, ['test.store.id']);
                 $this->assertSame($uid, Context::get('test.store.id'));
 

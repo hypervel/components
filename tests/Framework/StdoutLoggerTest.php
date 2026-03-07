@@ -21,24 +21,24 @@ class StdoutLoggerTest extends TestCase
 {
     public function testLog()
     {
-        $logger = $this->getLogger('<info>[INFO]</> Hello Hyperf.');
-        $logger->info('Hello {name}.', ['name' => 'Hyperf']);
+        $logger = $this->getLogger('<info>[INFO]</> Hello Hypervel.');
+        $logger->info('Hello {name}.', ['name' => 'Hypervel']);
     }
 
     public function testFixedErrorContextCount()
     {
-        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hyperf.');
+        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hypervel.');
         $logger->info('Hello {name}.', [
             'component' => 'test tag',
-            'name' => 'Hyperf',
+            'name' => 'Hypervel',
         ]);
     }
 
     public function testLogComplexityContext()
     {
-        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hyperf <OBJECT> Hypervel\Tests\Framework\Stubs\TestObject.');
+        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hypervel <OBJECT> Hypervel\Tests\Framework\Stubs\TestObject.');
         $logger->info('Hello {name} {object}.', [
-            'name' => 'Hyperf',
+            'name' => 'Hypervel',
             // tags
             'component' => 'test tag',
             // object can not be cast to string

@@ -24,7 +24,7 @@ Coroutine::set([
 $callback = function () {
     $server = new Server('0.0.0.0', 19501);
     $server->handle('/', function (Request $request, Response $response) {
-        $response->setHeader('Server', 'Hyperf');
+        $response->setHeader('Server', 'Hypervel');
         switch ($request->server['request_uri']) {
             case '/':
                 $response->end('Hello World.');
@@ -35,7 +35,7 @@ $callback = function () {
                 break;
             case '/cookies':
                 $response->setCookie('X-Server-Id', $id = uniqid());
-                $response->setCookie('X-Server-Name', 'Hyperf');
+                $response->setCookie('X-Server-Name', 'Hypervel');
                 $response->end($id);
                 break;
             case '/timeout':

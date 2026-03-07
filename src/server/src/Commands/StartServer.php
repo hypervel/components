@@ -61,7 +61,7 @@ class StartServer extends Command
      */
     private function checkEnvironment(OutputInterface $output): void
     {
-        if (! extension_loaded('swoole') || ! Composer::hasPackage('hyperf/polyfill-coroutine')) {
+        if (! extension_loaded('swoole') || ! Composer::hasPackage('hypervel/polyfill-coroutine')) {
             return;
         }
         /**

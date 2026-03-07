@@ -28,7 +28,7 @@ use ReflectionClass;
 /**
  * TODO(laravel-container-port): This test requires Laravel's container to be ported.
  * It relies on Container::setInstance(null) and other Laravel-specific container behaviors
- * that differ from Hyperf's container. Once Laravel's container is ported, remove the
+ * that differ from Hypervel's container. Once Laravel's container is ported, remove the
  * markTestSkipped() call in setUp() and this test should work.
  * @internal
  * @coversNothing

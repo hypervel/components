@@ -723,7 +723,7 @@ class Collection extends BaseCollection implements QueueableCollection
     #[Override]
     public function partition(mixed $key, mixed $operator = null, mixed $value = null)
     {
-        // @phpstan-ignore return.type (parent returns Hyperf Collection, we convert to Support Collection)
+        // @phpstan-ignore return.type (parent returns base Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
     }
 

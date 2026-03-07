@@ -1,7 +1,7 @@
 {
     "name": "hypervel/broadcasting",
     "type": "library",
-    "description": "The filesystem package for Hyperf.",
+    "description": "The broadcasting package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

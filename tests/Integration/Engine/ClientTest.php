@@ -24,7 +24,7 @@ class ClientTest extends EngineIntegrationTestCase
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hyperf'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['server']);
         $this->assertSame('Hello World.', $response->body);
     }
 
@@ -49,10 +49,10 @@ class ClientTest extends EngineIntegrationTestCase
             'POST',
             '/',
             ['Content-Type' => 'application/json charset=UTF-8'],
-            json_encode(['name' => 'Hyperf'], JSON_UNESCAPED_UNICODE)
+            json_encode(['name' => 'Hypervel'], JSON_UNESCAPED_UNICODE)
         );
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hyperf'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['server']);
         $this->assertSame('Hello World.', $response->body);
     }
 
@@ -75,10 +75,10 @@ class ClientTest extends EngineIntegrationTestCase
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/cookies');
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hyperf'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['server']);
         $this->assertSame([
             'X-Server-Id=' . $response->body,
-            'X-Server-Name=Hyperf',
+            'X-Server-Name=Hypervel',
         ], $response->headers['set-cookie']);
     }
 
@@ -94,7 +94,7 @@ class ClientTest extends EngineIntegrationTestCase
         $cookies = $client->getConfig('cookies');
 
         $this->assertSame((string) $response->getBody(), $cookies->toArray()[0]['Value']);
-        $this->assertSame('Hyperf', $cookies->toArray()[1]['Value']);
+        $this->assertSame('Hypervel', $cookies->toArray()[1]['Value']);
     }
 
     public function testServerHeaders()

@@ -33,9 +33,9 @@ class HttpServerTest extends EngineIntegrationTestCase
     public function testHttpServerReceived()
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
-        $response = $client->request('POST', '/', contents: 'Hyperf');
+        $response = $client->request('POST', '/', contents: 'Hypervel');
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame('Received: Hyperf', $response->body);
+        $this->assertSame('Received: Hypervel', $response->body);
     }
 
     public function testHttpServerCookies()

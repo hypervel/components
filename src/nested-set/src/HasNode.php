@@ -9,7 +9,7 @@ use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
-use Hypervel\Database\Query\Builder as HyperfQueryBuilder;
+use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;
@@ -43,7 +43,7 @@ trait HasNode
     /**
      * Create a new Eloquent query builder for the model.
      */
-    public function newEloquentBuilder(HyperfQueryBuilder $query): QueryBuilder
+    public function newEloquentBuilder(BaseQueryBuilder $query): QueryBuilder
     {
         return new QueryBuilder($query);
     }
@@ -532,7 +532,7 @@ trait HasNode
     /**
      * Create a new Model query builder for the model.
      *
-     * @param HyperfQueryBuilder $query
+     * @param BaseQueryBuilder $query
      */
     public function newModelBuilder($query): QueryBuilder
     {

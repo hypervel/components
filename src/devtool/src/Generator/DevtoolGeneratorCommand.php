@@ -12,7 +12,7 @@ use Symfony\Component\Console\Input\InputOption;
  * Base class for devtool generator commands.
  *
  * Extends the Laravel-style GeneratorCommand with devtool-specific features:
- * configurable namespaces/paths via options, IDE integration, and Hyperf-style
+ * configurable namespaces/paths via options, IDE integration, and Hypervel-style
  * stub placeholders (%NAMESPACE%, %CLASS%).
  */
 abstract class DevtoolGeneratorCommand extends GeneratorCommand

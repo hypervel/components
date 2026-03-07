@@ -129,8 +129,7 @@ class EventWatcher extends Watcher
         $prefixes = [
             'eloquent.', // Model events (e.g., "eloquent.created: App\Models\User")
             'Hypervel',
-            'Hyperf',
-            'FriendsOfHyperf',
+            'Hypervel',
             'bootstrapped',
             'bootstrapping',
         ];

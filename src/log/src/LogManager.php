@@ -278,7 +278,7 @@ class LogManager implements LoggerInterface
             $this->prepareHandler(new SlackWebhookHandler(
                 $config['url'],
                 $config['channel'] ?? null,
-                $config['username'] ?? 'Hyperf',
+                $config['username'] ?? 'Hypervel',
                 $config['attachment'] ?? true,
                 $config['emoji'] ?? ':boom:',
                 $config['short'] ?? false,
@@ -297,7 +297,7 @@ class LogManager implements LoggerInterface
     {
         return new Monolog($this->parseChannel($config), [
             $this->prepareHandler(new SyslogHandler(
-                Str::snake($this->config->get('app.name', 'hyperf'), '-'),
+                Str::snake($this->config->get('app.name', 'hypervel'), '-'),
                 $config['facility'] ?? LOG_USER,
                 $this->level($config)
             ), $config),

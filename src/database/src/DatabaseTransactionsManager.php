@@ -10,7 +10,7 @@ use Hypervel\Support\Collection;
 /**
  * Manages database transaction callbacks in a coroutine-safe manner.
  *
- * Uses Hyperf Context to store transaction state per-coroutine, ensuring
+ * Uses Context to store transaction state per-coroutine, ensuring
  * that concurrent requests don't interfere with each other's transactions.
  */
 class DatabaseTransactionsManager

@@ -17,7 +17,7 @@ use function Hypervel\Support\enum_value;
 /**
  * Resolves database connections from a connection pool.
  *
- * Uses Hyperf's Context to store connections per-coroutine and defer()
+ * Uses Context to store connections per-coroutine and defer()
  * to automatically release connections back to the pool when the
  * coroutine ends.
  */

@@ -8,7 +8,6 @@ use Hypervel\Database\Eloquent\Attributes\ScopedBy;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\Model as HyperfModel;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Scope;
@@ -199,7 +198,7 @@ class HasGlobalScopesTest extends TestCase
 // Test scope classes
 class ActiveScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
         $builder->where('active', true);
     }
@@ -207,7 +206,7 @@ class ActiveScope implements Scope
 
 class TenantScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
         $builder->where('tenant_id', 1);
     }
@@ -215,77 +214,77 @@ class TenantScope implements Scope
 
 class ParentScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class ChildScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class MiddleScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class GrandchildScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class TraitScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class TraitFirstScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class TraitSecondScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class AnotherTraitScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class PivotScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class ChildPivotScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
 
 class MorphPivotScope implements Scope
 {
-    public function apply(Builder $builder, HyperfModel $model): void
+    public function apply(Builder $builder, Model $model): void
     {
     }
 }
