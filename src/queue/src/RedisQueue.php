@@ -9,8 +9,8 @@ use DateTimeInterface;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\Jobs\RedisJob;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Str;
 
@@ -26,7 +26,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Create a new Redis queue instance.
      *
-     * @param RedisFactory $redis the Redis factory implementation
+     * @param Redis $redis the Redis factory implementation
      * @param string $default the connection name
      * @param null|string $connection the connection name
      * @param int $retryAfter the expiration time of a job
@@ -34,7 +34,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      * @param int $migrationBatchSize The batch size to use when migrating delayed / expired jobs onto the primary queue. Negative values are infinite.
      */
     public function __construct(
-        protected RedisFactory $redis,
+        protected Redis $redis,
         protected string $default = 'default',
         protected ?string $connection = null,
         protected int $retryAfter = 60,
@@ -344,13 +344,13 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function getConnection(): RedisProxy
     {
-        return $this->redis->get($this->connection);
+        return $this->redis->connection($this->connection);
     }
 
     /**
      * Get the underlying Redis instance.
      */
-    public function getRedis(): RedisFactory
+    public function getRedis(): Redis
     {
         return $this->redis;
     }

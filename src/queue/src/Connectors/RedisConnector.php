@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Connectors;
 
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\RedisQueue;
-use Hypervel\Redis\RedisFactory;
 
 class RedisConnector implements ConnectorInterface
 {
@@ -14,7 +14,7 @@ class RedisConnector implements ConnectorInterface
      * Create a new Redis queue connector instance.
      */
     public function __construct(
-        protected RedisFactory $redis,
+        protected Redis $redis,
         protected ?string $connection = null
     ) {
     }

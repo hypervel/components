@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Limiters\DurationLimiter;
-use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\InteractsWithTime;
 use Throwable;
 
@@ -15,14 +16,14 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
     use InteractsWithTime;
 
     /**
-     * The Redis factory implementation.
+     * The Redis connection instance.
      */
-    protected ?RedisFactory $redis = null;
+    protected ?RedisProxy $redis = null;
 
     /**
-     * The rate limiter instance.
+     * The Redis connection that should be used.
      */
-    protected $limiter;
+    protected ?string $connectionName = null;
 
     /**
      * Process the job.
@@ -30,11 +31,11 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
     public function handle(mixed $job, callable $next): mixed
     {
         $this->redis = Container::getInstance()
-            ->make(RedisFactory::class);
+            ->make(Redis::class)
+            ->connection($this->connectionName);
 
         $this->limiter = new DurationLimiter(
             $this->redis,
-            $this->getConnectionName(),
             $this->getKey($job),
             $this->maxAttempts,
             $this->decaySeconds
@@ -49,12 +50,20 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
 
             $this->limiter->clear();
         } catch (Throwable $throwable) {
-            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable)) {
+            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable, $this->limiter)) {
                 throw $throwable;
             }
 
-            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable)) {
+            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable, $this->limiter)) {
                 report($throwable);
+            }
+
+            if ($this->shouldDelete($throwable)) {
+                return $job->delete();
+            }
+
+            if ($this->shouldFail($throwable)) {
+                return $job->fail($throwable);
             }
 
             $this->limiter->acquire();
@@ -65,10 +74,13 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
         return null;
     }
 
-    protected function getConnectionName(): string
+    /**
+     * Specify the Redis connection that should be used.
+     */
+    public function connection(string $name): static
     {
-        return Container::getInstance()
-            ->make('config')
-            ->get('queue.connections.redis.connection', 'default');
+        $this->connectionName = $name;
+
+        return $this;
     }
 }

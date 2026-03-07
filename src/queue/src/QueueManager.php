@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
@@ -22,7 +23,6 @@ use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 
@@ -323,7 +323,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('redis', function () {
             return new RedisConnector(
-                $this->app->make(RedisFactory::class)
+                $this->app->make(Redis::class)
             );
         });
     }

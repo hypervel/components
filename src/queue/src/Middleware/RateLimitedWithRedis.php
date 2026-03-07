@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Limiters\DurationLimiter;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\InteractsWithTime;
 
 class RateLimitedWithRedis extends RateLimited
@@ -14,9 +14,9 @@ class RateLimitedWithRedis extends RateLimited
     use InteractsWithTime;
 
     /**
-     * The Redis factory implementation.
+     * The name of the Redis connection that should be used.
      */
-    protected RedisFactory $redis;
+    protected ?string $connectionName = null;
 
     /**
      * The timestamp of the end of the current duration by key.
@@ -26,12 +26,11 @@ class RateLimitedWithRedis extends RateLimited
     /**
      * Create a new middleware instance.
      */
-    public function __construct(string $limiterName)
+    public function __construct(string $limiterName, ?string $connection = null)
     {
         parent::__construct($limiterName);
 
-        $this->redis = Container::getInstance()
-            ->make(RedisFactory::class);
+        $this->connectionName = $connection;
     }
 
     /**
@@ -42,7 +41,7 @@ class RateLimitedWithRedis extends RateLimited
         foreach ($limits as $limit) {
             if ($this->tooManyAttempts($limit->key, $limit->maxAttempts, $limit->decaySeconds)) {
                 return $this->shouldRelease
-                    ? $job->release($this->getTimeUntilNextRetry($limit->key))
+                    ? $job->release($this->releaseAfter ?: $this->getTimeUntilNextRetry($limit->key))
                     : false;
             }
         }
@@ -55,9 +54,12 @@ class RateLimitedWithRedis extends RateLimited
      */
     protected function tooManyAttempts(string $key, int $maxAttempts, int $decaySeconds): bool
     {
+        $redis = Container::getInstance()
+            ->make(Redis::class)
+            ->connection($this->connectionName);
+
         $limiter = new DurationLimiter(
-            $this->redis,
-            $this->getConnectionName(),
+            $redis,
             $key,
             $maxAttempts,
             $decaySeconds
@@ -76,11 +78,22 @@ class RateLimitedWithRedis extends RateLimited
         return ($this->decaysAt[$key] - $this->currentTime()) + 3;
     }
 
-    protected function getConnectionName(): string
+    /**
+     * Specify the Redis connection that should be used.
+     */
+    public function connection(string $name): static
     {
-        return Container::getInstance()
-            ->make('config')
-            ->get('queue.connections.redis.connection', 'default');
+        $this->connectionName = $name;
+
+        return $this;
+    }
+
+    /**
+     * Prepare the object for serialization.
+     */
+    public function __sleep(): array
+    {
+        return array_merge(parent::__sleep(), ['connectionName']);
     }
 
     /**
@@ -89,7 +102,5 @@ class RateLimitedWithRedis extends RateLimited
     public function __wakeup()
     {
         parent::__wakeup();
-
-        $this->redis = Container::getInstance()->make(RedisFactory::class);
     }
 }
