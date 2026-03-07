@@ -10,8 +10,8 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
 
 /**
@@ -230,7 +230,7 @@ class CacheManager implements FactoryContract
      */
     protected function createRedisDriver(array $config): Repository
     {
-        $redis = $this->app->make(RedisFactory::class);
+        $redis = $this->app->make(Redis::class);
 
         $connection = $config['connection'] ?? 'default';
 

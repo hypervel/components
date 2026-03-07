@@ -29,13 +29,13 @@ use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 
 class RedisStore extends TaggableStore implements LockProvider
 {
-    protected RedisFactory $factory;
+    protected Redis $redis;
 
     /**
      * The pool factory instance (lazy-loaded if not provided).
@@ -110,12 +110,12 @@ class RedisStore extends TaggableStore implements LockProvider
      * Create a new Redis store.
      */
     public function __construct(
-        RedisFactory $factory,
+        Redis $redis,
         string $prefix = '',
         string $connection = 'default',
         ?PoolFactory $poolFactory = null,
     ) {
-        $this->factory = $factory;
+        $this->redis = $redis;
         $this->poolFactory = $poolFactory;
         $this->setPrefix($prefix);
         $this->setConnection($connection);
@@ -318,7 +318,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function connection(): RedisProxy
     {
-        return $this->factory->get($this->connection);
+        return $this->redis->connection($this->connection);
     }
 
     /**
@@ -326,7 +326,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function lockConnection(): RedisProxy
     {
-        return $this->factory->get($this->lockConnection ?? $this->connection);
+        return $this->redis->connection($this->lockConnection ?? $this->connection);
     }
 
     /**
@@ -359,9 +359,9 @@ class RedisStore extends TaggableStore implements LockProvider
     /**
      * Get the Redis database instance.
      */
-    public function getRedis(): RedisFactory
+    public function getRedis(): Redis
     {
-        return $this->factory;
+        return $this->redis;
     }
 
     /**
