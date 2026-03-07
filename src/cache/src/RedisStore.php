@@ -404,8 +404,6 @@ class RedisStore extends TaggableStore implements LockProvider
     /**
      * Serialize the value.
      *
-     * @deprecated Use Serialization::serialize() with a RedisConnection instead.
-     *
      * This method is intentionally disabled to prevent an N+1 pool checkout bug.
      * If serialization methods acquire their own connection, batch operations like
      * putMany(1000) would checkout 1001 connections (1 for the operation + 1000
@@ -423,8 +421,6 @@ class RedisStore extends TaggableStore implements LockProvider
 
     /**
      * Unserialize the value.
-     *
-     * @deprecated Use Serialization::unserialize() with a RedisConnection instead.
      *
      * This method is intentionally disabled to prevent an N+1 pool checkout bug.
      * If serialization methods acquire their own connection, batch operations like

@@ -20,6 +20,10 @@ class AllTagSet extends TagSet
 
     /**
      * Add a reference entry to the tag set's underlying sorted set.
+     *
+     * Not currently called internally — the combined operation classes (Put, Forever,
+     * Increment, etc.) handle tag tracking inline for single-checkout pool efficiency.
+     * Kept for Laravel RedisTagSet API parity.
      */
     public function addEntry(string $key, int $ttl = 0, ?string $updateWhen = null): void
     {
