@@ -15,6 +15,7 @@ use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
@@ -129,6 +130,8 @@ trait CreatesApplication
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
+        $app->bootstrapWith([LoadEnvironmentVariables::class]);
+
         $app->make(LoadConfiguration::class)->bootstrap($app);
 
         $this->registerPackageProviders($app);

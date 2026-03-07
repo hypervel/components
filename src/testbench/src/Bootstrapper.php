@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Foundation\ClassLoader;
 use Hypervel\Support\LazyCollection;
 use Symfony\Component\Yaml\Yaml;
 
@@ -34,8 +33,6 @@ class Bootstrapper
         static::generateEnv();
         static::generateComposerLock();
         static::registerPurgeFiles();
-
-        ClassLoader::init();
     }
 
     public static function getConfig(): array
