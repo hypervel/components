@@ -42,6 +42,7 @@ class Kernel implements KernelContract
      * @var string[]
      */
     protected array $bootstrappers = [
+        \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
         \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
         \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
         \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
