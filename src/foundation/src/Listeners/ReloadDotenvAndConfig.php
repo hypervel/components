@@ -48,12 +48,14 @@ class ReloadDotenvAndConfig
 
     protected function reloadDotenv(): void
     {
-        $basePath = $this->container->basePath();
-        if (! file_exists($basePath . DIRECTORY_SEPARATOR . '.env')) {
+        if (! file_exists($this->container->environmentFilePath())) {
             return;
         }
 
-        DotenvManager::reload([$basePath]);
+        DotenvManager::reload(
+            [$this->container->environmentPath()],
+            $this->container->environmentFile(),
+        );
     }
 
     protected function setConfigCallback(): void
