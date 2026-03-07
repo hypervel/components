@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Events\LocaleUpdated;
@@ -24,7 +25,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 use function Hypervel\Filesystem\join_paths;
 
-class Application extends Container implements ApplicationContract, CachesRoutes
+class Application extends Container implements ApplicationContract, CachesConfiguration, CachesRoutes
 {
     use Macroable;
 
@@ -217,6 +218,17 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     }
 
     /**
+     * Register a callback to run after loading the environment.
+     */
+    public function afterLoadingEnvironment(Closure $callback): void
+    {
+        $this->afterBootstrapping(
+            Bootstrap\LoadEnvironmentVariables::class,
+            $callback
+        );
+    }
+
+    /**
      * Determine if the application has been bootstrapped before.
      */
     public function hasBeenBootstrapped(): bool
@@ -385,6 +397,14 @@ class Application extends Container implements ApplicationContract, CachesRoutes
     public function getCachedConfigPath(): string
     {
         return $this->normalizeCachePath('APP_CONFIG_CACHE', 'cache/config.php');
+    }
+
+    /**
+     * Get the path to the cached services.php file.
+     */
+    public function getCachedServicesPath(): string
+    {
+        return $this->normalizeCachePath('APP_SERVICES_CACHE', 'cache/services.php');
     }
 
     /**
