@@ -34,13 +34,6 @@ class Horizon
     public static ?string $email = null;
 
     /**
-     * Indicates if Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static bool $useDarkTheme = false;
-
-    /**
      * The database configuration methods.
      */
     public static array $databases = [
@@ -127,18 +120,6 @@ class Horizon
                 {$js}
             </script>
             HTML);
-    }
-
-    /**
-     * Specifies that Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static function night(): static
-    {
-        static::$useDarkTheme = true;
-
-        return new static();
     }
 
     /**

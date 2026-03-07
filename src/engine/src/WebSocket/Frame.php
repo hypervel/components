@@ -14,16 +14,6 @@ use function Hypervel\Engine\swoole_get_flags_from_frame;
 
 class Frame implements FrameInterface
 {
-    /**
-     * @deprecated
-     */
-    public const PING = '27890027';
-
-    /**
-     * @deprecated
-     */
-    public const PONG = '278a0027';
-
     protected StreamInterface $payloadData;
 
     public function __construct(
