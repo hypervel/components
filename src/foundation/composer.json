@@ -40,7 +40,6 @@
         "hypervel/contracts": "^0.4",
         "hypervel/cookie": "^0.4",
         "hypervel/coordinator": "^0.4",
-        "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/engine": "^0.4",

@@ -23,7 +23,6 @@
     "autoload": {
         "psr-4": {
             "Workbench\\App\\": "src/testbench/workbench/app/",
-            "Hypervel\\": "src/core/src/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Contracts\\": "src/contracts/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
@@ -191,7 +190,6 @@
         "hypervel/contracts": "self.version",
         "hypervel/coordinator": "self.version",
         "hypervel/cookie": "self.version",
-        "hypervel/core": "self.version",
         "hypervel/coroutine": "self.version",
         "hypervel/database": "self.version",
         "hypervel/di": "self.version",
