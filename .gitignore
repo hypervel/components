@@ -9,6 +9,7 @@ composer.lock
 tests/Http/fixtures/sunk.txt
 .env
 !tests/Support/envs/**/.env
+!tests/Foundation/Bootstrap/envs/.env
 /testing
 docs/node_modules/
 docs/.vuepress/dist/
