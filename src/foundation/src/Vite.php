@@ -529,7 +529,9 @@ class Vite implements Htmlable
             && ! array_key_exists($this->integrityKey, $chunk ?? [])
             && $this->scriptTagAttributesResolvers === []
             && $this->styleTagAttributesResolvers === []) {
-            return $this->makeTag($url);
+            return $this->isCssPath($url)
+                ? $this->makeStylesheetTagWithAttributes($url, [])
+                : $this->makeScriptTagWithAttributes($url, []);
         }
 
         if ($this->isCssPath($url)) {
@@ -628,40 +630,6 @@ class Vite implements Htmlable
         }
 
         return $attributes;
-    }
-
-    /**
-     * Generate an appropriate tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeTag(string $url): string
-    {
-        if ($this->isCssPath($url)) {
-            return $this->makeStylesheetTag($url);
-        }
-
-        return $this->makeScriptTag($url);
-    }
-
-    /**
-     * Generate a script tag for the given URL.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeScriptTag(string $url): string
-    {
-        return $this->makeScriptTagWithAttributes($url, []);
-    }
-
-    /**
-     * Generate a stylesheet tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeStylesheetTag(string $url): string
-    {
-        return $this->makeStylesheetTagWithAttributes($url, []);
     }
 
     /**

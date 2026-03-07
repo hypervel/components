@@ -65,15 +65,6 @@ class Kernel implements KernelContract
     protected array $middlewareGroups = [];
 
     /**
-     * The application's route middleware.
-     *
-     * @var array<string, class-string|string>
-     *
-     * @deprecated
-     */
-    protected array $routeMiddleware = [];
-
-    /**
      * The application's middleware aliases.
      *
      * @var array<string, class-string|string>
@@ -476,7 +467,7 @@ class Kernel implements KernelContract
             $this->router->middlewareGroup($key, $middleware);
         }
 
-        foreach (array_merge($this->routeMiddleware, $this->middlewareAliases) as $key => $middleware) {
+        foreach ($this->middlewareAliases as $key => $middleware) {
             $this->router->aliasMiddleware($key, $middleware);
         }
     }
@@ -561,20 +552,10 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's route middleware aliases.
-     *
-     * @deprecated
-     */
-    public function getRouteMiddleware(): array
-    {
-        return $this->getMiddlewareAliases();
-    }
-
-    /**
-     * Get the application's route middleware aliases.
      */
     public function getMiddlewareAliases(): array
     {
-        return array_merge($this->routeMiddleware, $this->middlewareAliases);
+        return $this->middlewareAliases;
     }
 
     /**
