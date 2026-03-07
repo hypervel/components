@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
+use Dotenv\Repository\Adapter\AdapterInterface;
 use Dotenv\Repository\Adapter\PutenvAdapter;
 use Dotenv\Repository\RepositoryBuilder;
 use Dotenv\Repository\RepositoryInterface;
@@ -26,6 +27,16 @@ class Env
     protected static ?RepositoryInterface $repository = null;
 
     /**
+     * The adapters used to build the current repository.
+     *
+     * Stored so that deleteMany() can remove values from all adapters
+     * without leaking adapter construction details to external callers.
+     *
+     * @var AdapterInterface[]
+     */
+    protected static array $adapters = [];
+
+    /**
      * The list of custom adapters for loading environment variables.
      *
      * @var array<Closure>
@@ -39,6 +50,61 @@ class Env
     {
         static::$putenv = true;
         static::$repository = null;
+    }
+
+    /**
+     * Reset the environment repository.
+     *
+     * Clears the cached repository so the next getRepository() call creates
+     * a fresh instance with a new ImmutableWriter. This is required before
+     * reloading env files — the ImmutableWriter tracks which keys it loaded
+     * and refuses to overwrite "externally defined" keys. Resetting creates
+     * a clean writer that treats all keys as writable.
+     */
+    public static function resetRepository(): void
+    {
+        static::$repository = null;
+        static::$adapters = [];
+    }
+
+    /**
+     * Reset all static state including custom adapters and putenv config.
+     *
+     * This is a full teardown intended for testing. Unlike resetRepository(),
+     * which preserves custom adapters and putenv configuration, this method
+     * restores Env to its initial state.
+     */
+    public static function flushState(): void
+    {
+        static::$putenv = true;
+        static::$repository = null;
+        static::$adapters = [];
+        static::$customAdapters = [];
+    }
+
+    /**
+     * Delete the given environment variable keys from all adapters.
+     *
+     * Bypasses the repository's ImmutableWriter and deletes directly
+     * from each adapter. This is used during env reload to clear
+     * previously loaded values before re-reading the env file.
+     *
+     * Also clears the keys from the default adapter superglobals
+     * ($_SERVER, $_ENV) which are always present via createWithDefaultAdapters().
+     *
+     * @param string[] $keys
+     */
+    public static function deleteMany(array $keys): void
+    {
+        foreach ($keys as $key) {
+            unset($_SERVER[$key], $_ENV[$key]);
+        }
+
+        foreach (static::$adapters as $adapter) {
+            foreach ($keys as $key) {
+                $adapter->delete($key);
+            }
+        }
     }
 
     /**
@@ -70,20 +136,53 @@ class Env
     public static function getRepository(): RepositoryInterface
     {
         if (static::$repository === null) {
+            $adapters = static::buildAdapters();
             $builder = RepositoryBuilder::createWithDefaultAdapters();
 
-            if (static::$putenv) {
-                $builder = $builder->addAdapter(PutenvAdapter::class);
+            foreach ($adapters as $adapter) {
+                $builder = $builder->addAdapter($adapter);
             }
 
-            foreach (static::$customAdapters as $adapter) {
-                $builder = $builder->addAdapter($adapter());
-            }
-
+            static::$adapters = $adapters;
             static::$repository = $builder->immutable()->make();
         }
 
         return static::$repository;
+    }
+
+    /**
+     * Build the list of additional adapters for the repository.
+     *
+     * @return AdapterInterface[]
+     */
+    protected static function buildAdapters(): array
+    {
+        $adapters = [];
+
+        if (static::$putenv) {
+            $adapter = PutenvAdapter::create();
+            if ($adapter->isDefined()) {
+                $adapters[] = $adapter->get();
+            }
+        }
+
+        foreach (static::$customAdapters as $callback) {
+            $result = $callback();
+
+            // Callbacks may return an adapter instance or a class-string
+            // (same as RepositoryBuilder::addAdapter accepts). Resolve
+            // class-strings to instances so deleteMany() can call ->delete().
+            if (is_string($result)) {
+                $instance = $result::create();
+                if ($instance->isDefined()) {
+                    $adapters[] = $instance->get();
+                }
+            } else {
+                $adapters[] = $result;
+            }
+        }
+
+        return $adapters;
     }
 
     /**
