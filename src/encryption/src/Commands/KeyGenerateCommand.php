@@ -88,10 +88,12 @@ class KeyGenerateCommand extends Command
      */
     protected function writeNewEnvironmentFileWith(string $key): bool
     {
+        $envPath = $this->hypervel->environmentFilePath();
+
         $replaced = preg_replace(
             $this->keyReplacementPattern(),
             'APP_KEY=' . $key,
-            $input = file_get_contents($envPath = BASE_PATH . DIRECTORY_SEPARATOR . '.env')
+            $input = file_get_contents($envPath)
         );
 
         if ($replaced === $input || $replaced === null) {
