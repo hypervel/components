@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation;
 
 use Hypervel\Config\Repository;
 use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Support\ServiceProvider;
@@ -221,6 +222,52 @@ class FoundationApplicationTest extends TestCase
             $this->fail(sprintf('abort must throw an %s.', HttpException::class));
         } catch (HttpException $exception) {
             $this->assertSame(['X-FOO' => 'BAR'], $exception->getHeaders());
+        }
+    }
+
+    public function testAfterLoadingEnvironmentRegistersCallback()
+    {
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
+
+        $closure = function () {};
+        $app->afterLoadingEnvironment($closure);
+
+        $listeners = $app['events']->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
+        $this->assertArrayHasKey(0, $listeners);
+    }
+
+    public function testGetCachedServicesPath()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app');
+
+        $this->assertStringEndsWith('cache/services.php', $app->getCachedServicesPath());
+    }
+
+    public function testConfigurationIsCachedReturnsFalseWhenNoCacheFile()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+
+        $this->assertFalse($app->configurationIsCached());
+    }
+
+    public function testConfigurationIsCachedReturnsTrueWhenCacheFileExists()
+    {
+        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
+        $cachePath = $basePath . '/bootstrap/cache/config.php';
+
+        mkdir(dirname($cachePath), 0755, true);
+        file_put_contents($cachePath, '<?php return [];');
+
+        try {
+            $app = $this->getApplication([], $basePath);
+            $this->assertTrue($app->configurationIsCached());
+        } finally {
+            unlink($cachePath);
+            rmdir(dirname($cachePath));
+            rmdir(dirname($cachePath, 2));
+            rmdir($basePath);
         }
     }
 }

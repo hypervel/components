@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Concerns;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -60,6 +61,27 @@ class CreatesApplicationTest extends TestCase
 
         $this->assertArrayHasKey('TestAlias', $aliases);
         $this->assertSame(TestFacade::class, $aliases['TestAlias']);
+    }
+
+    public function testAfterLoadingEnvironmentFiresThroughTestbenchPath()
+    {
+        // The bootstrapped event should have been dispatched by bootstrapWith()
+        // in CreatesApplication::resolveApplicationConfiguration().
+        $listeners = $this->app['events']->getListeners(
+            'bootstrapped: ' . LoadEnvironmentVariables::class
+        );
+
+        // Register a callback now and verify it gets added to the listener list.
+        $called = false;
+        $this->app->afterLoadingEnvironment(function () use (&$called) {
+            $called = true;
+        });
+
+        $updatedListeners = $this->app['events']->getListeners(
+            'bootstrapped: ' . LoadEnvironmentVariables::class
+        );
+
+        $this->assertCount(count($listeners) + 1, $updatedListeners);
     }
 }
 
