@@ -22,10 +22,10 @@ use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory as Queue;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
@@ -344,7 +344,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         return new RedisBroadcaster(
             $this->app,
-            $this->app->make(RedisFactory::class),
+            $this->app->make(Redis::class),
             $config['connection'] ?? 'default',
             $this->app->make('config')->get('database.redis.options.prefix', ''),
         );

@@ -6,9 +6,9 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
 use Hypervel\Pool\Exceptions\ConnectionException;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
 use RedisException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -22,7 +22,7 @@ class RedisBroadcaster extends Broadcaster
      */
     public function __construct(
         protected Container $container,
-        protected RedisFactory $factory,
+        protected Redis $factory,
         protected string $connection = 'default',
         protected string $prefix = ''
     ) {
@@ -86,7 +86,7 @@ class RedisBroadcaster extends Broadcaster
             return;
         }
 
-        $connection = $this->factory->get($this->connection);
+        $connection = $this->factory->connection($this->connection);
 
         $payload = json_encode([
             'event' => $event,
