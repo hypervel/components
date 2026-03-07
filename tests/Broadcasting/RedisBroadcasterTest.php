@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
@@ -32,7 +32,7 @@ class RedisBroadcasterTest extends TestCase
         parent::setUp();
 
         $this->container = m::mock(Container::class);
-        $factory = m::mock(RedisFactory::class);
+        $factory = m::mock(Redis::class);
         $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $factory])->makePartial();
     }
 

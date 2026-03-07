@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache\Redis;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Redis\RedisFactory;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 use Mockery as m;
 
@@ -48,7 +48,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $connection2 = $this->mockConnection();
         $connection2->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('value2'));
 
-        // Register RedisFactory mocks for both connections
+        // Register Redis mocks for both connections
         $this->registerRedisFactoryMock($connection1, 'conn1');
 
         // Create store with first connection
@@ -198,8 +198,8 @@ class RedisStoreTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')->with('default')->andReturn($redisProxy);
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -220,8 +220,8 @@ class RedisStoreTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')->with('default')->andReturn($redisProxy);
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -242,8 +242,8 @@ class RedisStoreTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')->with('default')->andReturn($redisProxy);
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -278,9 +278,9 @@ class RedisStoreTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $lockProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')->with('default')->andReturn($redisProxy);
-        $redisFactory->shouldReceive('get')->with('locks')->andReturn($lockProxy);
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
+        $redisFactory->shouldReceive('connection')->with('locks')->andReturn($lockProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -298,10 +298,10 @@ class RedisStoreTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testGetRedisReturnsRedisFactory(): void
+    public function testGetRedisReturnsRedis(): void
     {
         $connection = $this->mockConnection();
-        $redisFactory = m::mock(RedisFactory::class);
+        $redisFactory = m::mock(Redis::class);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -320,8 +320,8 @@ class RedisStoreTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')->with('default')->andReturn($redisProxy);
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,

@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Cache\Redis;
 
 use Carbon\Carbon;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Stubs\FakeRedisClient;
@@ -189,7 +189,7 @@ abstract class RedisCacheTestCase extends TestCase
             ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')
+        $redisFactory->shouldReceive('connection')
             ->with($connectionName)
             ->andReturn($redisProxy);
 

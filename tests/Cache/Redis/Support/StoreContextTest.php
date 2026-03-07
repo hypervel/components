@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -228,7 +228,7 @@ class StoreContextTest extends TestCase
             ->andReturnUsing($withConnectionHandler);
 
         $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('get')
+        $redisFactory->shouldReceive('connection')
             ->with($expectedConnectionName)
             ->andReturn($redisProxy);
 
