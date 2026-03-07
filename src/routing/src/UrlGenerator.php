@@ -615,18 +615,6 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Set the forced root URL (process-global).
-     *
-     * @deprecated use useOrigin for per-request overrides
-     */
-    public function forceRootUrl(?string $root): void
-    {
-        $this->forcedRoot = $root ? rtrim($root, '/') : null;
-
-        Context::destroy('url.cached_root');
-    }
-
-    /**
      * Set the URL origin for all generated asset URLs.
      */
     public function useAssetOrigin(?string $root): void
