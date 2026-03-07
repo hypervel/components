@@ -120,7 +120,7 @@ class MailManager implements FactoryContract
             throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
         }
 
-        $transport = $config['transport'] ?? $this->config->get('mail.driver');
+        $transport = $config['transport'];
         $hasPool = in_array($transport, $this->poolables);
 
         // Once we have created the mailer instance we will set a container instance
@@ -154,10 +154,7 @@ class MailManager implements FactoryContract
      */
     public function createSymfonyTransport(array $config, ?string $poolName = null): TransportInterface
     {
-        // Here we will check if the "transport" key exists and if it doesn't we will
-        // assume an application is still using the legacy mail configuration file
-        // format and use the "mail.driver" configuration option instead for BC.
-        $transport = $config['transport'] ?? $this->config->get('mail.driver');
+        $transport = $config['transport'];
 
         if (isset($this->customCreators[$transport])) {
             if (! is_null($poolName)) {
@@ -363,12 +360,7 @@ class MailManager implements FactoryContract
                 throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
             }
 
-            // Now, we will check if the "driver" key exists and if it does we will set
-            // the transport configuration parameter in order to offer compatibility
-            // with any Laravel <= 6.x application style mail configuration files.
-            $transports[] = $this->config->get('mail.driver')
-                ? $this->createSymfonyTransport(array_merge($config, ['transport' => $name]))
-                : $this->createSymfonyTransport($config);
+            $transports[] = $this->createSymfonyTransport($config);
         }
 
         return new FailoverTransport($transports);
@@ -388,12 +380,7 @@ class MailManager implements FactoryContract
                 throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
             }
 
-            // Now, we will check if the "driver" key exists and if it does we will set
-            // the transport configuration parameter in order to offer compatibility
-            // with any Laravel <= 6.x application style mail configuration files.
-            $transports[] = $this->config->get('mail.driver')
-                ? $this->createSymfonyTransport(array_merge($config, ['transport' => $name]))
-                : $this->createSymfonyTransport($config);
+            $transports[] = $this->createSymfonyTransport($config);
         }
 
         return new RoundRobinTransport($transports);
@@ -458,12 +445,7 @@ class MailManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        // Here we will check if the "driver" key exists and if it does we will use
-        // the entire mail configuration file as the "driver" config in order to
-        // provide "BC" for any Laravel <= 6.x style mail configuration files.
-        $config = $this->config->get('mail.driver')
-            ? $this->config->get('mail')
-            : $this->config->get("mail.mailers.{$name}");
+        $config = $this->config->get("mail.mailers.{$name}");
 
         if (isset($config['url'])) {
             $config = array_merge($config, (new ConfigurationUrlParser())->parseConfiguration($config));
@@ -479,11 +461,7 @@ class MailManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        // Here we will check if the "driver" key exists and if it does we will use
-        // that as the default driver in order to provide support for old styles
-        // of the Laravel mail configuration file for backwards compatibility.
-        return $this->config->get('mail.driver')
-            ?? $this->config->get('mail.default');
+        return $this->config->get('mail.default');
     }
 
     /**
@@ -491,10 +469,6 @@ class MailManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        if ($this->config->get('mail.driver')) {
-            $this->config->set('mail.driver', $name);
-        }
-
         $this->config->set('mail.default', $name);
     }
 

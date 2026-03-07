@@ -31,8 +31,13 @@ class MailLogTransportTest extends TestCase
     public function testGetLogTransportWithConfiguredChannel()
     {
         $this->app->make('config')->set('mail', [
-            'driver' => 'log',
-            'log_channel' => 'mail',
+            'default' => 'log',
+            'mailers' => [
+                'log' => [
+                    'transport' => 'log',
+                    'channel' => 'mail',
+                ],
+            ],
         ]);
         $this->app->make('config')->set('logging', [
             'channels' => [
@@ -105,7 +110,12 @@ class MailLogTransportTest extends TestCase
     public function testGetLogTransportWithPsrLogger()
     {
         $this->app->make('config')->set('mail', [
-            'driver' => 'log',
+            'default' => 'log',
+            'mailers' => [
+                'log' => [
+                    'transport' => 'log',
+                ],
+            ],
         ]);
 
         $this->app->instance(LoggerInterface::class, new NullLogger());

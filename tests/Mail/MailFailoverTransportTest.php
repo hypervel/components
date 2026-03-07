@@ -52,12 +52,26 @@ class MailFailoverTransportTest extends TestCase
         $this->assertInstanceOf(FailoverTransport::class, $transport);
     }
 
-    public function testGetFailoverTransportWithLaravel6StyleMailConfiguration()
+    public function testGetFailoverTransportWithConfiguredTransportsUsingDefaultMailer()
     {
         $this->app->make('config')->set('mail', [
-            'driver' => 'failover',
-            'mailers' => ['sendmail', 'array'],
-            'sendmail' => '/usr/sbin/sendmail -bs',
+            'default' => 'failover',
+            'mailers' => [
+                'failover' => [
+                    'transport' => 'failover',
+                    'mailers' => [
+                        'sendmail',
+                        'array',
+                    ],
+                ],
+                'sendmail' => [
+                    'transport' => 'sendmail',
+                    'path' => '/usr/sbin/sendmail -bs',
+                ],
+                'array' => [
+                    'transport' => 'array',
+                ],
+            ],
         ]);
 
         $transport = $this->app->make(FactoryContract::class)

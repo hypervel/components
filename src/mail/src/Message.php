@@ -20,11 +20,6 @@ class Message
     use ForwardsCalls;
 
     /**
-     * CIDs of files embedded in the message.
-     */
-    protected array $embeddedFiles = [];
-
-    /**
      * Create a new message instance.
      */
     public function __construct(
