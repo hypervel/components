@@ -21,10 +21,10 @@ class OutputStyleTest extends TestCase
 
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
-        $this->assertFalse($style->newLineWritten());
+        $this->assertSame(1, $style->newLinesWritten());
 
         $style->newLine();
-        $this->assertTrue($style->newLineWritten());
+        $this->assertSame(2, $style->newLinesWritten());
     }
 
     public function testDetectsNewLineOnUnderlyingOutput()
@@ -35,7 +35,7 @@ class OutputStyleTest extends TestCase
         $style = new OutputStyle(new ArrayInput([]), $underlyingStyle);
 
         $underlyingStyle->newLine();
-        $this->assertTrue($style->newLineWritten());
+        $this->assertSame(2, $style->newLinesWritten());
     }
 
     public function testDetectsNewLineOnWrite()
@@ -45,10 +45,10 @@ class OutputStyleTest extends TestCase
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
         $style->write('Foo');
-        $this->assertFalse($style->newLineWritten());
+        $this->assertSame(0, $style->newLinesWritten());
 
         $style->write('Foo', true);
-        $this->assertTrue($style->newLineWritten());
+        $this->assertSame(1, $style->newLinesWritten());
     }
 
     public function testDetectsNewLineOnWriteln()
@@ -58,7 +58,7 @@ class OutputStyleTest extends TestCase
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
         $style->writeln('Foo');
-        $this->assertTrue($style->newLineWritten());
+        $this->assertSame(1, $style->newLinesWritten());
     }
 
     public function testDetectsNewLineOnlyOnOutput()
@@ -70,11 +70,11 @@ class OutputStyleTest extends TestCase
         $style->setVerbosity(OutputStyle::VERBOSITY_NORMAL);
 
         $style->writeln('Foo', OutputStyle::VERBOSITY_VERBOSE);
-        $this->assertFalse($style->newLineWritten());
+        $this->assertSame(1, $style->newLinesWritten());
 
         $style->setVerbosity(OutputStyle::VERBOSITY_VERBOSE);
 
         $style->writeln('Foo', OutputStyle::VERBOSITY_VERBOSE);
-        $this->assertTrue($style->newLineWritten());
+        $this->assertSame(1, $style->newLinesWritten());
     }
 }

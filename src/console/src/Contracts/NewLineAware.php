@@ -10,11 +10,4 @@ interface NewLineAware
      * Get how many trailing newlines were written.
      */
     public function newLinesWritten(): int;
-
-    /**
-     * Determine whether a newline has already been written.
-     *
-     * @deprecated use newLinesWritten
-     */
-    public function newLineWritten(): bool;
 }

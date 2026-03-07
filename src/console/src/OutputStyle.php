@@ -21,13 +21,6 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     protected int $newLinesWritten = 1;
 
     /**
-     * If the last output written wrote a new line.
-     *
-     * @deprecated use $newLinesWritten
-     */
-    protected bool $newLineWritten = false;
-
-    /**
      * Create a new Console OutputStyle instance.
      */
     public function __construct(
@@ -51,7 +44,6 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     public function write(string|iterable $messages, bool $newline = false, int $options = 0): void
     {
         $this->newLinesWritten = $this->trailingNewLineCount($messages) + (int) $newline;
-        $this->newLineWritten = $this->newLinesWritten > 0;
 
         parent::write($messages, $newline, $options);
     }
@@ -61,7 +53,6 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     {
         if ($this->output->getVerbosity() >= $type) {
             $this->newLinesWritten = $this->trailingNewLineCount($messages) + 1;
-            $this->newLineWritten = true;
         }
 
         parent::writeln($messages, $type);
@@ -71,7 +62,6 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     public function newLine(int $count = 1): void
     {
         $this->newLinesWritten += $count;
-        $this->newLineWritten = $this->newLinesWritten > 0;
 
         parent::newLine($count);
     }
@@ -83,18 +73,6 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
         }
 
         return $this->newLinesWritten;
-    }
-
-    /**
-     * @deprecated use newLinesWritten
-     */
-    public function newLineWritten(): bool
-    {
-        if ($this->output instanceof static && $this->output->newLineWritten()) {
-            return true;
-        }
-
-        return $this->newLineWritten;
     }
 
     /**
