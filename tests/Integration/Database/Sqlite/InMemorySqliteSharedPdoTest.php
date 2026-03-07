@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Connectors\SQLiteConnector;
@@ -38,7 +37,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
         // Suppress expected log output from reconnect tests
         $config = $this->app->make('config');
-        $config->set(StdoutLoggerInterface::class . '.log_level', []);
+        $config->set('app.stdout_log_level', []);
     }
 
     protected function configureInMemoryDatabase(): void

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
@@ -22,7 +21,7 @@ class EventConnectionEstablishedTest extends DatabaseTestCase
 
         // Suppress expected reconnection log output
         $config = $app->make('config');
-        $config->set(StdoutLoggerInterface::class . '.log_level', []);
+        $config->set('app.stdout_log_level', []);
     }
 
     /**

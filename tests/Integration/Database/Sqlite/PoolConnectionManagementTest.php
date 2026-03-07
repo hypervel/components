@@ -63,7 +63,7 @@ class PoolConnectionManagementTest extends TestCase
 
         // Suppress expected error logs from transaction rollback tests
         $config = $this->app->make('config');
-        $config->set('Hypervel\Contracts\Log\StdoutLoggerInterface.log_level', []);
+        $config->set('app.stdout_log_level', []);
     }
 
     protected function configureDatabase(): void
