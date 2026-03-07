@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
 use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Redis\PhpRedis;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Str;
 
@@ -20,7 +20,7 @@ class RedisMetricsRepository implements MetricsRepository
      * Create a new repository instance.
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -346,6 +346,6 @@ class RedisMetricsRepository implements MetricsRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

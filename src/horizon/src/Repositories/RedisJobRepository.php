@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\LuaScripts;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -60,7 +60,7 @@ class RedisJobRepository implements JobRepository
      * Create a new repository instance.
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
         $this->recentJobExpires = config('horizon.trim.recent', 60);
         $this->pendingJobExpires = config('horizon.trim.pending', 60);
@@ -619,6 +619,6 @@ class RedisJobRepository implements JobRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

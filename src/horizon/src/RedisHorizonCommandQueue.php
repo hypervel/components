@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 
 class RedisHorizonCommandQueue implements HorizonCommandQueue
@@ -14,7 +14,7 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
      * Create a new command queue instance.
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -65,6 +65,6 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

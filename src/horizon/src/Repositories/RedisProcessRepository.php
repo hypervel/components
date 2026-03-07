@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\ProcessRepository;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 
 class RedisProcessRepository implements ProcessRepository
@@ -14,10 +14,10 @@ class RedisProcessRepository implements ProcessRepository
     /**
      * Create a new repository instance.
      *
-     * @param RedisFactory $redis the Redis connection instance
+     * @param Redis $redis the Redis connection instance
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -81,6 +81,6 @@ class RedisProcessRepository implements ProcessRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Closure;
-use Hypervel\Redis\RedisFactory;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 
 class Lock
@@ -13,10 +13,10 @@ class Lock
     /**
      * Create a Horizon lock manager.
      *
-     * @param RedisFactory $redis the Redis factory implementation
+     * @param Redis $redis the Redis factory implementation
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -69,6 +69,6 @@ class Lock
      */
     public function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }
