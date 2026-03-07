@@ -139,6 +139,69 @@ class DotenvManagerTest extends TestCase
         $this->assertSame('fallback', env('NONEXISTENT_KEY', 'fallback'));
         $this->assertNull(env('NONEXISTENT_KEY'));
     }
+
+    public function testLoadWithNameParameter()
+    {
+        DotenvManager::load([__DIR__ . '/envs/oldEnv'], '.env.testing');
+
+        $this->assertSame('named_value', env('NAMED_KEY'));
+    }
+
+    public function testReloadWithNameParameter()
+    {
+        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        $this->assertSame('1.0', env('TEST_VERSION'));
+
+        DotenvManager::reload([__DIR__ . '/envs/oldEnv'], '.env.testing');
+        $this->assertSame('named_value', env('NAMED_KEY'));
+        $this->assertNull(env('TEST_VERSION'));
+    }
+
+    public function testSafeLoadWithValidFile()
+    {
+        DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
+
+        $this->assertSame('1.0', env('TEST_VERSION'));
+        $this->assertTrue(env('OLD_FLAG'));
+    }
+
+    public function testSafeLoadWithMissingFileDoesNotThrow()
+    {
+        DotenvManager::safeLoad([__DIR__ . '/envs/nonexistent']);
+
+        // No exception, and no values loaded.
+        $this->assertNull(env('TEST_VERSION'));
+    }
+
+    public function testSafeLoadIsIdempotent()
+    {
+        DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::safeLoad([__DIR__ . '/envs/newEnv']);
+
+        // Second call is ignored — still has old values.
+        $this->assertSame('1.0', env('TEST_VERSION'));
+        $this->assertTrue(env('OLD_FLAG'));
+    }
+
+    public function testSafeLoadWithNameParameter()
+    {
+        DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv'], '.env.testing');
+
+        $this->assertSame('named_value', env('NAMED_KEY'));
+    }
+
+    public function testSafeLoadPopulatesCachedValuesForReload()
+    {
+        DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
+        $this->assertSame('1.0', env('TEST_VERSION'));
+        $this->assertTrue(env('OLD_FLAG'));
+
+        // Reload should clean up keys loaded by safeLoad.
+        DotenvManager::reload([__DIR__ . '/envs/newEnv']);
+        $this->assertSame('2.0', env('TEST_VERSION'));
+        $this->assertNull(env('OLD_FLAG'));
+        $this->assertTrue(env('NEW_FLAG'));
+    }
 }
 
 /**
