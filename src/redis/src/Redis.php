@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Redis\Connection as ConnectionContract;
+use Hypervel\Contracts\Redis\Factory as FactoryContract;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
+use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
@@ -20,7 +25,7 @@ use function Hypervel\Support\enum_value;
 /**
  * @mixin \Hypervel\Redis\RedisConnection
  */
-class Redis
+class Redis implements FactoryContract, ConnectionContract
 {
     use MultiExec;
 
@@ -272,11 +277,62 @@ class Redis
     /**
      * Get a Redis connection by name.
      */
-    public function connection(UnitEnum|string $name = 'default'): RedisProxy
+    public function connection(UnitEnum|string|null $name = null): RedisProxy
     {
         return Container::getInstance()
             ->make(RedisFactory::class)
-            ->get(enum_value($name));
+            ->get(enum_value($name) ?? 'default');
+    }
+
+    /**
+     * Subscribe to a set of given channels for messages.
+     */
+    public function subscribe(array|string $channels, Closure $callback): void
+    {
+        $this->__call('subscribe', [$channels, $callback]);
+    }
+
+    /**
+     * Subscribe to a set of given channels with wildcards.
+     */
+    public function psubscribe(array|string $channels, Closure $callback): void
+    {
+        $this->__call('psubscribe', [$channels, $callback]);
+    }
+
+    /**
+     * Run a command against the Redis database.
+     */
+    public function command(string $method, array $parameters = []): mixed
+    {
+        return $this->__call($method, $parameters);
+    }
+
+    /**
+     * Throttle a callback for a maximum number of executions over a given duration.
+     */
+    public function throttle(string $name): DurationLimiterBuilder
+    {
+        return new DurationLimiterBuilder($this->resolveConnection(), $name);
+    }
+
+    /**
+     * Funnel a callback for a maximum number of simultaneous executions.
+     */
+    public function funnel(string $name): ConcurrencyLimiterBuilder
+    {
+        return new ConcurrencyLimiterBuilder($this->resolveConnection(), $name);
+    }
+
+    /**
+     * Resolve this instance to a concrete connection proxy.
+     *
+     * If already a RedisProxy (named connection), return self.
+     * If the base Redis instance (manager), resolve the default connection.
+     */
+    private function resolveConnection(): RedisProxy
+    {
+        return $this instanceof RedisProxy ? $this : $this->connection();
     }
 
     /**
