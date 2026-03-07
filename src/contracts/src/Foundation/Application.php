@@ -125,6 +125,35 @@ interface Application extends Container
     public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
+     * Get the path to the environment file directory.
+     */
+    public function environmentPath(): string;
+
+    /**
+     * Set the directory for the environment file.
+     *
+     * @return $this
+     */
+    public function useEnvironmentPath(string $path): static;
+
+    /**
+     * Set the environment file to be loaded during bootstrapping.
+     *
+     * @return $this
+     */
+    public function loadEnvironmentFrom(string $file): static;
+
+    /**
+     * Get the environment file the application is using.
+     */
+    public function environmentFile(): string;
+
+    /**
+     * Get the fully qualified path to the environment file.
+     */
+    public function environmentFilePath(): string;
+
+    /**
      * Determine if the application is running in the console.
      *
      * In Swoole, PHP_SAPI is always 'cli', so the value is determined by
