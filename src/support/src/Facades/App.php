@@ -25,6 +25,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool isLocal()
  * @method static bool isProduction()
  * @method static string detectEnvironment(\Closure $callback)
+ * @method static void afterLoadingEnvironment(\Closure $callback)
  * @method static bool runningUnitTests()
  * @method static bool hasDebugModeEnabled()
  * @method static \Hypervel\Support\ServiceProvider register(\Hypervel\Support\ServiceProvider|string $provider, bool $force = false)
