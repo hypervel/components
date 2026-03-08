@@ -30,6 +30,7 @@ use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Http\Request;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
+use Hypervel\Validation\ValidationException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\VarDumper\Caster\StubCaster;
@@ -79,6 +80,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../../config/app.php', 'app');
 
         $this->listenCommandException();
+        $this->registerRequestValidation();
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
@@ -131,6 +133,35 @@ class FoundationServiceProvider extends ServiceProvider
         $connection = $this->config->get('database.default', 'mysql');
         $this->app->make(ConnectionResolverInterface::class)
             ->setDefaultConnection($connection);
+    }
+
+    /**
+     * Register the "validate" macro on the request.
+     *
+     * @throws ValidationException
+     */
+    protected function registerRequestValidation(): void
+    {
+        Request::macro('validate', function (array $rules, ...$params) {
+            return tap(validator($this->all(), $rules, ...$params), function ($validator) {
+                if ($this->isPrecognitive()) {
+                    $validator->after(\Hypervel\Foundation\Precognition::afterValidationHook($this))
+                        ->setRules(
+                            $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
+                        );
+                }
+            })->validate();
+        });
+
+        Request::macro('validateWithBag', function (string $errorBag, array $rules, ...$params) {
+            try {
+                return $this->validate($rules, ...$params);
+            } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown ($this->validate() is a macro that throws ValidationException)
+                $e->errorBag = $errorBag;
+
+                throw $e;
+            }
+        });
     }
 
     protected function registerUriUrlGeneration(): void
