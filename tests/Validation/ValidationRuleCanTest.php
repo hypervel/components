@@ -14,6 +14,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Validator;
 use Mockery as m;
+use stdClass;
 
 /**
  * @internal
@@ -80,6 +81,32 @@ class ValidationRuleCanTest extends TestCase
         );
 
         $this->assertTrue($v->passes());
+    }
+
+    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    {
+        $v = new Validator(
+            $this->app->make(TranslatorContract::class),
+            [
+                'company' => '1',
+                'company_fqcn' => '1',
+            ],
+            [
+                'company' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
+                'company_fqcn' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
+            ],
+            [
+                'company.can' => 'You dont have permission (dot notation)',
+                'company_fqcn.Hypervel\Validation\Rules\Can' => 'You dont have permission (fqcn)',
+            ]
+        );
+
+        $this->assertTrue($v->fails());
+
+        $this->assertSame([
+            'You dont have permission (dot notation)',
+            'You dont have permission (fqcn)',
+        ], $v->messages()->all());
     }
 
     /**

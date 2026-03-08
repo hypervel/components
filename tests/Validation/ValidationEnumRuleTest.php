@@ -303,4 +303,51 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertTrue($v->fails());
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
+
+    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    {
+        $v = new Validator(
+            $this->app->make(TranslatorContract::class),
+            [
+                'status' => 'invalid_value',
+                'status_fqcn' => 'another_invalid',
+            ],
+            [
+                'status' => new Enum(StringStatus::class),
+                'status_fqcn' => new Enum(StringStatus::class),
+            ],
+            [
+                'status.enum' => 'Please choose a valid status (dot notation)',
+                'status_fqcn.Hypervel\Validation\Rules\Enum' => 'Please choose a valid status (fqcn)',
+            ]
+        );
+
+        $this->assertTrue($v->fails());
+
+        $this->assertSame([
+            'Please choose a valid status (dot notation)',
+            'Please choose a valid status (fqcn)',
+        ], $v->messages()->all());
+    }
+
+    public function testEnumRuleIsStringable()
+    {
+        $rule = new Enum(StringStatus::class);
+
+        $this->assertSame('in:"pending","done"', (string) $rule);
+    }
+
+    public function testEnumRuleStringableWithOnly()
+    {
+        $rule = (new Enum(StringStatus::class))->only([StringStatus::pending]);
+
+        $this->assertSame('in:"pending"', (string) $rule);
+    }
+
+    public function testEnumRuleStringableWithExcept()
+    {
+        $rule = (new Enum(StringStatus::class))->except([StringStatus::pending]);
+
+        $this->assertSame('in:"done"', (string) $rule);
+    }
 }

@@ -328,6 +328,32 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
+    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    {
+        $v = new Validator(
+            $this->app->make(TranslatorContract::class),
+            [
+                'string' => 123,
+                'string_fqcn' => 456,
+            ],
+            [
+                'string' => Rule::anyOf(['string']),
+                'string_fqcn' => Rule::anyOf(['string']),
+            ],
+            [
+                'string.any_of' => 'Please choose a valid string (dot notation)',
+                'string_fqcn.Hypervel\Validation\Rules\AnyOf' => 'Please choose a valid string (fqcn)',
+            ]
+        );
+
+        $this->assertTrue($v->fails());
+
+        $this->assertSame([
+            'Please choose a valid string (dot notation)',
+            'Please choose a valid string (fqcn)',
+        ], $v->messages()->all());
+    }
+
     protected function setUpRuleSets()
     {
         $this->taggedUnionRules = [
