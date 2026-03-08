@@ -30,6 +30,7 @@ use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
 use InvalidArgumentException;
 use SplFileInfo;
+use Symfony\Component\HttpFoundation\File\File;
 use ValueError;
 
 use function with;
@@ -395,9 +396,13 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is a boolean.
      */
-    public function validateBoolean(string $attribute, mixed $value): bool
+    public function validateBoolean(string $attribute, mixed $value, array $parameters): bool
     {
         $acceptable = [true, false, 0, 1, '0', '1'];
+
+        if (($parameters[0] ?? null) === 'strict') {
+            $acceptable = [true, false];
+        }
 
         return in_array($value, $acceptable, true);
     }
@@ -508,7 +513,7 @@ trait ValidatesAttributes
 
         foreach ($parameters as $format) {
             try {
-                $date = DateTime::createFromFormat('!' . $format, $value);
+                $date = DateTime::createFromFormat('!' . $format, $value, new DateTimeZone('UTC'));
 
                 if ($date && $date->format($format) == $value) {
                     return true;
@@ -802,6 +807,20 @@ trait ValidatesAttributes
     }
 
     /**
+     * Validate that a value has a specific character encoding.
+     */
+    public function validateEncoding(string $attribute, mixed $value, array $parameters): bool
+    {
+        $this->requireParameterCount(1, $parameters, 'encoding');
+
+        if (! in_array(mb_strtolower($parameters[0]), array_map(mb_strtolower(...), mb_list_encodings()))) {
+            throw new InvalidArgumentException("Validation rule encoding parameter [{$parameters[0]}] is not a valid encoding.");
+        }
+
+        return mb_check_encoding($value instanceof File ? $value->getContent() : $value, $parameters[0]);
+    }
+
+    /**
      * Validate the existence of an attribute value in a database table.
      *
      * @param array<int, int|string> $parameters
@@ -918,7 +937,7 @@ trait ValidatesAttributes
     /**
      * Prepare the given ID for querying.
      */
-    protected function prepareUniqueId(mixed $id): ?int
+    protected function prepareUniqueId(mixed $id): int|string|null
     {
         if (preg_match('/\[(.*)\]/', (string) $id, $matches)) {
             $id = $this->getValue($matches[1]);
@@ -1265,10 +1284,36 @@ trait ValidatesAttributes
     }
 
     /**
+     * Validate that an array contains at least one of the given keys.
+     */
+    public function validateInArrayKeys(string $attribute, mixed $value, array $parameters): bool
+    {
+        if (! is_array($value)) {
+            return false;
+        }
+
+        if (empty($parameters)) {
+            return false;
+        }
+
+        foreach ($parameters as $param) {
+            if (Arr::exists($value, $param)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Validate that an attribute is an integer.
      */
-    public function validateInteger(string $attribute, mixed $value): bool
+    public function validateInteger(string $attribute, mixed $value, array $parameters = []): bool
     {
+        if (($parameters[0] ?? null) === 'strict') {
+            return is_int($value);
+        }
+
         return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }
 
@@ -1590,8 +1635,12 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is numeric.
      */
-    public function validateNumeric(string $attribute, mixed $value): bool
+    public function validateNumeric(string $attribute, mixed $value, array $parameters = []): bool
     {
+        if (($parameters[0] ?? null) === 'strict' && is_string($value)) {
+            return false;
+        }
+
         return is_numeric($value);
     }
 
