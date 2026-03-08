@@ -9,7 +9,6 @@ use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
-use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 
