@@ -832,7 +832,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      * @throws HttpException
      * @throws NotFoundHttpException
      */
-    public function abort(int $code, string $message = '', array $headers = []): void
+    public function abort(int $code, string $message = '', array $headers = []): never
     {
         if ($code === 404) {
             throw new NotFoundHttpException($message, headers: $headers);

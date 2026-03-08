@@ -227,7 +227,7 @@ interface Application extends Container
      * @throws HttpException
      * @throws NotFoundHttpException
      */
-    public function abort(int $code, string $message = '', array $headers = []): void;
+    public function abort(int $code, string $message = '', array $headers = []): never;
 
     /**
      * Get the service providers that have been loaded.

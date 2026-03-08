@@ -24,39 +24,39 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Log\LogManager;
+use Hypervel\Routing\Router;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
 use Hypervel\Support\Stringable;
+use Hypervel\Support\Uri;
+use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Support\enum_value;
 
-if (! function_exists('action')) {
-    /**
-     * Generate the URL to a controller action.
-     */
-    function action(array|string $name, array|string $parameters = [], bool $absolute = true): string
-    {
-        return app('url')->action($name, $parameters, $absolute);
-    }
-}
-
 if (! function_exists('abort')) {
     /**
      * Throw an HttpException with the given data.
      *
-     * @param int|Responsable $code
+     * @param int|Responsable|Response $code
      *
      * @throws HttpException
      * @throws NotFoundHttpException
      * @throws HttpResponseException
      */
-    function abort(mixed $code, string $message = '', array $headers = []): void
+    function abort(mixed $code, string $message = '', array $headers = []): never
     {
+        if ($code instanceof Response) {
+            throw new HttpResponseException($code);
+        }
         if ($code instanceof Responsable) {
             throw new HttpResponseException($code->toResponse(request()));
         }
@@ -69,7 +69,7 @@ if (! function_exists('abort_if')) {
     /**
      * Throw an HttpException with the given data if the given condition is true.
      *
-     * @param int|Responsable $code
+     * @param int|Responsable|Response $code
      *
      * @throws HttpException
      * @throws NotFoundHttpException
@@ -88,7 +88,7 @@ if (! function_exists('abort_unless')) {
     /**
      * Throw an HttpException with the given data unless the given condition is true.
      *
-     * @param int|Responsable $code
+     * @param int|Responsable|Response $code
      *
      * @throws HttpException
      * @throws NotFoundHttpException
@@ -100,6 +100,78 @@ if (! function_exists('abort_unless')) {
         }
 
         abort($code, $message, $headers);
+    }
+}
+
+if (! function_exists('action')) {
+    /**
+     * Generate the URL to a controller action.
+     */
+    function action(array|string $name, array|string $parameters = [], bool $absolute = true): string
+    {
+        return app('url')->action($name, $parameters, $absolute);
+    }
+}
+
+if (! function_exists('app')) {
+    /**
+     * Get the available container instance.
+     *
+     * @template TClass of object
+     *
+     * @param null|class-string<TClass>|string $abstract
+     *
+     * @return ($abstract is class-string<TClass> ? TClass : ($abstract is null ? Application : mixed))
+     */
+    function app(?string $abstract = null, array $parameters = [])
+    {
+        if (is_null($abstract)) {
+            return Container::getInstance();
+        }
+
+        return Container::getInstance()->make($abstract, $parameters);
+    }
+}
+
+if (! function_exists('app_path')) {
+    /**
+     * Get the path to the application folder.
+     */
+    function app_path(string $path = ''): string
+    {
+        return join_paths(base_path('app'), $path);
+    }
+}
+
+if (! function_exists('asset')) {
+    /**
+     * Generate an asset path for the application.
+     */
+    function asset(string $path, ?bool $secure = null): string
+    {
+        return app('url')->asset($path, $secure);
+    }
+}
+
+if (! function_exists('auth')) {
+    /**
+     * Get auth guard.
+     *
+     * @return ($guard is null ? AuthFactoryContract&Guard : Guard)
+     */
+    function auth(?string $guard = null): mixed
+    {
+        return \Hypervel\Auth\auth($guard);
+    }
+}
+
+if (! function_exists('back')) {
+    /**
+     * Create a new redirect response to the previous location.
+     */
+    function back(int $status = 302, array $headers = [], mixed $fallback = false): RedirectResponse
+    {
+        return app('redirect')->back($status, $headers, $fallback);
     }
 }
 
@@ -119,122 +191,6 @@ if (! function_exists('base_path')) {
     }
 }
 
-if (! function_exists('app_path')) {
-    /**
-     * Get the path to the application folder.
-     */
-    function app_path(string $path = ''): string
-    {
-        return join_paths(base_path('app'), $path);
-    }
-}
-
-if (! function_exists('broadcast')) {
-    /**
-     * Begin broadcasting an event.
-     */
-    function broadcast(mixed $event = null): PendingBroadcast
-    {
-        return app(BroadcastFactory::class)->event($event);
-    }
-}
-
-if (! function_exists('database_path')) {
-    /**
-     * Get the path to the database folder.
-     */
-    function database_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'database', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->databasePath($path);
-    }
-}
-
-if (! function_exists('storage_path')) {
-    /**
-     * Get the path to the storage folder.
-     */
-    function storage_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'storage', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->storagePath($path);
-    }
-}
-
-if (! function_exists('config_path')) {
-    /**
-     * Get the configuration path.
-     */
-    function config_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'config', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->configPath($path);
-    }
-}
-
-if (! function_exists('resource_path')) {
-    /**
-     * Get the path to the resources folder.
-     */
-    function resource_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'resources', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->resourcePath($path);
-    }
-}
-
-if (! function_exists('lang_path')) {
-    /**
-     * Get the path to the language folder.
-     */
-    function lang_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'lang', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->langPath($path);
-    }
-}
-
-if (! function_exists('public_path')) {
-    /**
-     * Get the path to the public folder.
-     */
-    function public_path(string $path = ''): string
-    {
-        if (! Container::getInstance()->has(Application::class)) {
-            return defined('BASE_PATH')
-                ? join_paths(BASE_PATH, 'public', $path)
-                : throw new RuntimeException('BASE_PATH constant is not defined.');
-        }
-
-        return app()->publicPath($path);
-    }
-}
-
 if (! function_exists('bcrypt')) {
     /**
      * Hash the given value against the bcrypt algorithm.
@@ -246,50 +202,13 @@ if (! function_exists('bcrypt')) {
     }
 }
 
-if (! function_exists('encrypt')) {
+if (! function_exists('broadcast')) {
     /**
-     * Encrypt the given value.
+     * Begin broadcasting an event.
      */
-    function encrypt(mixed $value, bool $serialize = true): string
+    function broadcast(mixed $event = null): PendingBroadcast
     {
-        /* @phpstan-ignore-next-line */
-        return app('encrypter')->encrypt($value, $serialize);
-    }
-}
-
-if (! function_exists('decrypt')) {
-    /**
-     * Decrypt the given value.
-     */
-    function decrypt(string $value, bool $unserialize = true): mixed
-    {
-        /* @phpstan-ignore-next-line */
-        return app('encrypter')->decrypt($value, $unserialize);
-    }
-}
-
-if (! function_exists('method_field')) {
-    /**
-     * Generate a form field to spoof the HTTP verb used by forms.
-     */
-    function method_field(string $method): string
-    {
-        return '<input type="hidden" name="_method" value="' . $method . '">';
-    }
-}
-
-if (! function_exists('config')) {
-    /**
-     * Get / set the specified configuration value.
-     *
-     * If an array is passed as the key, we will assume you want to set an array of values.
-     *
-     * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
-     */
-    function config(mixed $key = null, mixed $default = null): mixed
-    {
-        return \Hypervel\Config\config($key, $default);
+        return app(BroadcastFactory::class)->event($event);
     }
 }
 
@@ -311,6 +230,37 @@ if (! function_exists('cache')) {
     }
 }
 
+if (! function_exists('config')) {
+    /**
+     * Get / set the specified configuration value.
+     *
+     * If an array is passed as the key, we will assume you want to set an array of values.
+     *
+     * @param null|array<string, mixed>|string $key
+     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
+     */
+    function config(mixed $key = null, mixed $default = null): mixed
+    {
+        return \Hypervel\Config\config($key, $default);
+    }
+}
+
+if (! function_exists('config_path')) {
+    /**
+     * Get the configuration path.
+     */
+    function config_path(string $path = ''): string
+    {
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'config', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->configPath($path);
+    }
+}
+
 if (! function_exists('cookie')) {
     /**
      * Create a new cookie instance.
@@ -329,6 +279,16 @@ if (! function_exists('cookie')) {
     }
 }
 
+if (! function_exists('csrf_field')) {
+    /**
+     * Generate a CSRF token form field.
+     */
+    function csrf_field(): HtmlString
+    {
+        return \Hypervel\Session\csrf_field();
+    }
+}
+
 if (! function_exists('csrf_token')) {
     /**
      * Get the CSRF token value.
@@ -341,33 +301,30 @@ if (! function_exists('csrf_token')) {
     }
 }
 
-if (! function_exists('csrf_field')) {
+if (! function_exists('database_path')) {
     /**
-     * Generate a CSRF token form field.
+     * Get the path to the database folder.
      */
-    function csrf_field(): HtmlString
+    function database_path(string $path = ''): string
     {
-        return \Hypervel\Session\csrf_field();
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'database', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->databasePath($path);
     }
 }
 
-if (! function_exists('app')) {
+if (! function_exists('decrypt')) {
     /**
-     * Get the available container instance.
-     *
-     * @template TClass of object
-     *
-     * @param null|class-string<TClass>|string $abstract
-     *
-     * @return ($abstract is class-string<TClass> ? TClass : ($abstract is null ? Application : mixed))
+     * Decrypt the given value.
      */
-    function app(?string $abstract = null, array $parameters = [])
+    function decrypt(string $value, bool $unserialize = true): mixed
     {
-        if (is_null($abstract)) {
-            return Container::getInstance();
-        }
-
-        return Container::getInstance()->make($abstract, $parameters);
+        /* @phpstan-ignore-next-line */
+        return app('encrypter')->decrypt($value, $unserialize);
     }
 }
 
@@ -393,6 +350,17 @@ if (! function_exists('dispatch_sync')) {
     function dispatch_sync(mixed $job, mixed $handler = null): mixed
     {
         return \Hypervel\Bus\dispatch_sync($job, $handler);
+    }
+}
+
+if (! function_exists('encrypt')) {
+    /**
+     * Encrypt the given value.
+     */
+    function encrypt(mixed $value, bool $serialize = true): string
+    {
+        /* @phpstan-ignore-next-line */
+        return app('encrypter')->encrypt($value, $serialize);
     }
 }
 
@@ -443,6 +411,22 @@ if (! function_exists('info')) {
     }
 }
 
+if (! function_exists('lang_path')) {
+    /**
+     * Get the path to the language folder.
+     */
+    function lang_path(string $path = ''): string
+    {
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'lang', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->langPath($path);
+    }
+}
+
 if (! function_exists('logger')) {
     /**
      * Log a debug message to the logs.
@@ -459,6 +443,28 @@ if (! function_exists('logger')) {
         $logger->debug($message, $context);
 
         return null;
+    }
+}
+
+if (! function_exists('logs')) {
+    /**
+     * Get a log driver instance.
+     *
+     * @return ($driver is null ? LogManager : LoggerInterface)
+     */
+    function logs(?string $driver = null): LoggerInterface|LogManager
+    {
+        return $driver ? app('log')->driver($driver) : app('log');
+    }
+}
+
+if (! function_exists('method_field')) {
+    /**
+     * Generate a form field to spoof the HTTP verb used by forms.
+     */
+    function method_field(string $method): HtmlString
+    {
+        return new HtmlString('<input type="hidden" name="_method" value="' . $method . '">');
     }
 }
 
@@ -484,6 +490,16 @@ if (! function_exists('now')) {
     }
 }
 
+if (! function_exists('old')) {
+    /**
+     * Retrieve an old input item.
+     */
+    function old(?string $key = null, mixed $default = null): string|array|null
+    {
+        return app('request')->old($key, $default);
+    }
+}
+
 if (! function_exists('policy')) {
     /**
      * Get a policy instance for a given class.
@@ -497,19 +513,96 @@ if (! function_exists('policy')) {
     }
 }
 
-if (! function_exists('resolve')) {
+if (! function_exists('precognitive')) {
     /**
-     * Resolve a service from the container.
-     *
-     * @template T
-     *
-     * @param class-string<TClass>|string $name
-     *
-     * @return ($name is class-string<TClass> ? TClass : mixed)
+     * Handle a Precognition controller hook.
      */
-    function resolve(string $name, array $parameters = [])
+    function precognitive(?callable $callable = null): mixed
     {
-        return app($name, $parameters);
+        $callable ??= function () {
+        };
+
+        $payload = $callable(function ($default, $precognition = null) {
+            $response = request()->isPrecognitive()
+                ? ($precognition ?? $default)
+                : $default;
+
+            abort(Router::toResponse(request(), value($response)));
+        });
+
+        if (request()->isPrecognitive()) {
+            abort(204, headers: ['Precognition-Success' => 'true']);
+        }
+
+        return $payload;
+    }
+}
+
+if (! function_exists('public_path')) {
+    /**
+     * Get the path to the public folder.
+     */
+    function public_path(string $path = ''): string
+    {
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'public', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->publicPath($path);
+    }
+}
+
+if (! function_exists('redirect')) {
+    /**
+     * Get an instance of the redirector or create a redirect response.
+     */
+    function redirect(?string $to = null, int $status = 302, array $headers = [], ?bool $secure = null): \Hypervel\Routing\Redirector|\Hypervel\Http\RedirectResponse
+    {
+        if (is_null($to)) {
+            return app('redirect');
+        }
+
+        return app('redirect')->to($to, $status, $headers, $secure);
+    }
+}
+
+if (! function_exists('report')) {
+    /**
+     * Report an exception.
+     */
+    function report(string|Throwable $exception): void
+    {
+        if (is_string($exception)) {
+            $exception = new Exception($exception);
+        }
+
+        app(ExceptionHandlerContract::class)->report($exception);
+    }
+}
+
+if (! function_exists('report_if')) {
+    /**
+     * Report an exception if the given condition is true.
+     */
+    function report_if(bool $boolean, string|Throwable $exception): void
+    {
+        if ($boolean) {
+            report($exception);
+        }
+    }
+}
+
+if (! function_exists('report_unless')) {
+    /**
+     * Report an exception unless the given condition is true.
+     */
+    function report_unless(bool $boolean, string|Throwable $exception): void
+    {
+        if (! $boolean) {
+            report($exception);
+        }
     }
 }
 
@@ -534,62 +627,6 @@ if (! function_exists('request')) {
         $value = app('request')->__get($key);
 
         return is_null($value) ? value($default) : $value;
-    }
-}
-
-if (! function_exists('response')) {
-    /**
-     * Return a new response from the application.
-     *
-     * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
-     */
-    function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
-    {
-        $factory = app(\Hypervel\Contracts\Routing\ResponseFactory::class);
-
-        if (func_num_args() === 0) {
-            return $factory;
-        }
-
-        return $factory->make($content ?? '', $status, $headers);
-    }
-}
-
-if (! function_exists('redirect')) {
-    /**
-     * Get an instance of the redirector or create a redirect response.
-     */
-    function redirect(?string $to = null, int $status = 302, array $headers = [], ?bool $secure = null): \Hypervel\Routing\Redirector|\Hypervel\Http\RedirectResponse
-    {
-        if (is_null($to)) {
-            return app('redirect');
-        }
-
-        return app('redirect')->to($to, $status, $headers, $secure);
-    }
-}
-
-if (! function_exists('to_route')) {
-    /**
-     * Create a new redirect response to a named route.
-     */
-    function to_route(string $route, array $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
-    {
-        return redirect()->route($route, $parameters, $status, $headers);
-    }
-}
-
-if (! function_exists('report')) {
-    /**
-     * Report an exception.
-     */
-    function report(string|Throwable $exception): void
-    {
-        if (is_string($exception)) {
-            $exception = new Exception($exception);
-        }
-
-        app(ExceptionHandlerContract::class)->report($exception);
     }
 }
 
@@ -619,45 +656,53 @@ if (! function_exists('rescue')) {
     }
 }
 
-if (! function_exists('session')) {
+if (! function_exists('resolve')) {
     /**
-     * Get / set the specified session value.
+     * Resolve a service from the container.
      *
-     * If an array is passed as the key, we will assume you want to set an array of values.
+     * @template T
      *
-     * @return mixed|SessionContract
+     * @param class-string<TClass>|string $name
+     *
+     * @return ($name is class-string<TClass> ? TClass : mixed)
      */
-    function session(array|string|null $key = null, mixed $default = null): mixed
+    function resolve(string $name, array $parameters = [])
     {
-        return \Hypervel\Session\session($key, $default);
+        return app($name, $parameters);
     }
 }
 
-if (! function_exists('today')) {
+if (! function_exists('resource_path')) {
     /**
-     * Create a new Carbon instance for the current date.
+     * Get the path to the resources folder.
      */
-    function today(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
+    function resource_path(string $path = ''): string
     {
-        return Carbon::today(enum_value($tz));
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'resources', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->resourcePath($path);
     }
 }
 
-if (! function_exists('validator')) {
+if (! function_exists('response')) {
     /**
-     * Create a new Validator instance.
-     * @return ValidatorContract
-     * @throws TypeError
+     * Return a new response from the application.
+     *
+     * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
      */
-    function validator(array $data = [], array $rules = [], array $messages = [], array $customAttributes = [])
+    function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
     {
-        $factory = app(ValidatorFactoryContract::class);
+        $factory = app(\Hypervel\Contracts\Routing\ResponseFactory::class);
 
         if (func_num_args() === 0) {
             return $factory;
         }
 
-        return $factory->make($data, $rules, $messages, $customAttributes);
+        return $factory->make($content ?? '', $status, $headers);
     }
 }
 
@@ -675,19 +720,13 @@ if (! function_exists('route')) {
     }
 }
 
-if (! function_exists('url')) {
+if (! function_exists('secure_asset')) {
     /**
-     * Generate a URL for the application.
-     *
-     * @return ($path is null ? UrlGeneratorContract : string)
+     * Generate an asset path for the application.
      */
-    function url(?string $path = null, array $extra = [], ?bool $secure = null): string|UrlGeneratorContract
+    function secure_asset(string $path): string
     {
-        if (is_null($path)) {
-            return app(UrlGeneratorContract::class);
-        }
-
-        return app(UrlGeneratorContract::class)->to($path, $extra, $secure);
+        return asset($path, true);
     }
 }
 
@@ -701,25 +740,63 @@ if (! function_exists('secure_url')) {
     }
 }
 
-if (! function_exists('asset')) {
+if (! function_exists('session')) {
     /**
-     * Generate an asset path for the application.
+     * Get / set the specified session value.
+     *
+     * If an array is passed as the key, we will assume you want to set an array of values.
+     *
+     * @return mixed|SessionContract
      */
-    function asset(string $path, ?bool $secure = null): string
+    function session(array|string|null $key = null, mixed $default = null): mixed
     {
-        return app('url')->asset($path, $secure);
+        return \Hypervel\Session\session($key, $default);
     }
 }
 
-if (! function_exists('auth')) {
+if (! function_exists('storage_path')) {
     /**
-     * Get auth guard.
-     *
-     * @return ($guard is null ? AuthFactoryContract&Guard : Guard)
+     * Get the path to the storage folder.
      */
-    function auth(?string $guard = null): mixed
+    function storage_path(string $path = ''): string
     {
-        return \Hypervel\Auth\auth($guard);
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'storage', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->storagePath($path);
+    }
+}
+
+if (! function_exists('to_action')) {
+    /**
+     * Create a new redirect response to a controller action.
+     */
+    function to_action(array|string $action, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
+    {
+        return redirect()->action($action, $parameters, $status, $headers);
+    }
+}
+
+if (! function_exists('to_route')) {
+    /**
+     * Create a new redirect response to a named route.
+     */
+    function to_route(string $route, array $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
+    {
+        return redirect()->route($route, $parameters, $status, $headers);
+    }
+}
+
+if (! function_exists('today')) {
+    /**
+     * Create a new Carbon instance for the current date.
+     */
+    function today(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
+    {
+        return Carbon::today(enum_value($tz));
     }
 }
 
@@ -755,6 +832,54 @@ if (! function_exists('__')) {
     }
 }
 
+if (! function_exists('uri')) {
+    /**
+     * Generate a URI for the application.
+     */
+    function uri(UriInterface|Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
+    {
+        return match (true) {
+            is_array($uri) || str_contains($uri, '\\') => Uri::action($uri, $parameters, $absolute),
+            str_contains($uri, '.') && Route::has($uri) => Uri::route($uri, $parameters, $absolute),
+            default => Uri::of($uri),
+        };
+    }
+}
+
+if (! function_exists('url')) {
+    /**
+     * Generate a URL for the application.
+     *
+     * @return ($path is null ? UrlGeneratorContract : string)
+     */
+    function url(?string $path = null, array $extra = [], ?bool $secure = null): string|UrlGeneratorContract
+    {
+        if (is_null($path)) {
+            return app(UrlGeneratorContract::class);
+        }
+
+        return app(UrlGeneratorContract::class)->to($path, $extra, $secure);
+    }
+}
+
+if (! function_exists('validator')) {
+    /**
+     * Create a new Validator instance.
+     * @return ValidatorContract
+     * @throws TypeError
+     */
+    function validator(array $data = [], array $rules = [], array $messages = [], array $customAttributes = [])
+    {
+        $factory = app(ValidatorFactoryContract::class);
+
+        if (func_num_args() === 0) {
+            return $factory;
+        }
+
+        return $factory->make($data, $rules, $messages, $customAttributes);
+    }
+}
+
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
@@ -768,16 +893,6 @@ if (! function_exists('view')) {
         }
 
         return $factory->make($view, $data, $mergeData);
-    }
-}
-
-if (! function_exists('method_field')) {
-    /**
-     * Generate a form field to spoof the HTTP verb used by forms.
-     */
-    function method_field(string $method): HtmlString
-    {
-        return new HtmlString('<input type="hidden" name="_method" value="' . $method . '">');
     }
 }
 
