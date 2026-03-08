@@ -91,6 +91,7 @@ class Kernel implements KernelContract
      * @var string[]
      */
     protected array $middlewarePriority = [
+        \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
         \Hypervel\Cookie\Middleware\EncryptCookies::class,
         \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         \Hypervel\Session\Middleware\StartSession::class,

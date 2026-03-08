@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use ReflectionFunction;
 use ReflectionMethod;
@@ -43,6 +44,12 @@ class CallableDispatcher implements CallableDispatcherContract
      */
     public function dispatch(Route $route, callable $callable): mixed
     {
+        $request = RequestContext::getOrNull();
+
+        if ($request?->attributes->get('precognitive_dispatch')) {
+            return (new PrecognitionCallableDispatcher($this->container))->dispatch($route, $callable);
+        }
+
         return $callable(...array_values($this->resolveParameters($route, $callable)));
     }
 

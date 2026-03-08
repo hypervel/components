@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Support\Collection;
 use ReflectionMethod;
@@ -42,6 +43,12 @@ class ControllerDispatcher implements ControllerDispatcherContract
      */
     public function dispatch(Route $route, mixed $controller, string $method): mixed
     {
+        $request = RequestContext::getOrNull();
+
+        if ($request?->attributes->get('precognitive_dispatch')) {
+            return (new PrecognitionControllerDispatcher($this->container))->dispatch($route, $controller, $method);
+        }
+
         $parameters = $this->resolveParameters($route, $controller, $method);
 
         if (method_exists($controller, 'callAction')) {
