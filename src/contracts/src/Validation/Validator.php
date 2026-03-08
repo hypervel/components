@@ -89,6 +89,11 @@ interface Validator extends MessageProvider
     public function stopOnFirstFailure(bool $stopOnFirstFailure = true): static;
 
     /**
+     * Determine if a given rule is defined for a given attribute.
+     */
+    public function hasRule(string $attribute, array|string $rules): bool;
+
+    /**
      * Get the exception to throw upon failed validation.
      *
      * @return class-string<ValidationException>
