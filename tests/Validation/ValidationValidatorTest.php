@@ -743,6 +743,157 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('type must be included in Short, Long.', $v->messages()->first('type'));
     }
 
+    public function testCapitalizedDisplayableValuesAreReplaced()
+    {
+        // accepted_if
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :Other is :Value.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aaa'], ['foo' => 'accepted_if:bar,aaa']);
+        $this->assertFalse($v->passes());
+        $v->messages()->setFormat(':message');
+        $this->assertSame('The foo field must be accepted when Bar is Aaa.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :OTHER is :VALUE.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aaa'], ['foo' => 'accepted_if:bar,aaa']);
+        $this->assertFalse($v->passes());
+        $v->messages()->setFormat(':message');
+        $this->assertSame('The foo field must be accepted when BAR is AAA.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :other is :value.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aAa'], ['foo' => 'accepted_if:bar,aAa']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be accepted when bar is aAa.', $v->messages()->first('foo'));
+
+        // in_array
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.in_array' => 'The value of :attribute does not exist in :Other.'], 'en');
+        $v = new Validator($trans, ['foo' => [1, 2, 3], 'bar' => [1, 2]], ['foo.*' => 'in_array:bar.*']);
+        $this->assertSame('The value of foo.2 does not exist in Bar.*.', $v->messages()->first('foo.2'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.in_array' => 'The value of :attribute does not exist in :OTHER.'], 'en');
+        $v = new Validator($trans, ['foo' => [1, 2, 3], 'bar' => [1, 2]], ['foo.*' => 'in_array:bar.*']);
+        $this->assertSame('The value of foo.2 does not exist in BAR.*.', $v->messages()->first('foo.2'));
+
+        // missing_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.missing_with' => 'The :attribute field must be missing when :Values is present.'], 'en');
+        $v = new Validator($trans, ['foo' => [], 'bar' => '2'], ['foo' => 'missing_with:baz,bar']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be missing when Baz / Bar is present.', $v->errors()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.missing_with' => 'The :attribute field must be missing when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['foo' => [], 'bar' => '2'], ['foo' => 'missing_with:baz,bar']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be missing when BAZ / BAR is present.', $v->errors()->first('foo'));
+
+        // present_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.present_with' => 'The :attribute field must be present when :Values is present.'], 'en');
+        $v = new Validator($trans, ['bar' => 2, 'baz' => 2], ['foo' => 'present_with:bar,baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be present when Bar / Baz is present.', $v->errors()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.present_with' => 'The :attribute field must be present when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['bar' => 2, 'baz' => 2], ['foo' => 'present_with:bar,baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be present when BAR / BAZ is present.', $v->errors()->first('foo'));
+
+        // prohibits
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.prohibits' => 'The :attribute field prohibits :Other being present.'], 'en');
+        $v = new Validator($trans, ['email' => 'foo', 'emails' => 'bar', 'email_address' => 'baz'], ['email' => 'prohibits:emails,email_address']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The email field prohibits Emails / Email address being present.', $v->messages()->first('email'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.prohibits' => 'The :attribute field prohibits :OTHER being present.'], 'en');
+        $v = new Validator($trans, ['email' => 'foo', 'emails' => 'bar', 'email_address' => 'baz'], ['email' => 'prohibits:emails,email_address']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The email field prohibits EMAILS / EMAIL ADDRESS being present.', $v->messages()->first('email'));
+
+        // required_if_accepted
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_if_accepted' => 'The :attribute field is required when :Other is accepted.'], 'en');
+        $v = new Validator($trans, ['foo' => 'yes', 'bar' => ''], ['bar' => 'required_if_accepted:foo']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The bar field is required when Foo is accepted.', $v->messages()->first('bar'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_if_accepted' => 'The :attribute field is required when :OTHER is accepted.'], 'en');
+        $v = new Validator($trans, ['foo' => 'yes', 'bar' => ''], ['bar' => 'required_if_accepted:foo']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The bar field is required when FOO is accepted.', $v->messages()->first('bar'));
+
+        // required_unless
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :Other is in :Values.'], 'en');
+        $v = new Validator($trans, ['first' => 'dayle', 'last' => ''], ['last' => 'RequiredUnless:first,taylor,sven']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required unless First is in Taylor, Sven.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :OTHER is in :VALUES.'], 'en');
+        $v = new Validator($trans, ['first' => 'dayle', 'last' => ''], ['last' => 'RequiredUnless:first,taylor,sven']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required unless FIRST is in TAYLOR, SVEN.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :other is in :values.'], 'en');
+        $v = new Validator($trans, ['firstName' => 'dAyle', 'lastName' => ''], ['lastName' => 'RequiredUnless:firstName,tAylor,sVen']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last name field is required unless first name is in tAylor, sVen.', $v->messages()->first('lastName'));
+
+        // required_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_with' => 'The :attribute field is required when :Values is present.'], 'en');
+        $v = new Validator($trans, ['first' => 'Taylor', 'last' => ''], ['last' => 'required_with:first']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required when First is present.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_with' => 'The :attribute field is required when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['first' => 'Taylor', 'last' => ''], ['last' => 'required_with:first']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required when FIRST is present.', $v->messages()->first('last'));
+
+        // same
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.same' => 'The :attribute field must match :Other.'], 'en');
+        $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must match Baz.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.same' => 'The :attribute field must match :OTHER.'], 'en');
+        $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must match BAZ.', $v->messages()->first('foo'));
+
+        // starts_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :Values'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:http,https']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values Http, Https', $v->messages()->first('url'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :VALUES'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:http,https']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values HTTP, HTTPS', $v->messages()->first('url'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :values'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:hTtp,hTtps']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values hTtp, hTtps', $v->messages()->first('url'));
+    }
+
     public function testDisplayableAttributesAreReplacedInCustomReplacers()
     {
         $trans = $this->getArrayTranslator();
@@ -859,6 +1010,34 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('Name 2 is required.', $v->messages()->first('input.*.name'));
 
         $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'Name :position is required.']);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testOrdinalPositionValuesAreReplaced()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['input' => [['name' => '']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'The :ordinal-position Name is required.']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The 1st Name is required.', $v->messages()->first('input.*.name'));
+        $v = new Validator($trans, ['input' => [['name' => '']]], ['input.*.name' => 'required'], ['input.*.name.required' => ':ordinal-position :Attribute is required.']);
+        $v->setAttributeNames([
+            'input.*.name' => 'name',
+        ]);
+        $this->assertFalse($v->passes());
+        $this->assertSame('1st Name is required.', $v->messages()->first('input.*.name'));
+
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => ''], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'The :ordinal-position Name is required.']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The 2nd Name is required.', $v->messages()->first('input.*.name'));
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => ''], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => ':ordinal-position :Attribute is required.']);
+        $v->setAttributeNames([
+            'input.*.name' => 'name',
+        ]);
+        $this->assertFalse($v->passes());
+        $this->assertSame('2nd Name is required.', $v->messages()->first('input.*.name'));
+
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'Name :ordinal-position is required.']);
         $this->assertTrue($v->passes());
     }
 
@@ -3124,6 +3303,44 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateBooleanStrict()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['foo' => false], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => true], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'no'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'yes'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'false'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'true'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, [], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '0'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateBool()
     {
         $trans = $this->getArrayTranslator();
@@ -3161,6 +3378,44 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateBoolStrict()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['foo' => false], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => true], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'no'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'yes'], ['foo' => 'Bool']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'false'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'true'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, [], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '0'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateNumeric()
     {
         $trans = $this->getArrayTranslator();
@@ -3177,6 +3432,28 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateNumericStrict()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => 'asdad'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1.23'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '-1'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Numeric:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0.1], ['foo' => 'Numeric:strict']);
+        $this->assertTrue($v->passes());
+    }
+
     public function testValidateInteger()
     {
         $trans = $this->getArrayTranslator();
@@ -3190,6 +3467,28 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Integer']);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testValidateIntegerStrict()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => 'asdad'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1.23'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '-1'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0.1], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Integer:strict']);
         $this->assertTrue($v->passes());
     }
 
@@ -9712,6 +10011,103 @@ class ValidationValidatorTest extends TestCase
         $this->expectExceptionMessage('Scientific notation exponent outside of allowed range.');
 
         $validator->passes();
+    }
+
+    public function testMessagesDefaultWhenUsingSizeSpecificCustomMessages()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $data = [
+            'array_data' => [0, 0, 0],
+            'some_more_array_data' => [0, 0, 0, 0],
+            'numeric_data' => 5,
+        ];
+
+        $rules = [
+            'array_data' => 'array|max:1',
+            'some_more_array_data' => 'array|max:3',
+            'numeric_data' => 'integer|max:2',
+        ];
+
+        $messages = [
+            'max' => [
+                'array' => ':attribute must be up to :max',
+            ],
+        ];
+
+        $validator = new Validator($trans, $data, $rules, $messages, []);
+
+        $this->assertSame([
+            'array_data' => [
+                'array data must be up to 1',
+            ],
+            'some_more_array_data' => [
+                'some more array data must be up to 3',
+            ],
+            'numeric_data' => [
+                'validation.max.numeric',
+            ],
+        ], $validator->messages()->messages());
+    }
+
+    public function testWhenFails()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        });
+
+        $this->assertSame('whenFails', $result);
+
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        });
+
+        $this->assertSame($v, $result);
+
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        }, function () {
+            return 'whenNotFails';
+        });
+
+        $this->assertSame('whenNotFails', $result);
+    }
+
+    public function testWhenPasses()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        });
+
+        $this->assertSame('whenPasses', $result);
+
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        });
+
+        $this->assertSame($v, $result);
+
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        }, function () {
+            return 'whenNotPasses';
+        });
+
+        $this->assertSame('whenNotPasses', $result);
     }
 
     protected function getTranslator()
