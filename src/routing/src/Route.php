@@ -122,6 +122,32 @@ class Route
     public ?CompiledRoute $compiled = null;
 
     /**
+     * The resolved callable for the route.
+     *
+     * Cached to avoid repeated unserialize() calls for serialized closures
+     * (route caching). The resolved callable is a deterministic transformation
+     * of the immutable serialized string in the action array.
+     */
+    protected ?Closure $callable = null;
+
+    /**
+     * The resolved missing model handler for the route.
+     *
+     * Same caching rationale as $callable — avoids repeated unserialize().
+     */
+    protected ?Closure $missing = null;
+
+    /**
+     * The cached callable dispatcher instance.
+     */
+    protected ?CallableDispatcher $callableDispatcher = null;
+
+    /**
+     * The cached controller dispatcher instance.
+     */
+    protected ?ControllerDispatcherContract $controllerDispatcher = null;
+
+    /**
      * The router instance used by the route.
      */
     protected ?Router $router = null;
@@ -200,13 +226,21 @@ class Route
      */
     protected function runCallable(): mixed
     {
-        $callable = $this->action['uses'];
-
-        if ($this->isSerializedClosure()) {
-            $callable = unserialize($this->action['uses'])->getClosure();
+        if (! $this->callable) {
+            $this->callable = $this->isSerializedClosure()
+                ? unserialize($this->action['uses'])->getClosure()
+                : $this->action['uses'];
         }
 
-        return $this->container[CallableDispatcher::class]->dispatch($this, $callable);
+        return $this->callableDispatcher()->dispatch($this, $this->callable);
+    }
+
+    /**
+     * Get the callable dispatcher for the route.
+     */
+    protected function callableDispatcher(): CallableDispatcher
+    {
+        return $this->callableDispatcher ??= $this->container->make(CallableDispatcher::class);
     }
 
     /**
@@ -234,9 +268,12 @@ class Route
     /**
      * Get the controller instance for the route.
      *
-     * Controller instances are stored per-request in coroutine Context because
-     * Route objects are cached and shared across coroutines. Controllers may
-     * hold per-request state (injected Request, etc.) so they must be isolated.
+     * Stored in coroutine Context (not as a property) for two reasons:
+     * 1. Route objects are shared across coroutines — a property would race
+     *    between concurrent requests hitting the same route.
+     * 2. Unbound controllers are auto-singletoned by the container, so plain
+     *    make() would return the same instance for all requests. Controllers
+     *    may hold per-request state and must be isolated per-coroutine.
      */
     public function getController(): mixed
     {
@@ -848,6 +885,8 @@ class Route
     public function setAction(array $action): static
     {
         $this->action = $action;
+        $this->callable = null;
+        $this->missing = null;
 
         if (isset($this->action['domain'])) {
             $this->domain($this->action['domain']);
@@ -867,13 +906,21 @@ class Route
      */
     public function getMissing(): ?Closure
     {
+        if ($this->missing) {
+            return $this->missing;
+        }
+
         $missing = $this->action['missing'] ?? null;
 
-        return is_string($missing)
+        if (is_string($missing)
             && Str::startsWith($missing, [
                 'O:47:"Laravel\SerializableClosure\SerializableClosure',
                 'O:55:"Laravel\SerializableClosure\UnsignedSerializableClosure',
-            ]) ? unserialize($missing) : $missing;
+            ])) {
+            return $this->missing = unserialize($missing)->getClosure();
+        }
+
+        return $missing;
     }
 
     /**
@@ -882,6 +929,7 @@ class Route
     public function missing(Closure $missing): static
     {
         $this->action['missing'] = $missing;
+        $this->missing = null;
 
         return $this;
     }
@@ -1094,11 +1142,13 @@ class Route
      */
     public function controllerDispatcher(): ControllerDispatcherContract
     {
-        if ($this->container->bound(ControllerDispatcherContract::class)) {
-            return $this->container->make(ControllerDispatcherContract::class);
+        if ($this->controllerDispatcher) {
+            return $this->controllerDispatcher;
         }
 
-        return new ControllerDispatcher($this->container);
+        return $this->controllerDispatcher = $this->container->bound(ControllerDispatcherContract::class)
+            ? $this->container->make(ControllerDispatcherContract::class)
+            : new ControllerDispatcher($this->container);
     }
 
     /**
@@ -1173,6 +1223,8 @@ class Route
     public function setContainer(Container $container): static
     {
         $this->container = $container;
+        $this->callableDispatcher = null;
+        $this->controllerDispatcher = null;
 
         return $this;
     }
@@ -1200,6 +1252,10 @@ class Route
 
         $this->router = null;
         $this->container = null;
+        $this->callable = null;
+        $this->missing = null;
+        $this->callableDispatcher = null;
+        $this->controllerDispatcher = null;
     }
 
     /**
