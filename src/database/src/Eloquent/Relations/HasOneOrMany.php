@@ -277,7 +277,7 @@ abstract class HasOneOrMany extends Relation
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
-        if (! empty($values) && ! is_array(Arr::first($values))) {
+        if (! empty($values) && ! is_array(array_first($values))) {
             $values = [$values];
         }
 
@@ -548,7 +548,7 @@ abstract class HasOneOrMany extends Relation
     {
         $segments = explode('.', $this->getQualifiedForeignKeyName());
 
-        return Arr::last($segments);
+        return array_last($segments);
     }
 
     /**

@@ -868,7 +868,7 @@ class Route
      */
     public function getActionMethod(): string
     {
-        return Arr::last(explode('@', $this->getActionName()));
+        return array_last(explode('@', $this->getActionName()));
     }
 
     /**

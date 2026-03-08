@@ -15,7 +15,6 @@ use Hypervel\Foundation\Testing\TestCase;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
 use Hypervel\Prompts\Table as PromptsTable;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -406,7 +405,7 @@ class PendingCommand
     protected function verifyExpectations(): void
     {
         if (count($this->test->expectedQuestions)) {
-            $this->test->fail('Question "' . Arr::first($this->test->expectedQuestions)[0] . '" was not asked.');
+            $this->test->fail('Question "' . array_first($this->test->expectedQuestions)[0] . '" was not asked.');
         }
 
         if (count($this->test->expectedChoices) > 0) {
@@ -422,11 +421,11 @@ class PendingCommand
         }
 
         if (count($this->test->expectedOutput)) {
-            $this->test->fail('Output "' . Arr::first($this->test->expectedOutput) . '" was not printed.');
+            $this->test->fail('Output "' . array_first($this->test->expectedOutput) . '" was not printed.');
         }
 
         if (count($this->test->expectedOutputSubstrings)) {
-            $this->test->fail('Output does not contain "' . Arr::first($this->test->expectedOutputSubstrings) . '".');
+            $this->test->fail('Output does not contain "' . array_first($this->test->expectedOutputSubstrings) . '".');
         }
 
         if ($output = array_search(true, $this->test->unexpectedOutput)) {

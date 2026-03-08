@@ -166,7 +166,7 @@ trait FormatsMessages
             }
         }
 
-        return Arr::last(Arr::wrap($keys));
+        return array_last(Arr::wrap($keys));
     }
 
     /**

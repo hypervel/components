@@ -522,7 +522,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     {
         $tokens = token_get_all('<?php ' . $expression);
 
-        if (Arr::last($tokens) !== ')') {
+        if (array_last($tokens) !== ')') {
             return false;
         }
 
@@ -752,7 +752,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function aliasComponent(string $path, ?string $alias = null): void
     {
-        $alias = $alias ?: Arr::last(explode('.', $path));
+        $alias = $alias ?: array_last(explode('.', $path));
 
         $this->directive($alias, function ($expression) use ($path) {
             return $expression
@@ -778,7 +778,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function aliasInclude(string $path, ?string $alias = null): void
     {
-        $alias = $alias ?: Arr::last(explode('.', $path));
+        $alias = $alias ?: array_last(explode('.', $path));
 
         $this->directive($alias, function ($expression) use ($path) {
             $expression = $this->stripParentheses($expression) ?: '[]';

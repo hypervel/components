@@ -364,9 +364,9 @@ class Grammar extends BaseGrammar
     {
         $between = $where['not'] ? 'not between' : 'between';
 
-        $min = $this->parameter(is_array($where['values']) ? Arr::first($where['values']) : $where['values'][0]);
+        $min = $this->parameter(is_array($where['values']) ? array_first($where['values']) : $where['values'][0]);
 
-        $max = $this->parameter(is_array($where['values']) ? Arr::last($where['values']) : $where['values'][1]);
+        $max = $this->parameter(is_array($where['values']) ? array_last($where['values']) : $where['values'][1]);
 
         return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
@@ -378,9 +378,9 @@ class Grammar extends BaseGrammar
     {
         $between = $where['not'] ? 'not between' : 'between';
 
-        $min = $this->wrap(is_array($where['values']) ? Arr::first($where['values']) : $where['values'][0]);
+        $min = $this->wrap(is_array($where['values']) ? array_first($where['values']) : $where['values'][0]);
 
-        $max = $this->wrap(is_array($where['values']) ? Arr::last($where['values']) : $where['values'][1]);
+        $max = $this->wrap(is_array($where['values']) ? array_last($where['values']) : $where['values'][1]);
 
         return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
@@ -392,9 +392,9 @@ class Grammar extends BaseGrammar
     {
         $between = $where['not'] ? 'not between' : 'between';
 
-        $min = $this->wrap(is_array($where['columns']) ? Arr::first($where['columns']) : $where['columns'][0]);
+        $min = $this->wrap(is_array($where['columns']) ? array_first($where['columns']) : $where['columns'][0]);
 
-        $max = $this->wrap(is_array($where['columns']) ? Arr::last($where['columns']) : $where['columns'][1]);
+        $max = $this->wrap(is_array($where['columns']) ? array_last($where['columns']) : $where['columns'][1]);
 
         return $this->parameter($where['value']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
@@ -941,11 +941,11 @@ class Grammar extends BaseGrammar
             return "insert into {$table} default values";
         }
 
-        if (! is_array(Arr::first($values))) {
+        if (! is_array(array_first($values))) {
             $values = [$values];
         }
 
-        $columns = $this->columnize(array_keys(Arr::first($values)));
+        $columns = $this->columnize(array_keys(array_first($values)));
 
         // We need to build a list of parameter place-holders of values that are bound
         // to the query. Each insert should have the exact same number of parameter

@@ -162,7 +162,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
         $firstMessage = Arr::first($messages, null, '');
 
-        return is_array($firstMessage) ? Arr::first($firstMessage) : $firstMessage;
+        return is_array($firstMessage) ? array_first($firstMessage) : $firstMessage;
     }
 
     /**

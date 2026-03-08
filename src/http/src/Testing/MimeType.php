@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Testing;
 
-use Hypervel\Support\Arr;
 use Symfony\Component\Mime\MimeTypes;
 
 class MimeType
@@ -41,7 +40,7 @@ class MimeType
      */
     public static function get(string $extension): string
     {
-        return Arr::first(self::getMimeTypes()->getMimeTypes($extension)) ?? 'application/octet-stream';
+        return array_first(self::getMimeTypes()->getMimeTypes($extension)) ?? 'application/octet-stream';
     }
 
     /**
@@ -49,6 +48,6 @@ class MimeType
      */
     public static function search(string $mimeType): ?string
     {
-        return Arr::first(self::getMimeTypes()->getExtensions($mimeType));
+        return array_first(self::getMimeTypes()->getExtensions($mimeType));
     }
 }

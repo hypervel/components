@@ -2711,7 +2711,7 @@ class Builder implements BuilderContract
     {
         $result = (array) $this->first([$column]);
 
-        return count($result) > 0 ? Arr::first($result) : null;
+        return count($result) > 0 ? array_first($result) : null;
     }
 
     /**
@@ -2721,7 +2721,7 @@ class Builder implements BuilderContract
     {
         $result = (array) $this->selectRaw($expression, $bindings)->first();
 
-        return count($result) > 0 ? Arr::first($result) : null;
+        return count($result) > 0 ? array_first($result) : null;
     }
 
     /**
@@ -2734,7 +2734,7 @@ class Builder implements BuilderContract
     {
         $result = (array) $this->sole([$column]);
 
-        return Arr::first($result);
+        return array_first($result);
     }
 
     /**
@@ -3303,7 +3303,7 @@ class Builder implements BuilderContract
             return true;
         }
 
-        if (! is_array(Arr::first($values))) {
+        if (! is_array(array_first($values))) {
             $values = [$values];
         }
 
@@ -3340,7 +3340,7 @@ class Builder implements BuilderContract
             return 0;
         }
 
-        if (! is_array(Arr::first($values))) {
+        if (! is_array(array_first($values))) {
             $values = [$values];
         } else {
             foreach ($values as $key => $value) {
@@ -3490,7 +3490,7 @@ class Builder implements BuilderContract
             return (int) $this->insert($values);
         }
 
-        if (! is_array(Arr::first($values))) {
+        if (! is_array(array_first($values))) {
             $values = [$values];
         } else {
             foreach ($values as $key => $value) {
@@ -3501,7 +3501,7 @@ class Builder implements BuilderContract
         }
 
         if (is_null($update)) {
-            $update = array_keys(Arr::first($values));
+            $update = array_keys(array_first($values));
         }
 
         $this->applyBeforeQueryCallbacks();

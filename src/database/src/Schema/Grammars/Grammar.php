@@ -8,7 +8,6 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use RuntimeException;
 use UnitEnum;
@@ -326,7 +325,7 @@ abstract class Grammar extends BaseGrammar
         $commands = $this->getCommandsByName($blueprint, $name);
 
         if (count($commands) > 0) {
-            return Arr::first($commands);
+            return array_first($commands);
         }
 
         return null;

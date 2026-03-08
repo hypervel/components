@@ -7,7 +7,6 @@ namespace Hypervel\View\Concerns;
 use Closure;
 use Generator;
 use Hypervel\Context\Context;
-use Hypervel\Support\Arr;
 use Hypervel\Support\LazyCollection;
 use stdClass;
 
@@ -28,7 +27,7 @@ trait ManagesLoops
                             : null;
 
         $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
-        $parent = Arr::last($loopsStack);
+        $parent = array_last($loopsStack);
 
         $loopsStack[] = [
             'iteration' => 0,

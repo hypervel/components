@@ -6,7 +6,6 @@ namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 
 /**
@@ -104,7 +103,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
-        if (! empty($values) && ! is_array(Arr::first($values))) {
+        if (! empty($values) && ! is_array(array_first($values))) {
             $values = [$values];
         }
 

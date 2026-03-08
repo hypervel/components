@@ -467,7 +467,7 @@ trait ValidatesAttributes
         $auth = $this->container->make(\Hypervel\Contracts\Auth\Factory::class);
         $hasher = $this->container->make(\Hypervel\Contracts\Hashing\Hasher::class);
 
-        $guard = $auth->guard(Arr::first($parameters));
+        $guard = $auth->guard(array_first($parameters));
 
         if ($guard->guest()) {
             return false;
