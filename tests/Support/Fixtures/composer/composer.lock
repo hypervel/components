@@ -1,0 +1,30 @@
+{
+    "packages": [
+        {
+            "name": "vendor/package-one",
+            "version": "1.2.3",
+            "extra": {
+                "hypervel": {
+                    "providers": [
+                        "Vendor\\PackageOne\\ServiceProvider"
+                    ]
+                }
+            },
+            "scripts": {
+                "post-install-cmd": "echo installed"
+            }
+        },
+        {
+            "name": "vendor/package-two",
+            "version": "4.5.6",
+            "extra": {
+                "hypervel": {
+                    "config": [
+                        "Vendor\\PackageTwo\\ConfigProvider"
+                    ]
+                }
+            }
+        }
+    ],
+    "packages-dev": []
+}

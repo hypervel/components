@@ -4,9 +4,9 @@
 composer.lock
 /phpunit.xml
 .phpunit.result.cache
-!tests/Foundation/fixtures/project1/composer.lock
-!tests/Support/fixtures/composer/composer.lock
-tests/Http/fixtures/sunk.txt
+!tests/Foundation/Fixtures/project1/composer.lock
+!tests/Support/Fixtures/composer/composer.lock
+tests/Http/Fixtures/sunk.txt
 .env
 !tests/Support/envs/**/.env
 !tests/Foundation/Bootstrap/envs/.env
