@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 
 trait FormatsMessages
@@ -80,7 +81,7 @@ trait FormatsMessages
         $inlineEntry = $this->getFromLocalArray($attribute, Str::snake($rule));
 
         return is_array($inlineEntry) && in_array($rule, $this->sizeRules)
-            ? $inlineEntry[$this->getAttributeType($attribute)]
+            ? ($inlineEntry[$this->getAttributeType($attribute)] ?? null)
             : $inlineEntry;
     }
 
@@ -92,6 +93,14 @@ trait FormatsMessages
         $source = $source ?: $this->customMessages;
 
         $keys = ["{$attribute}.{$lowerRule}", $lowerRule, $attribute];
+
+        if ($this->getAttributeType($attribute) !== 'file') {
+            $shortRule = "{$attribute}." . Str::snake(class_basename($lowerRule));
+
+            if (! in_array($shortRule, $keys)) {
+                $keys[] = $shortRule;
+            }
+        }
 
         // First we will check for a custom message for an attribute specific rule
         // message for the fields, then we will check for a general custom line
@@ -221,6 +230,7 @@ trait FormatsMessages
         $message = $this->replaceInputPlaceholder($message, $attribute);
         $message = $this->replaceIndexPlaceholder($message, $attribute);
         $message = $this->replacePositionPlaceholder($message, $attribute);
+        $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
 
         if (isset($this->replacers[Str::snake($rule)])) {
             return $this->callReplacer($message, $attribute, Str::snake($rule), $parameters, $this);
@@ -341,6 +351,23 @@ trait FormatsMessages
             $attribute,
             'position',
             fn ($segment) => $segment + 1
+        );
+    }
+
+    /**
+     * Replace the :ordinal-position placeholder in the given message.
+     */
+    protected function replaceOrdinalPositionPlaceholder(string $message, string $attribute): string
+    {
+        if (! extension_loaded('intl')) {
+            return $message;
+        }
+
+        return $this->replaceIndexOrPositionPlaceholder(
+            $message,
+            $attribute,
+            'ordinal-position',
+            fn ($segment) => Number::ordinal($segment + 1)
         );
     }
 
