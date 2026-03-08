@@ -21,7 +21,7 @@ class MigrateWithRealpathTest extends DatabaseTestCase
         }
 
         $options = [
-            '--path' => realpath(__DIR__ . '/Stubs/'),
+            '--path' => realpath(__DIR__ . '/Fixtures/'),
             '--realpath' => true,
         ];
 

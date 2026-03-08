@@ -12,7 +12,7 @@ use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\JWTManager;
 use Hypervel\JWT\Providers\Lcobucci;
-use Hypervel\Tests\JWT\Stubs\ValidationStub;
+use Hypervel\Tests\JWT\Fixtures\ValidationStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Operations\AllTag\Prune;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Hypervel\Tests\Redis\Stubs\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
 /**
  * Tests for the AllTag/Prune operation.

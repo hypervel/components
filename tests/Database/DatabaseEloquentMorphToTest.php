@@ -12,7 +12,7 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Hypervel\Tests\Database\Stubs\TestEnum;
+use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

@@ -10,7 +10,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\Pool;
 use Hypervel\Pool\PoolOption;
-use Hypervel\Tests\Pool\Stubs\ActiveConnectionStub;
+use Hypervel\Tests\Pool\Fixtures\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

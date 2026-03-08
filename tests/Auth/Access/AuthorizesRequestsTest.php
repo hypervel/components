@@ -8,7 +8,7 @@ use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\Auth\Stubs\AuthorizesRequestsStub;
+use Hypervel\Tests\Auth\Fixtures\AuthorizesRequestsStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;

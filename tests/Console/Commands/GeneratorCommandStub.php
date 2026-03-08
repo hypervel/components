@@ -68,7 +68,7 @@ class GeneratorCommandStub extends DevtoolGeneratorCommand
 
     protected function getStub(): string
     {
-        return __DIR__ . '/Stubs/class.stub';
+        return __DIR__ . '/../Fixtures/class.stub';
     }
 
     protected function getDefaultNamespace(string $rootNamespace): string

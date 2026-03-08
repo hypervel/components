@@ -24,10 +24,10 @@ class ViewCompilerEngineTest extends TestCase
     public function testViewsMayBeRecompiledAndRendered()
     {
         $engine = $this->getEngine();
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/fixtures/foo.php')->andReturn(__DIR__ . '/fixtures/basic.php');
-        $engine->getCompiler()->shouldReceive('isExpired')->once()->with(__DIR__ . '/fixtures/foo.php')->andReturn(true);
-        $engine->getCompiler()->shouldReceive('compile')->once()->with(__DIR__ . '/fixtures/foo.php');
-        $results = $engine->get(__DIR__ . '/fixtures/foo.php');
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/basic.php');
+        $engine->getCompiler()->shouldReceive('isExpired')->once()->with(__DIR__ . '/Fixtures/foo.php')->andReturn(true);
+        $engine->getCompiler()->shouldReceive('compile')->once()->with(__DIR__ . '/Fixtures/foo.php');
+        $results = $engine->get(__DIR__ . '/Fixtures/foo.php');
 
         $this->assertSame('Hello World
 ', $results);
@@ -36,10 +36,10 @@ class ViewCompilerEngineTest extends TestCase
     public function testViewsAreNotRecompiledIfTheyAreNotExpired()
     {
         $engine = $this->getEngine();
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/fixtures/foo.php')->andReturn(__DIR__ . '/fixtures/basic.php');
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/basic.php');
         $engine->getCompiler()->shouldReceive('isExpired')->once()->andReturn(false);
         $engine->getCompiler()->shouldReceive('compile')->never();
-        $results = $engine->get(__DIR__ . '/fixtures/foo.php');
+        $results = $engine->get(__DIR__ . '/Fixtures/foo.php');
 
         $this->assertSame('Hello World
 ', $results);
@@ -48,42 +48,42 @@ class ViewCompilerEngineTest extends TestCase
     public function testRegularExceptionsAreReThrownAsViewExceptions()
     {
         $engine = $this->getEngine();
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/fixtures/foo.php')->andReturn(__DIR__ . '/fixtures/regular-exception.php');
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/regular-exception.php');
         $engine->getCompiler()->shouldReceive('isExpired')->once()->andReturn(false);
 
         $this->expectException(ViewException::class);
         $this->expectExceptionMessage('regular exception message');
 
-        $engine->get(__DIR__ . '/fixtures/foo.php');
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
     public function testHttpExceptionsAreNotReThrownAsViewExceptions()
     {
         $engine = $this->getEngine();
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/fixtures/foo.php')->andReturn(__DIR__ . '/fixtures/http-exception.php');
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/http-exception.php');
         $engine->getCompiler()->shouldReceive('isExpired')->once()->andReturn(false);
 
         $this->expectException(HttpException::class);
         $this->expectExceptionMessage('http exception message');
 
-        $engine->get(__DIR__ . '/fixtures/foo.php');
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
     public function testThatViewsAreNotAskTwiceIfTheyAreExpired()
     {
         $engine = $this->getEngine();
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/fixtures/foo.php')->andReturn(__DIR__ . '/fixtures/basic.php');
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/basic.php');
         $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
         $engine->getCompiler()->shouldReceive('compile')->never();
 
-        $engine->get(__DIR__ . '/fixtures/foo.php');
-        $engine->get(__DIR__ . '/fixtures/foo.php');
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
     public function testViewsAreRecompiledWhenCompiledViewIsMissingViaFileNotFoundException()
     {
-        $compiled = __DIR__ . '/fixtures/basic.php';
-        $path = __DIR__ . '/fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $path = __DIR__ . '/Fixtures/foo.php';
 
         $files = m::mock(Filesystem::class);
         $engine = $this->getEngine($files);
@@ -127,8 +127,8 @@ class ViewCompilerEngineTest extends TestCase
 
     public function testViewsAreRecompiledWhenCompiledViewIsMissingViaRequireException()
     {
-        $compiled = __DIR__ . '/fixtures/basic.php';
-        $path = __DIR__ . '/fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $path = __DIR__ . '/Fixtures/foo.php';
 
         $files = m::mock(Filesystem::class);
         $engine = $this->getEngine($files);
@@ -172,8 +172,8 @@ class ViewCompilerEngineTest extends TestCase
 
     public function testViewsAreRecompiledJustOnceWhenCompiledViewIsMissing()
     {
-        $compiled = __DIR__ . '/fixtures/basic.php';
-        $path = __DIR__ . '/fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $path = __DIR__ . '/Fixtures/foo.php';
 
         $files = m::mock(Filesystem::class);
         $engine = $this->getEngine($files);
@@ -222,8 +222,8 @@ class ViewCompilerEngineTest extends TestCase
 
     public function testViewsAreNotRecompiledOnRegularViewException()
     {
-        $compiled = __DIR__ . '/fixtures/basic.php';
-        $path = __DIR__ . '/fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $path = __DIR__ . '/Fixtures/foo.php';
 
         $files = m::mock(Filesystem::class);
         $engine = $this->getEngine($files);
@@ -257,8 +257,8 @@ class ViewCompilerEngineTest extends TestCase
 
     public function testViewsAreNotRecompiledIfTheyWereJustCompiled()
     {
-        $compiled = __DIR__ . '/fixtures/basic.php';
-        $path = __DIR__ . '/fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $path = __DIR__ . '/Fixtures/foo.php';
 
         $files = m::mock(Filesystem::class);
         $engine = $this->getEngine($files);

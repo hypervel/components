@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Testing\Fluent;
 use Hypervel\Support\Collection;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Tests\TestCase;
-use Hypervel\Tests\Testing\Stubs\ArrayableStubObject;
+use Hypervel\Tests\Testing\Fixtures\ArrayableStubObject;
 use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
 use TypeError;

@@ -54,9 +54,9 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Fixtures\TestCast;
+use Hypervel\Tests\Database\Fixtures\TestValueObject;
 use Hypervel\Tests\Database\StringStatus;
-use Hypervel\Tests\Database\Stubs\TestCast;
-use Hypervel\Tests\Database\Stubs\TestValueObject;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
@@ -2071,7 +2071,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelsAssumeTheirName()
     {
-        require_once __DIR__ . '/Stubs/EloquentModelNamespacedStub.php';
+        require_once __DIR__ . '/Fixtures/EloquentModelNamespacedStub.php';
 
         $model = new ModelWithoutTableStub();
         $this->assertSame('model_without_table_stubs', $model->getTable());

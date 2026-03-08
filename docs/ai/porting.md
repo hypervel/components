@@ -501,6 +501,10 @@ These apply to all test porting, regardless of whether the source is Hyperf or L
 
 Always call `parent::setUp()` in your setUp method.
 
+#### Test Support Files
+
+All test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file.
+
 #### Coroutine Support
 
 Code that uses `Context` for state (like `DatabaseTransactionsManager`) requires tests to run in coroutines. Without this, Context state persists across tests since they share the non-coroutine context.

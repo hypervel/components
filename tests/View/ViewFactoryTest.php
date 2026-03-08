@@ -722,7 +722,7 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandling()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
 
@@ -744,7 +744,7 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingViewObject()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->setContainer($container = m::mock(Container::class));
@@ -765,7 +765,7 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingClosure()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->setContainer($container = m::mock(Container::class));
@@ -983,8 +983,8 @@ class ViewFactoryTest extends TestCase
         $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
         $factory = $this->getFactory();
         $factory->getEngineResolver()->shouldReceive('resolve')->twice()->andReturn($engine);
-        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__ . '/fixtures/section-exception-layout.php');
-        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__ . '/fixtures/section-exception.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__ . '/Fixtures/section-exception-layout.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__ . '/Fixtures/section-exception.php');
         $factory->getDispatcher()->shouldReceive('hasListeners')->times(4); // 2 "creating" + 2 "composing"...
         $factory->setContainer($container = m::mock(Container::class));
         $config = m::mock(Repository::class);

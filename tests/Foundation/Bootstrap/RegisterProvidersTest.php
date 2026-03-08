@@ -52,7 +52,7 @@ class RegisterProvidersTest extends TestCase
             'config' => fn () => $config,
         ]);
 
-        Composer::setBasePath(dirname(__DIR__) . '/fixtures/project1');
+        Composer::setBasePath(dirname(__DIR__) . '/Fixtures/project1');
 
         (new RegisterProviders())->bootstrap($app);
 

@@ -10,7 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;
 use Hypervel\ServerProcess\ProcessManager;
-use Hypervel\Tests\ServerProcess\Stubs\FooProcess;
+use Hypervel\Tests\ServerProcess\Fixtures\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Server;

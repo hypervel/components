@@ -22,7 +22,7 @@ class MigratorEventsTest extends DatabaseTestCase
     protected function migrateOptions()
     {
         return [
-            '--path' => realpath(__DIR__ . '/Stubs/'),
+            '--path' => realpath(__DIR__ . '/Fixtures/'),
             '--realpath' => true,
         ];
     }
@@ -150,7 +150,7 @@ class MigratorEventsTest extends DatabaseTestCase
         Event::fake();
 
         $this->artisan('migrate', [
-            '--path' => realpath(__DIR__ . '/Stubs/2014_10_13_000000_skipped_migration.php'),
+            '--path' => realpath(__DIR__ . '/Fixtures/2014_10_13_000000_skipped_migration.php'),
             '--realpath' => true,
         ]);
 

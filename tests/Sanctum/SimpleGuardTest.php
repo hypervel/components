@@ -9,7 +9,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stubs\TestUser;
+use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 
 /**
  * @internal

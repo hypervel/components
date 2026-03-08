@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Redis\Operations;
 
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Redis\Stubs\FakeRedisClient;
-use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 
 /**

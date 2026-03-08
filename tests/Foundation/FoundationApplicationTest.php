@@ -174,8 +174,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetNamespace()
     {
-        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project1'));
-        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project2'));
+        $app1 = $this->getApplication([], realpath(__DIR__ . '/Fixtures/project1'));
+        $app2 = $this->getApplication([], realpath(__DIR__ . '/Fixtures/project2'));
 
         $this->assertSame('App\One\\', $app1->getNamespace());
         $this->assertSame('App\Two\\', $app2->getNamespace());

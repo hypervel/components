@@ -17,7 +17,7 @@ class RefreshCommandTest extends DatabaseTestCase
         $this->app->setBasePath(__DIR__);
 
         $options = [
-            '--path' => 'Stubs/',
+            '--path' => 'Fixtures/',
         ];
 
         $this->migrateRefreshWith($options);
@@ -26,7 +26,7 @@ class RefreshCommandTest extends DatabaseTestCase
     public function testRefreshWithRealpath()
     {
         $options = [
-            '--path' => realpath(__DIR__ . '/Stubs/'),
+            '--path' => realpath(__DIR__ . '/Fixtures/'),
             '--realpath' => true,
         ];
 

@@ -18,7 +18,7 @@ class ComposerTest extends TestCase
     {
         parent::setUp();
 
-        Composer::setBasePath(__DIR__ . '/fixtures/composer');
+        Composer::setBasePath(__DIR__ . '/Fixtures/composer');
     }
 
     protected function tearDown(): void

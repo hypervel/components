@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Framework;
 
 use Hypervel\Config\Repository;
 use Hypervel\Framework\Logger\StdoutLogger;
-use Hypervel\Tests\Framework\Stubs\TestObject;
+use Hypervel\Tests\Framework\Fixtures\TestObject;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Log\LogLevel;
@@ -36,7 +36,7 @@ class StdoutLoggerTest extends TestCase
 
     public function testLogComplexityContext()
     {
-        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hypervel <OBJECT> Hypervel\Tests\Framework\Stubs\TestObject.');
+        $logger = $this->getLogger('<info>[INFO]</> [test tag] Hello Hypervel <OBJECT> Hypervel\Tests\Framework\Fixtures\TestObject.');
         $logger->info('Hello {name} {object}.', [
             'name' => 'Hypervel',
             // tags

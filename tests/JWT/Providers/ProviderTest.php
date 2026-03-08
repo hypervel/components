@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\JWT\Providers;
 
-use Hypervel\Tests\JWT\Stubs\ProviderStub;
+use Hypervel\Tests\JWT\Fixtures\ProviderStub;
 use Hypervel\Tests\TestCase;
 
 /**

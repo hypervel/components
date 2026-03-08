@@ -12,7 +12,7 @@ use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Log\LogLevel;

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\ObjectPool;
 use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Tests\ObjectPool\Stubs\FooPool;
+use Hypervel\Tests\ObjectPool\Fixtures\FooPool;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;

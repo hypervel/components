@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Foundation\Stubs\User;
+use Hypervel\Tests\Foundation\Fixtures\User;
 use ReflectionClass;
 
 /**

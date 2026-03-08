@@ -9,8 +9,8 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
-use Hypervel\Tests\Pool\Stubs\HeartbeatPoolStub;
-use Hypervel\Tests\Pool\Stubs\KeepaliveConnectionStub;
+use Hypervel\Tests\Pool\Fixtures\HeartbeatPoolStub;
+use Hypervel\Tests\Pool\Fixtures\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

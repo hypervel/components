@@ -8,8 +8,8 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
-use Hypervel\Tests\Watcher\Stubs\ContainerStub;
-use Hypervel\Tests\Watcher\Stubs\ScanFileDriverStub;
+use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
+use Hypervel\Tests\Watcher\Fixtures\ScanFileDriverStub;
 use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
 

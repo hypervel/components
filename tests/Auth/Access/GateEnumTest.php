@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Auth\Access;
 
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Container\Container;
-use Hypervel\Tests\Auth\Stubs\AccessGateTestAuthenticatable;
-use Hypervel\Tests\Auth\Stubs\AccessGateTestDummy;
-use Hypervel\Tests\Auth\Stubs\AccessGateTestPolicyWithAllPermissions;
-use Hypervel\Tests\Auth\Stubs\AccessGateTestPolicyWithNoPermissions;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestAuthenticatable;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestDummy;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithAllPermissions;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithNoPermissions;
 use Hypervel\Tests\TestCase;
 use TypeError;
 

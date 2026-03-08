@@ -10,8 +10,8 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
 use Hypervel\Signal\SignalManager;
-use Hypervel\Tests\Signal\Stubs\SignalHandler2Stub;
-use Hypervel\Tests\Signal\Stubs\SignalHandlerStub;
+use Hypervel\Tests\Signal\Fixtures\SignalHandler2Stub;
+use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
