@@ -10,10 +10,13 @@ use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
+use Stringable;
 use TypeError;
 use UnitEnum;
 
-class Enum implements Rule, ValidatorAwareRule
+use function Hypervel\Support\enum_value;
+
+class Enum implements Rule, Stringable, ValidatorAwareRule
 {
     use Conditionable;
 
@@ -82,7 +85,7 @@ class Enum implements Rule, ValidatorAwareRule
      *
      * @param Arrayable<array-key, UnitEnum>|UnitEnum|UnitEnum[] $values
      */
-    public function except(mixed $values)
+    public function except(mixed $values): static
     {
         $this->except = $values instanceof Arrayable ? $values->toArray() : Arr::wrap($values);
 
@@ -121,5 +124,23 @@ class Enum implements Rule, ValidatorAwareRule
         $this->validator = $validator;
 
         return $this;
+    }
+
+    /**
+     * Convert the rule to a validation string.
+     */
+    public function __toString(): string
+    {
+        $cases = ! empty($this->only)
+            ? $this->only
+            : array_filter($this->type::cases(), fn ($case) => ! in_array($case, $this->except, true));
+
+        $values = array_map(function ($case) {
+            $value = enum_value($case);
+
+            return '"' . str_replace('"', '""', (string) $value) . '"';
+        }, $cases);
+
+        return 'in:' . implode(',', $values);
     }
 }
