@@ -9,7 +9,6 @@ use Exception;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Validation\ValidatesRequests;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
@@ -20,7 +19,7 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
 function fail()
 {
@@ -31,10 +30,8 @@ function fail()
  * @internal
  * @coversNothing
  */
-class PrecognitionTest extends TestCase
+class PrecognitionTest extends RoutingTestCase
 {
-    use RunTestsInCoroutine;
-
     public function testItDoesntInvokeControllerMethodByDefault()
     {
         Route::get('test-route', [PrecognitionTestController::class, 'methodThatFails'])
