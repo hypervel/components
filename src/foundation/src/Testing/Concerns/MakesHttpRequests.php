@@ -442,6 +442,16 @@ trait MakesHttpRequests
 
             $kernel->terminate($request, $response);
 
+            // Snapshot route parameters onto the request before the coroutine
+            // ends. Route parameters are stored in coroutine Context which is
+            // destroyed when this waiter coroutine finishes. The snapshot
+            // allows test assertions like $response->baseRequest->route('param')
+            // to access parameters after the coroutine is gone.
+            $route = $request->route();
+            if ($route && $route->hasParameters()) {
+                $request->attributes->set('_route_params', $route->parameters());
+            }
+
             $response = $this->createTestResponse($response, $request);
 
             if ($this->followRedirects) {

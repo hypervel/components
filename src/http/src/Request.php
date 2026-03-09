@@ -569,7 +569,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
             return $route;
         }
 
-        return $route->parameter($param, $default);
+        if ($route->hasParameters()) {
+            return $route->parameter($param, $default);
+        }
+
+        // Fall back to snapshotted parameters — used when the request is
+        // inspected after its coroutine has ended (e.g. in test assertions
+        // after MakesHttpRequests::call() returns from its waiter coroutine)
+        return Arr::get($this->attributes->get('_route_params', []), $param, $default);
     }
 
     /**
