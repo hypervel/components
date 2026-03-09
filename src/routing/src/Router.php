@@ -703,7 +703,10 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function gatherRouteMiddleware(Route $route): array
     {
-        return $this->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware());
+        return $route->resolvedMiddleware ??= $this->resolveMiddleware(
+            $route->gatherMiddleware(),
+            $route->excludedMiddleware()
+        );
     }
 
     /**

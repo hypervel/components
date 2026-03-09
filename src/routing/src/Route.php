@@ -119,6 +119,15 @@ class Route
     public ?array $computedMiddleware = null;
 
     /**
+     * The cached resolved middleware with class names expanded and groups resolved.
+     *
+     * Computed by Router::gatherRouteMiddleware() from the $computedMiddleware
+     * list. Cached here because the router's middleware aliases and groups are
+     * stable after boot in Swoole workers.
+     */
+    public ?array $resolvedMiddleware = null;
+
+    /**
      * The compiled version of the route.
      *
      * Safe to cache on the Route instance — immutable after compilation,
@@ -361,6 +370,7 @@ class Route
     public function flushController(): void
     {
         $this->computedMiddleware = null;
+        $this->resolvedMiddleware = null;
         $this->controller = null;
 
         if ($this->isControllerAction()) {
@@ -1336,6 +1346,7 @@ class Route
         $this->container = null;
         $this->controller = null;
         $this->shouldCacheControllerOnRoute = null;
+        $this->resolvedMiddleware = null;
         $this->callable = null;
         $this->missing = null;
         $this->callableDispatcher = null;
