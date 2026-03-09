@@ -32,6 +32,11 @@ class CallableDispatcher implements CallableDispatcherContract
     protected Container $container;
 
     /**
+     * The cached precognition dispatcher instance.
+     */
+    protected ?PrecognitionCallableDispatcher $precognitionDispatcher = null;
+
+    /**
      * Create a new callable dispatcher instance.
      */
     public function __construct(Container $container)
@@ -47,7 +52,8 @@ class CallableDispatcher implements CallableDispatcherContract
         $request = RequestContext::getOrNull();
 
         if ($request?->attributes->get('precognitive_dispatch')) {
-            return (new PrecognitionCallableDispatcher($this->container))->dispatch($route, $callable);
+            return ($this->precognitionDispatcher ??= new PrecognitionCallableDispatcher($this->container))
+                ->dispatch($route, $callable);
         }
 
         return $callable(...array_values($this->resolveParameters($route, $callable)));

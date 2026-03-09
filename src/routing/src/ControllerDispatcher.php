@@ -31,6 +31,11 @@ class ControllerDispatcher implements ControllerDispatcherContract
     protected Container $container;
 
     /**
+     * The cached precognition dispatcher instance.
+     */
+    protected ?PrecognitionControllerDispatcher $precognitionDispatcher = null;
+
+    /**
      * Create a new controller dispatcher instance.
      */
     public function __construct(Container $container)
@@ -46,7 +51,8 @@ class ControllerDispatcher implements ControllerDispatcherContract
         $request = RequestContext::getOrNull();
 
         if ($request?->attributes->get('precognitive_dispatch')) {
-            return (new PrecognitionControllerDispatcher($this->container))->dispatch($route, $controller, $method);
+            return ($this->precognitionDispatcher ??= new PrecognitionControllerDispatcher($this->container))
+                ->dispatch($route, $controller, $method);
         }
 
         $parameters = $this->resolveParameters($route, $controller, $method);
