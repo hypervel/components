@@ -279,7 +279,7 @@ class UrlGenerator implements UrlGeneratorContract
      *
      * @throws InvalidArgumentException
      */
-    public function signedRoute(BackedEnum|string $name, array|string $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): string
+    public function signedRoute(BackedEnum|string $name, mixed $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): string
     {
         $this->ensureSignedRouteParametersAreNotReserved(
             $parameters = Arr::wrap($parameters)
@@ -404,7 +404,7 @@ class UrlGenerator implements UrlGeneratorContract
      * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
      * @throws InvalidArgumentException
      */
-    public function route(BackedEnum|string $name, array|string $parameters = [], bool $absolute = true): string
+    public function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string
     {
         if ($name instanceof BackedEnum && ! is_string($name = $name->value)) {
             throw new InvalidArgumentException('Attribute [name] expects a string backed enum.');
@@ -620,6 +620,20 @@ class UrlGenerator implements UrlGeneratorContract
     public function useAssetOrigin(?string $root): void
     {
         $this->assetRoot = $root ? rtrim($root, '/') : null;
+    }
+
+    /**
+     * Flush all per-request Context state.
+     *
+     * Clears forced root, cached root, and cached scheme from coroutine
+     * Context. Used in test teardown to prevent state leaking between tests
+     * when not running in coroutines.
+     */
+    public static function flushRequestState(): void
+    {
+        Context::destroy('url.forced_root');
+        Context::destroy('url.cached_root');
+        Context::destroy('url.cached_scheme');
     }
 
     /**

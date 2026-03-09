@@ -55,7 +55,7 @@ class RouteUrlGenerator
      *
      * @throws \Hypervel\Routing\Exceptions\UrlGenerationException
      */
-    public function to(Route $route, array $parameters = [], bool $absolute = false): string
+    public function to(Route $route, mixed $parameters = [], bool $absolute = false): string
     {
         $parameters = $this->formatParameters($route, $parameters);
 
