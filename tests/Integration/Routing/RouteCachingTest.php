@@ -9,7 +9,6 @@ use Hypervel\Container\Container;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Routing\Route;
-use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use ReflectionProperty;
@@ -18,8 +17,25 @@ use ReflectionProperty;
  * @internal
  * @coversNothing
  */
-class RouteCachingTest extends TestCase
+class RouteCachingTest extends RoutingTestCase
 {
+    public function testWildcardCatchAllRoutes()
+    {
+        $this->defineCacheRoutes(file_get_contents(__DIR__ . '/Fixtures/wildcard_catch_all_routes.php'));
+
+        $this->get('/foo')->assertSee('Regular route');
+        $this->get('/bar')->assertSee('Wildcard route');
+    }
+
+    public function testRedirectRoutes()
+    {
+        $this->defineCacheRoutes(file_get_contents(__DIR__ . '/Fixtures/redirect_routes.php'));
+
+        $this->post('/foo/1')->assertRedirect('/foo/1/bar');
+        $this->get('/foo/1/bar')->assertSee('Redirect response');
+        $this->get('/foo/1')->assertRedirect('/foo/1/bar');
+    }
+
     public function testSetContainerInvalidatesControllerDispatcherCache()
     {
         $container1 = new Container();
