@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Routing\Controllers\HasMiddleware;
@@ -26,6 +27,10 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
+use ReflectionAttribute;
+use ReflectionClass;
+use ReflectionException;
+use Stringable;
 use Symfony\Component\Routing\CompiledRoute;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use UnexpectedValueException;
@@ -172,7 +177,7 @@ class Route
     /**
      * Create a new Route instance.
      */
-    public function __construct(array|string $methods, string $uri, Closure|array $action)
+    public function __construct(array|string $methods, string $uri, Closure|array|null $action)
     {
         $this->uri = $uri;
         $this->methods = (array) $methods;
@@ -268,12 +273,20 @@ class Route
     /**
      * Get the controller instance for the route.
      *
-     * Stored in coroutine Context (not as a property) for two reasons:
-     * 1. Route objects are shared across coroutines — a property would race
-     *    between concurrent requests hitting the same route.
-     * 2. Unbound controllers are auto-singletoned by the container, so plain
-     *    make() would return the same instance for all requests. Controllers
-     *    may hold per-request state and must be isolated per-coroutine.
+     * Stored in coroutine Context (not as a property) to preserve the
+     * container's binding semantics on shared Route objects:
+     *
+     * - #[Scoped] controllers: the container produces a separate instance
+     *   per coroutine via Context. A Route property would cache coroutine A's
+     *   instance and serve it to coroutine B, bypassing scoped resolution.
+     * - Explicitly bind()'d controllers: the container produces a fresh
+     *   instance per make() call. Context::getOrSet memoizes within a
+     *   coroutine (getController() is called twice — middleware + dispatch)
+     *   while still giving each coroutine its own instance.
+     *
+     * For the common case (unbound, auto-singletoned controllers), all
+     * coroutines get the same instance regardless — the Context wrapping
+     * is transparent overhead but keeps the code correct for all binding types.
      */
     public function getController(): mixed
     {
@@ -320,6 +333,17 @@ class Route
     public function flushController(): void
     {
         $this->computedMiddleware = null;
+
+        if ($this->isControllerAction()) {
+            $class = $this->getControllerClass();
+
+            // Clear the controller from coroutine Context (where getController() caches it)
+            Context::destroy('__routing.controller.' . $class);
+
+            // Clear the controller from the container's auto-singleton cache so
+            // make() creates a fresh instance on next resolution
+            $this->container?->forgetInstance(ltrim($class, '\\'));
+        }
     }
 
     /**
@@ -956,7 +980,7 @@ class Route
      *
      * @return ($middleware is null ? array : $this)
      */
-    public function middleware(array|string|null $middleware = null): static|array
+    public function middleware(array|string|Stringable|null $middleware = null): static|array
     {
         if (is_null($middleware)) {
             return (array) ($this->action['middleware'] ?? []);
@@ -1018,7 +1042,10 @@ class Route
             );
         }
 
-        return [];
+        return $this->attributeProvidedControllerMiddleware(
+            $controllerClass,
+            $controllerMethod
+        );
     }
 
     /**
@@ -1041,6 +1068,35 @@ class Route
             ->map
             ->middleware
             ->flatten() // @phpstan-ignore method.nonObject (HigherOrderCollectionProxy result can't be statically typed)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the attribute provided controller middleware for the given class and method.
+     */
+    protected function attributeProvidedControllerMiddleware(string $class, string $method): array
+    {
+        try {
+            $reflectionClass = new ReflectionClass($class);
+
+            $reflectionMethod = $reflectionClass->getMethod($method);
+        } catch (ReflectionException) {
+            return [];
+        }
+
+        return (new Collection(array_merge(
+            $reflectionClass->getAttributes(MiddlewareAttribute::class, ReflectionAttribute::IS_INSTANCEOF),
+            $reflectionMethod->getAttributes(MiddlewareAttribute::class, ReflectionAttribute::IS_INSTANCEOF),
+        )))->map(function (ReflectionAttribute $attribute) use ($method) {
+            $instance = $attribute->newInstance();
+
+            return static::methodExcludedByOptions(
+                $method,
+                ['only' => $instance->only, 'except' => $instance->except],
+            ) ? null : $instance->value;
+        })
+            ->filter()
             ->values()
             ->all();
     }
