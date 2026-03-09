@@ -370,8 +370,8 @@ class Route
     public function flushController(): void
     {
         $this->computedMiddleware = null;
-        $this->resolvedMiddleware = null;
         $this->controller = null;
+        $this->resolvedMiddleware = null;
 
         if ($this->isControllerAction()) {
             $class = ltrim((string) $this->getControllerClass(), '\\');
@@ -1313,10 +1313,11 @@ class Route
     public function setContainer(Container $container): static
     {
         $this->container = $container;
-        $this->controller = null;
-        $this->shouldCacheControllerOnRoute = null;
         $this->callableDispatcher = null;
+        $this->controller = null;
         $this->controllerDispatcher = null;
+        $this->resolvedMiddleware = null;
+        $this->shouldCacheControllerOnRoute = null;
 
         return $this;
     }
@@ -1342,15 +1343,15 @@ class Route
 
         $this->compileRoute();
 
-        $this->router = null;
+        $this->callable = null;
+        $this->callableDispatcher = null;
         $this->container = null;
         $this->controller = null;
-        $this->shouldCacheControllerOnRoute = null;
-        $this->resolvedMiddleware = null;
-        $this->callable = null;
-        $this->missing = null;
-        $this->callableDispatcher = null;
         $this->controllerDispatcher = null;
+        $this->missing = null;
+        $this->resolvedMiddleware = null;
+        $this->router = null;
+        $this->shouldCacheControllerOnRoute = null;
     }
 
     /**
