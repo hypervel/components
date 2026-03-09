@@ -16,7 +16,6 @@ use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
-use ReflectionProperty;
 
 /**
  * @internal
@@ -100,6 +99,22 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $first = $router->gatherRouteMiddleware($route);
         $second = $router->gatherRouteMiddleware($route);
         $this->assertSame($first, $second);
+    }
+
+    public function testSetContainerClearsResolvedMiddleware()
+    {
+        $router = $this->getRouter();
+
+        $route = $router->get('foo', ['middleware' => TestMiddleware::class, 'uses' => function () {
+            return 'ok';
+        }]);
+
+        $router->gatherRouteMiddleware($route);
+        $this->assertNotNull($route->resolvedMiddleware);
+
+        $route->setContainer(new Container());
+
+        $this->assertNull($route->resolvedMiddleware);
     }
 
     protected function getRouter(?Container $container = null): Router
