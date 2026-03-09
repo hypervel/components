@@ -33,7 +33,7 @@
     },
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^1.3",
+        "laravel/serializable-closure": "^2.0",
         "psr/simple-cache": "^3.0",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
