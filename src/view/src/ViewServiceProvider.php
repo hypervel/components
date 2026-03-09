@@ -31,7 +31,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerFactory(): void
     {
-        $this->app->bind('view', function ($app) {
+        $this->app->singleton('view', function ($app) {
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
@@ -75,7 +75,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerBladeCompiler(): void
     {
-        $this->app->bind('blade.compiler', function ($app) {
+        $this->app->singleton('blade.compiler', function ($app) {
             return tap(new BladeCompiler(
                 $app['files'],
                 $app['config']['view.compiled'],
@@ -93,7 +93,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerEngineResolver(): void
     {
-        $this->app->bind(EngineResolver::class, function () {
+        $this->app->singleton(EngineResolver::class, function () {
             $resolver = new EngineResolver();
 
             // Next, we will register the various view engines with the resolver so that the
