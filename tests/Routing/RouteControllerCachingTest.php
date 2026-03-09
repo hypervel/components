@@ -9,13 +9,14 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
+use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
-use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -52,7 +53,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
         // The controller property on the route should be null — scoped
         // controllers are stored in Context, not on the Route instance.
-        $reflection = new \ReflectionProperty($route, 'controller');
+        $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNull($reflection->getValue($route));
     }
 
@@ -72,7 +73,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
         $this->assertInstanceOf(BoundController::class, $controller);
 
-        $reflection = new \ReflectionProperty($route, 'controller');
+        $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNull($reflection->getValue($route));
     }
 
@@ -93,7 +94,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
         $this->assertSame($first, $second);
 
-        $reflection = new \ReflectionProperty($route, 'controller');
+        $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNotNull($reflection->getValue($route));
     }
 
@@ -108,12 +109,61 @@ class RouteControllerCachingTest extends RoutingTestCase
         $route = $request->route();
         $route->getController();
 
-        $reflection = new \ReflectionProperty($route, 'controller');
+        $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNotNull($reflection->getValue($route));
 
         $route->flushController();
 
         $this->assertNull($reflection->getValue($route));
+    }
+
+    public function testSetContainerClearsControllerCache()
+    {
+        $container = new Container();
+        $router = $this->getRouter($container);
+        $router->get('foo', UnboundController::class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $route->getController();
+
+        $controllerRef = new ReflectionProperty($route, 'controller');
+        $cacheDecisionRef = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
+
+        $this->assertNotNull($controllerRef->getValue($route));
+        $this->assertNotNull($cacheDecisionRef->getValue($route));
+
+        // Swapping the container should clear all controller caches
+        // since the caching decision was made against the old container.
+        $route->setContainer(new Container());
+
+        $this->assertNull($controllerRef->getValue($route));
+        $this->assertNull($cacheDecisionRef->getValue($route));
+    }
+
+    public function testPrepareForSerializationClearsControllerCache()
+    {
+        $router = $this->getRouter();
+        $router->get('foo', UnboundController::class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $route->getController();
+
+        $controllerRef = new ReflectionProperty($route, 'controller');
+        $cacheDecisionRef = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
+
+        $this->assertNotNull($controllerRef->getValue($route));
+        $this->assertNotNull($cacheDecisionRef->getValue($route));
+
+        $route->prepareForSerialization();
+
+        $this->assertNull($controllerRef->getValue($route));
+        $this->assertNull($cacheDecisionRef->getValue($route));
     }
 
     protected function getRouter(?Container $container = null): Router
