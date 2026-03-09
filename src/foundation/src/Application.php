@@ -42,6 +42,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected string $basePath = '';
 
     /**
+     * The path to the bootstrap directory.
+     */
+    protected string $bootstrapPath = '';
+
+    /**
      * The custom environment path defined by the developer.
      */
     protected ?string $environmentPath = null;
@@ -244,6 +249,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function setBasePath(string $basePath): static
     {
         $this->basePath = rtrim($basePath, '\/');
+        $this->bootstrapPath = $this->basePath('bootstrap');
 
         return $this;
     }
@@ -269,7 +275,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function bootstrapPath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('bootstrap'), $path);
+        return $this->joinPaths($this->bootstrapPath, $path);
+    }
+
+    /**
+     * Set the bootstrap file directory.
+     */
+    public function useBootstrapPath(string $path): static
+    {
+        $this->bootstrapPath = $path;
+
+        $this->instance('path.bootstrap', $path);
+
+        return $this;
     }
 
     /**
