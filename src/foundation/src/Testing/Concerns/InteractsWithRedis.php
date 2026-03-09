@@ -20,7 +20,7 @@ use Throwable;
  * Environment Variables:
  * - REDIS_HOST: Redis host (default: 127.0.0.1)
  * - REDIS_PORT: Redis port (default: 6379)
- * - REDIS_DB: Redis database number (default: 0)
+ * - REDIS_DB: Redis database number (default: 8)
  * - REDIS_AUTH: Redis password (optional)
  */
 trait InteractsWithRedis
@@ -123,7 +123,7 @@ trait InteractsWithRedis
             $client->auth($auth);
         }
 
-        $client->select((int) env('REDIS_DB', 0));
+        $client->select((int) env('REDIS_DB', 8));
 
         return $client;
     }
@@ -163,7 +163,7 @@ trait InteractsWithRedis
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', 0),
+            'db' => (int) env('REDIS_DB', 8),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,

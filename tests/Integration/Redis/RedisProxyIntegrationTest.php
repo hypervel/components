@@ -576,7 +576,7 @@ class RedisProxyIntegrationTest extends TestCase
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', 0),
+            'db' => (int) env('REDIS_DB', 8),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => $maxConnections,
