@@ -101,14 +101,16 @@ class CompiledRouteCollection extends AbstractRouteCollection
      */
     public function match(Request $request): Route
     {
+        $trimmedRequest = $this->requestWithoutTrailingSlash($request);
+
         $context = new RequestContext(
-            method: $request->getMethod(),
-            host: $request->getHost(),
-            scheme: $request->getScheme(),
-            httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
-            httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
-            path: $request->getPathInfo(),
-            queryString: $request->server->get('QUERY_STRING', ''),
+            method: $trimmedRequest->getMethod(),
+            host: $trimmedRequest->getHost(),
+            scheme: $trimmedRequest->getScheme(),
+            httpPort: $trimmedRequest->isSecure() ? 443 : (int) $trimmedRequest->getPort(),
+            httpsPort: $trimmedRequest->isSecure() ? (int) $trimmedRequest->getPort() : 443,
+            path: $trimmedRequest->getPathInfo(),
+            queryString: $trimmedRequest->server->get('QUERY_STRING', ''),
         );
 
         $matcher = new CompiledUrlMatcher($this->compiled, $context);
@@ -116,7 +118,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $route = null;
 
         try {
-            if ($result = $matcher->matchRequest($request)) {
+            if ($result = $matcher->matchRequest($trimmedRequest)) {
                 $route = $this->getByName($result['_route']);
             }
         } catch (ResourceNotFoundException|MethodNotAllowedException) {
@@ -138,6 +140,23 @@ class CompiledRouteCollection extends AbstractRouteCollection
         }
 
         return $this->handleMatchedRoute($request, $route);
+    }
+
+    /**
+     * Get a cloned instance of the given request without any trailing slash on the URI.
+     */
+    protected function requestWithoutTrailingSlash(Request $request): Request
+    {
+        $trimmedRequest = $request->duplicate();
+
+        $parts = explode('?', $request->server->get('REQUEST_URI'), 2);
+
+        $trimmedRequest->server->set(
+            'REQUEST_URI',
+            rtrim($parts[0], '/') . (isset($parts[1]) ? '?' . $parts[1] : '')
+        );
+
+        return $trimmedRequest;
     }
 
     /**
