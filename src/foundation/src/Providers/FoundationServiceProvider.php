@@ -28,6 +28,7 @@ use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Hypervel\Validation\ValidationException;
@@ -81,6 +82,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->listenCommandException();
         $this->registerRequestValidation();
+        $this->registerRequestSignatureValidation();
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
@@ -161,6 +163,28 @@ class FoundationServiceProvider extends ServiceProvider
 
                 throw $e;
             }
+        });
+    }
+
+    /**
+     * Register the "hasValidSignature" macro on the request.
+     */
+    protected function registerRequestSignatureValidation(): void
+    {
+        Request::macro('hasValidSignature', function ($absolute = true) {
+            return URL::hasValidSignature($this, $absolute);
+        });
+
+        Request::macro('hasValidRelativeSignature', function () {
+            return URL::hasValidSignature($this, $absolute = false);
+        });
+
+        Request::macro('hasValidSignatureWhileIgnoring', function ($ignoreQuery = [], $absolute = true) {
+            return URL::hasValidSignature($this, $absolute, $ignoreQuery);
+        });
+
+        Request::macro('hasValidRelativeSignatureWhileIgnoring', function ($ignoreQuery = []) {
+            return URL::hasValidSignature($this, $absolute = false, $ignoreQuery);
         });
     }
 
