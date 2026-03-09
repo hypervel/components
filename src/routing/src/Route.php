@@ -148,6 +148,16 @@ class Route
     protected ?CallableDispatcher $callableDispatcher = null;
 
     /**
+     * The cached controller instance for worker-shared (singleton) controllers.
+     */
+    protected mixed $controller = null;
+
+    /**
+     * Whether this route's controller may be cached on the shared Route instance.
+     */
+    private ?bool $shouldCacheControllerOnRoute = null;
+
+    /**
      * The cached controller dispatcher instance.
      */
     protected ?ControllerDispatcherContract $controllerDispatcher = null;
@@ -273,20 +283,15 @@ class Route
     /**
      * Get the controller instance for the route.
      *
-     * Stored in coroutine Context (not as a property) to preserve the
-     * container's binding semantics on shared Route objects:
+     * For worker-shared controllers (singletons and unbound auto-singletons),
+     * the instance is cached directly on the Route property for zero-overhead
+     * access across coroutines.
      *
-     * - #[Scoped] controllers: the container produces a separate instance
-     *   per coroutine via Context. A Route property would cache coroutine A's
-     *   instance and serve it to coroutine B, bypassing scoped resolution.
-     * - Explicitly bind()'d controllers: the container produces a fresh
-     *   instance per make() call. Context::getOrSet memoizes within a
-     *   coroutine (getController() is called twice — middleware + dispatch)
-     *   while still giving each coroutine its own instance.
-     *
-     * For the common case (unbound, auto-singletoned controllers), all
-     * coroutines get the same instance regardless — the Context wrapping
-     * is transparent overhead but keeps the code correct for all binding types.
+     * For controllers with per-coroutine semantics (#[Scoped] or explicit
+     * bind()), the instance is stored in coroutine Context to preserve the
+     * container's binding contract. Context::getOrSet memoizes within a
+     * coroutine (getController() is called twice — middleware + dispatch)
+     * while still giving each coroutine its own instance.
      */
     public function getController(): mixed
     {
@@ -294,10 +299,32 @@ class Route
             return null;
         }
 
-        $class = $this->getControllerClass();
-        $key = '__routing.controller.' . $class;
+        $class = ltrim((string) $this->getControllerClass(), '\\');
 
-        return Context::getOrSet($key, fn () => $this->container->make(ltrim($class, '\\')));
+        if ($this->shouldCacheControllerOnRoute($class)) {
+            return $this->controller ??= $this->container->make($class);
+        }
+
+        return Context::getOrSet(
+            '__routing.controller.' . $class,
+            fn () => $this->container->make($class)
+        );
+    }
+
+    /**
+     * Determine if this route's controller may be cached on the shared Route instance.
+     *
+     * Worker-shared bindings (singletons, auto-singletons) are safe to cache
+     * on the Route property. Per-coroutine bindings (#[Scoped], explicit bind())
+     * must go through Context to preserve the container's binding contract.
+     */
+    private function shouldCacheControllerOnRoute(string $class): bool
+    {
+        return $this->shouldCacheControllerOnRoute ??= match (true) {
+            $this->container->isScoped($class) => false,
+            $this->container->bound($class) => $this->container->isShared($class),
+            default => true,
+        };
     }
 
     /**
@@ -327,22 +354,19 @@ class Route
     /**
      * Flush the cached controller state on the route.
      *
-     * Resets the computed middleware cache. Controller instances live in
-     * coroutine Context and are automatically cleaned up per-request.
+     * Clears both the route-level property cache (for worker-shared controllers)
+     * and the coroutine Context entry (for scoped/bound controllers), plus the
+     * container's auto-singleton cache so make() creates a fresh instance.
      */
     public function flushController(): void
     {
         $this->computedMiddleware = null;
+        $this->controller = null;
 
         if ($this->isControllerAction()) {
-            $class = $this->getControllerClass();
-
-            // Clear the controller from coroutine Context (where getController() caches it)
+            $class = ltrim((string) $this->getControllerClass(), '\\');
             Context::destroy('__routing.controller.' . $class);
-
-            // Clear the controller from the container's auto-singleton cache so
-            // make() creates a fresh instance on next resolution
-            $this->container?->forgetInstance(ltrim($class, '\\'));
+            $this->container?->forgetInstance($class);
         }
     }
 
