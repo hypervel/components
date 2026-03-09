@@ -82,6 +82,17 @@ class Dispatcher implements DispatcherContract
     protected array $listenersCache = [];
 
     /**
+     * The cached hasListeners results.
+     *
+     * Avoids repeated wildcard scanning in hasListeners() when called
+     * from hot paths like Router event guards. Cleared whenever the
+     * listener set changes (listen, forget, wildcard registration).
+     *
+     * @var array<string, bool>
+     */
+    protected array $hasListenersCache = [];
+
+    /**
      * The queue resolver instance.
      *
      * @var callable(): QueueFactory
@@ -140,6 +151,7 @@ class Dispatcher implements DispatcherContract
         }
 
         $this->listenersCache = [];
+        $this->hasListenersCache = [];
     }
 
     /**
@@ -151,6 +163,7 @@ class Dispatcher implements DispatcherContract
 
         $this->wildcardsCache = [];
         $this->listenersCache = [];
+        $this->hasListenersCache = [];
     }
 
     /**
@@ -158,7 +171,11 @@ class Dispatcher implements DispatcherContract
      */
     public function hasListeners(string $eventName): bool
     {
-        return isset($this->listeners[$eventName])
+        if (isset($this->hasListenersCache[$eventName])) {
+            return $this->hasListenersCache[$eventName];
+        }
+
+        return $this->hasListenersCache[$eventName] = isset($this->listeners[$eventName])
             || isset($this->wildcards[$eventName])
             || $this->hasWildcardListeners($eventName);
     }
@@ -702,6 +719,7 @@ class Dispatcher implements DispatcherContract
         }
 
         $this->listenersCache = [];
+        $this->hasListenersCache = [];
     }
 
     /**

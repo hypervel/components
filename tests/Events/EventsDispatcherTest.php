@@ -11,6 +11,7 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -483,6 +484,128 @@ class EventsDispatcherTest extends TestCase
         });
         $this->assertTrue($d->hasListeners('foo.*'));
         $this->assertTrue($d->hasListeners('foo.bar'));
+    }
+
+    public function testHasListenersCachesFalseResult(): void
+    {
+        $d = new Dispatcher();
+
+        // First call — uncached, scans listeners and wildcards.
+        $this->assertFalse($d->hasListeners('nonexistent'));
+
+        // Second call — should hit cache and still return false.
+        $this->assertFalse($d->hasListeners('nonexistent'));
+
+        // Verify the cache is populated by reading the protected property.
+        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
+        $this->assertArrayHasKey('nonexistent', $cache);
+        $this->assertFalse($cache['nonexistent']);
+    }
+
+    public function testHasListenersCachesTrueResult(): void
+    {
+        $d = new Dispatcher();
+        $d->listen('foo', function () {});
+
+        // First call — uncached.
+        $this->assertTrue($d->hasListeners('foo'));
+
+        // Second call — should hit cache.
+        $this->assertTrue($d->hasListeners('foo'));
+
+        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
+        $this->assertArrayHasKey('foo', $cache);
+        $this->assertTrue($cache['foo']);
+    }
+
+    public function testHasListenersCacheIsClearedWhenListenerIsAdded(): void
+    {
+        $d = new Dispatcher();
+
+        // Populate cache with false.
+        $this->assertFalse($d->hasListeners('bar'));
+
+        // Adding a listener should clear the cache.
+        $d->listen('bar', function () {});
+
+        // Now should return true (not the stale cached false).
+        $this->assertTrue($d->hasListeners('bar'));
+    }
+
+    public function testHasListenersCacheIsClearedWhenWildcardIsAdded(): void
+    {
+        $d = new Dispatcher();
+
+        // Populate cache with false for a specific event.
+        $this->assertFalse($d->hasListeners('foo.bar'));
+
+        // Adding a wildcard that matches should clear the cache.
+        $d->listen('foo.*', function () {});
+
+        // Now should return true.
+        $this->assertTrue($d->hasListeners('foo.bar'));
+    }
+
+    public function testHasListenersCacheIsClearedOnForget(): void
+    {
+        $d = new Dispatcher();
+        $d->listen('baz', function () {});
+
+        // Populate cache with true.
+        $this->assertTrue($d->hasListeners('baz'));
+
+        // Forgetting should clear the cache.
+        $d->forget('baz');
+
+        // Now should return false (not the stale cached true).
+        $this->assertFalse($d->hasListeners('baz'));
+    }
+
+    public function testHasListenersCacheIsClearedOnForgetWildcard(): void
+    {
+        $d = new Dispatcher();
+        $d->listen('ns.*', function () {});
+
+        // Populate cache.
+        $this->assertTrue($d->hasListeners('ns.event'));
+
+        // Forget the wildcard.
+        $d->forget('ns.*');
+
+        // Should no longer have listeners.
+        $this->assertFalse($d->hasListeners('ns.event'));
+    }
+
+    public function testHasListenersCacheWithWildcardMatch(): void
+    {
+        $d = new Dispatcher();
+        $d->listen('app.*', function () {});
+
+        // First call — wildcard scan finds the match, caches true.
+        $this->assertTrue($d->hasListeners('app.started'));
+
+        // Second call — hits cache, no wildcard rescan.
+        $this->assertTrue($d->hasListeners('app.started'));
+
+        // Different event under same wildcard — separate cache entry.
+        $this->assertTrue($d->hasListeners('app.stopped'));
+
+        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
+        $this->assertArrayHasKey('app.started', $cache);
+        $this->assertArrayHasKey('app.stopped', $cache);
+    }
+
+    public function testHasListenersCacheIsIndependentPerEventName(): void
+    {
+        $d = new Dispatcher();
+        $d->listen('exists', function () {});
+
+        $this->assertTrue($d->hasListeners('exists'));
+        $this->assertFalse($d->hasListeners('does_not_exist'));
+
+        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
+        $this->assertTrue($cache['exists']);
+        $this->assertFalse($cache['does_not_exist']);
     }
 
     public function testEventPassedFirstToWildcards()
