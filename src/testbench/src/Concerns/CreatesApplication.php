@@ -19,9 +19,14 @@ use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Routing\Router;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Workbench\App\Exceptions\ExceptionHandler;
+
+use function Hypervel\Testbench\after_resolving;
+use function Hypervel\Testbench\refresh_router_lookups;
 
 /**
  * Creates and bootstraps the application for testbench tests.
@@ -40,6 +45,32 @@ trait CreatesApplication
      * @return array<int, class-string>
      */
     protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [];
+    }
+
+    /**
+     * Get application providers.
+     *
+     * Override in test classes to filter the default provider list before
+     * registration. For example, to remove SessionServiceProvider.
+     *
+     * @return array<int, class-string>
+     */
+    protected function getApplicationProviders(ApplicationContract $app): array
+    {
+        return $app->make('config')->get('app.providers', []);
+    }
+
+    /**
+     * Override application providers.
+     *
+     * Return a map of provider class names to replacements. Set a provider
+     * to `false` to remove it entirely, or to another class name to replace it.
+     *
+     * @return array<class-string, class-string|false>
+     */
+    protected function overrideApplicationProviders(ApplicationContract $app): array
     {
         return [];
     }
@@ -90,6 +121,7 @@ trait CreatesApplication
         $this->resolveApplicationBindings($app);
         $this->resolveApplicationConfiguration($app);
         $this->resolveApplicationBootstrappers($app);
+        $this->refreshApplicationRouteNameLookups($app);
 
         return $app;
     }
@@ -134,8 +166,36 @@ trait CreatesApplication
 
         $app->make(LoadConfiguration::class)->bootstrap($app);
 
-        $this->registerPackageProviders($app);
+        $this->resolveApplicationProviders($app);
         $this->registerPackageAliases($app);
+    }
+
+    /**
+     * Resolve the final application provider list.
+     *
+     * Merges package providers, then applies overrides (replacements/removals)
+     * before writing the final list to config for RegisterProviders to use.
+     */
+    protected function resolveApplicationProviders(ApplicationContract $app): void
+    {
+        $providers = (new Collection($this->getApplicationProviders($app)))
+            ->merge($this->getPackageProviders($app));
+
+        $overrides = $this->overrideApplicationProviders($app);
+
+        if (! empty($overrides)) {
+            $providers = $providers->map(static function (string $provider) use ($overrides) {
+                if (! array_key_exists($provider, $overrides)) {
+                    return $provider;
+                }
+
+                $replacement = $overrides[$provider];
+
+                return $replacement !== false ? $replacement : null;
+            })->filter()->values();
+        }
+
+        $app->make('config')->set('app.providers', $providers->all());
     }
 
     /**
@@ -176,22 +236,24 @@ trait CreatesApplication
     }
 
     /**
-     * Register package providers into config.
+     * Refresh route name lookups now and whenever the URL generator is resolved.
      *
-     * Merges the test's package providers into config('app.providers') so
-     * they are registered by RegisterProviders during bootstrap.
+     * Route names set via fluent ->name() after RouteCollection::add() are not
+     * indexed until refreshNameLookups() rebuilds the lookup table. This method
+     * ensures names are refreshed both immediately and lazily — the after_resolving
+     * callback catches routes defined inside test methods (after boot) by firing
+     * whenever app('url') is resolved.
      */
-    protected function registerPackageProviders(ApplicationContract $app): void
+    protected function refreshApplicationRouteNameLookups(ApplicationContract $app): void
     {
-        $packageProviders = $this->getPackageProviders($app);
+        /** @var Router $router */
+        $router = $app->make('router');
 
-        if (empty($packageProviders)) {
-            return;
-        }
+        refresh_router_lookups($router);
 
-        $config = $app->make('config');
-        $existing = $config->get('app.providers', []);
-        $config->set('app.providers', array_merge($existing, $packageProviders));
+        after_resolving($app, 'url', static function () use ($router): void {
+            refresh_router_lookups($router);
+        });
     }
 
     /**

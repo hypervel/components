@@ -7,6 +7,7 @@ namespace Hypervel\Testbench;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ProcessUtils;
@@ -28,6 +29,17 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
     if ($app->resolved($name)) {
         value($callback, $app->make($name), $app);
     }
+}
+
+/**
+ * Refresh the router's name and action lookup tables.
+ *
+ * Route names set via fluent ->name() after RouteCollection::add() are not
+ * indexed until refreshNameLookups() runs. This function triggers that refresh.
+ */
+function refresh_router_lookups(Router $router): void
+{
+    $router->getRoutes()->refreshNameLookups();
 }
 
 /**
