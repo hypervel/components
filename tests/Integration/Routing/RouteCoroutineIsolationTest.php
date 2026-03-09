@@ -8,41 +8,35 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
-use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\parallel;
-use function Hypervel\Coroutine\run;
 
 /**
  * @internal
  * @coversNothing
  */
-class RouteCoroutineIsolationTest extends TestCase
+class RouteCoroutineIsolationTest extends RoutingTestCase
 {
     public function testParametersAreIsolatedBetweenCoroutines()
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $request = Request::create('/users/1');
+                $route->bind($request);
+                usleep(1000);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $request = Request::create('/users/1');
-                    $route->bind($request);
-                    usleep(1000);
+                return $route->parameter('id');
+            },
+            function () use ($route) {
+                $request = Request::create('/users/2');
+                $route->bind($request);
+                usleep(1000);
 
-                    return $route->parameter('id');
-                },
-                function () use ($route) {
-                    $request = Request::create('/users/2');
-                    $route->bind($request);
-                    usleep(1000);
-
-                    return $route->parameter('id');
-                },
-            ]);
-        });
+                return $route->parameter('id');
+            },
+        ]);
 
         // Each coroutine should see its own parameter value.
         $this->assertContains('1', $results);
@@ -53,35 +47,31 @@ class RouteCoroutineIsolationTest extends TestCase
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $request = Request::create('/users/10');
+                $route->bind($request);
+                // Mutate the parameter — original should be unaffected.
+                $route->setParameter('id', 'mutated-10');
+                usleep(1000);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $request = Request::create('/users/10');
-                    $route->bind($request);
-                    // Mutate the parameter — original should be unaffected.
-                    $route->setParameter('id', 'mutated-10');
-                    usleep(1000);
+                return [
+                    'current' => $route->parameter('id'),
+                    'original' => $route->originalParameter('id'),
+                ];
+            },
+            function () use ($route) {
+                $request = Request::create('/users/20');
+                $route->bind($request);
+                $route->setParameter('id', 'mutated-20');
+                usleep(1000);
 
-                    return [
-                        'current' => $route->parameter('id'),
-                        'original' => $route->originalParameter('id'),
-                    ];
-                },
-                function () use ($route) {
-                    $request = Request::create('/users/20');
-                    $route->bind($request);
-                    $route->setParameter('id', 'mutated-20');
-                    usleep(1000);
-
-                    return [
-                        'current' => $route->parameter('id'),
-                        'original' => $route->originalParameter('id'),
-                    ];
-                },
-            ]);
-        });
+                return [
+                    'current' => $route->parameter('id'),
+                    'original' => $route->originalParameter('id'),
+                ];
+            },
+        ]);
 
         // Each coroutine sees its own current and original parameters.
         $this->assertContains(['current' => 'mutated-10', 'original' => '10'], $results);
@@ -92,28 +82,24 @@ class RouteCoroutineIsolationTest extends TestCase
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $request = Request::create('/users/1');
+                $route->bind($request);
+                $route->setParameter('id', 'replaced-by-coroutine-1');
+                usleep(1000);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $request = Request::create('/users/1');
-                    $route->bind($request);
-                    $route->setParameter('id', 'replaced-by-coroutine-1');
-                    usleep(1000);
+                return $route->parameter('id');
+            },
+            function () use ($route) {
+                $request = Request::create('/users/2');
+                $route->bind($request);
+                $route->setParameter('id', 'replaced-by-coroutine-2');
+                usleep(1000);
 
-                    return $route->parameter('id');
-                },
-                function () use ($route) {
-                    $request = Request::create('/users/2');
-                    $route->bind($request);
-                    $route->setParameter('id', 'replaced-by-coroutine-2');
-                    usleep(1000);
-
-                    return $route->parameter('id');
-                },
-            ]);
-        });
+                return $route->parameter('id');
+            },
+        ]);
 
         $this->assertContains('replaced-by-coroutine-1', $results);
         $this->assertContains('replaced-by-coroutine-2', $results);
@@ -123,28 +109,24 @@ class RouteCoroutineIsolationTest extends TestCase
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $request = Request::create('/users/1');
+                $route->bind($request);
+                $route->forgetParameter('id');
+                usleep(1000);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $request = Request::create('/users/1');
-                    $route->bind($request);
-                    $route->forgetParameter('id');
-                    usleep(1000);
+                return $route->hasParameter('id');
+            },
+            function () use ($route) {
+                $request = Request::create('/users/2');
+                $route->bind($request);
+                usleep(1000);
 
-                    return $route->hasParameter('id');
-                },
-                function () use ($route) {
-                    $request = Request::create('/users/2');
-                    $route->bind($request);
-                    usleep(1000);
-
-                    // This coroutine should still have the parameter.
-                    return $route->hasParameter('id');
-                },
-            ]);
-        });
+                // This coroutine should still have the parameter.
+                return $route->hasParameter('id');
+            },
+        ]);
 
         // One coroutine forgot it, the other kept it.
         $this->assertContains(true, $results);
@@ -160,31 +142,27 @@ class RouteCoroutineIsolationTest extends TestCase
         $route = new Route('GET', '/test', ['uses' => RouteCoroutineIsolationTestController::class . '@index']);
         $route->setContainer($container);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $controller = $route->getController();
+                usleep(1000);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $controller = $route->getController();
-                    usleep(1000);
+                // Same coroutine gets the same instance (cached in Context).
+                return [
+                    'id' => spl_object_id($controller),
+                    'same' => $controller === $route->getController(),
+                ];
+            },
+            function () use ($route) {
+                $controller = $route->getController();
+                usleep(1000);
 
-                    // Same coroutine gets the same instance (cached in Context).
-                    return [
-                        'id' => spl_object_id($controller),
-                        'same' => $controller === $route->getController(),
-                    ];
-                },
-                function () use ($route) {
-                    $controller = $route->getController();
-                    usleep(1000);
-
-                    return [
-                        'id' => spl_object_id($controller),
-                        'same' => $controller === $route->getController(),
-                    ];
-                },
-            ]);
-        });
+                return [
+                    'id' => spl_object_id($controller),
+                    'same' => $controller === $route->getController(),
+                ];
+            },
+        ]);
 
         // Each coroutine got its own controller instance.
         $this->assertNotSame($results[0]['id'], $results[1]['id']);
@@ -198,25 +176,50 @@ class RouteCoroutineIsolationTest extends TestCase
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
-        $results = [];
+        $results = parallel([
+            function () use ($route) {
+                $request = Request::create('/users/1');
+                $route->bind($request);
 
-        run(function () use ($route, &$results) {
-            $results = parallel([
-                function () use ($route) {
-                    $request = Request::create('/users/1');
-                    $route->bind($request);
-
-                    return $route->hasParameters();
-                },
-                function () use ($route) {
-                    // This coroutine never binds the route.
-                    return $route->hasParameters();
-                },
-            ]);
-        });
+                return $route->hasParameters();
+            },
+            function () use ($route) {
+                // This coroutine never binds the route.
+                return $route->hasParameters();
+            },
+        ]);
 
         $this->assertContains(true, $results);
         $this->assertContains(false, $results);
+    }
+
+    public function testRouteClassContainerBindingIsIsolatedBetweenCoroutines()
+    {
+        $router = $this->app->make(\Hypervel\Routing\Router::class);
+
+        $router->get('/users/{id}', fn () => 'users')->name('users');
+        $router->get('/posts/{id}', fn () => 'posts')->name('posts');
+
+        $results = parallel([
+            function () use ($router) {
+                $request = Request::create('/users/1');
+                $router->dispatch($request);
+                usleep(10000); // Yield to let the other coroutine dispatch.
+
+                return $this->app->make(Route::class)->uri();
+            },
+            function () use ($router) {
+                usleep(5000); // Start slightly after the first coroutine.
+                $request = Request::create('/posts/2');
+                $router->dispatch($request);
+
+                return $this->app->make(Route::class)->uri();
+            },
+        ]);
+
+        // Each coroutine should resolve its own matched route from the container.
+        $this->assertContains('users/{id}', $results);
+        $this->assertContains('posts/{id}', $results);
     }
 }
 
