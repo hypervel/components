@@ -8,7 +8,6 @@ use Hypervel\Container\Util;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Reflector;
 use ReflectionClass;
-use ReflectionFunctionAbstract;
 use ReflectionMethod;
 use ReflectionParameter;
 use stdClass;
@@ -44,14 +43,16 @@ trait ResolvesRouteDependencies
 
         return $this->resolveMethodDependencies(
             $parameters,
-            new ReflectionMethod($instance, $method)
+            (new ReflectionMethod($instance, $method))->getParameters()
         );
     }
 
     /**
      * Resolve the given method's type-hinted dependencies.
+     *
+     * @param array<int, ReflectionParameter> $reflectedParameters
      */
-    public function resolveMethodDependencies(array $parameters, ReflectionFunctionAbstract $reflector): array
+    public function resolveMethodDependencies(array $parameters, array $reflectedParameters): array
     {
         $instanceCount = 0;
 
@@ -59,7 +60,7 @@ trait ResolvesRouteDependencies
 
         $skippableValue = new stdClass();
 
-        foreach ($reflector->getParameters() as $key => $parameter) {
+        foreach ($reflectedParameters as $key => $parameter) {
             $instance = $this->transformDependency($parameter, $parameters, $skippableValue);
 
             if ($instance !== $skippableValue) {

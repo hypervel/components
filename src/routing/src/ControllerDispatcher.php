@@ -9,6 +9,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Support\Collection;
 use ReflectionMethod;
+use ReflectionParameter;
 
 class ControllerDispatcher implements ControllerDispatcherContract
 {
@@ -16,12 +17,12 @@ class ControllerDispatcher implements ControllerDispatcherContract
     use ResolvesRouteDependencies;
 
     /**
-     * Cached ReflectionMethod instances keyed by "class::method".
+     * Cached ReflectionParameter arrays keyed by "class::method".
      *
-     * Persists for the worker lifetime — controller methods never change at runtime.
-     * Bounded by the number of unique controller action methods.
+     * Persists for the worker lifetime — controller method signatures never
+     * change at runtime. Bounded by the number of unique controller actions.
      *
-     * @var array<string, ReflectionMethod>
+     * @var array<string, array<int, ReflectionParameter>>
      */
     protected static array $reflectionCache = [];
 
@@ -79,7 +80,7 @@ class ControllerDispatcher implements ControllerDispatcherContract
     /**
      * Resolve the object method's type-hinted dependencies.
      *
-     * Overrides ResolvesRouteDependencies to use a static ReflectionMethod cache.
+     * Overrides ResolvesRouteDependencies to use a static parameter cache.
      */
     protected function resolveClassMethodDependencies(array $parameters, object $instance, string $method): array
     {
@@ -88,20 +89,21 @@ class ControllerDispatcher implements ControllerDispatcherContract
         }
 
         $key = get_class($instance) . '::' . $method;
-        $reflector = static::$reflectionCache[$key] ??= new ReflectionMethod($instance, $method);
+        $reflectedParameters = static::$reflectionCache[$key]
+            ??= (new ReflectionMethod($instance, $method))->getParameters();
 
-        return $this->resolveMethodDependencies($parameters, $reflector);
+        return $this->resolveMethodDependencies($parameters, $reflectedParameters);
     }
 
     /**
-     * Pre-warm the ReflectionMethod cache for a controller action.
+     * Pre-warm the reflection parameter cache for a controller action.
      *
      * Called during server boot to populate reflection data before fork.
      */
     public static function warmReflection(string $class, string $method): void
     {
         $key = $class . '::' . $method;
-        static::$reflectionCache[$key] ??= new ReflectionMethod($class, $method);
+        static::$reflectionCache[$key] ??= (new ReflectionMethod($class, $method))->getParameters();
     }
 
     /**

@@ -10,19 +10,20 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use ReflectionFunction;
 use ReflectionMethod;
+use ReflectionParameter;
 
 class CallableDispatcher implements CallableDispatcherContract
 {
     use ResolvesRouteDependencies;
 
     /**
-     * Cached ReflectionFunction instances keyed by closure object ID.
+     * Cached ReflectionParameter arrays keyed by closure object ID.
      *
      * Only Closures are cached — they have stable spl_object_id() for the
      * worker lifetime. Other callable shapes (array, invokable object, string)
      * are not cached — they're extremely rare in route dispatch.
      *
-     * @var array<int, ReflectionFunction>
+     * @var array<int, array<int, ReflectionParameter>>
      */
     protected static array $reflectionCache = [];
 
@@ -71,17 +72,17 @@ class CallableDispatcher implements CallableDispatcherContract
     protected function resolveParameters(Route $route, callable $callable): array
     {
         if ($callable instanceof Closure) {
-            $reflector = static::$reflectionCache[spl_object_id($callable)]
-                ??= new ReflectionFunction($callable);
+            $reflectedParameters = static::$reflectionCache[spl_object_id($callable)]
+                ??= (new ReflectionFunction($callable))->getParameters();
         } elseif (is_array($callable)) {
-            $reflector = new ReflectionMethod($callable[0], $callable[1]);
+            $reflectedParameters = (new ReflectionMethod($callable[0], $callable[1]))->getParameters();
         } elseif (is_object($callable)) {
-            $reflector = new ReflectionMethod($callable, '__invoke');
+            $reflectedParameters = (new ReflectionMethod($callable, '__invoke'))->getParameters();
         } else {
-            $reflector = new ReflectionFunction($callable);
+            $reflectedParameters = (new ReflectionFunction($callable))->getParameters();
         }
 
-        return $this->resolveMethodDependencies($route->parametersWithoutNulls(), $reflector);
+        return $this->resolveMethodDependencies($route->parametersWithoutNulls(), $reflectedParameters);
     }
 
     /**
