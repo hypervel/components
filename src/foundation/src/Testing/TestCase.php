@@ -15,6 +15,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
@@ -27,6 +28,7 @@ use function Hypervel\Coroutine\run;
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
     use InteractsWithContainer;
+    use InteractsWithExceptionHandling;
     use MakesHttpRequests;
     use InteractsWithAuthentication;
     use InteractsWithConsole;
