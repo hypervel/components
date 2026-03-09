@@ -17,7 +17,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteSignatureParameters;
 use Hypervel\Routing\SortedMiddleware;
 use Hypervel\Tests\TestCase;
-use ReflectionMethod;
+use ReflectionParameter;
 use ReflectionProperty;
 
 /**
@@ -152,7 +152,8 @@ class RouteWarmupTest extends TestCase
 
         $key = WarmupControllerWithHasMiddleware::class . '::index';
         $this->assertArrayHasKey($key, $cache);
-        $this->assertInstanceOf(ReflectionMethod::class, $cache[$key]);
+        $this->assertIsArray($cache[$key]);
+        $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $cache[$key]);
     }
 
     public function testWarmUpPopulatesRouteSignatureParametersCache(): void
