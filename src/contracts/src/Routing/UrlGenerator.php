@@ -41,14 +41,14 @@ interface UrlGenerator
      *
      * @throws InvalidArgumentException
      */
-    public function route(BackedEnum|string $name, array|string $parameters = [], bool $absolute = true): string;
+    public function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string;
 
     /**
      * Create a signed route URL for a named route.
      *
      * @throws InvalidArgumentException
      */
-    public function signedRoute(BackedEnum|string $name, array|string $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): string;
+    public function signedRoute(BackedEnum|string $name, mixed $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): string;
 
     /**
      * Create a temporary signed route URL for a named route.
