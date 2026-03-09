@@ -1988,7 +1988,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      */
-    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
+    public function resolveRouteBinding(mixed $value, ?string $field = null): mixed
     {
         return $this->resolveRouteBindingQuery($this, $value, $field)->first();
     }
@@ -1996,7 +1996,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      */
-    public function resolveSoftDeletableRouteBinding(mixed $value, ?string $field = null): ?self
+    public function resolveSoftDeletableRouteBinding(mixed $value, ?string $field = null): mixed
     {
         return $this->resolveRouteBindingQuery($this, $value, $field)->withTrashed()->first();
     }
@@ -2004,7 +2004,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child model for a bound value.
      */
-    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): ?self
+    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): mixed
     {
         return $this->resolveChildRouteBindingQuery($childType, $value, $field)->first();
     }
@@ -2012,7 +2012,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child model for a bound value.
      */
-    public function resolveSoftDeletableChildRouteBinding(string $childType, mixed $value, ?string $field): ?self
+    public function resolveSoftDeletableChildRouteBinding(string $childType, mixed $value, ?string $field): mixed
     {
         return $this->resolveChildRouteBindingQuery($childType, $value, $field)->withTrashed()->first();
     }

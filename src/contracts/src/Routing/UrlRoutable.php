@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Routing;
 
-use Hypervel\Database\Eloquent\Model;
-
 interface UrlRoutable
 {
     /**
@@ -21,10 +19,10 @@ interface UrlRoutable
     /**
      * Retrieve the model for a bound value.
      */
-    public function resolveRouteBinding(mixed $value, ?string $field = null): ?Model;
+    public function resolveRouteBinding(mixed $value, ?string $field = null): mixed;
 
     /**
      * Retrieve the child model for a bound value.
      */
-    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): ?Model;
+    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): mixed;
 }
