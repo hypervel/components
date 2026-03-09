@@ -1303,6 +1303,8 @@ class Route
     public function setContainer(Container $container): static
     {
         $this->container = $container;
+        $this->controller = null;
+        $this->shouldCacheControllerOnRoute = null;
         $this->callableDispatcher = null;
         $this->controllerDispatcher = null;
 
@@ -1332,6 +1334,8 @@ class Route
 
         $this->router = null;
         $this->container = null;
+        $this->controller = null;
+        $this->shouldCacheControllerOnRoute = null;
         $this->callable = null;
         $this->missing = null;
         $this->callableDispatcher = null;
