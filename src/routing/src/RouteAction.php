@@ -63,7 +63,7 @@ class RouteAction
     /**
      * Find the callable in an action array.
      */
-    protected static function findCallable(array $action): callable
+    protected static function findCallable(array $action): ?callable
     {
         return Arr::first($action, function ($value, $key) {
             return Reflector::isCallable($value) && is_numeric($key);
