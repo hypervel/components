@@ -109,7 +109,7 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * The registered custom implicit binding callback.
      */
-    protected ?array $implicitBindingCallback = null;
+    protected Closure|array|null $implicitBindingCallback = null;
 
     /**
      * All of the verbs supported by the router.
@@ -624,7 +624,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
         $request->setRouteResolver(fn () => $route);
 
-        $this->events->dispatch(new RouteMatched($route, $request));
+        if ($this->events->hasListeners(RouteMatched::class)) {
+            $this->events->dispatch(new RouteMatched($route, $request));
+        }
 
         $shouldSkipMiddleware = $this->container->bound('middleware.disable')
             && $this->container->make('middleware.disable') === true;
@@ -645,15 +647,15 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function findRoute(Request $request): Route
     {
-        $this->events->dispatch(new Routing($request));
+        if ($this->events->hasListeners(Routing::class)) {
+            $this->events->dispatch(new Routing($request));
+        }
 
         $route = $this->routes->match($request);
 
         Context::set(self::CURRENT_ROUTE_CONTEXT_KEY, $route);
 
         $route->setContainer($this->container);
-
-        $this->container->instance(Route::class, $route);
 
         return $route;
     }
@@ -665,7 +667,9 @@ class Router implements BindingRegistrar, RegistrarContract
     {
         $request->setRouteResolver(fn () => $route);
 
-        $this->events->dispatch(new RouteMatched($route, $request));
+        if ($this->events->hasListeners(RouteMatched::class)) {
+            $this->events->dispatch(new RouteMatched($route, $request));
+        }
 
         return $this->prepareResponse(
             $request,
@@ -712,13 +716,13 @@ class Router implements BindingRegistrar, RegistrarContract
         $excluded = $excluded === []
             ? $excluded
             : (new Collection($excluded))
-                ->map(fn (string $name): array => (array) MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
+                ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
                 ->flatten()
                 ->values()
                 ->all();
 
         $middleware = (new Collection($middleware))
-            ->map(fn (string $name): array => (array) MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
+            ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
             ->flatten()
             ->when(
                 ! empty($excluded),
@@ -762,10 +766,14 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function prepareResponse(Request $request, mixed $response): SymfonyResponse
     {
-        $this->events->dispatch(new PreparingResponse($request, $response));
+        if ($this->events->hasListeners(PreparingResponse::class)) {
+            $this->events->dispatch(new PreparingResponse($request, $response));
+        }
 
         return tap(static::toResponse($request, $response), function (SymfonyResponse $response) use ($request): void {
-            $this->events->dispatch(new ResponsePrepared($request, $response));
+            if ($this->events->hasListeners(ResponsePrepared::class)) {
+                $this->events->dispatch(new ResponsePrepared($request, $response));
+            }
         });
     }
 
@@ -793,7 +801,7 @@ class Router implements BindingRegistrar, RegistrarContract
                     || is_array($response))) {
             $response = new JsonResponse($response);
         } elseif (! $response instanceof SymfonyResponse) {
-            $response = new Response($response, 200, ['Content-Type' => 'text/html']);
+            $response = new Response((string) $response, 200, ['Content-Type' => 'text/html']);
         }
 
         if ($response->getStatusCode() === Response::HTTP_NOT_MODIFIED) {
@@ -883,7 +891,7 @@ class Router implements BindingRegistrar, RegistrarContract
      *
      * @return $this
      */
-    public function aliasMiddleware(string $name, string $class): static
+    public function aliasMiddleware(string $name, string|Closure $class): static
     {
         $this->middleware[$name] = $class;
 
@@ -961,21 +969,23 @@ class Router implements BindingRegistrar, RegistrarContract
      *
      * @return $this
      */
-    public function removeMiddlewareFromGroup(string $group, string $middleware): static
+    public function removeMiddlewareFromGroup(string $group, string|array $middleware): static
     {
         if (! $this->hasMiddlewareGroup($group)) {
             return $this;
         }
 
-        $reversedMiddlewaresArray = array_flip($this->middlewareGroups[$group]);
+        foreach ((array) $middleware as $item) {
+            $reversedMiddlewaresArray = array_flip($this->middlewareGroups[$group]);
 
-        if (! array_key_exists($middleware, $reversedMiddlewaresArray)) {
-            return $this;
+            if (! array_key_exists($item, $reversedMiddlewaresArray)) {
+                continue;
+            }
+
+            $middlewareKey = $reversedMiddlewaresArray[$item];
+
+            unset($this->middlewareGroups[$group][$middlewareKey]);
         }
-
-        $middlewareKey = $reversedMiddlewaresArray[$middleware];
-
-        unset($this->middlewareGroups[$group][$middlewareKey]);
 
         return $this;
     }
@@ -1301,11 +1311,12 @@ class Router implements BindingRegistrar, RegistrarContract
             }
 
             // 2. Pre-warm middleware (populates Route::$computedMiddleware)
-            // ONLY safe for static HasMiddleware path. The legacy getMiddleware()
-            // path calls getController() which uses Context::getOrSet() — unsafe
-            // at boot with no request/coroutine context.
+            // Safe for HasMiddleware (static method) and attribute-based middleware
+            // (pure reflection). The only unsafe path is legacy getMiddleware() which
+            // calls getController() → Context::getOrSet() — no coroutine at boot.
             if ($class !== null
-                && is_a($class, \Hypervel\Routing\Controllers\HasMiddleware::class, true)
+                && (is_a($class, \Hypervel\Routing\Controllers\HasMiddleware::class, true)
+                    || ! method_exists($class, 'getMiddleware'))
             ) {
                 $route->gatherMiddleware();
             }
