@@ -343,7 +343,17 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function isScoped(string $abstract): bool
     {
-        return isset($this->scopedInstances[$abstract]);
+        if (isset($this->scopedInstances[$abstract])) {
+            return true;
+        }
+
+        if ($this->getScopedType($abstract) === 'scoped') {
+            $this->scopedInstances[$abstract] = true;
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
