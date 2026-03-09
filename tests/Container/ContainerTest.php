@@ -1022,6 +1022,13 @@ class ContainerTest extends TestCase
         $this->assertNotSame($original, $container->make(IsScoped::class));
     }
 
+    public function testIsScopedDetectsAttributeWithoutCallingIsShared()
+    {
+        $container = new Container();
+
+        $this->assertTrue($container->isScoped(ContainerScopedAttribute::class));
+    }
+
     public function testSingletonWithBind()
     {
         $container = new Container();
