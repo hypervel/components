@@ -6,6 +6,7 @@ namespace Hypervel\Tests;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Sleep;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
@@ -20,5 +21,6 @@ class TestCase extends BaseTestCase
         Sleep::fake(false);
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
+        UrlGenerator::flushRequestState();
     }
 }
