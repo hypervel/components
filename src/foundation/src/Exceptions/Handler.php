@@ -28,12 +28,16 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Reflector;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use ReflectionException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -443,6 +447,31 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             $e instanceof ValidationException => $this->convertValidationExceptionToResponse($request, $e),
             default => $this->renderExceptionResponse($request, $e),
         }, $e);
+    }
+
+    /**
+     * Render an exception to the console.
+     */
+    public function renderForConsole(OutputInterface $output, Throwable $e): void
+    {
+        if ($e instanceof CommandNotFoundException) {
+            $message = Str::of($e->getMessage())->explode('.')->first();
+
+            if (! empty($alternatives = $e->getAlternatives())) {
+                $message .= '. Did you mean one of these?';
+
+                (new \Hypervel\Console\View\Components\Error($output))->render($message);
+                (new \Hypervel\Console\View\Components\BulletList($output))->render($alternatives);
+
+                $output->writeln('');
+            } else {
+                (new \Hypervel\Console\View\Components\Error($output))->render($message);
+            }
+
+            return;
+        }
+
+        (new ConsoleApplication())->renderThrowable($e, $output);
     }
 
     /**

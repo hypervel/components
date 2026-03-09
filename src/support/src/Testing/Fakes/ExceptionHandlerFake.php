@@ -12,6 +12,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use PHPUnit\Framework\ExpectationFailedException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -175,6 +176,14 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     public function render(Request $request, Throwable $e): Response
     {
         return $this->handler->render($request, $e);
+    }
+
+    /**
+     * Render an exception to the console.
+     */
+    public function renderForConsole(OutputInterface $output, Throwable $e): void
+    {
+        $this->handler->renderForConsole($output, $e);
     }
 
     /**

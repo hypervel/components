@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Debug;
 
 use Hypervel\Http\Request;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -28,6 +29,11 @@ interface ExceptionHandler
      * @throws Throwable
      */
     public function render(Request $request, Throwable $e): Response;
+
+    /**
+     * Render an exception to the console.
+     */
+    public function renderForConsole(OutputInterface $output, Throwable $e): void;
 
     /**
      * Register a callback to be called after an HTTP error response is rendered.
