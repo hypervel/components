@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
+use Composer\Autoload\ClassLoader;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -45,6 +46,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      * The path to the bootstrap directory.
      */
     protected string $bootstrapPath = '';
+
+    /**
+     * The custom storage path defined by the developer.
+     */
+    protected ?string $storagePath = null;
 
     /**
      * The custom environment path defined by the developer.
@@ -133,6 +139,38 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Configure and create a new application builder instance.
+     */
+    public static function configure(?string $basePath = null): Configuration\ApplicationBuilder
+    {
+        $basePath = match (true) {
+            is_string($basePath) => $basePath,
+            default => static::inferBasePath(),
+        };
+
+        return (new Configuration\ApplicationBuilder(new static($basePath)))
+            ->withKernels()
+            ->withEvents()
+            ->withCommands()
+            ->withProviders();
+    }
+
+    /**
+     * Infer the application's base directory from the environment.
+     */
+    public static function inferBasePath(): string
+    {
+        return match (true) {
+            isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
+            isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            default => dirname(array_values(array_filter(
+                array_keys(ClassLoader::getRegisteredLoaders()),
+                fn ($path) => ! str_starts_with($path, 'phar://'),
+            ))[0]),
+        };
+    }
+
+    /**
      * Get the version number of the application.
      */
     public function version(): string
@@ -174,6 +212,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected function registerBaseServiceProviders(): void
     {
         $this->register(new \Hypervel\Events\EventServiceProvider($this));
+        $this->register(new \Hypervel\Routing\RoutingServiceProvider($this));
     }
 
     /**
@@ -291,6 +330,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Get the path to the service provider list in the bootstrap directory.
+     */
+    public function getBootstrapProvidersPath(): string
+    {
+        return $this->bootstrapPath('providers.php');
+    }
+
+    /**
      * Get the path to the application configuration files.
      */
     public function configPath(string $path = ''): string
@@ -350,7 +397,27 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function storagePath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('storage'), $path);
+        if (isset($_ENV['HYPERVEL_STORAGE_PATH'])) {
+            return $this->joinPaths($this->storagePath ?: $_ENV['HYPERVEL_STORAGE_PATH'], $path);
+        }
+
+        if (isset($_SERVER['HYPERVEL_STORAGE_PATH'])) {
+            return $this->joinPaths($this->storagePath ?: $_SERVER['HYPERVEL_STORAGE_PATH'], $path);
+        }
+
+        return $this->joinPaths($this->storagePath ?: $this->basePath('storage'), $path);
+    }
+
+    /**
+     * Set the storage directory.
+     */
+    public function useStoragePath(string $path): static
+    {
+        $this->storagePath = $path;
+
+        $this->instance('path.storage', $path);
+
+        return $this;
     }
 
     /**

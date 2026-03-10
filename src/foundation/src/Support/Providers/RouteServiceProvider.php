@@ -94,6 +94,15 @@ class RouteServiceProvider extends ServiceProvider
     }
 
     /**
+     * Flush the static state of the provider.
+     */
+    public static function flushState(): void
+    {
+        self::$alwaysLoadRoutesUsing = null;
+        self::$alwaysLoadCachedRoutesUsing = null;
+    }
+
+    /**
      * Set the root controller namespace for the application.
      */
     protected function setRootControllerNamespace(): void
