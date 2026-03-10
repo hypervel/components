@@ -65,7 +65,7 @@ class ThrottleRequests
      * @throws \Hypervel\Http\Exceptions\ThrottleRequestsException
      * @throws \Hypervel\Routing\Exceptions\MissingRateLimiterException
      */
-    public function handle(Request $request, Closure $next, int|string $maxAttempts = 60, float|int $decayMinutes = 1, string $prefix = ''): Response
+    public function handle(Request $request, Closure $next, int|string $maxAttempts = 60, float|int|string $decayMinutes = 1, string $prefix = ''): Response
     {
         if (is_string($maxAttempts)
             && func_num_args() === 3
