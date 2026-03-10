@@ -63,6 +63,8 @@ class ClusterFallbackIntegrationTest extends RedisCacheIntegrationTestCase
     {
         parent::setUp();
 
+        $this->skipIfAnyTagModeUnsupported();
+
         // Create cluster-mode store using the same factory as the real store
         $factory = $this->app->make(\Hypervel\Contracts\Redis\Factory::class);
         $realStore = Cache::store('redis')->getStore();
