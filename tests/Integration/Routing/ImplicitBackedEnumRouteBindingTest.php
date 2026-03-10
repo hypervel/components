@@ -13,14 +13,6 @@ use Hypervel\Tests\Integration\Routing\Fixtures\CategoryBackedEnum;
  */
 class ImplicitBackedEnumRouteBindingTest extends RoutingTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // @TODO Remove skip once Foundation\Configuration\Middleware is ported (provides 'web' middleware group)
-        $this->markTestSkipped('Requires Foundation\Configuration\Middleware for the "web" middleware group.');
-    }
-
     protected function defineEnvironment($app): void
     {
         $app['config']->set(['app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF']);

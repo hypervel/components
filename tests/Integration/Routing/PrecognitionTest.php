@@ -221,32 +221,31 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    // @TODO Enable once Foundation\Configuration\Middleware is ported — 'can' middleware alias doesn't exist yet
-    // public function testItAppliesHeadersWhenFlowControlExceptionIsThrown()
-    // {
-    //     // Check with Authorize middleware first...
-    //     Gate::define('alwaysDeny', fn () => false);
-    //     Route::get('test-route-before', fn () => fail())
-    //         ->middleware(['can:alwaysDeny', HandlePrecognitiveRequests::class]);
-    //
-    //     $response = $this->get('test-route-before', ['Precognition' => 'true']);
-    //
-    //     $response->assertForbidden();
-    //     $response->assertHeader('Precognition', 'true');
-    //     $response->assertHeader('Vary', 'Precognition');
-    //     $response->assertHeaderMissing('Precognition-Success');
-    //
-    //     // Check with Authorize middleware last...
-    //     Route::get('test-route-after', fn () => fail())
-    //         ->middleware([HandlePrecognitiveRequests::class, 'can:alwaysDeny']);
-    //
-    //     $response = $this->get('test-route-after', ['Precognition' => 'true']);
-    //
-    //     $response->assertForbidden();
-    //     $response->assertHeader('Precognition', 'true');
-    //     $response->assertHeader('Vary', 'Precognition');
-    //     $response->assertHeaderMissing('Precognition-Success');
-    // }
+    public function testItAppliesHeadersWhenFlowControlExceptionIsThrown()
+    {
+        // Check with Authorize middleware first...
+        Gate::define('alwaysDeny', fn () => false);
+        Route::get('test-route-before', fn () => fail())
+            ->middleware(['can:alwaysDeny', HandlePrecognitiveRequests::class]);
+
+        $response = $this->get('test-route-before', ['Precognition' => 'true']);
+
+        $response->assertForbidden();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+
+        // Check with Authorize middleware last...
+        Route::get('test-route-after', fn () => fail())
+            ->middleware([HandlePrecognitiveRequests::class, 'can:alwaysDeny']);
+
+        $response = $this->get('test-route-after', ['Precognition' => 'true']);
+
+        $response->assertForbidden();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
 
     public function testItCanReturnValuesFromPrecognitionClosure()
     {

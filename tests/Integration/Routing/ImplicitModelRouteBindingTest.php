@@ -28,14 +28,6 @@ class ImplicitModelRouteBindingTest extends RoutingTestCase
         'routes/testbench.php',
     ];
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // @TODO Remove skip once Foundation\Configuration\Middleware is ported (provides 'web' middleware group)
-        $this->markTestSkipped('Requires Foundation\Configuration\Middleware for the "web" middleware group.');
-    }
-
     protected function defineDatabaseMigrations(): void
     {
         Schema::create('users', function (Blueprint $table) {

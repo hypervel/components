@@ -16,14 +16,6 @@ use Hypervel\Tests\Integration\Routing\RoutingTestCase;
  */
 class RouteCanBackedEnumTest extends RoutingTestCase
 {
-    // @TODO Remove this skip once Foundation\Configuration\Middleware is ported
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->markTestSkipped('Requires Foundation\Configuration\Middleware which provides the \'can\' middleware alias.');
-    }
-
     public function testSimpleRouteWithStringBackedEnumCanAbilityGuestForbiddenThroughTheFramework()
     {
         $gate = Gate::define(AbilityBackedEnum::NotAccessRoute, fn (?GenericUser $user) => false);
