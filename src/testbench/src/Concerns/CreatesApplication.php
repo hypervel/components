@@ -26,6 +26,7 @@ use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Workbench\App\Exceptions\ExceptionHandler;
 
 use function Hypervel\Testbench\after_resolving;
+use function Hypervel\Testbench\default_skeleton_path;
 use function Hypervel\Testbench\refresh_router_lookups;
 
 /**
@@ -39,6 +40,14 @@ use function Hypervel\Testbench\refresh_router_lookups;
  */
 trait CreatesApplication
 {
+    /**
+     * Get the base path for the application.
+     */
+    public static function applicationBasePath(): string
+    {
+        return default_skeleton_path() ?: '';
+    }
+
     /**
      * Get package providers.
      *
@@ -139,6 +148,35 @@ trait CreatesApplication
         $app->singleton(KernelContract::class, \Hypervel\Testbench\Console\Kernel::class);
         $app->singleton(HttpKernelContract::class, \Hypervel\Testbench\Http\Kernel::class);
         $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
+
+        // Apply default middleware configuration when the HTTP kernel is resolved.
+        // This mirrors ApplicationBuilder::withMiddleware() — sets global middleware,
+        // groups, aliases, and priority so middleware aliases like 'web', 'auth',
+        // 'signed' etc. resolve correctly in tests.
+        $app->afterResolving(HttpKernelContract::class, function ($kernel) {
+            $middleware = (new \Hypervel\Foundation\Configuration\Middleware())
+                ->redirectGuestsTo(fn () => route('login'));
+
+            $kernel->setGlobalMiddleware($middleware->getGlobalMiddleware());
+            $kernel->setMiddlewareGroups($middleware->getMiddlewareGroups());
+            $kernel->setMiddlewareAliases($middleware->getMiddlewareAliases());
+
+            if ($priorities = $middleware->getMiddlewarePriority()) {
+                $kernel->setMiddlewarePriority($priorities);
+            }
+
+            if ($priorityAppends = $middleware->getMiddlewarePriorityAppends()) {
+                foreach ($priorityAppends as $newMiddleware => $after) {
+                    $kernel->addToMiddlewarePriorityAfter($after, $newMiddleware);
+                }
+            }
+
+            if ($priorityPrepends = $middleware->getMiddlewarePriorityPrepends()) {
+                foreach ($priorityPrepends as $newMiddleware => $before) {
+                    $kernel->addToMiddlewarePriorityBefore($before, $newMiddleware);
+                }
+            }
+        });
 
         return $app;
     }
