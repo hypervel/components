@@ -1150,6 +1150,42 @@ class RedisConnection extends BaseConnection
     }
 
     /**
+     * Execute the given callback without serialization or compression.
+     *
+     * Temporarily disables phpredis serialization and compression on the raw
+     * connection for operations that require raw integer values (e.g., rate
+     * limiter counters), then restores the original settings.
+     */
+    public function withoutSerializationOrCompression(callable $callback): mixed
+    {
+        $oldSerializer = null;
+
+        if ($this->serialized()) {
+            $oldSerializer = $this->connection->getOption(Redis::OPT_SERIALIZER);
+            $this->connection->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
+        }
+
+        $oldCompressor = null;
+
+        if ($this->compressed()) {
+            $oldCompressor = $this->connection->getOption(Redis::OPT_COMPRESSION);
+            $this->connection->setOption(Redis::OPT_COMPRESSION, Redis::COMPRESSION_NONE);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($oldSerializer !== null) {
+                $this->connection->setOption(Redis::OPT_SERIALIZER, $oldSerializer);
+            }
+
+            if ($oldCompressor !== null) {
+                $this->connection->setOption(Redis::OPT_COMPRESSION, $oldCompressor);
+            }
+        }
+    }
+
+    /**
      * Pack values for use in Lua script ARGV parameters.
      *
      * Unlike regular Redis commands where phpredis auto-serializes,
