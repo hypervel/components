@@ -360,15 +360,25 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Retrieve a parameter from the request.
      *
-     * Blocked because this method is deprecated in Laravel in favor of
-     * ->input(), which has the same behavior. Removing the method would silently
-     * expose Symfony's parent implementation, so we throw instead.
+     * Instead, you may use the "input" method.
      *
-     * @throws RuntimeException always — use ->input() instead
+     * @deprecated use ->input() instead
      */
     public function get(string $key, mixed $default = null): mixed
     {
-        throw new RuntimeException('Request::get() is not supported in Hypervel. Use ->input() instead.');
+        if ($this !== $result = $this->attributes->get($key, $this)) {
+            return $result;
+        }
+
+        if ($this->query->has($key)) {
+            return $this->query->all()[$key];
+        }
+
+        if ($this->request->has($key)) {
+            return $this->request->all()[$key];
+        }
+
+        return $default;
     }
 
     /**
