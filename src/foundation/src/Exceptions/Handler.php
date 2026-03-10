@@ -8,24 +8,33 @@ use Closure;
 use Exception;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Debug\ShouldntReport;
-use Hypervel\Contracts\Foundation\Application as Container;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\RecordNotFoundException;
+use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\ExceptionHandler\ExceptionHandler;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Http\Exceptions\OriginMismatchException;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Session\Store;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
@@ -38,8 +47,10 @@ use ReflectionException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
@@ -66,6 +77,25 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      * The callbacks that should be used to build exception context data.
      */
     protected array $contextCallbacks = [];
+
+    /**
+     * The callbacks that should be used to determine if an exception should not be reported.
+     *
+     * @var Closure[]
+     */
+    protected array $dontReportCallbacks = [];
+
+    /**
+     * The callbacks that should be used to throttle reportable exceptions.
+     *
+     * @var Closure[]
+     */
+    protected array $throttleCallbacks = [];
+
+    /**
+     * Indicates whether throttle keys should be hashed.
+     */
+    protected bool $hashThrottleKeys = true;
 
     /**
      * The callbacks that should be used during rendering.
@@ -105,14 +135,20 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * A list of the internal exception types that should not be reported.
      *
-     * @var array<int, class-string<Throwable>>
+     * @var array<int, class-string<RequestExceptionInterface>|class-string<Throwable>>
      */
     protected array $internalDontReport = [
         AuthenticationException::class,
         AuthorizationException::class,
+        BackedEnumCaseNotFoundException::class,
         HttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
+        MultipleRecordsFoundException::class,
+        OriginMismatchException::class,
+        RecordNotFoundException::class,
+        RecordsNotFoundException::class,
+        RequestExceptionInterface::class,
         TokenMismatchException::class,
         ValidationException::class,
     ];
@@ -137,7 +173,6 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         protected Container $container
     ) {
         $this->register();
-        $this->registerErrorViewPaths();
     }
 
     /**
@@ -204,6 +239,22 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     }
 
     /**
+     * Register a callback to determine if an exception should not be reported.
+     *
+     * @param (callable(Throwable): bool) $dontReportWhen
+     */
+    public function dontReportWhen(callable $dontReportWhen): static
+    {
+        if (! $dontReportWhen instanceof Closure) {
+            $dontReportWhen = Closure::fromCallable($dontReportWhen);
+        }
+
+        $this->dontReportCallbacks[] = $dontReportWhen;
+
+        return $this;
+    }
+
+    /**
      * Indicate that the given exception type should not be reported.
      */
     public function ignore(array|string $exceptions): static
@@ -241,6 +292,40 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             ->reject(fn ($ignored) => in_array($ignored, $exceptions))->values()->all();
 
         return $this;
+    }
+
+    /**
+     * Specify the callback that should be used to throttle reportable exceptions.
+     */
+    public function throttleUsing(callable $throttleUsing): static
+    {
+        if (! $throttleUsing instanceof Closure) {
+            $throttleUsing = Closure::fromCallable($throttleUsing);
+        }
+
+        $this->throttleCallbacks[] = $throttleUsing;
+
+        return $this;
+    }
+
+    /**
+     * Throttle the given exception.
+     */
+    protected function throttle(Throwable $e): Lottery|Limit|null
+    {
+        foreach ($this->throttleCallbacks as $throttleCallback) {
+            foreach ($this->firstClosureParameterTypes($throttleCallback) as $type) {
+                if (is_a($e, $type)) {
+                    $response = $throttleCallback($e);
+
+                    if (! is_null($response)) {
+                        return $response;
+                    }
+                }
+            }
+        }
+
+        return Limit::none();
     }
 
     /**
@@ -361,7 +446,28 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             return true;
         }
 
-        return false;
+        foreach ($this->dontReportCallbacks as $dontReportCallback) {
+            if ($dontReportCallback($e) === true) {
+                return true;
+            }
+        }
+
+        return rescue(fn () => with($this->throttle($e), function ($throttle) use ($e) {
+            if ($throttle instanceof Unlimited || $throttle === null) {
+                return false;
+            }
+
+            if ($throttle instanceof Lottery) {
+                return ! $throttle($e);
+            }
+
+            return ! $this->container->make(RateLimiter::class)->attempt(
+                with($throttle->key ?: 'hypervel:foundation:exceptions:' . $e::class, fn ($key) => $this->hashThrottleKeys ? hash('xxh128', $key) : $key),
+                $throttle->maxAttempts,
+                fn () => true,
+                $throttle->decaySeconds
+            );
+        }), rescue: false, report: false);
     }
 
     /**
@@ -740,6 +846,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      */
     protected function renderHttpException(HttpException $e): SymfonyResponse
     {
+        $this->registerErrorViewPaths();
+
         if ($view = $this->getHttpExceptionView($e)) {
             try {
                 return response()->view(
@@ -777,6 +885,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     protected function prepareException(Throwable $e): Throwable
     {
         return match (true) {
+            $e instanceof BackedEnumCaseNotFoundException => new NotFoundHttpException($e->getMessage(), $e),
             $e instanceof ModelNotFoundException => new NotFoundHttpException($e->getMessage(), $e),
             $e instanceof AuthorizationException && $e->hasStatus() => new HttpException(
                 $e->status(),
@@ -784,6 +893,11 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
                 $e
             ),
             $e instanceof AuthorizationException && ! $e->hasStatus() => new AccessDeniedHttpException($e->getMessage(), $e),
+            $e instanceof OriginMismatchException => new HttpException(403, $e->getMessage(), $e),
+            $e instanceof TokenMismatchException => new HttpException(419, $e->getMessage(), $e),
+            $e instanceof RequestExceptionInterface => new BadRequestHttpException('Bad request.', $e),
+            $e instanceof RecordNotFoundException => new NotFoundHttpException('Not found.', $e),
+            $e instanceof RecordsNotFoundException => new NotFoundHttpException('Not found.', $e),
             default => $e,
         };
     }
