@@ -1003,6 +1003,166 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->compressed());
     }
 
+    public function testWithoutSerializationOrCompressionDisablesSerializerAndRestores(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $redis = $connection->getConnection();
+
+        // serialized() check + saving old value
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_PHP);
+
+        // compressed() check
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+
+        // Disable serialization
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
+
+        // Restore serialization
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
+
+        $result = $connection->withoutSerializationOrCompression(fn () => 'callback-result');
+
+        $this->assertSame('callback-result', $result);
+    }
+
+    public function testWithoutSerializationOrCompressionDisablesCompressionAndRestores(): void
+    {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF is not defined.');
+        }
+
+        $connection = $this->mockRedisConnection();
+        $redis = $connection->getConnection();
+
+        // serialized() check
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_NONE);
+
+        // compressed() check + saving old value
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_LZF);
+
+        // Disable compression
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_COMPRESSION, Redis::COMPRESSION_NONE);
+
+        // Restore compression
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_COMPRESSION, Redis::COMPRESSION_LZF);
+
+        $result = $connection->withoutSerializationOrCompression(fn () => 'compressed-result');
+
+        $this->assertSame('compressed-result', $result);
+    }
+
+    public function testWithoutSerializationOrCompressionDisablesBothAndRestores(): void
+    {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF is not defined.');
+        }
+
+        $connection = $this->mockRedisConnection();
+        $redis = $connection->getConnection();
+
+        // serialized() check + saving old value
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_PHP);
+
+        // compressed() check + saving old value
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_LZF);
+
+        // Disable both
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_COMPRESSION, Redis::COMPRESSION_NONE);
+
+        // Restore both
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_COMPRESSION, Redis::COMPRESSION_LZF);
+
+        $result = $connection->withoutSerializationOrCompression(fn () => 'both-result');
+
+        $this->assertSame('both-result', $result);
+    }
+
+    public function testWithoutSerializationOrCompressionSkipsWhenNeitherConfigured(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $redis = $connection->getConnection();
+
+        // Neither serialized nor compressed
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_NONE);
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+
+        // setOption should never be called
+        $redis->shouldNotReceive('setOption');
+
+        $result = $connection->withoutSerializationOrCompression(fn () => 'no-change');
+
+        $this->assertSame('no-change', $result);
+    }
+
+    public function testWithoutSerializationOrCompressionRestoresOnException(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $redis = $connection->getConnection();
+
+        // serialized() check + saving old value
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_PHP);
+
+        // compressed() check
+        $redis->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+
+        // Disable serialization
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
+
+        // Restore serialization even on exception
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
+
+        try {
+            $connection->withoutSerializationOrCompression(function () {
+                throw new RuntimeException('Callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed', $exception->getMessage());
+        }
+    }
+
     public function testIsClusterReturnsFalseForStandardRedis(): void
     {
         $connection = $this->mockRedisConnection();
