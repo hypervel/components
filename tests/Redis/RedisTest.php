@@ -529,6 +529,113 @@ class RedisTest extends TestCase
         $this->assertSame('NOSCRIPT No matching script', $result);
     }
 
+    public function testWithoutSerializationOrCompressionPinsConnectionAndDelegates(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('withoutSerializationOrCompression')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
+            // Connection must be pinned in Context during callback
+            $this->assertSame($connection, Context::get('__redis.connection.default'));
+
+            return 'result';
+        });
+
+        $this->assertSame('result', $result);
+        // Connection should be unpinned after completion
+        $this->assertNull(Context::get('__redis.connection.default'));
+    }
+
+    public function testWithoutSerializationOrCompressionReusesExistingContextConnection(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('withoutSerializationOrCompression')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        // Should NOT release since connection was already in context
+        $connection->shouldReceive('release')->never();
+
+        // Pre-set connection in context (simulating an active multi/pipeline)
+        Context::set('__redis.connection.default', $connection);
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
+            // Connection should still be the same one that was pre-set
+            $this->assertSame($connection, Context::get('__redis.connection.default'));
+
+            return 'reused';
+        });
+
+        $this->assertSame('reused', $result);
+        // Connection should still be in context
+        $this->assertTrue(Context::has('__redis.connection.default'));
+    }
+
+    public function testWithoutSerializationOrCompressionCleansUpOnException(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('withoutSerializationOrCompression')
+            ->once()
+            ->andReturnUsing(function (callable $callback) {
+                return $callback();
+            });
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        try {
+            $redis->withoutSerializationOrCompression(function () use ($connection) {
+                // Connection must be pinned even when callback throws
+                $this->assertSame($connection, Context::get('__redis.connection.default'));
+
+                throw new RuntimeException('Callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed', $exception->getMessage());
+        }
+
+        // Connection should be unpinned and released
+        $this->assertNull(Context::get('__redis.connection.default'));
+    }
+
+    public function testWithoutSerializationOrCompressionDoesNotReleaseContextConnectionOnException(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('withoutSerializationOrCompression')
+            ->once()
+            ->andReturnUsing(function (callable $callback) {
+                return $callback();
+            });
+        // Should NOT release since connection was already in context
+        $connection->shouldReceive('release')->never();
+
+        Context::set('__redis.connection.default', $connection);
+
+        $redis = $this->createRedis($connection);
+
+        try {
+            $redis->withoutSerializationOrCompression(function () use ($connection) {
+                // Connection should still be pinned during callback
+                $this->assertSame($connection, Context::get('__redis.connection.default'));
+
+                throw new RuntimeException('Callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed', $exception->getMessage());
+        }
+
+        // Connection should still be in context
+        $this->assertTrue(Context::has('__redis.connection.default'));
+    }
+
     public function testRedisClusterConstructorSignature(): void
     {
         $reflection = new ReflectionClass(RedisCluster::class);
