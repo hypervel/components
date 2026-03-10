@@ -250,6 +250,37 @@ class Redis implements FactoryContract, ConnectionContract
     }
 
     /**
+     * Execute a callback with serialization and compression temporarily disabled.
+     *
+     * Pins a pool connection in coroutine context so all Redis operations inside
+     * the callback use the same connection, disables phpredis serialization and
+     * compression on that connection, runs the callback, then restores settings
+     * and releases the connection.
+     *
+     * This is needed for rate limiter counters which must be stored as raw
+     * integers — phpredis serialization (e.g., igbinary) would corrupt them.
+     */
+    public function withoutSerializationOrCompression(callable $callback): mixed
+    {
+        $contextKey = $this->getContextKey();
+        $hadContextConnection = Context::has($contextKey);
+        $connection = $this->getConnection($hadContextConnection);
+
+        if (! $hadContextConnection) {
+            Context::set($contextKey, $connection);
+        }
+
+        try {
+            return $connection->withoutSerializationOrCompression($callback);
+        } finally {
+            if (! $hadContextConnection) {
+                Context::set($contextKey, null);
+                $connection->release();
+            }
+        }
+    }
+
+    /**
      * Create a coroutine-native Redis subscriber.
      *
      * Returns a Subscriber with its own dedicated socket connection (not from
