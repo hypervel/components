@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\RateLimiter;
-use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
-use TypeError;
 
 enum BackedEnumNamedRateLimiter: string
 {
@@ -143,12 +145,45 @@ class RateLimiterEnumTest extends TestCase
         $this->assertSame('custom-limit', $rateLimiter->limiter('custom')());
     }
 
-    public function testForWithIntBackedEnumThrowsTypeError(): void
+    public function testShouldUseOriginKeyAsPrefixWhenMultipleLimiterWithSameKey()
+    {
+        $rateLimiter = new RateLimiter(new Repository(new ArrayStore()));
+
+        $rateLimiter->for('user_limiter', fn (string $userId) => [
+            Limit::perSecond(3)->by($userId),
+            Limit::perMinute(5)->by($userId),
+        ]);
+
+        $userId1 = '123';
+        $userId2 = '456';
+
+        $limiterForUser1 = $rateLimiter->limiter('user_limiter')($userId1);
+        $limiterForUser2 = $rateLimiter->limiter('user_limiter')($userId2);
+
+        for ($i = 0; $i < 3; ++$i) {
+            $this->assertFalse($rateLimiter->tooManyAttempts($limiterForUser1[0]->key, $limiterForUser1[0]->maxAttempts));
+            $this->assertFalse($rateLimiter->tooManyAttempts($limiterForUser2[0]->key, $limiterForUser2[0]->maxAttempts));
+
+            $rateLimiter->hit($limiterForUser1[0]->key, $limiterForUser1[0]->decaySeconds);
+            $rateLimiter->hit($limiterForUser2[0]->key, $limiterForUser2[0]->decaySeconds);
+        }
+
+        $this->assertNotSame($limiterForUser1[0]->key, $limiterForUser2[0]->key);
+        $this->assertNotSame($limiterForUser1[1]->key, $limiterForUser2[1]->key);
+    }
+
+    public function testForWithIntBackedEnumStoresUnderStringCastValue(): void
     {
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $rateLimiter->for(IntBackedEnumNamedRateLimiter::First, fn () => 'int-limit');
 
-        // Int-backed enum causes TypeError because resolveLimiterName() returns string
-        $this->expectException(TypeError::class);
-        $rateLimiter->for(IntBackedEnumNamedRateLimiter::First, fn () => 'limit');
+        // Can retrieve with enum
+        $this->assertNotNull($rateLimiter->limiter(IntBackedEnumNamedRateLimiter::First));
+
+        // Can also retrieve with string-cast value
+        $this->assertNotNull($rateLimiter->limiter('1'));
+
+        // Closure returns expected value
+        $this->assertSame('int-limit', $rateLimiter->limiter(IntBackedEnumNamedRateLimiter::First)());
     }
 }
