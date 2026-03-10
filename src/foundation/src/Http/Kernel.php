@@ -98,8 +98,7 @@ class Kernel implements KernelContract
         \Hypervel\View\Middleware\ShareErrorsFromSession::class,
         \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
-        // @TODO Uncomment once the Redis package is updated to Laravel parity
-        // \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+        \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
         \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
         \Hypervel\Routing\Middleware\SubstituteBindings::class,
         \Hypervel\Auth\Middleware\Authorize::class,

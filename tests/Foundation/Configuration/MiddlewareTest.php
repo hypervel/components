@@ -402,6 +402,7 @@ class MiddlewareTest extends TestCase
             \Hypervel\View\Middleware\ShareErrorsFromSession::class,
             \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
             \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
             \Hypervel\Routing\Middleware\SubstituteBindings::class,
             \Hypervel\Auth\Middleware\Authorize::class,
