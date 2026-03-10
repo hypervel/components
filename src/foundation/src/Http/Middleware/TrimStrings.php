@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Symfony\Component\HttpFoundation\Response;
 
 class TrimStrings extends TransformsRequest
 {
@@ -40,7 +39,7 @@ class TrimStrings extends TransformsRequest
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next): mixed
     {
         foreach (static::$skipCallbacks as $callback) {
             if ($callback($request)) {

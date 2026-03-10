@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 class ConvertEmptyStringsToNull extends TransformsRequest
 {
@@ -20,7 +19,7 @@ class ConvertEmptyStringsToNull extends TransformsRequest
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next): mixed
     {
         foreach (static::$skipCallbacks as $callback) {
             if ($callback($request)) {
