@@ -13,6 +13,6 @@ class CookieServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton('cookie', fn ($app) => $app->make(CookieManager::class));
+        $this->app->singleton('cookie', fn ($app) => new CookieManager());
     }
 }
