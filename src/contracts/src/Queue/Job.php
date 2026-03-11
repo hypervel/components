@@ -19,6 +19,13 @@ interface Job
     public function getJobId(): int|string|null;
 
     /**
+     * Get the decoded body of the job.
+     *
+     * @return array<string, mixed>
+     */
+    public function payload(): array;
+
+    /**
      * Fire the job.
      */
     public function fire(): void;
