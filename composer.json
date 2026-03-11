@@ -79,7 +79,6 @@
             "Hypervel\\Sentry\\": "src/sentry/src/",
             "Hypervel\\View\\": "src/view/src/",
             "Hypervel\\Engine\\": "src/engine/src/",
-            "Hypervel\\ExceptionHandler\\": "src/exception-handler/src/",
             "Hypervel\\HttpServer\\": "src/http-server/src/",
             "Hypervel\\Watcher\\": "src/watcher/src/",
             "Hypervel\\WebSocketServer\\": "src/websocket-server/src/"
@@ -196,7 +195,6 @@
         "hypervel/devtool": "self.version",
         "hypervel/encryption": "self.version",
         "hypervel/engine": "self.version",
-        "hypervel/exception-handler": "self.version",
         "hypervel/events": "self.version",
         "hypervel/filesystem": "self.version",
         "hypervel/foundation": "self.version",
@@ -300,7 +298,6 @@
                 "Hypervel\\Encryption\\EncryptionServiceProvider",
                 "Hypervel\\Engine\\EngineServiceProvider",
                 "Hypervel\\Events\\EventServiceProvider",
-                "Hypervel\\ExceptionHandler\\ExceptionHandlerServiceProvider",
                 "Hypervel\\Filesystem\\FilesystemServiceProvider",
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
