@@ -1872,7 +1872,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->instances[$abstract], $this->aliases[$abstract], $this->autoSingletons[$abstract]);
 
-        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $abstract);
+        Context::forget(self::SCOPED_CONTEXT_PREFIX . $abstract);
     }
 
     /**
@@ -1882,7 +1882,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
 
-        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $abstract);
+        Context::forget(self::SCOPED_CONTEXT_PREFIX . $abstract);
     }
 
     /**
@@ -1901,7 +1901,7 @@ class Container implements ArrayAccess, ContainerContract
     public function forgetScopedInstances(): void
     {
         foreach ($this->scopedInstances as $scoped => $_) {
-            Context::destroy(self::SCOPED_CONTEXT_PREFIX . $scoped);
+            Context::forget(self::SCOPED_CONTEXT_PREFIX . $scoped);
         }
     }
 
@@ -2008,7 +2008,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         unset($this->bindings[$key], $this->instances[$key], $this->resolved[$key]);
 
-        Context::destroy(self::SCOPED_CONTEXT_PREFIX . $key);
+        Context::forget(self::SCOPED_CONTEXT_PREFIX . $key);
     }
 
     /**

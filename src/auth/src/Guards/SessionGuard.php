@@ -127,8 +127,8 @@ class SessionGuard implements StatefulGuard
 
     public function logout(): void
     {
-        Context::destroy($this->getUnstartedContextKey());
-        Context::destroy($this->getContextKey());
+        Context::forget($this->getUnstartedContextKey());
+        Context::forget($this->getContextKey());
         $this->session->remove($this->sessionKey());
     }
 

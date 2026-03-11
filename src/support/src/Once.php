@@ -81,6 +81,6 @@ class Once
      */
     public static function flush(): void
     {
-        Context::destroy(self::INSTANCE_CONTEXT_KEY);
+        Context::forget(self::INSTANCE_CONTEXT_KEY);
     }
 }

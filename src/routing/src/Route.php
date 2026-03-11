@@ -375,7 +375,7 @@ class Route
 
         if ($this->isControllerAction()) {
             $class = ltrim((string) $this->getControllerClass(), '\\');
-            Context::destroy('__routing.controller.' . $class);
+            Context::forget('__routing.controller.' . $class);
             $this->container?->forgetInstance($class);
         }
     }

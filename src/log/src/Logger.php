@@ -164,7 +164,7 @@ class Logger implements LoggerInterface
      */
     public function withoutContext(): self
     {
-        Context::destroy('__logger.context');
+        Context::forget('__logger.context');
 
         return $this;
     }

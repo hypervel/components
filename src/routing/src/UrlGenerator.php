@@ -582,7 +582,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceScheme(?string $scheme): void
     {
-        Context::destroy('url.cached_scheme');
+        Context::forget('url.cached_scheme');
 
         $this->forceScheme = $scheme ? $scheme . '://' : null;
     }
@@ -608,10 +608,10 @@ class UrlGenerator implements UrlGeneratorContract
         if ($root !== null) {
             Context::set('url.forced_root', rtrim($root, '/'));
         } else {
-            Context::destroy('url.forced_root');
+            Context::forget('url.forced_root');
         }
 
-        Context::destroy('url.cached_root');
+        Context::forget('url.cached_root');
     }
 
     /**
@@ -631,9 +631,9 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public static function flushRequestState(): void
     {
-        Context::destroy('url.forced_root');
-        Context::destroy('url.cached_root');
-        Context::destroy('url.cached_scheme');
+        Context::forget('url.forced_root');
+        Context::forget('url.cached_root');
+        Context::forget('url.cached_scheme');
     }
 
     /**
@@ -689,8 +689,8 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $this->request = $request;
 
-        Context::destroy('url.cached_root');
-        Context::destroy('url.cached_scheme');
+        Context::forget('url.cached_root');
+        Context::forget('url.cached_scheme');
 
         tap($this->routeGenerator?->defaultParameters ?: [], function ($defaults) {
             $this->routeGenerator = null;

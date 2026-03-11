@@ -48,7 +48,7 @@ class Context
     /**
      * Remove a value from the WebSocket context.
      */
-    public static function destroy(string $id): void
+    public static function forget(string $id): void
     {
         $fd = CoContext::get(Context::FD, 0);
         unset(self::$container[strval($fd)][$id]);

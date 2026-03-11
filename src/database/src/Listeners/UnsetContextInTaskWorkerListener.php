@@ -39,7 +39,7 @@ class UnsetContextInTaskWorkerListener
 
         foreach (array_keys($connections) as $name) {
             $contextKey = (fn () => $this->getContextKey($name))->call($connectionResolver); // @phpstan-ignore method.notFound (Closure::call() binds to concrete ConnectionResolver which has protected getContextKey())
-            Context::destroy($contextKey);
+            Context::forget($contextKey);
         }
     }
 }

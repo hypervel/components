@@ -245,7 +245,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Clear context so next connection() gets a fresh pooled connection
         $contextKey = $this->getConnectionContextKey($name);
-        Context::destroy($contextKey);
+        Context::forget($contextKey);
 
         // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
         unset($this->connections[$name]);
@@ -340,7 +340,7 @@ class DatabaseManager implements ConnectionResolverInterface
             return $callback();
         } finally {
             if ($previous === null) {
-                Context::destroy(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+                Context::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
             } else {
                 Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
             }
