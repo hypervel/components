@@ -35,9 +35,9 @@ class RequestContext
     /**
      * Remove the request from context.
      */
-    public static function destroy(?int $coroutineId = null): void
+    public static function forget(?int $coroutineId = null): void
     {
-        Context::destroy(Request::class, $coroutineId);
+        Context::forget(Request::class, $coroutineId);
     }
 
     /**
