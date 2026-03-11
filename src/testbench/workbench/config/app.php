@@ -12,7 +12,7 @@ declare(strict_types=1);
 return [
     'env' => env('APP_ENV', 'dev'),
 
-    'debug' => (bool) env('APP_DEBUG', true),
+    'debug' => (bool) env('APP_DEBUG', false),
 
     'key' => env('APP_KEY', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF'),
 ];
