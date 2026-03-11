@@ -52,6 +52,7 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
+use WeakReference;
 
 use const UPLOAD_ERR_NO_FILE;
 
@@ -664,6 +665,74 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->handler->report($two = new RuntimeException('foo'));
 
         $this->assertSame($reported, [$one, $two]);
+    }
+
+    public function testItDedupesByObjectIdentityNotEquality()
+    {
+        $reported = [];
+        $this->handler->reportable(function (Throwable $e) use (&$reported) {
+            $reported[] = $e;
+
+            return false;
+        });
+
+        $this->handler->dontReportDuplicates();
+
+        // Create two exceptions at the same file and line so they are loosely equal.
+        $one = new RuntimeException('foo');
+        $two = new RuntimeException('foo');
+        $this->assertEquals($one, $two, 'Precondition: exceptions should be loosely equal');
+        $this->assertNotSame($one, $two, 'Precondition: exceptions should be different objects');
+
+        $this->handler->report($one);
+        $this->handler->report($two);
+
+        $this->assertSame([$one, $two], $reported);
+    }
+
+    public function testDedupeMapIsPerRequestContext()
+    {
+        $reported = [];
+        $this->handler->reportable(function (Throwable $e) use (&$reported) {
+            $reported[] = $e;
+
+            return false;
+        });
+
+        $this->handler->dontReportDuplicates();
+
+        $exception = new RuntimeException('foo');
+        $this->handler->report($exception);
+        $this->handler->report($exception);
+
+        $this->assertCount(1, $reported);
+
+        // Simulate a new request by destroying the Context key.
+        Context::destroy('__errors.reportedExceptionMap');
+
+        $this->handler->report($exception);
+
+        $this->assertCount(2, $reported);
+        $this->assertSame([$exception, $exception], $reported);
+    }
+
+    public function testDedupeMapDoesNotPreventGarbageCollection()
+    {
+        $this->handler->reportable(function (Throwable $e) {
+            return false;
+        });
+        $this->handler->dontReportDuplicates();
+
+        $ref = null;
+        (function () use (&$ref) {
+            $exception = new RuntimeException('foo');
+            $ref = WeakReference::create($exception);
+            $this->handler->report($exception);
+        })();
+
+        // The exception is no longer referenced by any variable except the WeakMap.
+        // WeakMap entries should not prevent garbage collection.
+        $this->assertNull($ref->get());
     }
 
     public function testItCanSkipExceptionReportingUsingCallback()

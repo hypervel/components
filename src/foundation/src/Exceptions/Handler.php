@@ -57,6 +57,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
+use WeakMap;
 
 class Handler implements ExceptionHandlerContract
 {
@@ -362,14 +363,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportedException(Throwable $e): void
     {
-        /** @var array<Throwable> $reportedExceptions */
-        $reportedExceptions = Context::get('__errors.reportedExceptions', []);
-        if (in_array($e, $reportedExceptions)) {
-            return;
-        }
-        $reportedExceptions[] = $e;
-
-        Context::set('__errors.reportedExceptions', $reportedExceptions);
+        $this->reportedExceptionMap()[$e] = true;
     }
 
     /**
@@ -377,10 +371,22 @@ class Handler implements ExceptionHandlerContract
      */
     protected function hasReportedException(Throwable $e): bool
     {
-        /** @var array<Throwable> $reportedExceptions */
-        $reportedExceptions = Context::get('__errors.reportedExceptions', []);
+        return $this->reportedExceptionMap()->offsetExists($e);
+    }
 
-        return in_array($e, $reportedExceptions);
+    /**
+     * Get the reported exception map for the current request.
+     */
+    protected function reportedExceptionMap(): WeakMap
+    {
+        $map = Context::get('__errors.reportedExceptionMap');
+
+        if (! $map instanceof WeakMap) {
+            $map = new WeakMap();
+            Context::set('__errors.reportedExceptionMap', $map);
+        }
+
+        return $map;
     }
 
     /**
