@@ -36,9 +36,9 @@ class ResponseContext
     /**
      * Remove the response from context.
      */
-    public static function destroy(?int $coroutineId = null): void
+    public static function forget(?int $coroutineId = null): void
     {
-        Context::destroy(SymfonyResponse::class, $coroutineId);
+        Context::forget(SymfonyResponse::class, $coroutineId);
     }
 
     /**
