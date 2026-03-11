@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -19,6 +20,7 @@ use Hypervel\Queue\Console\RestartCommand;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Console\WorkCommand;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
@@ -202,5 +204,33 @@ class QueueServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/queue.php' => config_path('queue.php'),
         ], 'queue-config');
+
+        $this->configurePropagatedContext();
+    }
+
+    /**
+     * Wire propagated context into job payloads and restore it when jobs run.
+     */
+    protected function configurePropagatedContext(): void
+    {
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
+            if (! Context::hasPropagated()) {
+                return [];
+            }
+
+            $context = Context::propagated()->dehydrate();
+
+            return $context === null ? [] : ['hypervel:context' => $context];
+        });
+
+        $this->app['events']->listen(JobProcessing::class, function (JobProcessing $event): void {
+            $context = $event->job->payload()['hypervel:context'] ?? null;
+
+            if ($context === null) {
+                return;
+            }
+
+            Context::propagated()->hydrate($context);
+        });
     }
 }
