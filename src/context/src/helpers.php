@@ -8,6 +8,9 @@ use Hypervel\Context\Context;
 if (! function_exists('context')) {
     /**
      * Get / set the specified context value in the current coroutine.
+     *
+     * For propagated context (metadata that flows to logs and jobs),
+     * use Context::propagated() directly.
      */
     function context(array|string|null $key = null, mixed $default = null, ?int $coroutineId = null): mixed
     {
