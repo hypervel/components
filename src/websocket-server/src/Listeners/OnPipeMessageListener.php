@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer\Listeners;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Framework\Events\OnPipeMessage;
 use Hypervel\WebSocketServer\Sender;
 use Hypervel\WebSocketServer\SenderPipeMessage;
@@ -14,8 +12,10 @@ use Throwable;
 
 class OnPipeMessageListener
 {
-    public function __construct(private Container $container, private StdoutLoggerInterface $logger, private Sender $sender)
-    {
+    public function __construct(
+        private StdoutLoggerInterface $logger,
+        private Sender $sender,
+    ) {
     }
 
     /**
@@ -31,8 +31,7 @@ class OnPipeMessageListener
                 [$fd, $method] = $this->sender->getFdAndMethodFromProxyMethod($message->name, $message->arguments);
                 $this->sender->proxy($fd, $method, $message->arguments);
             } catch (Throwable $exception) {
-                $formatter = $this->container->make(FormatterInterface::class);
-                $this->logger->warning($formatter->format($exception));
+                $this->logger->warning((string) $exception);
             }
         }
     }
