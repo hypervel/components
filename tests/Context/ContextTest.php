@@ -26,12 +26,12 @@ class ContextTest extends TestCase
     {
         parent::setUp();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     protected function tearDown(): void
     {
-        Context::destroyAll();
+        Context::flush();
         parent::tearDown();
     }
 
@@ -69,9 +69,9 @@ class ContextTest extends TestCase
     }
 
     /**
-     * @covers ::destroyAll
+     * @covers ::flush
      */
-    public function testDestroyAll()
+    public function testFlush()
     {
         Context::set('key1', 'value1');
         Context::set('key2', 'value2');
@@ -79,7 +79,7 @@ class ContextTest extends TestCase
         $this->assertTrue(Context::has('key1'));
         $this->assertTrue(Context::has('key2'));
 
-        Context::destroyAll();
+        Context::flush();
 
         $this->assertFalse(Context::has('key1'));
         $this->assertFalse(Context::has('key2'));
@@ -110,12 +110,12 @@ class ContextTest extends TestCase
         $this->assertSame(1, Context::getOrSet('test.store.id', 1));
     }
 
-    public function testContextDestroy()
+    public function testContextForget()
     {
         Context::set($id = uniqid(), $value = uniqid());
 
         $this->assertSame($value, Context::get($id));
-        Context::destroy($id);
+        Context::forget($id);
         $this->assertNull(Context::get($id));
     }
 
@@ -141,5 +141,23 @@ class ContextTest extends TestCase
         $this->assertNotSame($response, ResponseContext::get());
         $this->assertSame($res, ResponseContext::get());
         $this->assertSame($res, Context::get(SymfonyResponse::class));
+    }
+
+    // =========================================================================
+    // context() helper
+    // =========================================================================
+
+    public function testContextHelperGetReturnsRawContextValue()
+    {
+        Context::set('key', 'val');
+
+        $this->assertSame('val', context('key'));
+    }
+
+    public function testContextHelperSetWritesToRawContext()
+    {
+        context(['key' => 'val']);
+
+        $this->assertSame('val', Context::get('key'));
     }
 }
