@@ -26,7 +26,7 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Create a new configuration repository.
      */
-    public function __construct(protected array $items)
+    public function __construct(protected array $items = [])
     {
     }
 
