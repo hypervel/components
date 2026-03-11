@@ -26,11 +26,16 @@
     "require": {
         "php": "^8.4",
         "symfony/http-foundation": "^7.0 || ^8.0",
+        "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
-        "hypervel/http": "^0.4"
+        "hypervel/events": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "autoload": {
         "psr-4": {
