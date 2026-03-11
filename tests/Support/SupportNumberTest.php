@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
@@ -20,14 +19,12 @@ class SupportNumberTest extends TestCase
 
     protected function setUpInCoroutine(): void
     {
-        Context::destroy('__support.number.locale');
-        Context::destroy('__support.number.currency');
+        Number::flushState();
     }
 
     protected function tearDownInCoroutine(): void
     {
-        Context::destroy('__support.number.locale');
-        Context::destroy('__support.number.currency');
+        Number::flushState();
     }
 
     public function testDefaultLocale()

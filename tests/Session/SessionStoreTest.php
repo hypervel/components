@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Context\Context;
 use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -21,9 +20,7 @@ class SessionStoreTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Context::destroy('__session.store.started');
-        Context::destroy('__session.store.id');
-        Context::destroy('__session.store.attributes');
+        Store::flushState();
 
         parent::tearDown();
     }
