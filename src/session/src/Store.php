@@ -521,6 +521,16 @@ class Store implements Session
     }
 
     /**
+     * Flush per-request session state from context.
+     */
+    public static function flushState(): void
+    {
+        Context::forget('__session.store.started');
+        Context::forget('__session.store.id');
+        Context::forget('__session.store.attributes');
+    }
+
+    /**
      * Get the name of the session.
      */
     public function getName(): string

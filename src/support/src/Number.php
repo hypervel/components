@@ -323,6 +323,15 @@ class Number
     }
 
     /**
+     * Flush per-request locale and currency state from context.
+     */
+    public static function flushState(): void
+    {
+        Context::forget('__support.number.locale');
+        Context::forget('__support.number.currency');
+    }
+
+    /**
      * Ensure the "intl" PHP extension is installed.
      */
     protected static function ensureIntlExtensionIsInstalled(): void
