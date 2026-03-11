@@ -88,6 +88,7 @@ class Kernel implements KernelContract
     protected array $bootstrappers = [
         \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
         \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
+        \Hypervel\Foundation\Bootstrap\HandleExceptions::class,
         \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
         \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
         \Hypervel\Di\Bootstrap\GenerateProxies::class,
