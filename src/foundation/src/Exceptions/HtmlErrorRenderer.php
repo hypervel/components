@@ -4,14 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 class HtmlErrorRenderer
 {
     public function render(Throwable $throwable, bool $debug = false): string
     {
-        $title = $debug ? get_class($throwable) : 'Whoops! Something went wrong.';
-        $message = $debug ? $throwable->getMessage() : 'An error occurred. Please try again later.';
+        if ($debug) {
+            $title = get_class($throwable);
+            $message = $throwable->getMessage();
+        } elseif ($throwable instanceof HttpExceptionInterface
+            && isset(Response::$statusTexts[$throwable->getStatusCode()])
+        ) {
+            $title = Response::$statusTexts[$throwable->getStatusCode()];
+            $message = $throwable->getMessage() ?: $title;
+        } else {
+            $title = 'Whoops, looks like something went wrong.';
+            $message = $title;
+        }
 
         $html = $this->getHtmlTemplate($title, $message);
 
