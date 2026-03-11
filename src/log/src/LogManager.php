@@ -81,8 +81,16 @@ class LogManager implements LoggerInterface
      */
     public function stack(array $channels, ?string $channel = null): LoggerInterface
     {
+        $monolog = $this->createStackDriver(compact('channels', 'channel'));
+
+        // On-demand stacks bypass get(), so push the propagated context
+        // processor here to ensure it's present on every final logger.
+        if ($monolog instanceof Monolog) {
+            $monolog->pushProcessor($this->app->make(ContextLogProcessor::class));
+        }
+
         return new Logger(
-            $this->createStackDriver(compact('channels', 'channel')),
+            $monolog,
             $this->app->make(Dispatcher::class)
         );
     }
@@ -110,7 +118,19 @@ class LogManager implements LoggerInterface
     {
         try {
             return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->make(Dispatcher::class)));
+                $loggerWithContext = $this->tap($name, new Logger($logger, $this->app->make(Dispatcher::class)));
+
+                $underlyingLogger = $loggerWithContext->getLogger();
+
+                // Push the propagated context processor so log records
+                // automatically include data from Context::propagated().
+                if ($underlyingLogger instanceof Monolog) {
+                    $underlyingLogger->pushProcessor(
+                        $this->app->make(ContextLogProcessor::class)
+                    );
+                }
+
+                return $this->channels[$name] = $loggerWithContext;
             });
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
@@ -224,7 +244,10 @@ class LogManager implements LoggerInterface
             return $channel instanceof LoggerInterface
                 ? $channel->getProcessors() // @phpstan-ignore-line
                 : $this->channel($channel)->getProcessors(); // @phpstan-ignore-line
-        })->all();
+            // Filter out the propagated context processor from constituent channels.
+            // Each constituent already had one pushed by get(); without filtering,
+            // the stack would accumulate duplicates from every constituent.
+        })->reject(fn ($processor) => $processor instanceof ContextLogProcessor)->all();
 
         if ($config['ignore_exceptions'] ?? false) {
             $handlers = [new WhatFailureGroupHandler($handlers)];
@@ -459,7 +482,7 @@ class LogManager implements LoggerInterface
      */
     public function flushSharedContext(): self
     {
-        Context::destroy('__logger.shared_context');
+        Context::forget('__logger.shared_context');
 
         return $this;
     }
