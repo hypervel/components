@@ -112,7 +112,7 @@ class ExceptionHandlerTest extends TestCase
         // HTTP request...
         $this->get('test-route')
             ->assertStatus(418)
-            ->assertSeeText("I'm a teapot", false);
+            ->assertSeeText("I'm a teapot");
 
         // JSON request...
         $this->getJson('test-route')
@@ -129,7 +129,7 @@ class ExceptionHandlerTest extends TestCase
         // HTTP request...
         $this->get('test-route')
             ->assertStatus(418)
-            ->assertSeeText("I'm a teapot", false);
+            ->assertSeeText("I'm a teapot");
 
         // JSON request...
         $this->getJson('test-route')

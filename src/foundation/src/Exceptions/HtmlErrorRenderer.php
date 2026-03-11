@@ -36,6 +36,9 @@ class HtmlErrorRenderer
 
     protected function getHtmlTemplate(string $title, string $message): string
     {
+        $title = $this->escape($title);
+        $message = $this->escape($message);
+
         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -123,9 +126,9 @@ HTML;
 
     protected function getDebugInfo(Throwable $throwable): string
     {
-        $trace = $throwable->getTraceAsString();
-        $file = $throwable->getFile();
+        $file = $this->escape($throwable->getFile());
         $line = $throwable->getLine();
+        $trace = $this->escape($throwable->getTraceAsString());
 
         return <<<HTML
 <div class="debug-info">
@@ -136,5 +139,13 @@ HTML;
     <pre>{$trace}</pre>
 </div>
 HTML;
+    }
+
+    /**
+     * Escape the given string for safe HTML output.
+     */
+    protected function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
