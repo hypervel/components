@@ -385,7 +385,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function viewPath(string $path = ''): string
     {
         $viewPath = rtrim(
-            $this['config']->get('view.config.view_path') ?: $this->basePath('resources/views'),
+            $this['config']->get('view.paths')[0] ?? $this->basePath('resources/views'),
             DIRECTORY_SEPARATOR
         );
 
