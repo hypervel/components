@@ -11,6 +11,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -171,6 +172,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         }
 
         ConsoleApplication::forgetBootstrappers();
+        HandleExceptions::flushState($this);
 
         // Reset Model strict mode flags to prevent test pollution.
         // These are process-global in Swoole, so tests that enable strict
