@@ -14,7 +14,6 @@ use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
-use Hypervel\ExceptionHandler\Listeners\ErrorExceptionHandler;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
@@ -26,7 +25,6 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Framework\Events\BeforeWorkerStart;
-use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
@@ -59,8 +57,6 @@ class FoundationServiceProvider extends ServiceProvider
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
         $this->setDatabaseConnection();
-
-        $this->app->make(ErrorExceptionHandler::class)->handle(new BootApplication());
 
         $events = $this->app->make('events');
 
@@ -214,7 +210,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $basePath = $this->app->basePath();
 
-        $compiledViewPath = $this->config->get('view.config.view_path');
+        $compiledViewPath = $this->config->get('view.compiled');
 
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 
