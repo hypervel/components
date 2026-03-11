@@ -133,9 +133,10 @@ class TestCase extends BaseTestCase
 
         Queue::createPayloadUsing(null);
 
-        // Flush static state set by Configuration\Middleware methods.
-        // Without this, one test's middleware configuration leaks into subsequent tests.
+        // Flush static state set by bootstrappers and middleware.
+        // Without this, one test's configuration leaks into subsequent tests.
         \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
+        \Hypervel\Foundation\Bootstrap\HandleExceptions::flushState();
         \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();
         \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::flushState();
         \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
