@@ -14,6 +14,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
@@ -243,6 +244,7 @@ trait CreatesApplication
      */
     protected function resolveApplicationBootstrappers(ApplicationContract $app): void
     {
+        $app->make(HandleExceptions::class)->bootstrap($app);
         $app->make(RegisterFacades::class)->bootstrap($app);
         $app->make(RegisterProviders::class)->bootstrap($app);
         $app->make(GenerateProxies::class)->bootstrap($app);
