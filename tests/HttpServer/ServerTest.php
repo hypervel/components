@@ -41,8 +41,8 @@ class ServerTest extends TestCase
     {
         parent::tearDown();
         CoordinatorManager::clear(Constants::WORKER_START);
-        RequestContext::destroy();
-        ResponseContext::destroy();
+        RequestContext::forget();
+        ResponseContext::forget();
     }
 
     public function testInitCoreMiddlewareResolvesKernelAndBootstraps()

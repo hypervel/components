@@ -31,7 +31,7 @@ class ContainerTest extends TestCase
     protected function tearDown(): void
     {
         Container::setInstance(null);
-        Context::destroyAll();
+        Context::flush();
 
         parent::tearDown();
     }

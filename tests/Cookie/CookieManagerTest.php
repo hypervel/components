@@ -39,7 +39,7 @@ class CookieManagerTest extends TestCase
     {
         parent::tearDown();
 
-        RequestContext::destroy();
+        RequestContext::forget();
     }
 
     public function testHas()

@@ -30,8 +30,8 @@ class RedisProxyTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('__redis.connection.default');
-        Context::destroy('__redis.connection.cache');
+        Context::forget('__redis.connection.default');
+        Context::forget('__redis.connection.cache');
     }
 
     public function testProxyUsesSpecifiedPoolName(): void

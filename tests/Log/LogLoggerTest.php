@@ -20,7 +20,7 @@ class LogLoggerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Context::destroy('__logger.context');
+        Context::forget('__logger.context');
     }
 
     public function testMethodsPassErrorAdditionsToMonolog()

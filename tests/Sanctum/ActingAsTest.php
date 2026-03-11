@@ -46,7 +46,7 @@ class ActingAsTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     public function testActingAsSetsUserInContext(): void

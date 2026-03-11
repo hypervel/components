@@ -34,7 +34,7 @@ class ContainerCallTest extends TestCase
     protected function tearDown(): void
     {
         BoundMethod::clearMethodRecipeCache();
-        Context::destroyAll();
+        Context::flush();
 
         parent::tearDown();
     }

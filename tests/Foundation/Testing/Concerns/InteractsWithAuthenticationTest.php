@@ -24,7 +24,7 @@ class InteractsWithAuthenticationTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('__auth.defaults.guard');
+        Context::forget('__auth.defaults.guard');
     }
 
     public function testAssertAsGuest()

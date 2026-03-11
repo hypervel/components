@@ -94,7 +94,7 @@ class FoundationExceptionHandlerTest extends TestCase
         ));
 
         Container::setInstance($this->container);
-        Context::destroy(Store::CONTEXT_KEY);
+        Context::forget(Store::CONTEXT_KEY);
 
         $this->handler = new Handler($this->container);
     }
@@ -105,7 +105,7 @@ class FoundationExceptionHandlerTest extends TestCase
 
         Carbon::setTestNow();
         Lottery::determineResultNormally();
-        Context::destroy('__request.root.uri');
+        Context::forget('__request.root.uri');
         Facade::clearResolvedInstances();
     }
 
@@ -707,8 +707,8 @@ class FoundationExceptionHandlerTest extends TestCase
 
         $this->assertCount(1, $reported);
 
-        // Simulate a new request by destroying the Context key.
-        Context::destroy('__errors.reportedExceptionMap');
+        // Simulate a new request by clearing the Context key.
+        Context::forget('__errors.reportedExceptionMap');
 
         $this->handler->report($exception);
 

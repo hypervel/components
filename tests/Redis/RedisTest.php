@@ -54,7 +54,7 @@ class RedisTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('__redis.connection.default');
+        Context::forget('__redis.connection.default');
     }
 
     public function testCommandIsProxiedToConnection(): void

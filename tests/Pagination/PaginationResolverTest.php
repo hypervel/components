@@ -31,7 +31,7 @@ class PaginationResolverTest extends TestCase
 
     protected function tearDown(): void
     {
-        RequestContext::destroy();
+        RequestContext::forget();
 
         parent::tearDown();
     }
@@ -48,7 +48,7 @@ class PaginationResolverTest extends TestCase
     public function testCurrentPageResolverReturnsOneWhenNoRequest(): void
     {
         // No request in Context
-        RequestContext::destroy();
+        RequestContext::forget();
 
         PaginationState::resolveUsing($this->app);
 
@@ -89,7 +89,7 @@ class PaginationResolverTest extends TestCase
 
     public function testCurrentCursorResolverReturnsNullWhenNoRequest(): void
     {
-        RequestContext::destroy();
+        RequestContext::forget();
 
         PaginationState::resolveUsing($this->app);
 
@@ -116,7 +116,7 @@ class PaginationResolverTest extends TestCase
 
     public function testCurrentPathResolverReturnsSlashWhenNoRequest(): void
     {
-        RequestContext::destroy();
+        RequestContext::forget();
 
         PaginationState::resolveUsing($this->app);
 
@@ -134,7 +134,7 @@ class PaginationResolverTest extends TestCase
 
     public function testQueryStringResolverReturnsEmptyArrayWhenNoRequest(): void
     {
-        RequestContext::destroy();
+        RequestContext::forget();
 
         PaginationState::resolveUsing($this->app);
 

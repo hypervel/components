@@ -98,7 +98,7 @@ class CoroutineContextPropagationTest extends SentryTestCase
     public function testChildCoroutineWithoutParentContextGetsNull()
     {
         // Ensure no request is set in the parent
-        Context::destroy(Request::class);
+        Context::forget(Request::class);
 
         $childRequest = 'sentinel';
 

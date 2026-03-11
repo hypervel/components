@@ -41,7 +41,7 @@ class BroadcasterTest extends TestCase
     {
         parent::tearDown();
 
-        RequestContext::destroy();
+        RequestContext::forget();
         FakeBroadcaster::flushChannels();
     }
 

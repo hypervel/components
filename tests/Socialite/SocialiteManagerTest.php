@@ -20,7 +20,7 @@ class SocialiteManagerTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     public function setUp(): void

@@ -25,7 +25,7 @@ class LinkedInProviderTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     public function testMapUserWithoutEmailAndAddress()

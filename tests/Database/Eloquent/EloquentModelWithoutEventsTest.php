@@ -22,7 +22,7 @@ class EloquentModelWithoutEventsTest extends TestCase
     protected function tearDown(): void
     {
         // Ensure context is clean after each test
-        Context::destroy('__database.model.events_disabled');
+        Context::forget('__database.model.events_disabled');
         TestModel::unsetEventDispatcher();
         parent::tearDown();
     }

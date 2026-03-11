@@ -36,12 +36,12 @@ class ContextEnumTest extends TestCase
     {
         parent::setUp();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     protected function tearDown(): void
     {
-        Context::destroyAll();
+        Context::flush();
         parent::tearDown();
     }
 
@@ -84,22 +84,22 @@ class ContextEnumTest extends TestCase
         $this->assertTrue(Context::has(ContextKeyUnitEnum::Locale));
     }
 
-    public function testDestroyWithBackedEnum()
+    public function testForgetWithBackedEnum()
     {
         Context::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
         $this->assertTrue(Context::has(ContextKeyBackedEnum::CurrentUser));
 
-        Context::destroy(ContextKeyBackedEnum::CurrentUser);
+        Context::forget(ContextKeyBackedEnum::CurrentUser);
 
         $this->assertFalse(Context::has(ContextKeyBackedEnum::CurrentUser));
     }
 
-    public function testDestroyWithUnitEnum()
+    public function testForgetWithUnitEnum()
     {
         Context::set(ContextKeyUnitEnum::Locale, 'en-US');
         $this->assertTrue(Context::has(ContextKeyUnitEnum::Locale));
 
-        Context::destroy(ContextKeyUnitEnum::Locale);
+        Context::forget(ContextKeyUnitEnum::Locale);
 
         $this->assertFalse(Context::has(ContextKeyUnitEnum::Locale));
     }

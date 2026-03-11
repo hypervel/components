@@ -124,7 +124,7 @@ class EventTest extends TestCase
 
         $event->writeOutput($this->container);
 
-        Context::destroy($key);
+        Context::forget($key);
     }
 
     public function testDaysOfMonthMethod()

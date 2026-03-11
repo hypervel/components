@@ -58,8 +58,8 @@ class GuardTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('__sanctum.acting_as_user');
-        Context::destroy('__sanctum.acting_as_guard');
+        Context::forget('__sanctum.acting_as_user');
+        Context::forget('__sanctum.acting_as_guard');
 
         Sanctum::$accessTokenRetrievalCallback = null;
         Sanctum::$accessTokenAuthenticationCallback = null;

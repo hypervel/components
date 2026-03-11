@@ -31,10 +31,10 @@ class ContextTest extends TestCase
         $this->assertEquals(42, Context::get('a'));
     }
 
-    public function testDestroy()
+    public function testForget()
     {
         Context::set('a', 42);
-        Context::destroy('a');
+        Context::forget('a');
         $this->assertFalse(Context::has('a'));
     }
 

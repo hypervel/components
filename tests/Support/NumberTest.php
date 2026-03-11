@@ -22,12 +22,12 @@ class NumberTest extends TestCase
     {
         parent::setUp();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     protected function tearDown(): void
     {
-        Context::destroyAll();
+        Context::flush();
 
         parent::tearDown();
     }

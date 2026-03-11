@@ -31,7 +31,7 @@ class FoundationViteTest extends TestCase
         $this->cleanViteHotFile();
         Context::set('hypervel.vite.nonce', null);
         Context::set('hypervel.vite.preloaded_assets', []);
-        Context::destroy('__request.root.uri');
+        Context::forget('__request.root.uri');
 
         parent::tearDown();
     }

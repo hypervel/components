@@ -65,7 +65,7 @@ class AuthenticateRequestsTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroyAll();
+        Context::flush();
     }
 
     /**

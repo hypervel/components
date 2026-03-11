@@ -17,7 +17,7 @@ class ContainerExtendTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Context::destroyAll();
+        Context::flush();
 
         parent::tearDown();
     }
