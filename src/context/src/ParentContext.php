@@ -49,12 +49,12 @@ class ParentContext
     /**
      * Remove a value from the parent coroutine's context.
      */
-    public static function destroy(string $id): void
+    public static function forget(string $id): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::destroy($id, Coroutine::parentId());
+            Context::forget($id, Coroutine::parentId());
         } else {
-            Context::destroy($id);
+            Context::forget($id);
         }
     }
 
