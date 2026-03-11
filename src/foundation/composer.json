@@ -43,7 +43,6 @@
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/engine": "^0.4",
-        "hypervel/exception-handler": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/framework": "^0.4",
         "hypervel/http": "^0.4",
