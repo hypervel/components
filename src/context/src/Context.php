@@ -6,6 +6,7 @@ namespace Hypervel\Context;
 
 use ArrayObject;
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Coroutine;
 use UnitEnum;
 
@@ -18,6 +19,8 @@ use function Hypervel\Support\enum_value;
 class Context
 {
     protected const DEPTH_KEY = 'di.depth';
+
+    protected const PROPAGATED_CONTEXT_KEY = '__context.propagated';
 
     /** @var array<TKey, TValue> */
     protected static array $nonCoContext = [];
@@ -76,11 +79,43 @@ class Context
     }
 
     /**
+     * Get the propagated context instance for the current coroutine.
+     *
+     * Propagated context stores metadata that automatically flows into log entries
+     * and queued job payloads. Unlike raw context (set/get), propagated values are
+     * serialized when dispatching jobs and deserialized when the job runs.
+     *
+     * This creates the PropagatedContext instance on first access. For hot paths
+     * that should avoid unnecessary allocation (log processors, queue hooks), use
+     * hasPropagated() to check first.
+     */
+    public static function propagated(): PropagatedContext
+    {
+        return self::getOrSet(
+            self::PROPAGATED_CONTEXT_KEY,
+            fn () => new PropagatedContext(app(Dispatcher::class))
+        );
+    }
+
+    /**
+     * Determine if a PropagatedContext instance exists for the current coroutine.
+     *
+     * Unlike propagated(), this does NOT create one if it doesn't exist. Use this
+     * in hot paths (log processors, queue payload hooks) to avoid allocating an
+     * empty PropagatedContext on every request when the app never uses propagated
+     * context.
+     */
+    public static function hasPropagated(): bool
+    {
+        return self::has(self::PROPAGATED_CONTEXT_KEY);
+    }
+
+    /**
      * Remove a value from the current context.
      *
      * @param TKey $id
      */
-    public static function destroy(UnitEnum|string $id, ?int $coroutineId = null): void
+    public static function forget(UnitEnum|string $id, ?int $coroutineId = null): void
     {
         $id = enum_value($id);
 
@@ -109,6 +144,14 @@ class Context
             $map = array_intersect_key($from->getArrayCopy(), array_flip($keys));
         } else {
             $map = $from->getArrayCopy();
+        }
+
+        // Replicate the PropagatedContext so the child gets its own instance
+        // instead of sharing the parent's object reference.
+        if (isset($map[self::PROPAGATED_CONTEXT_KEY])
+            && $map[self::PROPAGATED_CONTEXT_KEY] instanceof PropagatedContext
+        ) {
+            $map[self::PROPAGATED_CONTEXT_KEY] = $map[self::PROPAGATED_CONTEXT_KEY]->replicate();
         }
 
         $current->exchangeArray($map);
@@ -176,6 +219,14 @@ class Context
             $map = static::$nonCoContext;
         }
 
+        // Replicate the PropagatedContext so the target coroutine gets its own
+        // instance instead of sharing the non-coroutine context's object reference.
+        if (isset($map[self::PROPAGATED_CONTEXT_KEY])
+            && $map[self::PROPAGATED_CONTEXT_KEY] instanceof PropagatedContext
+        ) {
+            $map[self::PROPAGATED_CONTEXT_KEY] = $map[self::PROPAGATED_CONTEXT_KEY]->replicate();
+        }
+
         $context->exchangeArray($map);
     }
 
@@ -221,7 +272,7 @@ class Context
     /**
      * Clear specific keys from non-coroutine context only.
      *
-     * Unlike destroy() which clears from both contexts, this only affects
+     * Unlike forget() which clears from both contexts, this only affects
      * non-coroutine storage. Useful for clearing stale data before copying.
      */
     public static function clearFromNonCoroutine(array $keys): void
@@ -232,9 +283,9 @@ class Context
     }
 
     /**
-     * Destroy all context data for the specified coroutine, preserving only the depth key.
+     * Flush all context data for the specified coroutine, preserving only the depth key.
      */
-    public static function destroyAll(?int $coroutineId = null): void
+    public static function flush(?int $coroutineId = null): void
     {
         $coroutineId = $coroutineId ?: Coroutine::id();
 
@@ -257,7 +308,7 @@ class Context
         }
 
         foreach ($contextKeys as $key) {
-            static::destroy($key, $coroutineId);
+            static::forget($key, $coroutineId);
         }
     }
 
