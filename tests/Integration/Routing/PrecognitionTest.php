@@ -1200,7 +1200,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertOk();
 
         $sessionCookie = $response->getCookie(config('session.cookie'), decrypt: false);
-        $this->withCookie($sessionCookie->getName(), $sessionCookie->getValue());
+        $this->withUnencryptedCookie($sessionCookie->getName(), $sessionCookie->getValue());
 
         $response = $this->get('precognition-route', ['Precognition' => 'true']);
         $response->assertNoContent();
