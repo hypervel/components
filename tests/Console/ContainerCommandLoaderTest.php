@@ -34,7 +34,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testGetThrowsForUnknownCommand(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, [
             'test:command' => TestCommand::class,
@@ -48,7 +48,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testHasReturnsTrueForRegisteredCommand(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, [
             'test:command' => TestCommand::class,
@@ -59,7 +59,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testHasReturnsFalseForUnknownCommand(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, [
             'test:command' => TestCommand::class,
@@ -70,7 +70,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testHasReturnsFalseForEmptyString(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, [
             'test:command' => TestCommand::class,
@@ -81,7 +81,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testGetNamesReturnsAllCommandNames(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, [
             'test:command' => TestCommand::class,
@@ -93,7 +93,7 @@ class ContainerCommandLoaderTest extends TestCase
 
     public function testGetNamesReturnsEmptyArrayWhenNoCommands(): void
     {
-        $container = $this->createMock(Container::class);
+        $container = $this->createStub(Container::class);
 
         $loader = new ContainerCommandLoader($container, []);
 

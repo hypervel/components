@@ -33,7 +33,9 @@ trait ConfiguresPrompts
 
         Prompt::validateUsing(fn (Prompt $prompt) => $this->validatePrompt($prompt->value(), $prompt->validate));
 
-        Prompt::fallbackWhen(windows_os() || $this->hypervel->runningUnitTests());
+        if (windows_os() || $this->hypervel->runningUnitTests()) {
+            Prompt::fallbackWhen(true);
+        }
 
         TextPrompt::fallbackUsing(fn (TextPrompt $prompt) => $this->promptUntilValid(
             fn () => $this->components->ask($prompt->label, $prompt->default ?: null) ?? '',

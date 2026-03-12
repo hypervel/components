@@ -27,8 +27,8 @@ class ConsoleApplicationResolveTest extends TestCase
 {
     private function createApp(?Application $container = null): ConsoleApplication
     {
-        $container ??= $this->createMock(Application::class);
-        $dispatcher = $this->createMock(Dispatcher::class);
+        $container ??= $this->createStub(Application::class);
+        $dispatcher = $this->createStub(Dispatcher::class);
 
         return new ConsoleApplication($container, $dispatcher, '1.0');
     }
