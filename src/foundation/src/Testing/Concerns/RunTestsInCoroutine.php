@@ -14,27 +14,33 @@ use Throwable;
 
 use function Hypervel\Coroutine\run;
 
-/**
- * @method string name()
- */
 trait RunTestsInCoroutine
 {
     protected bool $enableCoroutine = true;
 
     protected bool $copyNonCoroutineContext = true;
 
-    protected string $realTestName = '';
-
-    final protected function runTestsInCoroutine(...$arguments)
+    /**
+     * Invoke the test method inside a Swoole coroutine container.
+     *
+     * Uses PHPUnit 13's official extension point for customizing test method
+     * invocation. When coroutines are enabled and we're not already inside one,
+     * the test method runs inside Hypervel's coroutine container with full
+     * lifecycle management (context copying, setup/teardown hooks, cleanup).
+     *
+     * @param array<mixed> $testArguments
+     */
+    protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
-        parent::setName($this->realTestName);
+        if (Coroutine::getCid() !== -1 || ! $this->enableCoroutine) {
+            return parent::invokeTestMethod($methodName, $testArguments);
+        }
 
         $testResult = null;
         $exception = null;
 
         /* @phpstan-ignore-next-line */
-        run(function () use (&$testResult, &$exception, $arguments) {
-            // Clear stale transaction context from previous tests before copying
+        run(function () use (&$testResult, &$exception, $methodName, $testArguments) {
             $this->clearNonCoroutineTransactionContext();
 
             if ($this->copyNonCoroutineContext) {
@@ -43,7 +49,7 @@ trait RunTestsInCoroutine
 
             try {
                 $this->invokeSetupInCoroutine();
-                $testResult = $this->{$this->realTestName}(...$arguments);
+                $testResult = $this->{$methodName}(...$testArguments);
             } catch (Throwable $e) {
                 $exception = $e;
             } finally {
@@ -60,16 +66,6 @@ trait RunTestsInCoroutine
         }
 
         return $testResult;
-    }
-
-    final protected function runTest(): mixed
-    {
-        if (Coroutine::getCid() === -1 && $this->enableCoroutine) {
-            $this->realTestName = $this->name();
-            parent::setName('runTestsInCoroutine');
-        }
-
-        return parent::runTest();
     }
 
     protected function invokeSetupInCoroutine(): void

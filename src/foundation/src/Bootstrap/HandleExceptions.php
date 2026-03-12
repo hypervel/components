@@ -12,7 +12,6 @@ use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
-use PHPUnit\Runner\Version;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
@@ -249,14 +248,7 @@ class HandleExceptions
 
             if ((fn () => $this->enabled ?? false)->call($instance)) { // @phpstan-ignore if.alwaysFalse (Closure::call() rebinds $this to ErrorHandler; phpstan can't model this)
                 $instance->disable();
-
-                // @TODO Remove the version check once PHPUnit minimum is bumped to 13.
-                // PHPUnit 12.3.4+ requires the TestCase argument; older versions don't accept it.
-                if (version_compare(Version::id(), '12.3.4', '>=')) {
-                    $instance->enable($testCase); // @phpstan-ignore arguments.count (PHPUnit 12.3.4+ signature; guarded by version_compare above)
-                } else {
-                    $instance->enable();
-                }
+                $instance->enable($testCase);
             }
         }
     }

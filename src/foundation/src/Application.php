@@ -53,6 +53,31 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected ?string $storagePath = null;
 
     /**
+     * The custom application "app" path defined by the developer.
+     */
+    protected ?string $appPath = null;
+
+    /**
+     * The custom configuration path defined by the developer.
+     */
+    protected ?string $configPath = null;
+
+    /**
+     * The custom database path defined by the developer.
+     */
+    protected ?string $databasePath = null;
+
+    /**
+     * The custom language file path defined by the developer.
+     */
+    protected ?string $langPath = null;
+
+    /**
+     * The custom public path defined by the developer.
+     */
+    protected ?string $publicPath = null;
+
+    /**
      * The custom environment path defined by the developer.
      */
     protected ?string $environmentPath = null;
@@ -298,7 +323,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function path(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('app'), $path);
+        return $this->joinPaths($this->appPath ?: $this->basePath('app'), $path);
+    }
+
+    /**
+     * Set the application directory.
+     */
+    public function useAppPath(string $path): static
+    {
+        $this->appPath = $path;
+
+        $this->instance('path', $path);
+
+        return $this;
     }
 
     /**
@@ -342,7 +379,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function configPath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('config'), $path);
+        return $this->joinPaths($this->configPath ?: $this->basePath('config'), $path);
+    }
+
+    /**
+     * Set the configuration directory.
+     */
+    public function useConfigPath(string $path): static
+    {
+        $this->configPath = $path;
+
+        $this->instance('path.config', $path);
+
+        return $this;
     }
 
     /**
@@ -350,7 +399,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function databasePath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('database'), $path);
+        return $this->joinPaths($this->databasePath ?: $this->basePath('database'), $path);
+    }
+
+    /**
+     * Set the database directory.
+     */
+    public function useDatabasePath(string $path): static
+    {
+        $this->databasePath = $path;
+
+        $this->instance('path.database', $path);
+
+        return $this;
     }
 
     /**
@@ -358,7 +419,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function langPath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('lang'), $path);
+        return $this->joinPaths($this->langPath ?: $this->basePath('lang'), $path);
+    }
+
+    /**
+     * Set the language file directory.
+     */
+    public function useLangPath(string $path): static
+    {
+        $this->langPath = $path;
+
+        $this->instance('path.lang', $path);
+
+        return $this;
     }
 
     /**
@@ -366,7 +439,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function publicPath(string $path = ''): string
     {
-        return $this->joinPaths($this->basePath('public'), $path);
+        return $this->joinPaths($this->publicPath ?: $this->basePath('public'), $path);
+    }
+
+    /**
+     * Set the public / web directory.
+     */
+    public function usePublicPath(string $path): static
+    {
+        $this->publicPath = $path;
+
+        $this->instance('path.public', $path);
+
+        return $this;
     }
 
     /**
