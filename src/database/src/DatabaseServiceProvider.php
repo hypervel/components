@@ -5,16 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\Console\DbCommand;
+use Hypervel\Database\Console\DumpCommand;
+use Hypervel\Database\Console\Factories\FactoryMakeCommand;
 use Hypervel\Database\Console\Migrations\FreshCommand;
 use Hypervel\Database\Console\Migrations\InstallCommand;
-use Hypervel\Database\Console\Migrations\MakeMigrationCommand;
 use Hypervel\Database\Console\Migrations\MigrateCommand;
+use Hypervel\Database\Console\Migrations\MigrateMakeCommand;
 use Hypervel\Database\Console\Migrations\RefreshCommand;
 use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Console\Migrations\RollbackCommand;
 use Hypervel\Database\Console\Migrations\StatusCommand;
-use Hypervel\Database\Console\SeedCommand;
+use Hypervel\Database\Console\MonitorCommand;
+use Hypervel\Database\Console\PruneCommand;
+use Hypervel\Database\Console\Seeds\SeedCommand;
+use Hypervel\Database\Console\Seeds\SeederMakeCommand;
+use Hypervel\Database\Console\ShowCommand;
 use Hypervel\Database\Console\ShowModelCommand;
+use Hypervel\Database\Console\TableCommand;
 use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
@@ -54,16 +62,24 @@ class DatabaseServiceProvider extends ServiceProvider
         });
 
         $this->commands([
+            DbCommand::class,
+            DumpCommand::class,
+            FactoryMakeCommand::class,
             FreshCommand::class,
             InstallCommand::class,
-            MakeMigrationCommand::class,
             MigrateCommand::class,
+            MigrateMakeCommand::class,
+            MonitorCommand::class,
+            PruneCommand::class,
             RefreshCommand::class,
             ResetCommand::class,
             RollbackCommand::class,
             SeedCommand::class,
+            SeederMakeCommand::class,
+            ShowCommand::class,
             ShowModelCommand::class,
             StatusCommand::class,
+            TableCommand::class,
             WipeCommand::class,
         ]);
     }

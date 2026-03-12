@@ -4,57 +4,65 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console;
 
-use Hypervel\Console\Command;
+use Closure;
+use Hypervel\Console\Concerns\FindsAvailableModels;
+use Hypervel\Contracts\Console\PromptsForMissingInput;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Database\Eloquent\ModelInfo;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Support\Collection;
-use Psr\Container\ContainerExceptionInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 
-/**
- * Display information about an Eloquent model.
- */
-#[AsCommand(name: 'model:show')]
-class ShowModelCommand extends Command
-{
-    protected ?string $signature = 'model:show
-        {model : The model to show}
-        {--database= : The database connection to use}
-        {--json : Output the model as JSON}';
+use function Hypervel\Prompts\suggest;
 
+#[AsCommand(name: 'model:show')]
+class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMissingInput
+{
+    use FindsAvailableModels;
+
+    /**
+     * The console command name.
+     */
+    protected ?string $name = 'model:show {model}';
+
+    /**
+     * The console command description.
+     */
     protected string $description = 'Show information about an Eloquent model';
 
-    public function __construct(
-        protected ModelInspector $modelInspector
-    ) {
-        parent::__construct();
-    }
+    /**
+     * The console command signature.
+     */
+    protected ?string $signature = 'model:show {model : The model to show}
+                {--database= : The database connection to use}
+                {--json : Output the model as JSON}';
 
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(ModelInspector $modelInspector): int
     {
         try {
-            $info = $this->modelInspector->inspect(
+            $info = $modelInspector->inspect(
                 $this->argument('model'),
                 $this->option('database')
             );
-        } catch (ContainerExceptionInterface $e) {
+        } catch (BindingResolutionException $e) {
             $this->components->error($e->getMessage());
 
-            return self::FAILURE;
+            return 1;
         }
 
         $this->display($info);
 
-        return self::SUCCESS;
+        return 0;
     }
 
     /**
      * Render the model information.
      */
-    protected function display(array $modelData): void
+    protected function display(ModelInfo $modelData): void
     {
         $this->option('json')
             ? $this->displayJson($modelData)
@@ -64,7 +72,7 @@ class ShowModelCommand extends Command
     /**
      * Render the model information as JSON.
      */
-    protected function displayJson(array $modelData): void
+    protected function displayJson(ModelInfo $modelData): void
     {
         $this->output->writeln(
             (new Collection($modelData))->toJson()
@@ -74,15 +82,15 @@ class ShowModelCommand extends Command
     /**
      * Render the model information for the CLI.
      */
-    protected function displayCli(array $modelData): void
+    protected function displayCli(ModelInfo $modelData): void
     {
         $this->newLine();
 
-        $this->components->twoColumnDetail('<fg=green;options=bold>' . $modelData['class'] . '</>');
-        $this->components->twoColumnDetail('Database', $modelData['database']);
-        $this->components->twoColumnDetail('Table', $modelData['table']);
+        $this->components->twoColumnDetail('<fg=green;options=bold>' . $modelData->class . '</>');
+        $this->components->twoColumnDetail('Database', $modelData->database);
+        $this->components->twoColumnDetail('Table', $modelData->table);
 
-        if ($policy = $modelData['policy'] ?? false) {
+        if ($policy = $modelData->policy ?? false) {
             $this->components->twoColumnDetail('Policy', $policy);
         }
 
@@ -93,7 +101,7 @@ class ShowModelCommand extends Command
             'type <fg=gray>/</> <fg=yellow;options=bold>cast</>',
         );
 
-        foreach ($modelData['attributes'] as $attribute) {
+        foreach ($modelData->attributes as $attribute) {
             $first = trim(sprintf(
                 '%s %s',
                 $attribute['name'],
@@ -122,7 +130,7 @@ class ShowModelCommand extends Command
 
         $this->components->twoColumnDetail('<fg=green;options=bold>Relations</>');
 
-        foreach ($modelData['relations'] as $relation) {
+        foreach ($modelData->relations as $relation) {
             $this->components->twoColumnDetail(
                 sprintf('%s <fg=gray>%s</>', $relation['name'], $relation['type']),
                 $relation['related']
@@ -133,8 +141,8 @@ class ShowModelCommand extends Command
 
         $this->components->twoColumnDetail('<fg=green;options=bold>Events</>');
 
-        if (count($modelData['events']) > 0) {
-            foreach ($modelData['events'] as $event) {
+        if ($modelData->events->count()) {
+            foreach ($modelData->events as $event) {
                 $this->components->twoColumnDetail(
                     sprintf('%s', $event['event']),
                     sprintf('%s', $event['class']),
@@ -146,8 +154,8 @@ class ShowModelCommand extends Command
 
         $this->components->twoColumnDetail('<fg=green;options=bold>Observers</>');
 
-        if (count($modelData['observers']) > 0) {
-            foreach ($modelData['observers'] as $observer) {
+        if ($modelData->observers->count()) {
+            foreach ($modelData->observers as $observer) {
                 $this->components->twoColumnDetail(
                     sprintf('%s', $observer['event']),
                     implode(', ', $observer['observer'])
@@ -156,5 +164,17 @@ class ShowModelCommand extends Command
         }
 
         $this->newLine();
+    }
+
+    /**
+     * Prompt for missing input arguments using the returned questions.
+     *
+     * @return array<string, Closure(): string>
+     */
+    protected function promptForMissingArgumentsUsing(): array
+    {
+        return [
+            'model' => fn (): string => suggest('Which model would you like to show?', $this->findAvailableModels()),
+        ];
     }
 }

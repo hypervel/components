@@ -127,6 +127,21 @@ interface ConnectionInterface
     public function getName(): ?string;
 
     /**
+     * Get a human-readable name for the database driver.
+     */
+    public function getDriverTitle(): string;
+
+    /**
+     * Get the number of open connections to the database.
+     */
+    public function threadCount(): ?int;
+
+    /**
+     * Run a callback without the table prefix on the connection.
+     */
+    public function withoutTablePrefix(Closure $callback): mixed;
+
+    /**
      * Get a schema builder instance for the connection.
      */
     public function getSchemaBuilder(): SchemaBuilder;

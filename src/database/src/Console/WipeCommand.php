@@ -7,8 +7,8 @@ namespace Hypervel\Database\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
-use Hypervel\Database\ConnectionResolverInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'db:wipe')]
 class WipeCommand extends Command
@@ -16,30 +16,27 @@ class WipeCommand extends Command
     use ConfirmableTrait;
     use Prohibitable;
 
-    protected ?string $signature = 'db:wipe
-        {--database= : The database connection to use}
-        {--drop-views : Drop all tables and views}
-        {--drop-types : Drop all tables and types (Postgres only)}
-        {--force : Force the operation to run when in production}';
+    /**
+     * The console command name.
+     */
+    protected ?string $name = 'db:wipe';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Drop all tables, views, and types';
-
-    public function __construct(
-        protected ConnectionResolverInterface $db
-    ) {
-        parent::__construct();
-    }
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        if ($this->isProhibited() || ! $this->confirmToProceed()) {
-            return self::FAILURE;
+        if ($this->isProhibited()
+            || ! $this->confirmToProceed()) {
+            return Command::FAILURE;
         }
 
-        $database = $this->option('database');
+        $database = $this->input->getOption('database');
 
         if ($this->option('drop-views')) {
             $this->dropAllViews($database);
@@ -57,7 +54,9 @@ class WipeCommand extends Command
             $this->components->info('Dropped all types successfully.');
         }
 
-        return self::SUCCESS;
+        $this->flushDatabaseConnection($database);
+
+        return 0;
     }
 
     /**
@@ -65,7 +64,7 @@ class WipeCommand extends Command
      */
     protected function dropAllTables(?string $database): void
     {
-        $this->db->connection($database)
+        $this->hypervel['db']->connection($database)
             ->getSchemaBuilder()
             ->dropAllTables();
     }
@@ -75,7 +74,7 @@ class WipeCommand extends Command
      */
     protected function dropAllViews(?string $database): void
     {
-        $this->db->connection($database)
+        $this->hypervel['db']->connection($database)
             ->getSchemaBuilder()
             ->dropAllViews();
     }
@@ -85,8 +84,35 @@ class WipeCommand extends Command
      */
     protected function dropAllTypes(?string $database): void
     {
-        $this->db->connection($database)
+        $this->hypervel['db']->connection($database)
             ->getSchemaBuilder()
             ->dropAllTypes();
+    }
+
+    /**
+     * Flush the given database connection.
+     *
+     * Uses purge() instead of disconnect() because Hypervel's pooled connection
+     * architecture caches connection wrappers. disconnect() only nulls the PDO
+     * on the cached wrapper, leaving it in place — the next query reuses the
+     * disconnected wrapper and triggers a reconnect. purge() fully resets the
+     * connection including pool and resolver caches.
+     */
+    protected function flushDatabaseConnection(?string $database): void
+    {
+        $this->hypervel['db']->purge($database);
+    }
+
+    /**
+     * Get the console command options.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
+            ['drop-views', null, InputOption::VALUE_NONE, 'Drop all tables and views'],
+            ['drop-types', null, InputOption::VALUE_NONE, 'Drop all tables and types (Postgres only)'],
+            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
+        ];
     }
 }

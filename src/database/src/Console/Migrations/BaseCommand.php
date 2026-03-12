@@ -28,7 +28,7 @@ abstract class BaseCommand extends Command
         if ($this->input->hasOption('path') && $this->option('path')) {
             return (new Collection($this->option('path')))->map(function ($path) {
                 return ! $this->usingRealPath()
-                    ? base_path($path)
+                    ? $this->hypervel->basePath() . '/' . $path
                     : $path;
             })->all();
         }
@@ -52,6 +52,6 @@ abstract class BaseCommand extends Command
      */
     protected function getMigrationPath(): string
     {
-        return database_path('migrations');
+        return $this->hypervel->databasePath() . DIRECTORY_SEPARATOR . 'migrations';
     }
 }

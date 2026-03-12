@@ -49,11 +49,10 @@ class ModelInspector
      * Extract model details for the given model.
      *
      * @param class-string<Model>|string $model
-     * @return array{class: class-string<Model>, database: null|string, table: string, policy: null|class-string, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: null|class-string}
      *
      * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
-    public function inspect(string $model, ?string $connection = null): array
+    public function inspect(string $model, ?string $connection = null): ModelInfo
     {
         $class = $this->qualifyModel($model);
 
@@ -66,20 +65,19 @@ class ModelInspector
             $model->setConnection($connection);
         }
 
-        // @phpstan-ignore return.type (events/observers Collection types cascade from their method limitations)
-        return [
-            'class' => get_class($model),
-            'database' => $model->getConnection()->getName(),
-            'table' => $model->getConnection()->getTablePrefix() . $model->getTable(),
-            'policy' => $this->getPolicy($model),
-            'attributes' => $this->getAttributes($model),
-            'relations' => $this->getRelations($model),
-            'events' => $this->getEvents($model),
-            'observers' => $this->getObservers($model),
-            'collection' => $this->getCollectedBy($model),
-            'builder' => $this->getBuilder($model),
-            'resource' => $this->getResource($model),
-        ];
+        return new ModelInfo(
+            class: get_class($model),
+            database: $model->getConnection()->getName(),
+            table: $model->getConnection()->getTablePrefix() . $model->getTable(),
+            policy: $this->getPolicy($model),
+            attributes: $this->getAttributes($model),
+            relations: $this->getRelations($model),
+            events: $this->getEvents($model),
+            observers: $this->getObservers($model),
+            collection: $this->getCollectedBy($model),
+            builder: $this->getBuilder($model),
+            resource: $this->getResource($model),
+        );
     }
 
     /**

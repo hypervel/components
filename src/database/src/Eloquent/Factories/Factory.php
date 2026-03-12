@@ -393,6 +393,29 @@ abstract class Factory
     }
 
     /**
+     * Create a collection of models and persist them to the database.
+     *
+     * @return EloquentCollection<int, TModel>
+     */
+    public function makeMany(iterable|int|null $records = null): EloquentCollection
+    {
+        $records ??= ($this->count ?? 1);
+
+        $this->count = null;
+
+        if (is_numeric($records)) {
+            $records = array_fill(0, $records, []);
+        }
+
+        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
+        return new EloquentCollection(
+            (new Collection($records))->map(function ($record) {
+                return $this->state($record)->make();
+            })
+        );
+    }
+
+    /**
      * Insert the model records in bulk. No model events are emitted.
      *
      * @param array<string, mixed> $attributes
@@ -672,6 +695,22 @@ abstract class Factory
     public function afterCreating(Closure $callback): static
     {
         return $this->newInstance(['afterCreating' => $this->afterCreating->concat([$callback])]);
+    }
+
+    /**
+     * Remove the "after making" callbacks from the factory.
+     */
+    public function withoutAfterMaking(): static
+    {
+        return $this->newInstance(['afterMaking' => new Collection()]);
+    }
+
+    /**
+     * Remove the "after creating" callbacks from the factory.
+     */
+    public function withoutAfterCreating(): static
+    {
+        return $this->newInstance(['afterCreating' => new Collection()]);
     }
 
     /**

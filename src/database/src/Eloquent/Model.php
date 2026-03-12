@@ -2094,7 +2094,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Determine if the model is prunable.
      */
-    protected function isPrunable(): bool
+    public static function isPrunable(): bool
     {
         return self::$isPrunable[static::class] ??= in_array(Prunable::class, class_uses_recursive(static::class)) || static::isMassPrunable();
     }
@@ -2102,7 +2102,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Determine if the model is mass prunable.
      */
-    protected function isMassPrunable(): bool
+    public static function isMassPrunable(): bool
     {
         return self::$isMassPrunable[static::class] ??= in_array(MassPrunable::class, class_uses_recursive(static::class));
     }

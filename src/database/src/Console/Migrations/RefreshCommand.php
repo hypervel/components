@@ -10,6 +10,7 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'migrate:refresh')]
 class RefreshCommand extends Command
@@ -17,45 +18,40 @@ class RefreshCommand extends Command
     use ConfirmableTrait;
     use Prohibitable;
 
-    protected ?string $signature = 'migrate:refresh
-        {--database= : The database connection to use}
-        {--force : Force the operation to run when in production}
-        {--path=* : The path(s) to the migrations files to be executed}
-        {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
-        {--seed : Indicates if the seed task should be re-run}
-        {--seeder= : The class name of the root seeder}
-        {--step= : The number of migrations to be reverted & re-run}';
+    /**
+     * The console command name.
+     */
+    protected ?string $name = 'migrate:refresh';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Reset and re-run all migrations';
-
-    public function __construct(
-        protected Dispatcher $dispatcher
-    ) {
-        parent::__construct();
-    }
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        if ($this->isProhibited() || ! $this->confirmToProceed()) {
-            return self::FAILURE;
+        if ($this->isProhibited()
+            || ! $this->confirmToProceed()) {
+            return Command::FAILURE;
         }
 
         // Next we'll gather some of the options so that we can have the right options
         // to pass to the commands. This includes options such as which database to
         // use and the path to use for the migration. Then we'll run the command.
-        $database = $this->option('database');
-        $path = $this->option('path');
+        $database = $this->input->getOption('database');
+
+        $path = $this->input->getOption('path');
 
         // If the "step" option is specified it means we only want to rollback a small
         // number of migrations before migrating again. For example, the user might
         // only rollback and remigrate the latest four migrations instead of all.
-        $step = $this->option('step') ?: 0;
+        $step = $this->input->getOption('step') ?: 0;
 
         if ($step > 0) {
-            $this->runRollback($database, $path, (int) $step);
+            $this->runRollback($database, $path, $step);
         } else {
             $this->runReset($database, $path);
         }
@@ -66,13 +62,15 @@ class RefreshCommand extends Command
         $this->call('migrate', array_filter([
             '--database' => $database,
             '--path' => $path,
-            '--realpath' => $this->option('realpath'),
+            '--realpath' => $this->input->getOption('realpath'),
             '--force' => true,
         ]));
 
-        $this->dispatcher->dispatch(
-            new DatabaseRefreshed($database, $this->needsSeeding())
-        );
+        if ($this->hypervel->bound(Dispatcher::class)) {
+            $this->hypervel->make(Dispatcher::class)->dispatch(
+                new DatabaseRefreshed($database, $this->needsSeeding())
+            );
+        }
 
         if ($this->needsSeeding()) {
             $this->runSeeder($database);
@@ -89,7 +87,7 @@ class RefreshCommand extends Command
         $this->call('migrate:rollback', array_filter([
             '--database' => $database,
             '--path' => $path,
-            '--realpath' => $this->option('realpath'),
+            '--realpath' => $this->input->getOption('realpath'),
             '--step' => $step,
             '--force' => true,
         ]));
@@ -103,7 +101,7 @@ class RefreshCommand extends Command
         $this->call('migrate:reset', array_filter([
             '--database' => $database,
             '--path' => $path,
-            '--realpath' => $this->option('realpath'),
+            '--realpath' => $this->input->getOption('realpath'),
             '--force' => true,
         ]));
     }
@@ -126,5 +124,21 @@ class RefreshCommand extends Command
             '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
         ]));
+    }
+
+    /**
+     * Get the console command options.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
+            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
+            ['path', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'The path(s) to the migrations files to be executed'],
+            ['realpath', null, InputOption::VALUE_NONE, 'Indicate any provided migration file paths are pre-resolved absolute paths'],
+            ['seed', null, InputOption::VALUE_NONE, 'Indicates if the seed task should be re-run'],
+            ['seeder', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder'],
+            ['step', null, InputOption::VALUE_OPTIONAL, 'The number of migrations to be reverted & re-run'],
+        ];
     }
 }

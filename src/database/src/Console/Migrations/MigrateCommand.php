@@ -7,40 +7,69 @@ namespace Hypervel\Database\Console\Migrations;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
+use Hypervel\Support\Str;
+use PDOException;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
+
+use function Hypervel\Prompts\confirm;
 
 #[AsCommand(name: 'migrate')]
 class MigrateCommand extends BaseCommand implements Isolatable
 {
     use ConfirmableTrait;
 
-    protected ?string $signature = 'migrate
-        {--database= : The database connection to use}
-        {--force : Force the operation to run when in production}
-        {--path=* : The path(s) to the migrations files to be executed}
-        {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
-        {--schema-path= : The path to a schema dump file}
-        {--pretend : Dump the SQL queries that would be run}
-        {--seed : Indicates if the seed task should be re-run}
-        {--seeder= : The class name of the root seeder}
-        {--step : Force the migrations to be run so they can be rolled back individually}
-        {--graceful : Return a successful exit code even if an error occurs}';
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = 'migrate {--database= : The database connection to use}
+                {--force : Force the operation to run when in production}
+                {--path=* : The path(s) to the migrations files to be executed}
+                {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
+                {--schema-path= : The path to a schema dump file}
+                {--pretend : Dump the SQL queries that would be run}
+                {--seed : Indicates if the seed task should be re-run}
+                {--seeder= : The class name of the root seeder}
+                {--step : Force the migrations to be run so they can be rolled back individually}
+                {--graceful : Return a successful exit code even if an error occurs}';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Run the database migrations';
 
-    public function __construct(
-        protected Migrator $migrator,
-        protected Dispatcher $dispatcher
-    ) {
+    /**
+     * The migrator instance.
+     */
+    protected Migrator $migrator;
+
+    /**
+     * The event dispatcher instance.
+     */
+    protected Dispatcher $dispatcher;
+
+    /**
+     * Create a new migration command instance.
+     */
+    public function __construct(Migrator $migrator, Dispatcher $dispatcher)
+    {
         parent::__construct();
+
+        $this->migrator = $migrator;
+        $this->dispatcher = $dispatcher;
     }
 
     /**
      * Execute the console command.
+     *
+     * @throws Throwable
      */
     public function handle(): int
     {
@@ -97,13 +126,13 @@ class MigrateCommand extends BaseCommand implements Isolatable
      */
     protected function prepareDatabase(): void
     {
-        if (! $this->migrator->repositoryExists()) {
+        if (! $this->repositoryExists()) {
             $this->components->info('Preparing database.');
 
             $this->components->task('Creating migration table', function () {
                 return $this->callSilent('migrate:install', array_filter([
                     '--database' => $this->option('database'),
-                ])) == 0;
+                ])) === 0;
             });
 
             $this->newLine();
@@ -115,15 +144,138 @@ class MigrateCommand extends BaseCommand implements Isolatable
     }
 
     /**
+     * Determine if the migrator repository exists.
+     */
+    protected function repositoryExists(): bool
+    {
+        return retry(2, fn () => $this->migrator->repositoryExists(), 0, function ($e) {
+            try {
+                return $this->handleMissingDatabase($e->getPrevious());
+            } catch (Throwable) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Attempt to create the database if it is missing.
+     */
+    protected function handleMissingDatabase(Throwable $e): bool
+    {
+        if ($e instanceof SQLiteDatabaseDoesNotExistException) {
+            return $this->createMissingSqliteDatabase($e->path);
+        }
+
+        $connection = $this->migrator->resolveConnection($this->option('database'));
+
+        if (! $e instanceof PDOException) {
+            return false;
+        }
+
+        if (($e->getCode() === 1049 && in_array($connection->getDriverName(), ['mysql', 'mariadb'], true))
+            || (($e->errorInfo[0] ?? null) === '08006'
+              && $connection->getDriverName() === 'pgsql'
+              && Str::contains($e->getMessage(), '"' . $connection->getDatabaseName() . '"'))) {
+            return $this->createMissingMySqlOrPgsqlDatabase($connection);
+        }
+
+        return false;
+    }
+
+    /**
+     * Create a missing SQLite database.
+     *
+     * @throws RuntimeException
+     */
+    protected function createMissingSqliteDatabase(string $path): bool
+    {
+        if ($this->option('force')) {
+            return touch($path);
+        }
+
+        if ($this->option('no-interaction')) {
+            return false;
+        }
+
+        $this->components->warn('The SQLite database configured for this application does not exist: ' . $path);
+
+        if (! confirm('Would you like to create it?', default: true)) {
+            $this->components->info('Operation cancelled. No database was created.');
+
+            throw new RuntimeException('Database was not created. Aborting migration.');
+        }
+
+        return touch($path);
+    }
+
+    /**
+     * Create a missing MySQL or Postgres database.
+     *
+     * Unlike Laravel, this avoids mutating process-global config because Hypervel's
+     * config is shared across all coroutines in a Swoole worker. Instead, a one-off
+     * admin connection is created from a copied config array.
+     *
+     * @throws RuntimeException
+     */
+    protected function createMissingMySqlOrPgsqlDatabase(Connection $connection): bool
+    {
+        $adminConfig = (new ConfigurationUrlParser())->parseConfiguration(
+            $this->hypervel['config']->get("database.connections.{$connection->getName()}")
+        );
+
+        if (($adminConfig['database'] ?? null) !== $connection->getDatabaseName()) {
+            return false;
+        }
+
+        if (! $this->option('force') && $this->option('no-interaction')) {
+            return false;
+        }
+
+        if (! $this->option('force') && ! $this->option('no-interaction')) {
+            $this->components->warn("The database '{$connection->getDatabaseName()}' does not exist on the '{$connection->getName()}' connection.");
+
+            if (! confirm('Would you like to create it?', default: true)) {
+                $this->components->info('Operation cancelled. No database was created.');
+
+                throw new RuntimeException('Database was not created. Aborting migration.');
+            }
+        }
+
+        // Build a one-off admin connection from a copied config with the database
+        // changed to the server default. This avoids mutating process-global config
+        // which would race with other coroutines in Swoole's long-lived workers.
+        $adminConfig['database'] = match ($connection->getDriverName()) {
+            'mysql', 'mariadb' => null,
+            'pgsql' => 'postgres',
+            default => throw new RuntimeException("Unsupported driver [{$connection->getDriverName()}] for database creation."),
+        };
+
+        $factory = $this->hypervel->make(ConnectionFactory::class);
+        $adminConnection = $factory->make($adminConfig, $connection->getName());
+
+        try {
+            return $adminConnection->unprepared(
+                match ($connection->getDriverName()) {
+                    'mysql', 'mariadb' => "CREATE DATABASE IF NOT EXISTS `{$connection->getDatabaseName()}`",
+                    'pgsql' => 'CREATE DATABASE "' . $connection->getDatabaseName() . '"',
+                    default => throw new RuntimeException("Unsupported driver [{$connection->getDriverName()}] for database creation."),
+                }
+            );
+        } finally {
+            $adminConnection->disconnect();
+        }
+    }
+
+    /**
      * Load the schema state to seed the initial database schema structure.
      */
     protected function loadSchemaState(): void
     {
         $connection = $this->migrator->resolveConnection($this->option('database'));
 
-        // First, we will make sure that the connection supports schema loading and that
-        // the schema file exists before we proceed any further. If not, we will just
-        // continue with the standard migration operation as normal without errors.
+        // First, we will make sure that the schema file exists before we proceed
+        // any further. If not, we will just continue with the standard migration
+        // operation as normal without errors.
         if (! is_file($path = $this->schemaPath($connection))) {
             return;
         }
