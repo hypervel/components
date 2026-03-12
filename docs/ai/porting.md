@@ -521,6 +521,11 @@ class MyTest extends TestCase
 
 Each test runs in a fresh coroutine. Context is automatically destroyed when the coroutine ends — no manual cleanup needed.
 
+**Prefer applying `RunTestsInCoroutine` to the whole test class when possible.**
+If one or more tests in a class require coroutine context, first check whether the other tests in that class also run correctly inside coroutines. If they do, add `RunTestsInCoroutine` to the entire class instead of splitting the file or mixing coroutine and non-coroutine execution styles.
+
+Only split tests into separate classes when some tests genuinely must run outside coroutine context. Unnecessary mixing makes failures harder to reason about and often leads to incorrect test setups that exercise the code from the wrong execution context.
+
 **Optional hooks** (define if needed):
 - `setUpInCoroutine()` — runs inside the coroutine before the test
 - `tearDownInCoroutine()` — runs inside the coroutine after the test
