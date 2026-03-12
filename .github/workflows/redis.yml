@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+env:
+  RUN_BLOCKING_TESTS: true
+
 jobs:
   redis_8:
     runs-on: ubuntu-latest
