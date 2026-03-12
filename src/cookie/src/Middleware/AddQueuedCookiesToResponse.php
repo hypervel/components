@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cookie\Middleware;
 
 use Closure;
-use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,7 +15,7 @@ class AddQueuedCookiesToResponse
      * Create a new CookieQueue instance.
      */
     public function __construct(
-        protected CookieContract $cookies,
+        protected CookieJar $cookies,
     ) {
     }
 

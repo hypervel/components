@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie\Middleware;
 
-use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Http\Request;
@@ -22,7 +22,7 @@ class AddQueuedCookiesToResponseTest extends TestCase
     {
         $queuedCookie = new Cookie('foo', 'bar');
 
-        $cookieManager = m::mock(CookieContract::class);
+        $cookieManager = m::mock(CookieJar::class);
         $cookieManager->shouldReceive('getQueuedCookies')->once()->andReturn([$queuedCookie]);
 
         $request = Request::create('/test');
