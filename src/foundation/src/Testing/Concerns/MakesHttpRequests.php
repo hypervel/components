@@ -8,6 +8,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
+use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
@@ -32,6 +33,11 @@ trait MakesHttpRequests
     protected array $defaultCookies = [];
 
     /**
+     * Additional cookies that will not be encrypted for the request.
+     */
+    protected array $unencryptedCookies = [];
+
+    /**
      * Additional server variables for the request.
      */
     protected array $serverVariables = [];
@@ -40,6 +46,11 @@ trait MakesHttpRequests
      * Indicates whether redirects should be followed.
      */
     protected bool $followRedirects = false;
+
+    /**
+     * Indicates whether cookies should be encrypted.
+     */
+    protected bool $encryptCookies = true;
 
     /**
      * Indicated whether JSON requests should be performed "with credentials" (cookies).
@@ -200,6 +211,26 @@ trait MakesHttpRequests
     }
 
     /**
+     * Define additional cookies that will not be encrypted before sending with the request.
+     */
+    public function withUnencryptedCookies(array $cookies): static
+    {
+        $this->unencryptedCookies = array_merge($this->unencryptedCookies, $cookies);
+
+        return $this;
+    }
+
+    /**
+     * Add a cookie that will not be encrypted before sending with the request.
+     */
+    public function withUnencryptedCookie(string $name, string $value): static
+    {
+        $this->unencryptedCookies[$name] = $value;
+
+        return $this;
+    }
+
+    /**
      * Automatically follow any redirects returned from the response.
      */
     public function followingRedirects(): static
@@ -215,6 +246,16 @@ trait MakesHttpRequests
     public function withCredentials(): static
     {
         $this->withCredentials = true;
+
+        return $this;
+    }
+
+    /**
+     * Disable automatic encryption of cookie values.
+     */
+    public function disableCookieEncryption(): static
+    {
+        $this->encryptCookies = false;
 
         return $this;
     }
@@ -523,11 +564,18 @@ trait MakesHttpRequests
     }
 
     /**
-     * Prepare cookies for the request.
+     * If enabled, encrypt cookie values for request.
      */
     protected function prepareCookiesForRequest(): array
     {
-        return $this->defaultCookies;
+        if (! $this->encryptCookies) {
+            return array_merge($this->defaultCookies, $this->unencryptedCookies);
+        }
+
+        return (new Collection($this->defaultCookies))
+            ->map(fn ($value, $key) => encrypt(CookieValuePrefix::create($key, app('encrypter')->getKey()) . $value, false))
+            ->merge($this->unencryptedCookies)
+            ->all();
     }
 
     /**
