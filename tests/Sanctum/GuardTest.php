@@ -17,6 +17,7 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -310,9 +311,7 @@ class GuardTest extends TestCase
         $this->assertTrue($tokenAuthenticatedFired, 'TokenAuthenticated event was not fired');
     }
 
-    /**
-     * @dataProvider invalidTokenDataProvider
-     */
+    #[DataProvider('invalidTokenDataProvider')]
     public function testAuthenticationFailsWithInvalidTokenFormat(string $invalidToken): void
     {
         $headers = $invalidToken ? ['Authorization' => $invalidToken] : [];

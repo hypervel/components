@@ -12,6 +12,7 @@ use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Testbench\TestCase;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 use function Hypervel\Coroutine\run;
@@ -72,9 +73,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
     // DbPool::isInMemorySqlite() detection tests
     // =========================================================================
 
-    /**
-     * @dataProvider inMemoryDatabaseProvider
-     */
+    #[DataProvider('inMemoryDatabaseProvider')]
     public function testIsInMemorySqliteDetection(string $database, bool $expected): void
     {
         $config = $this->app->make('config');

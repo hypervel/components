@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
@@ -25,6 +26,7 @@ class User extends Model
  * @internal
  * @coversNothing
  */
+#[ResetRefreshDatabaseState]
 #[WithMigration]
 class PropagatedContextIntegrationTest extends TestCase
 {

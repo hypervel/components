@@ -14,6 +14,7 @@ use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -144,9 +145,7 @@ class AuthenticateRequestsTest extends TestCase
             ->assertJson(['email' => $user->email]);
     }
 
-    /**
-     * @dataProvider sanctumGuardsDataProvider
-     */
+    #[DataProvider('sanctumGuardsDataProvider')]
     public function testCanAuthorizeValidUserUsingSanctumActingAs(?string $guard): void
     {
         // Create a user in the database
