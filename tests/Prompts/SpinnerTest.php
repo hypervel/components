@@ -6,15 +6,16 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Prompts\Prompt;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\spin;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class SpinnerTest extends TestCase
 {
     use RunTestsInCoroutine;

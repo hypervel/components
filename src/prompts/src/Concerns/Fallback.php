@@ -29,10 +29,9 @@ trait Fallback
     public static function fallbackWhen(bool $condition): void
     {
         if (Coroutine::inCoroutine()) {
-            $current = Context::get('__prompt.should_fallback', false);
-            Context::set('__prompt.should_fallback', $condition || $current);
+            Context::set('__prompt.should_fallback', $condition);
         } else {
-            static::$shouldFallback = $condition || static::$shouldFallback;
+            static::$shouldFallback = $condition;
         }
     }
 

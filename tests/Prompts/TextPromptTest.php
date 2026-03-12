@@ -9,15 +9,16 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\text;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class TextPromptTest extends TestCase
 {
     protected function tearDown(): void
@@ -94,6 +95,17 @@ class TextPromptTest extends TestCase
         });
         $result = text('What is your name?');
         $this->assertSame('result', $result);
+    }
+
+    public function testCanDisableFallbackAfterEnablingIt()
+    {
+        TextPrompt::fallbackUsing(fn () => 'result');
+
+        Prompt::fallbackWhen(true);
+        $this->assertTrue(TextPrompt::shouldFallback());
+
+        Prompt::fallbackWhen(false);
+        $this->assertFalse(TextPrompt::shouldFallback());
     }
 
     public function testSupportsEmacsStyleKeyBinding(): void

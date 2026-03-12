@@ -8,15 +8,16 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SuggestPrompt;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\suggest;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class SuggestPromptTest extends TestCase
 {
     public function testAcceptsAnyInput(): void

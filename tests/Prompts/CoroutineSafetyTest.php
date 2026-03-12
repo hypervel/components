@@ -169,6 +169,17 @@ class CoroutineSafetyTest extends TestCase
         $this->assertContains(false, $results);
     }
 
+    public function testFallbackWhenCanBeDisabledWithinTheSameCoroutineContext()
+    {
+        TextPrompt::fallbackUsing(fn () => 'result');
+
+        Prompt::fallbackWhen(true);
+        $this->assertTrue(TextPrompt::shouldFallback());
+
+        Prompt::fallbackWhen(false);
+        $this->assertFalse(TextPrompt::shouldFallback());
+    }
+
     public function testChildCoroutineDoesNotLeakToParent()
     {
         $channel = new Channel(1);
