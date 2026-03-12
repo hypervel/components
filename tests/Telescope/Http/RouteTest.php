@@ -9,6 +9,7 @@ use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Assert as PHPUnit;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -26,19 +27,15 @@ class RouteTest extends FeatureTestCase
         $this->registerAssertJsonExactFragmentMacro();
     }
 
-    /**
-     * @dataProvider telescopeIndexRoutesProvider
-     */
-    public function testRoute(string $endpoint)
+    #[DataProvider('telescopeIndexRoutesProvider')]
+    public function testRoute(string $endpoint, string $_entryType)
     {
         $this->post($endpoint)
             ->assertSuccessful()
             ->assertJsonStructure(['entries' => []]);
     }
 
-    /**
-     * @dataProvider telescopeIndexRoutesProvider
-     */
+    #[DataProvider('telescopeIndexRoutesProvider')]
     public function testSimpleListOfEntries(string $endpoint, string $entryType)
     {
         $entry = $this->createEntry(['type' => $entryType]);

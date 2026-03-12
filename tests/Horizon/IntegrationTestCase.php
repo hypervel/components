@@ -112,7 +112,7 @@ abstract class IntegrationTestCase extends TestCase
      */
     public function wait(Closure $callback): void
     {
-        retry(10, $callback, 1000);
+        retry(200, $callback, 50);
     }
 
     /**

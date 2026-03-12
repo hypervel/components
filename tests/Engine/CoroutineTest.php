@@ -168,13 +168,13 @@ class CoroutineTest extends TestCase
     public function testCoroutineListCount()
     {
         Coroutine::create(function () {
-            sleep(1);
+            usleep(100000);
         });
         Coroutine::create(function () {
-            sleep(1);
+            usleep(100000);
         });
         Coroutine::create(function () {
-            sleep(1);
+            usleep(100000);
         });
         $this->assertEquals(4, iterator_count(Coroutine::list()));
     }

@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
 use Telescope\Dummies\DummyEventListener;
@@ -91,11 +92,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider formatListenersProvider
-     * @param mixed $listener
-     * @param mixed $formatted
-     */
+    #[DataProvider('formatListenersProvider')]
     public function testFormatListeners($listener, $formatted)
     {
         $this->app->make(Dispatcher::class)

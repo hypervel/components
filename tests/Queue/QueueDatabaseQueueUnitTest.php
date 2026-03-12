@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use DateInterval;
+use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
@@ -41,8 +43,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
         Uuid::setFactory($uuidFactory);
 
-        $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime'])->setConstructorArgs([$resolver = m::mock(ConnectionResolverInterface::class), null, 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
         $queue->setContainer($container = m::spy(Container::class));
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
@@ -87,11 +94,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
         Uuid::setFactory($uuidFactory);
 
-        $queue = $this->getMockBuilder(DatabaseQueue::class)
-            ->onlyMethods(['currentTime'])
-            ->setConstructorArgs([$resolver = m::mock(ConnectionResolverInterface::class), null, 'table', 'default'])
-            ->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
         $queue->setContainer($container = m::spy(Container::class));
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
@@ -155,9 +164,14 @@ class QueueDatabaseQueueUnitTest extends TestCase
         Uuid::setFactory($uuidFactory);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime', 'availableAt'])->setConstructorArgs([$resolver, null, 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
-        $queue->expects($this->any())->method('availableAt')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+            availableAt: 1732502704,
+        );
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
@@ -198,5 +212,29 @@ class MyTestJob
     public function handle()
     {
         // ...
+    }
+}
+
+class TestDatabaseQueue extends DatabaseQueue
+{
+    public function __construct(
+        ConnectionResolverInterface $resolver,
+        ?string $connection,
+        string $table,
+        string $default,
+        private readonly int $currentTime,
+        private readonly ?int $availableAt = null,
+    ) {
+        parent::__construct($resolver, $connection, $table, $default);
+    }
+
+    protected function currentTime(): int
+    {
+        return $this->currentTime;
+    }
+
+    protected function availableAt(DateInterval|DateTimeInterface|int $delay = 0): int
+    {
+        return $this->availableAt ?? parent::availableAt($delay);
     }
 }

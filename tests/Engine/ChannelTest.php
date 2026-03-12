@@ -122,13 +122,13 @@ class ChannelTest extends TestCase
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
-        $this->assertSame(true, $channel->push(1, 1));
-        $this->assertSame(false, $channel->push(1, 1));
+        $this->assertSame(true, $channel->push(1, 0.05));
+        $this->assertSame(false, $channel->push(1, 0.05));
         $this->assertTrue($channel->isTimeout());
 
         $channel = new Channel(1);
-        $this->assertSame(true, $channel->push(1, 1.0));
-        $this->assertSame(false, $channel->push(1, 1.0));
+        $this->assertSame(true, $channel->push(1, 0.05));
+        $this->assertSame(false, $channel->push(1, 0.05));
         $this->assertTrue($channel->isTimeout());
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Engine;
 
+use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exceptions\SocketClosedException;
 use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
@@ -31,7 +32,7 @@ class SocketTest extends TestCase
         }
 
         try {
-            (new Socket\SocketFactory())->make(new Socket\SocketOption('192.0.0.1', 9501, 1));
+            (new Socket\SocketFactory())->make(new Socket\SocketOption('192.0.0.1', 9501, 0.2));
         } catch (SocketConnectException $exception) {
             $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
             $this->assertStringContainsString('timed out', $exception->getMessage());
@@ -79,7 +80,7 @@ class SocketTest extends TestCase
             $server->start();
         });
 
-        sleep(1);
+        $this->waitForServerToBeReady(9506);
 
         $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
@@ -103,10 +104,11 @@ class SocketTest extends TestCase
     public function testSafeSocketBroken()
     {
         $server = new Server('0.0.0.0', 9506);
+        $closed = new Channel(1);
         $p = function (string $data): string {
             return pack('N', strlen($data)) . $data;
         };
-        go(function () use ($server, $p) {
+        go(function () use ($server, $p, $closed) {
             $server->set([
                 'open_length_check' => true,
                 'package_max_length' => 1024 * 1024 * 2,
@@ -114,7 +116,7 @@ class SocketTest extends TestCase
                 'package_length_offset' => 0,
                 'package_body_offset' => 4,
             ]);
-            $server->handle(function (Server\Connection $connection) use ($p) {
+            $server->handle(function (Server\Connection $connection) use ($p, $closed) {
                 $socket = new SafeSocket($connection->exportSocket(), 65535);
                 while (true) {
                     try {
@@ -137,11 +139,13 @@ class SocketTest extends TestCase
                         break;
                     }
                 }
+
+                $closed->push(true);
             });
             $server->start();
         });
 
-        sleep(1);
+        $this->waitForServerToBeReady(9506);
 
         $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
@@ -158,7 +162,7 @@ class SocketTest extends TestCase
 
         $socket->close();
 
-        sleep(1);
+        $this->assertTrue($closed->pop(0.5));
 
         $server->shutdown();
     }
@@ -166,10 +170,11 @@ class SocketTest extends TestCase
     public function testSafeSocketBrokenDontThrow()
     {
         $server = new Server('0.0.0.0', 9506);
+        $closed = new Channel(1);
         $p = function (string $data): string {
             return pack('N', strlen($data)) . $data;
         };
-        go(function () use ($server, $p) {
+        go(function () use ($server, $p, $closed) {
             $server->set([
                 'open_length_check' => true,
                 'package_max_length' => 1024 * 1024 * 2,
@@ -177,7 +182,7 @@ class SocketTest extends TestCase
                 'package_length_offset' => 0,
                 'package_body_offset' => 4,
             ]);
-            $server->handle(function (Server\Connection $connection) use ($p) {
+            $server->handle(function (Server\Connection $connection) use ($p, $closed) {
                 $socket = new SafeSocket($connection->exportSocket(), 65535, false);
                 while (true) {
                     $body = $socket->recvPacket();
@@ -195,11 +200,12 @@ class SocketTest extends TestCase
                     });
                 }
                 $this->assertTrue(true);
+                $closed->push(true);
             });
             $server->start();
         });
 
-        sleep(1);
+        $this->waitForServerToBeReady(9506);
 
         $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
@@ -216,7 +222,7 @@ class SocketTest extends TestCase
 
         $socket->close();
 
-        sleep(1);
+        $this->assertTrue($closed->pop(0.5));
 
         $server->shutdown();
     }
@@ -225,7 +231,7 @@ class SocketTest extends TestCase
     {
         $server = new Server('0.0.0.0', 9506);
 
-        sleep(1);
+        $this->waitForServerToBeReady(9506);
 
         $socket = (new Socket\SocketFactory())->make($option = new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
@@ -239,8 +245,25 @@ class SocketTest extends TestCase
 
         $socket->close();
 
-        sleep(1);
-
         $server->shutdown();
+    }
+
+    private function waitForServerToBeReady(int $port): void
+    {
+        $factory = new Socket\SocketFactory();
+        $deadline = microtime(true) + 0.5;
+
+        do {
+            try {
+                $socket = $factory->make(new Socket\SocketOption('127.0.0.1', $port, 0.01));
+                $socket->close();
+
+                return;
+            } catch (SocketConnectException) {
+                usleep(10000);
+            }
+        } while (microtime(true) < $deadline);
+
+        self::fail(sprintf('Timed out waiting for test server on port %d.', $port));
     }
 }

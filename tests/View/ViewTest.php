@@ -41,16 +41,13 @@ class ViewTest extends TestCase
 
     public function testRenderSectionsReturnsEnvironmentSections()
     {
-        $view = $this->getMockBuilder(View::class)
-            ->setConstructorArgs([
-                $factory = m::mock(Factory::class),
-                m::mock(Engine::class),
-                'view',
-                'path',
-                [],
-            ])
-            ->onlyMethods(['renderContents'])
-            ->getMock();
+        $view = new TestView(
+            $factory = m::mock(Factory::class),
+            m::mock(Engine::class),
+            'view',
+            'path',
+            [],
+        );
 
         $factory->shouldReceive('getSections')->with()->once()->andReturn($sections = ['foo' => 'bar']);
         $factory->shouldReceive('flushStateIfDoneRendering')->with()->once();
@@ -216,4 +213,12 @@ class ViewTest extends TestCase
 class DataObjectStub
 {
     public $foo = 'bar';
+}
+
+class TestView extends View
+{
+    protected function renderContents(): string
+    {
+        return '';
+    }
 }

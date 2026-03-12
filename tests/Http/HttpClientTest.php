@@ -1942,7 +1942,7 @@ class HttpClientTest extends TestCase
 
         try {
             $this->factory
-                ->retry(2, 1000, null, true)
+                ->retry(2, 0, null, true)
                 ->get('http://foo.com/get');
         } catch (RequestException $e) {
             $exception = $e;
@@ -2041,7 +2041,7 @@ class HttpClientTest extends TestCase
         ]);
 
         $response = $this->factory
-            ->retry(2, 1000, null, false)
+            ->retry(2, 0, null, false)
             ->get('http://foo.com/get');
 
         $this->assertTrue($response->failed());
@@ -2119,7 +2119,7 @@ class HttpClientTest extends TestCase
         ]);
 
         $response = $this->factory
-            ->retry(2, 1000, function ($exception, $request) {
+            ->retry(2, 0, function ($exception, $request) {
                 $this->assertInstanceOf(PendingRequest::class, $request);
 
                 $request->withHeaders(['Foo' => 'Bar']);
@@ -3083,20 +3083,44 @@ class HttpClientTest extends TestCase
 
     public function testTheTransferStatsAreCustomizable(): void
     {
-        $this->markTestSkipped();
         $onStatsFunctionCalled = false;
 
-        $stats = $this->factory
+        $client = m::mock(ClientInterface::class);
+        $client->shouldReceive('request')
+            ->once()
+            ->withArgs(function ($method, $url, $options) {
+                $options['on_stats'](new TransferStats(
+                    new \GuzzleHttp\Psr7\Request($method, $url),
+                    new Psr7Response(200, [], 'ok'),
+                    0.123,
+                    null,
+                    ['original' => 'value'],
+                ));
+
+                return $method === 'GET'
+                    && $url === 'https://example.com';
+            })
+            ->andReturn(new Psr7Response(200, [], 'ok'));
+
+        $stats = (new PendingRequest($this->factory))
+            ->setClient($client)
             ->withOptions([
                 'on_stats' => function (TransferStats $stats) use (&$onStatsFunctionCalled) {
                     $onStatsFunctionCalled = true;
+
+                    return new TransferStats(
+                        $stats->getRequest(),
+                        $stats->getResponse(),
+                        $stats->getTransferTime(),
+                        $stats->getHandlerErrorData(),
+                        ['customized' => true],
+                    );
                 },
             ])
             ->get('https://example.com')
             ->handlerStats();
 
-        $this->assertIsArray($stats);
-        $this->assertNotEmpty($stats);
+        $this->assertSame(['customized' => true], $stats);
         $this->assertTrue($onStatsFunctionCalled);
     }
 

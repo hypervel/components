@@ -10,6 +10,7 @@ use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 
 /**
@@ -24,10 +25,7 @@ class MailManagerTest extends TestCase
         $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
     }
 
-    /**
-     * @dataProvider emptyTransportConfigDataProvider
-     * @param mixed $transport
-     */
+    #[DataProvider('emptyTransportConfigDataProvider')]
     public function testEmptyTransportConfig($transport)
     {
         $this->app->make('config')

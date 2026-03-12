@@ -18,6 +18,7 @@ use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Horizon\WorkerCommandString;
+use Hypervel\Horizon\WorkerProcess;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
@@ -79,9 +80,9 @@ class SupervisorTest extends IntegrationTestCase
 
         $this->supervisor->processes()->each->terminate();
 
-        while (count($this->supervisor->processes()->filter->isRunning()) > 0) {
-            usleep(250 * 1000);
-        }
+        retry(200, function () {
+            $this->assertCount(0, $this->supervisor->processes()->filter->isRunning());
+        }, 50);
     }
 
     public function testSupervisorStartsMultiplePoolsWhenBalancing()
@@ -157,7 +158,8 @@ class SupervisorTest extends IntegrationTestCase
         // Start the supervisor...
         $supervisor->scale(1);
         $supervisor->loop();
-        usleep(250 * 1000);
+
+        $this->waitForProcessToExit($supervisor->processes()[0]);
 
         $supervisor->processes()[0]->restartAgainAt = CarbonImmutable::now()->subMinutes(10);
 
@@ -224,11 +226,12 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(2);
         $supervisor->loop();
-        usleep(100 * 1000);
 
-        $this->assertCount(2, $supervisor->processes());
-        $this->assertTrue($supervisor->processes()[0]->isRunning());
-        $this->assertTrue($supervisor->processes()[1]->isRunning());
+        $this->wait(function () use ($supervisor) {
+            $this->assertCount(2, $supervisor->processes());
+            $this->assertTrue($supervisor->processes()[0]->isRunning());
+            $this->assertTrue($supervisor->processes()[1]->isRunning());
+        });
     }
 
     public function testProcessesCanBeScaledDown()
@@ -239,21 +242,23 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(3);
         $supervisor->loop();
-        usleep(100 * 1000);
 
-        $this->assertCount(3, $supervisor->processes());
+        $this->wait(function () use ($supervisor) {
+            $this->assertCount(3, $supervisor->processes());
+            $this->assertTrue($supervisor->processes()->every->isRunning());
+        });
 
         $supervisor->scale(1);
         $supervisor->loop();
-        usleep(100 * 1000);
 
-        $this->assertCount(1, $supervisor->processes());
-        $this->assertTrue($supervisor->processes()[0]->isRunning());
+        $this->wait(function () use ($supervisor) {
+            $this->assertCount(1, $supervisor->processes());
+            $this->assertTrue($supervisor->processes()[0]->isRunning());
+        });
 
-        // Give processes time to terminate...
-        retry(10, function () use ($supervisor) {
+        retry(200, function () use ($supervisor) {
             $this->assertCount(0, $supervisor->terminatingProcesses());
-        }, 1000);
+        }, 50);
     }
 
     // TODO: 討論，執行後會有錯誤訊息
@@ -312,16 +317,18 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(1);
         $supervisor->loop();
-        usleep(250 * 1000);
+
+        $this->waitForProcessToStart($supervisor->processes()->first());
 
         $process = $supervisor->processes()->first();
         $process->stop();
         $supervisor->pause();
 
         $supervisor->loop();
-        usleep(250 * 1000);
 
-        $this->assertFalse($process->isRunning());
+        $this->wait(function () use ($process) {
+            $this->assertFalse($process->isRunning());
+        });
     }
 
     public function testSupervisorProcessesCanBeTerminated()
@@ -331,17 +338,17 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(1);
         $supervisor->loop();
-        usleep(100 * 1000);
 
         $process = $supervisor->processes()->first();
-        $this->assertTrue($process->isRunning());
+        $this->wait(function () use ($process) {
+            $this->assertTrue($process->isRunning());
+        });
 
         $process->terminate();
-        usleep(500 * 1000);
 
-        retry(10, function () use ($process) {
+        retry(200, function () use ($process) {
             $this->assertFalse($process->isRunning());
-        }, 1000);
+        }, 50);
     }
 
     public function testSupervisorCanPruneTerminatingProcessesAndReturnTotalProcessCount()
@@ -350,10 +357,9 @@ class SupervisorTest extends IntegrationTestCase
         $options->sleep = 0;
 
         $supervisor->scale(1);
-        usleep(100 * 1000);
+        $this->assertCount(1, $supervisor->processes());
 
         $supervisor->scale(0);
-        usleep(500 * 1000);
 
         $this->assertSame(0, $supervisor->pruneAndGetTotalProcesses());
     }
@@ -366,7 +372,8 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(1);
         $supervisor->loop();
-        usleep(100 * 1000);
+
+        $this->waitForProcessToStart($supervisor->processes()->first());
 
         $process = $supervisor->processes()->first();
         $supervisor->processPools[0]->markForTermination($process);
@@ -428,7 +435,6 @@ class SupervisorTest extends IntegrationTestCase
 
         // Start the supervisor...
         $supervisor->scale(1);
-        usleep(100 * 1000);
 
         $supervisor->loop();
 
@@ -504,16 +510,12 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->scale(3);
 
-        $this->wait(function () use ($supervisor) {
-            $this->assertSame(0, $supervisor->totalSystemProcessCount());
-        });
+        $this->assertSame(0, $supervisor->totalSystemProcessCount());
 
         $supervisor->working = false;
         $supervisor->loop();
 
-        $this->wait(function () use ($supervisor) {
-            $this->assertSame(0, $supervisor->totalSystemProcessCount());
-        });
+        $this->assertSame(0, $supervisor->totalSystemProcessCount());
 
         $supervisor->working = true;
         $supervisor->loop();
@@ -528,6 +530,22 @@ class SupervisorTest extends IntegrationTestCase
         return tap(new SupervisorOptions(MasterSupervisor::name() . ':name', 'redis'), function ($options) {
             $options->directory = realpath(__DIR__ . '/../');
             WorkerCommandString::$command = 'exec ' . $this->phpBinary . ' worker.php';
+        });
+    }
+
+    protected function waitForProcessToStart(WorkerProcess $process): void
+    {
+        $this->wait(function () use ($process) {
+            $this->assertTrue($process->isRunning());
+        });
+    }
+
+    protected function waitForProcessToExit(WorkerProcess $process): void
+    {
+        $this->wait(function () use ($process) {
+            $this->assertTrue($process->isStarted());
+            $this->assertFalse($process->isRunning());
+            $this->assertNotNull($process->getExitCode());
         });
     }
 }

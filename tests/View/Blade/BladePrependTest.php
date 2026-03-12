@@ -6,8 +6,8 @@ namespace Hypervel\Tests\View\Blade;
 
 use Mockery;
 use Ramsey\Uuid\Uuid;
+use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
-use Ramsey\Uuid\UuidInterface;
 
 /**
  * @internal
@@ -15,6 +15,13 @@ use Ramsey\Uuid\UuidInterface;
  */
 class BladePrependTest extends AbstractBladeTestCase
 {
+    protected function tearDown(): void
+    {
+        Uuid::setFactory(new UuidFactory());
+
+        parent::tearDown();
+    }
+
     public function testPrependIsCompiled()
     {
         $string = '@prepend(\'foo\')
@@ -43,10 +50,8 @@ test
 
     public function testPrependOnceIsCompiledWhenIdIsMissing()
     {
-        $uuid = Mockery::mock(UuidInterface::class);
-        $uuid->shouldReceive('__toString')->andReturn('e60e8f77-9ac3-4f71-9f8e-a044ef481d7f');
         $factory = Mockery::mock(UuidFactoryInterface::class);
-        $factory->shouldReceive('uuid4')->andReturn($uuid);
+        $factory->shouldReceive('uuid4')->andReturn(Uuid::fromString('e60e8f77-9ac3-4f71-9f8e-a044ef481d7f'));
         Uuid::setFactory($factory);
 
         $string = '@prependOnce(\'foo\')

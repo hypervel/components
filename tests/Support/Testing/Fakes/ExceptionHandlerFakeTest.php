@@ -226,7 +226,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testSetHandler(): void
     {
         $fake = Exceptions::fake();
-        $newHandler = $this->createMock(ExceptionHandler::class);
+        $newHandler = $this->createStub(ExceptionHandler::class);
 
         $result = $fake->setHandler($newHandler);
 

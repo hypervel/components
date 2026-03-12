@@ -18,7 +18,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactoryInterface;
-use Ramsey\Uuid\UuidInterface;
 
 /**
  * @internal
@@ -70,7 +69,7 @@ class JWTManagerTest extends TestCase
 
     public function testEncodeAPayload()
     {
-        $jti = 'foo';
+        $jti = '11111111-1111-4111-8111-111111111111';
         $token = 'foo.bar.baz';
         $payload = [
             'sub' => 1,
@@ -146,7 +145,7 @@ class JWTManagerTest extends TestCase
             'iat' => $this->testNowTimestamp,
             'jti' => 'foo',
         ];
-        $refreshJti = 'bar';
+        $refreshJti = '22222222-2222-4222-8222-222222222222';
         $refreshPayload = [
             'sub' => 1,
             'iss' => 'http://example.com',
@@ -270,29 +269,8 @@ class JWTManagerTest extends TestCase
 
         /** @var MockInterface|UuidFactoryInterface */
         $factory = m::mock(UuidFactoryInterface::class);
-
-        // Ignore Serializable interface deprecation warnings in PHP 8.1+
-        /** @var MockInterface|UuidInterface */
-        $uuid = $this->runInSpecifyErrorReportingLevel(
-            E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED,
-            fn () => m::mock(UuidInterface::class)
-        );
-
-        $uuid->shouldReceive('__toString')->andReturn($value);
-
-        $factory->shouldReceive('uuid4')->andReturn($uuid);
+        $factory->shouldReceive('uuid4')->andReturn(Uuid::fromString($value));
 
         Uuid::setFactory($factory);
-    }
-
-    private function runInSpecifyErrorReportingLevel(int $level, callable $callback)
-    {
-        $originalLevel = error_reporting($level);
-
-        $result = $callback();
-
-        error_reporting($originalLevel);
-
-        return $result;
     }
 }

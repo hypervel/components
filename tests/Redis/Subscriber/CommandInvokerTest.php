@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis\Subscriber;
 
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\CommandInvoker;
 use Hypervel\Redis\Subscriber\Connection;
@@ -99,28 +100,15 @@ class CommandInvokerTest extends TestCase
 
     public function testShutdownWatcherInterruptsOnWorkerExit()
     {
-        // Create a connection that blocks on recv() indefinitely (simulating
-        // a real socket waiting for messages). The shutdown watcher should
-        // interrupt it when WORKER_EXIT is resumed.
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('recv')
-            ->andReturnUsing(function () {
-                // Block long enough that only the shutdown watcher can unblock us
-                usleep(5_000_000);
-                return false;
-            });
-        $connection->shouldReceive('close')->atLeast()->once();
+        $connection = new BlockingConnection();
 
         $invoker = new CommandInvoker($connection);
 
-        // Resume WORKER_EXIT — this should trigger the shutdown watcher
-        // which calls interrupt(), closing the connection and channels.
         CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
 
-        // Give the shutdown watcher coroutine time to fire
         usleep(50_000);
 
-        // Message channel should be closed by interrupt()
+        $this->assertTrue($connection->wasClosed());
         $this->assertFalse($invoker->channel()->pop(0.01));
     }
 
@@ -275,5 +263,33 @@ class CommandInvokerTest extends TestCase
             });
 
         return $connection;
+    }
+}
+
+class BlockingConnection extends Connection
+{
+    private readonly Channel $gate;
+
+    private bool $wasClosed = false;
+
+    public function __construct()
+    {
+        $this->gate = new Channel(1);
+    }
+
+    public function recv(float $timeout = -1): string|bool
+    {
+        return $this->gate->pop($timeout);
+    }
+
+    public function close(): void
+    {
+        $this->wasClosed = true;
+        $this->gate->close();
+    }
+
+    public function wasClosed(): bool
+    {
+        return $this->wasClosed;
     }
 }

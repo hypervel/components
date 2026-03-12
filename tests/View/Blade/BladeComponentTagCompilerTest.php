@@ -758,11 +758,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->never();
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs(['bath_path'])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
         $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
@@ -799,11 +795,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->never();
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs(['bath_path'])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
         $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
@@ -858,11 +850,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
             $factory->shouldReceive('exists')->andReturn(...$exists);
         }
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs(['bath_path'])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
         $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
@@ -931,6 +919,14 @@ class TestContainerComponent extends Component
     public function render(): View|Htmlable|Closure|string
     {
         return 'container';
+    }
+}
+
+class TestBladeApplication extends Application
+{
+    public function getNamespace(): string
+    {
+        return 'App\\';
     }
 }
 

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\LogWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
@@ -47,9 +48,7 @@ class LogWatcherTest extends FeatureTestCase
         $this->startTelescope();
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherRegistersEntryForAnyLevelByDefault(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
@@ -68,9 +67,7 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
@@ -93,9 +90,7 @@ class LogWatcherTest extends FeatureTestCase
         }
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
@@ -114,9 +109,7 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheBooleanFormat(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
@@ -131,9 +124,7 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheArrayFormat(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);

@@ -7,8 +7,6 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
@@ -33,11 +31,7 @@ class MailableQueuedTest extends TestCase
     public function testQueuedMailableSent()
     {
         $queueFake = new QueueFake($this->app);
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage', 'to'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $queueFake->assertNothingPushed();
         $mailer->send($mailable);
@@ -47,11 +41,7 @@ class MailableQueuedTest extends TestCase
     public function testQueuedMailableWithAttachmentSent()
     {
         $queueFake = new QueueFake($this->app);
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
         $mailable->attach('foo.jpg', $attachmentOption);
@@ -66,11 +56,7 @@ class MailableQueuedTest extends TestCase
     public function testQueuedMailableReceivesMailableInstance()
     {
         $queueFake = new QueueFake($this->app);
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage', 'to'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $mailer->send($mailable);
 
@@ -81,18 +67,8 @@ class MailableQueuedTest extends TestCase
 
     public function testQueuedMailableWithAttachmentFromDiskSent()
     {
-        $this->getMockBuilder(Filesystem::class)
-            ->getMock();
-        $filesystemFactory = $this->getMockBuilder(FilesystemManager::class)
-            ->setConstructorArgs([$this->app])
-            ->getMock();
-        $this->app->instance('filesystem', $filesystemFactory);
         $queueFake = new QueueFake($this->app);
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
 
@@ -110,6 +86,11 @@ class MailableQueuedTest extends TestCase
     protected function getMocks()
     {
         return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
+    }
+
+    protected function createMailer(QueueFake $queueFake): Mailer
+    {
+        return (new Mailer(...$this->getMocks()))->setQueue($queueFake);
     }
 }
 

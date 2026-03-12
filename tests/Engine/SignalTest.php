@@ -18,15 +18,15 @@ class SignalTest extends TestCase
 
     public function testSignal()
     {
-        $res = Signal::wait(SIGUSR1, 1);
+        $res = Signal::wait(SIGUSR1, 0.05);
         $this->assertFalse($res);
 
         go(static function () {
-            sleep(1);
+            usleep(100000);
             posix_kill(getmypid(), SIGUSR1);
         });
 
-        $res = Signal::wait(SIGUSR1, 2);
+        $res = Signal::wait(SIGUSR1, 0.5);
         $this->assertTrue($res);
     }
 }

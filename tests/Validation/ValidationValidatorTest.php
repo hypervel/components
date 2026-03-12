@@ -2480,10 +2480,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'gt:rhs']);
         $this->assertTrue($v->fails());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(3151);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(3151);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'gt:rhs']);
         $this->assertTrue($v->passes());
 
@@ -2575,10 +2573,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'lt:rhs']);
         $this->assertTrue($v->passes());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(3151);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(3151);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'lt:rhs']);
         $this->assertTrue($v->fails());
 
@@ -2616,10 +2612,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'gte:rhs']);
         $this->assertTrue($v->fails());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(5472);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(5472);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'gte:rhs']);
         $this->assertTrue($v->passes());
 
@@ -2657,10 +2651,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'lte:rhs']);
         $this->assertTrue($v->passes());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(5472);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(5472);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'lte:rhs']);
         $this->assertTrue($v->passes());
 
@@ -3776,13 +3768,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Size:4']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Size:3']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Size:3']);
         $this->assertFalse($v->passes());
     }
@@ -3832,13 +3822,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Between:1,2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Between:1,5']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Between:1,2']);
         $this->assertFalse($v->passes());
     }
@@ -3891,13 +3879,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2]], ['foo' => 'Array|Min:3']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Min:2']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Min:10']);
         $this->assertFalse($v->passes());
     }
@@ -3946,20 +3932,15 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Max:2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getSize'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->method('isValid')->willReturn(true);
-        $file->method('getSize')->willReturn(3072);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: true, size: 3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getSize'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->method('isValid')->willReturn(true);
-        $file->method('getSize')->willReturn(4072);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: true, size: 4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(false);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
         $this->assertFalse($v->passes());
     }
@@ -4065,9 +4046,7 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('string', $v->messages()->first('name'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:3']);
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
@@ -4101,12 +4080,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('minimum value', $v->messages()->first('max'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $biggerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $biggerFile->expects($this->any())->method('getSize')->willReturn(5120);
-        $biggerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $biggerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 5120);
         $v = new Validator($trans, ['photo' => $file, 'bigger' => $biggerFile], ['photo' => 'file|gt:bigger']);
         $this->assertFalse($v->passes());
         $this->assertEquals(5, $v->messages()->first('photo'));
@@ -4143,12 +4118,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('maximum value', $v->messages()->first('min'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $smallerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $smallerFile->expects($this->any())->method('getSize')->willReturn(2048);
-        $smallerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $smallerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 2048);
         $v = new Validator($trans, ['photo' => $file, 'smaller' => $smallerFile], ['photo' => 'file|lt:smaller']);
         $this->assertFalse($v->passes());
         $this->assertEquals(2, $v->messages()->first('photo'));
@@ -4185,12 +4156,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('minimum value', $v->messages()->first('max'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $biggerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $biggerFile->expects($this->any())->method('getSize')->willReturn(5120);
-        $biggerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $biggerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 5120);
         $v = new Validator($trans, ['photo' => $file, 'bigger' => $biggerFile], ['photo' => 'file|gte:bigger']);
         $this->assertFalse($v->passes());
         $this->assertEquals(5, $v->messages()->first('photo'));
@@ -4227,12 +4194,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('maximum value', $v->messages()->first('min'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $smallerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $smallerFile->expects($this->any())->method('getSize')->willReturn(2048);
-        $smallerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $smallerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 2048);
         $v = new Validator($trans, ['photo' => $file, 'smaller' => $smallerFile], ['photo' => 'file|lte:smaller']);
         $this->assertFalse($v->passes());
         $this->assertEquals(2, $v->messages()->first('photo'));
@@ -4569,12 +4532,8 @@ class ValidationValidatorTest extends TestCase
             'validation.gt.array' => 'The :attribute field must have more than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(9216);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 9216);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4609,12 +4568,8 @@ class ValidationValidatorTest extends TestCase
             'validation.gte.array' => 'The :attribute field must have :value items or more.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(9216);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 9216);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4649,12 +4604,8 @@ class ValidationValidatorTest extends TestCase
             'validation.lt.array' => 'The :attribute field must have less than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(8192);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 8192);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4689,12 +4640,8 @@ class ValidationValidatorTest extends TestCase
             'validation.lte.array' => 'The :attribute field must not have more than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(8192);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 8192);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -5215,72 +5162,47 @@ class ValidationValidatorTest extends TestCase
     public function testValidateImage()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('php');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'image']);
         $this->assertFalse($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('jpeg');
-        $file2->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpeg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('jpeg');
-        $file2->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpeg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('jpg');
-        $file2->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file3 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file3->expects($this->any())->method('guessExtension')->willReturn('gif');
-        $file3->expects($this->any())->method('getClientOriginalExtension')->willReturn('gif');
+        $file3 = $this->uploadedFile(__FILE__, '', guessedExtension: 'gif', clientOriginalExtension: 'gif');
         $v = new Validator($trans, ['x' => $file3], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file4 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file4->expects($this->any())->method('guessExtension')->willReturn('bmp');
-        $file4->expects($this->any())->method('getClientOriginalExtension')->willReturn('bmp');
+        $file4 = $this->uploadedFile(__FILE__, '', guessedExtension: 'bmp', clientOriginalExtension: 'bmp');
         $v = new Validator($trans, ['x' => $file4], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file5 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file5->expects($this->any())->method('guessExtension')->willReturn('png');
-        $file5->expects($this->any())->method('getClientOriginalExtension')->willReturn('png');
+        $file5 = $this->uploadedFile(__FILE__, '', guessedExtension: 'png', clientOriginalExtension: 'png');
         $v = new Validator($trans, ['x' => $file5], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file6 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file6->expects($this->any())->method('guessExtension')->willReturn('svg');
-        $file6->expects($this->any())->method('getClientOriginalExtension')->willReturn('svg');
+        $file6 = $this->uploadedFile(__FILE__, '', guessedExtension: 'svg', clientOriginalExtension: 'svg');
         $v = new Validator($trans, ['x' => $file6], ['x' => 'image']);
         $this->assertFalse($v->passes());
 
-        $file6 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file6->expects($this->any())->method('guessExtension')->willReturn('svg');
-        $file6->expects($this->any())->method('getClientOriginalExtension')->willReturn('svg');
+        $file6 = $this->uploadedFile(__FILE__, '', guessedExtension: 'svg', clientOriginalExtension: 'svg');
         $v = new Validator($trans, ['x' => $file6], ['x' => 'image:allow_svg']);
         $this->assertTrue($v->passes());
 
-        $file7 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file7->expects($this->any())->method('guessExtension')->willReturn('webp');
-        $file7->expects($this->any())->method('getClientOriginalExtension')->willReturn('webp');
-
+        $file7 = $this->uploadedFile(__FILE__, '', guessedExtension: 'webp', clientOriginalExtension: 'webp');
         $v = new Validator($trans, ['x' => $file7], ['x' => 'Image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('jpg');
-        $file2->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'Image']);
         $this->assertTrue($v->passes());
     }
@@ -5288,11 +5210,7 @@ class ValidationValidatorTest extends TestCase
     public function testValidateImageDoesNotAllowPhpExtensionsOnImageMime()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, extension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'image']);
         $this->assertFalse($v->passes());
     }
@@ -5434,24 +5352,15 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
 
-        $uploadedFile = [__DIR__ . '/ValidationMacroTest.php', '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('rtf');
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('text/rtf');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'text/rtf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:text/*']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('application/pdf');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'application/pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:text/rtf']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('image/jpeg');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'image/jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:image/jpeg']);
         $this->assertTrue($v->passes());
     }
@@ -5459,29 +5368,19 @@ class ValidationValidatorTest extends TestCase
     public function testValidateMime()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('pdf');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('pdf');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'pdf', clientOriginalExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:pdf']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'isValid'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('pdf');
-        $file2->expects($this->any())->method('isValid')->willReturn(false);
+        $file2 = $this->uploadedFile(__FILE__, '', isValid: false, guessedExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'mimes:pdf']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('jpg');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpeg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('jpg');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpeg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpg']);
         $this->assertTrue($v->passes());
     }
@@ -5489,31 +5388,23 @@ class ValidationValidatorTest extends TestCase
     public function testValidateExtension()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('pdf');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:pdf']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpeg,jpg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpeg']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('jpg');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('jpeg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpg|extensions:jpg']);
         $this->assertFalse($v->passes());
     }
@@ -5521,17 +5412,11 @@ class ValidationValidatorTest extends TestCase
     public function testValidateMimeEnforcesPhpCheck()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('guessExtension')->willReturn('pdf');
-        $file->expects($this->any())->method('getClientOriginalExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'pdf', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:pdf']);
         $this->assertFalse($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['guessExtension', 'getClientOriginalExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('guessExtension')->willReturn('php');
-        $file2->expects($this->any())->method('getClientOriginalExtension')->willReturn('php');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'mimes:pdf,php']);
         $this->assertTrue($v->passes());
     }
@@ -10110,6 +9995,33 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('whenNotPasses', $result);
     }
 
+    protected function fileInfoWithSize(int $size): SplFileInfo
+    {
+        return new SizedSplFileInfo(__FILE__, $size);
+    }
+
+    protected function uploadedFile(
+        string $path = __FILE__,
+        string $originalName = '',
+        ?bool $isValid = null,
+        ?int $size = null,
+        ?string $guessedExtension = null,
+        ?string $clientOriginalExtension = null,
+        ?string $mimeType = null,
+        ?string $extension = null,
+    ): UploadedFile {
+        return new TestUploadedFile(
+            path: $path,
+            originalName: $originalName,
+            isValid: $isValid,
+            size: $size,
+            guessedExtension: $guessedExtension,
+            clientOriginalExtension: $clientOriginalExtension,
+            mimeType: $mimeType,
+            extension: $extension,
+        );
+    }
+
     protected function getTranslator()
     {
         return m::mock(TranslatorContract::class);
@@ -10171,4 +10083,63 @@ class ExplicitTableAndConnectionModel extends Model
 
 class NonEloquentModel
 {
+}
+
+class SizedSplFileInfo extends SplFileInfo
+{
+    public function __construct(string $filename, private readonly int $size)
+    {
+        parent::__construct($filename);
+    }
+
+    public function getSize(): int
+    {
+        return $this->size;
+    }
+}
+
+class TestUploadedFile extends UploadedFile
+{
+    public function __construct(
+        string $path,
+        string $originalName = '',
+        private readonly ?bool $isValid = null,
+        private readonly ?int $size = null,
+        private readonly ?string $guessedExtension = null,
+        private readonly ?string $clientOriginalExtension = null,
+        private readonly ?string $mimeType = null,
+        private readonly ?string $extension = null,
+    ) {
+        parent::__construct($path, $originalName, null, null, true);
+    }
+
+    public function isValid(): bool
+    {
+        return $this->isValid ?? parent::isValid();
+    }
+
+    public function getSize(): int|false
+    {
+        return $this->size ?? parent::getSize();
+    }
+
+    public function guessExtension(): ?string
+    {
+        return $this->guessedExtension ?? parent::guessExtension();
+    }
+
+    public function getClientOriginalExtension(): string
+    {
+        return $this->clientOriginalExtension ?? parent::getClientOriginalExtension();
+    }
+
+    public function getMimeType(): ?string
+    {
+        return $this->mimeType ?? parent::getMimeType();
+    }
+
+    public function getExtension(): string
+    {
+        return $this->extension ?? parent::getExtension();
+    }
 }

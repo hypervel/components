@@ -106,7 +106,7 @@ class TranslatorTest extends TestCase
 
     public function testGetMethodProperlyLoadsAndRetrievesItemWithCapitalization()
     {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods([])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
+        $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
         $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['foo' => 'foo', 'baz' => 'breeze :0 :Foo :BAR']);
         $this->assertSame('breeze john Bar FOO', $translator->get('foo::bar.baz', ['john', 'foo' => 'bar', 'bar' => 'foo'], 'en'));
