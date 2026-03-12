@@ -10,20 +10,25 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
+use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CliDumper;
-use Hypervel\Foundation\Console\Commands\AboutCommand;
-use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
-use Hypervel\Foundation\Console\Commands\RouteCacheCommand;
-use Hypervel\Foundation\Console\Commands\RouteClearCommand;
-use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
-use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
+use Hypervel\Foundation\Console\ConfigShowCommand;
+use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Console\RouteCacheCommand;
+use Hypervel\Foundation\Console\RouteClearCommand;
+use Hypervel\Foundation\Console\ServerReloadCommand;
+use Hypervel\Foundation\Console\UpCommand;
+use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\URL;
@@ -77,6 +82,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../../config/app.php', 'app');
 
         $this->listenCommandException();
+        $this->registerMaintenanceModeManager();
         $this->registerRequestValidation();
         $this->registerRequestSignatureValidation();
         $this->registerUriUrlGeneration();
@@ -86,9 +92,11 @@ class FoundationServiceProvider extends ServiceProvider
         $this->commands([
             AboutCommand::class,
             ConfigShowCommand::class,
+            DownCommand::class,
             RouteCacheCommand::class,
             RouteClearCommand::class,
             ServerReloadCommand::class,
+            UpCommand::class,
             VendorPublishCommand::class,
         ]);
 
@@ -182,6 +190,19 @@ class FoundationServiceProvider extends ServiceProvider
         Request::macro('hasValidRelativeSignatureWhileIgnoring', function ($ignoreQuery = []) {
             return URL::hasValidSignature($this, $absolute = false, $ignoreQuery);
         });
+    }
+
+    /**
+     * Register the maintenance mode manager and its caching decorator.
+     */
+    protected function registerMaintenanceModeManager(): void
+    {
+        $this->app->singleton(
+            MaintenanceModeContract::class,
+            fn () => new WorkerCachedMaintenanceMode(
+                $this->app->make(MaintenanceModeManager::class)->driver()
+            )
+        );
     }
 
     protected function registerUriUrlGeneration(): void
