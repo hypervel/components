@@ -177,6 +177,11 @@ interface Application extends Container
     public function hasDebugModeEnabled(): bool;
 
     /**
+     * Get an instance of the maintenance mode manager implementation.
+     */
+    public function maintenanceMode(): MaintenanceMode;
+
+    /**
      * Determine if the application is currently down for maintenance.
      */
     public function isDownForMaintenance(): bool;
