@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\ReflectionParameterCachingTest;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Events\Dispatcher;
@@ -15,8 +16,10 @@ use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use ReflectionFunction;
 use ReflectionParameter;
 use ReflectionProperty;
+use WeakMap;
 
 /**
  * @internal
@@ -32,7 +35,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         parent::tearDown();
     }
 
-    public function testClosureParametersAreCachedByObjectId()
+    public function testClosureParametersAreCached()
     {
         $router = $this->getRouter();
 
@@ -43,11 +46,10 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $router->get('foo/{name}', $closure);
         $router->dispatch(Request::create('foo/taylor', 'GET'));
 
-        $cache = (new ReflectionProperty(CallableDispatcher::class, 'reflectionCache'))->getValue();
+        $parameters = $this->getCallableDispatcherCachedParameters($closure);
 
-        $this->assertArrayHasKey(spl_object_id($closure), $cache);
-        $this->assertIsArray($cache[spl_object_id($closure)]);
-        $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $cache[spl_object_id($closure)]);
+        $this->assertIsArray($parameters);
+        $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $parameters);
     }
 
     public function testClosureParameterCacheReturnsSameArrayOnRepeatDispatch()
@@ -61,13 +63,12 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $router->get('foo/{name}', $closure);
 
         $router->dispatch(Request::create('foo/taylor', 'GET'));
-        $cacheAfterFirst = (new ReflectionProperty(CallableDispatcher::class, 'reflectionCache'))->getValue();
+        $cacheAfterFirst = $this->getCallableDispatcherCachedParameters($closure);
 
         $router->dispatch(Request::create('foo/dayle', 'GET'));
-        $cacheAfterSecond = (new ReflectionProperty(CallableDispatcher::class, 'reflectionCache'))->getValue();
+        $cacheAfterSecond = $this->getCallableDispatcherCachedParameters($closure);
 
-        $key = spl_object_id($closure);
-        $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
+        $this->assertSame($cacheAfterFirst, $cacheAfterSecond);
     }
 
     public function testControllerParametersAreCachedByClassAndMethod()
@@ -172,6 +173,38 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame('dayle', $response->getContent());
     }
 
+    public function testClosureDispatchDoesNotReuseStaleParametersWhenClosureObjectIdIsReused()
+    {
+        $router = $this->getRouter();
+
+        $closureWithNoParameters = function () {
+            return 'ok';
+        };
+        $closureNeedingRequest = function (Request $request) {
+            return $request->getMethod();
+        };
+
+        $staleParameters = (new ReflectionFunction($closureWithNoParameters))->getParameters();
+        $this->seedCallableDispatcherCacheWithStaleParameters(
+            $closureWithNoParameters,
+            $closureNeedingRequest,
+            $staleParameters,
+        );
+
+        $router->get('needs-request', $closureNeedingRequest);
+
+        $response = $router->dispatch(Request::create('/needs-request', 'GET'));
+
+        $this->assertSame('GET', $response->getContent());
+        $this->assertSame(
+            ['request'],
+            array_map(
+                static fn (ReflectionParameter $parameter): string => $parameter->getName(),
+                $this->getCallableDispatcherCachedParameters($closureNeedingRequest) ?? [],
+            ),
+        );
+    }
+
     protected function getRouter(?Container $container = null): Router
     {
         $container ??= new Container();
@@ -184,6 +217,36 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
         return $router;
+    }
+
+    protected function getCallableDispatcherCachedParameters(Closure $closure): ?array
+    {
+        $cache = (new ReflectionProperty(CallableDispatcher::class, 'reflectionCache'))->getValue();
+
+        if ($cache instanceof WeakMap) {
+            return $cache[$closure] ?? null;
+        }
+
+        return $cache[spl_object_id($closure)] ?? null;
+    }
+
+    protected function seedCallableDispatcherCacheWithStaleParameters(
+        Closure $staleClosure,
+        Closure $targetClosure,
+        array $parameters,
+    ): void {
+        $reflectionProperty = new ReflectionProperty(CallableDispatcher::class, 'reflectionCache');
+        $cache = $reflectionProperty->getValue();
+
+        if ($cache instanceof WeakMap) {
+            $cache[$staleClosure] = $parameters;
+            $reflectionProperty->setValue(null, $cache);
+
+            return;
+        }
+
+        $cache[spl_object_id($targetClosure)] = $parameters;
+        $reflectionProperty->setValue(null, $cache);
     }
 }
 

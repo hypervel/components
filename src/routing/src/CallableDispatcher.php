@@ -11,21 +11,22 @@ use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionParameter;
+use WeakMap;
 
 class CallableDispatcher implements CallableDispatcherContract
 {
     use ResolvesRouteDependencies;
 
     /**
-     * Cached ReflectionParameter arrays keyed by closure object ID.
+     * Cached ReflectionParameter arrays keyed by closure object.
      *
-     * Only Closures are cached — they have stable spl_object_id() for the
-     * worker lifetime. Other callable shapes (array, invokable object, string)
-     * are not cached — they're extremely rare in route dispatch.
+     * WeakMap ensures cached reflection metadata disappears when the closure
+     * itself is no longer referenced, so later closures cannot inherit stale
+     * parameter lists via recycled object IDs.
      *
-     * @var array<int, array<int, ReflectionParameter>>
+     * @var null|WeakMap<Closure, array<int, ReflectionParameter>>
      */
-    protected static array $reflectionCache = [];
+    protected static ?WeakMap $reflectionCache = null;
 
     /**
      * The container instance.
@@ -72,8 +73,13 @@ class CallableDispatcher implements CallableDispatcherContract
     protected function resolveParameters(Route $route, callable $callable): array
     {
         if ($callable instanceof Closure) {
-            $reflectedParameters = static::$reflectionCache[spl_object_id($callable)]
-                ??= (new ReflectionFunction($callable))->getParameters();
+            $reflectionCache = static::$reflectionCache ??= new WeakMap();
+
+            if (! isset($reflectionCache[$callable])) {
+                $reflectionCache[$callable] = (new ReflectionFunction($callable))->getParameters();
+            }
+
+            $reflectedParameters = $reflectionCache[$callable];
         } elseif (is_array($callable)) {
             $reflectedParameters = (new ReflectionMethod($callable[0], $callable[1]))->getParameters();
         } elseif (is_object($callable)) {
@@ -90,6 +96,6 @@ class CallableDispatcher implements CallableDispatcherContract
      */
     public static function flushCache(): void
     {
-        static::$reflectionCache = [];
+        static::$reflectionCache = new WeakMap();
     }
 }

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
+use Closure;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionParameter;
+use WeakMap;
 
 class RouteSignatureParameters
 {
@@ -24,6 +26,16 @@ class RouteSignatureParameters
     protected static array $cache = [];
 
     /**
+     * Cached reflection parameters keyed by closure object.
+     *
+     * WeakMap ensures entries disappear with the closure, preventing stale
+     * signature reuse when object IDs are recycled during a long worker lifetime.
+     *
+     * @var null|WeakMap<Closure, array<int, ReflectionParameter>>
+     */
+    protected static ?WeakMap $closureCache = null;
+
+    /**
      * Extract the route action's signature parameters.
      */
     public static function fromAction(array $action, array $conditions = []): array
@@ -32,13 +44,17 @@ class RouteSignatureParameters
             ? unserialize($action['uses'])->getClosure()
             : $action['uses'];
 
-        $cacheKey = is_string($callback)
-            ? $callback
-            : 'closure_' . spl_object_id($callback);
+        if (is_string($callback)) {
+            $parameters = static::$cache[$callback] ??= static::fromClassMethodString($callback);
+        } else {
+            $closureCache = static::$closureCache ??= new WeakMap();
 
-        $parameters = static::$cache[$cacheKey] ??= is_string($callback)
-            ? static::fromClassMethodString($callback)
-            : (new ReflectionFunction($callback))->getParameters();
+            if (! isset($closureCache[$callback])) {
+                $closureCache[$callback] = (new ReflectionFunction($callback))->getParameters();
+            }
+
+            $parameters = $closureCache[$callback];
+        }
 
         return match (true) {
             ! empty($conditions['subClass']) => array_filter($parameters, fn (ReflectionParameter $p) => Reflector::isParameterSubclassOf($p, $conditions['subClass'])),
@@ -53,6 +69,7 @@ class RouteSignatureParameters
     public static function flushCache(): void
     {
         static::$cache = [];
+        static::$closureCache = new WeakMap();
     }
 
     /**

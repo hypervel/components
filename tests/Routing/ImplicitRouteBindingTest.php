@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\ImplicitRouteBindingTest;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
@@ -13,6 +14,8 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use ReflectionProperty;
+use WeakMap;
 
 /**
  * @internal
@@ -20,6 +23,13 @@ use Hypervel\Tests\Routing\RoutingTestCase;
  */
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
+    protected function tearDown(): void
+    {
+        ImplicitRouteBinding::flushCache();
+
+        parent::tearDown();
+    }
+
     public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute()
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {
@@ -133,6 +143,72 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $container = Container::getInstance();
 
         ImplicitRouteBinding::resolveForRoute($container, $route);
+    }
+
+    public function testItDoesNotReuseStaleImplicitBindingSignatureParametersWhenClosureObjectIdIsReused()
+    {
+        $container = Container::getInstance();
+
+        $closureWithNoParameters = function () {
+            return 'ok';
+        };
+        $closureWithEnumParameter = function (CategoryBackedEnum $category) {
+            return $category->value;
+        };
+
+        $staleSignature = [
+            [],
+            [],
+        ];
+        $this->seedImplicitBindingSignatureCache(
+            $closureWithNoParameters,
+            $closureWithEnumParameter,
+            $staleSignature,
+        );
+
+        $route = new Route('GET', '/test/{category}', ['uses' => $closureWithEnumParameter]);
+        $route->bind(Request::create('/test/fruits'));
+
+        ImplicitRouteBinding::resolveForRoute($container, $route);
+
+        $this->assertInstanceOf(CategoryBackedEnum::class, $route->parameter('category'));
+        $this->assertSame('fruits', $route->parameter('category')->value);
+
+        if (property_exists(ImplicitRouteBinding::class, 'closureSignatureCache')) {
+            $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'closureSignatureCache');
+            $cache = $reflectionProperty->getValue();
+
+            $this->assertInstanceOf(WeakMap::class, $cache);
+            $this->assertCount(2, $cache);
+            $this->assertSame([[], []], $cache[$closureWithNoParameters]);
+            $this->assertNotEmpty($cache[$closureWithEnumParameter][1]);
+            $this->assertSame('category', $cache[$closureWithEnumParameter][1][0]->getName());
+        }
+    }
+
+    protected function seedImplicitBindingSignatureCache(
+        Closure $staleClosure,
+        Closure $targetClosure,
+        array $signature,
+    ): void {
+        if (property_exists(ImplicitRouteBinding::class, 'closureSignatureCache')) {
+            $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'closureSignatureCache');
+            $cache = $reflectionProperty->getValue();
+
+            if (! $cache instanceof WeakMap) {
+                $cache = new WeakMap();
+            }
+
+            $cache[$staleClosure] = $signature;
+            $reflectionProperty->setValue(null, $cache);
+
+            return;
+        }
+
+        $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'signatureCache');
+        $cache = $reflectionProperty->getValue();
+        $cache[(string) spl_object_id($targetClosure)] = $signature;
+        $reflectionProperty->setValue(null, $cache);
     }
 }
 
