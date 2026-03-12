@@ -44,7 +44,9 @@ class LockerTest extends TestCase
         });
 
         $ret = [];
-        while ($res = $chan->pop(1)) {
+        for ($i = 0; $i < 6; ++$i) {
+            $res = $chan->pop(0.1);
+            $this->assertNotFalse($res);
             $ret[] = $res;
         }
 

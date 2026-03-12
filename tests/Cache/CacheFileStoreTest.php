@@ -113,7 +113,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
-        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0644])->getMock();
+        $store = new FileStore($files, __DIR__, 0644);
         $hash = sha1('foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->shouldReceive('put')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, m::any(), m::any()])->andReturnUsing(function ($name, $value) {
@@ -133,7 +133,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
-        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0606])->getMock();
+        $store = new FileStore($files, __DIR__, 0606);
         $hash = sha1('foo');
         $cache_parent_dir = substr($hash, 0, 2);
         $cache_dir = $cache_parent_dir . '/' . substr($hash, 2, 2);

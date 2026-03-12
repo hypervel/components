@@ -36,7 +36,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testRetrievingWithOnlyPasswordCredentialReturnsNull()
     {
-        $provider = $this->getProviderMock();
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), User::class);
         $user = $provider->retrieveByCredentials(['api_password' => 'foo']);
 
         $this->assertNull($user);
@@ -77,7 +77,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testRetrieveByCredentialsWithMultiplyPasswordsReturnsNull()
     {
-        $provider = $this->getProviderMock();
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), User::class);
         $user = $provider->retrieveByCredentials([
             'password' => 'dayle',
             'password2' => 'night',

@@ -35,7 +35,7 @@ class ConcurrentTest extends TestCase
         $count = 0;
         for ($i = 0; $i < 15; ++$i) {
             $concurrent->create(function () use (&$count) {
-                Coroutine::sleep(0.1);
+                Coroutine::sleep(0.05);
                 ++$count;
             });
         }
@@ -47,7 +47,7 @@ class ConcurrentTest extends TestCase
         $this->assertSame($limit, $concurrent->length());
 
         while (! $concurrent->isEmpty()) {
-            Coroutine::sleep(0.1);
+            Coroutine::sleep(0.01);
         }
 
         $this->assertSame(15, $count);
@@ -60,7 +60,7 @@ class ConcurrentTest extends TestCase
 
         for ($i = 0; $i < 15; ++$i) {
             $con->create(function () use (&$count) {
-                Coroutine::sleep(0.1);
+                Coroutine::sleep(0.05);
                 ++$count;
                 throw new Exception('ddd');
             });
@@ -70,7 +70,7 @@ class ConcurrentTest extends TestCase
         $this->assertSame(10, $con->getRunningCoroutineCount());
 
         while (! $con->isEmpty()) {
-            Coroutine::sleep(0.1);
+            Coroutine::sleep(0.01);
         }
         $this->assertSame(15, $count);
     }

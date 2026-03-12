@@ -22,6 +22,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -260,10 +261,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @dataProvider dataProviderTestGetSeconds
-     * @param mixed $duration
-     */
+    #[DataProvider('dataProviderTestGetSeconds')]
     public function testGetSeconds($duration)
     {
         Carbon::setTestNow(Carbon::parse($this->getTestDate()));

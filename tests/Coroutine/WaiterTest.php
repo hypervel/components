@@ -92,14 +92,14 @@ class WaiterTest extends TestCase
     public function testPushTimeout()
     {
         $channel = new Channel(1);
-        $this->assertSame(true, $channel->push(1, 1));
-        $this->assertSame(false, $channel->push(1, 1));
+        $this->assertSame(true, $channel->push(1, 0.05));
+        $this->assertSame(false, $channel->push(1, 0.05));
     }
 
     public function testTimeout()
     {
         $callback = function () {
-            Coroutine::sleep(0.5);
+            Coroutine::sleep(0.05);
             return true;
         };
 
