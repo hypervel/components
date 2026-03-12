@@ -9,7 +9,7 @@ use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
-use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
@@ -20,6 +20,7 @@ use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Cookie\CookieJar;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
@@ -265,11 +266,11 @@ if (! function_exists('cookie')) {
     /**
      * Create a new cookie instance.
      *
-     * @return ($name is null ? CookieContract : Cookie)
+     * @return ($name is null ? \Hypervel\Cookie\CookieJar : Cookie)
      */
-    function cookie(?string $name = null, ?string $value = null, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null)
+    function cookie(?string $name = null, ?string $value = null, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): CookieJar|Cookie
     {
-        $cookieManager = app(CookieContract::class);
+        $cookieManager = app(CookieFactory::class);
 
         if (is_null($name)) {
             return $cookieManager;
