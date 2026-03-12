@@ -263,31 +263,30 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($middleware->isDisabled('bbb'));
     }
 
-    // @TODO Uncomment once the maintenance mode subsystem is ported (MaintenanceMode contract, Application::maintenanceMode(), full PreventRequestsDuringMaintenance middleware)
-    // public function testPreventRequestsDuringMaintenance()
-    // {
-    //     $configuration = new Middleware();
-    //
-    //     $mode = m::mock(MaintenanceMode::class);
-    //     $mode->shouldReceive('active')->andReturn(true);
-    //     $mode->shouldReceive('date')->andReturn([]);
-    //     $app = m::mock(Application::class);
-    //     $app->shouldReceive('maintenanceMode')->andReturn($mode);
-    //     $middleware = new PreventRequestsDuringMaintenance($app);
-    //
-    //     $reflection = new ReflectionClass($middleware);
-    //     $method = $reflection->getMethod('inExceptArray');
-    //
-    //     $symfonyRequest = new SymfonyRequest();
-    //     $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
-    //     $symfonyRequest->server->set('REQUEST_URI', 'metrics/requests');
-    //
-    //     $request = Request::createFromBase($symfonyRequest);
-    //     $this->assertFalse($method->invoke($middleware, $request));
-    //
-    //     $configuration->preventRequestsDuringMaintenance(['metrics/*']);
-    //     $this->assertTrue($method->invoke($middleware, $request));
-    // }
+    public function testPreventRequestsDuringMaintenance()
+    {
+        $configuration = new Middleware();
+
+        $mode = m::mock(MaintenanceMode::class);
+        $mode->shouldReceive('active')->andReturn(true);
+        $mode->shouldReceive('data')->andReturn([]);
+        $app = m::mock(Application::class);
+        $app->shouldReceive('maintenanceMode')->andReturn($mode);
+        $middleware = new PreventRequestsDuringMaintenance($app);
+
+        $reflection = new ReflectionClass($middleware);
+        $method = $reflection->getMethod('inExceptArray');
+
+        $symfonyRequest = new SymfonyRequest();
+        $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
+        $symfonyRequest->server->set('REQUEST_URI', 'metrics/requests');
+
+        $request = Request::createFromBase($symfonyRequest);
+        $this->assertFalse($method->invoke($middleware, $request));
+
+        $configuration->preventRequestsDuringMaintenance(['metrics/*']);
+        $this->assertTrue($method->invoke($middleware, $request));
+    }
 
     public function testPreventRequestForgery()
     {

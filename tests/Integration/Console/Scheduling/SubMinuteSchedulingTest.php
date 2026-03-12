@@ -13,7 +13,9 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
@@ -31,7 +33,17 @@ class SubMinuteSchedulingTest extends TestCase
 
     protected function setUp(): void
     {
+        $this->beforeApplicationDestroyed(function () {
+            @unlink(storage_path('framework/down'));
+            @unlink(storage_path('framework/maintenance.php'));
+            PreventRequestsDuringMaintenance::flushState();
+            WorkerCachedMaintenanceMode::flushCache();
+            Carbon::setTestNow();
+        });
+
         parent::setUp();
+
+        WorkerCachedMaintenanceMode::flushCache();
 
         $this->schedule = $this->app->make(Schedule::class);
 
@@ -164,11 +176,63 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(30, $startedAt->diffInSeconds(now()));
     }
 
-    // @TODO Port once maintenance mode is implemented (Application::isDownForMaintenance() currently stubbed to false)
-    // public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceMaintenanceModeIsEnabled()
+    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceMaintenanceModeIsEnabled()
+    {
+        $runs = 0;
+        $this->schedule->call(function () use (&$runs) {
+            ++$runs;
+        })->everySecond();
 
-    // @TODO Port once maintenance mode is implemented (Application::isDownForMaintenance() currently stubbed to false)
-    // public function testSubMinuteEventsCanBeRunInMaintenanceMode()
+        config(['app.maintenance.driver' => 'cache']);
+        config(['app.maintenance.store' => 'array']);
+        Carbon::setTestNow(now()->startOfMinute());
+        $startedAt = now();
+        Sleep::fake();
+        Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
+            Carbon::setTestNow(now()->add($duration));
+
+            if ($startedAt->diffInSeconds() >= 30 && ! $this->app->isDownForMaintenance()) {
+                $this->artisan('down');
+            }
+
+            if ($startedAt->diffInSeconds() >= 40 && $this->app->isDownForMaintenance()) {
+                $this->artisan('up');
+            }
+        });
+
+        $this->artisan('schedule:run', ['--once' => true])
+            ->expectsOutputToContain('Running [Callback]');
+
+        Sleep::assertSleptTimes(600);
+        $this->assertEquals(30, $runs);
+    }
+
+    public function testSubMinuteEventsCanBeRunInMaintenanceMode()
+    {
+        $runs = 0;
+        $this->schedule->call(function () use (&$runs) {
+            ++$runs;
+        })->everySecond()->evenInMaintenanceMode();
+
+        config(['app.maintenance.driver' => 'cache']);
+        config(['app.maintenance.store' => 'array']);
+        Carbon::setTestNow(now()->startOfMinute());
+        $startedAt = now();
+        Sleep::fake();
+        Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
+            Carbon::setTestNow(now()->add($duration));
+
+            if (now()->diffInSeconds($startedAt) >= 30 && ! $this->app->isDownForMaintenance()) {
+                $this->artisan('down');
+            }
+        });
+
+        $this->artisan('schedule:run', ['--once' => true])
+            ->expectsOutputToContain('Running [Callback]');
+
+        Sleep::assertSleptTimes(600);
+        $this->assertEquals(60, $runs);
+    }
 
     public function testSubMinuteSchedulingRespectsFilters()
     {
