@@ -30,6 +30,16 @@ class EncryptCookies
     protected static array $neverEncrypt = [];
 
     /**
+     * The cookies that should be encrypted (opt-in mode).
+     *
+     * When non-empty, only these cookies will be encrypted and
+     * the $except and $neverEncrypt lists are ignored.
+     *
+     * @var array<int, string>
+     */
+    protected static array $onlyEncrypt = [];
+
+    /**
      * Indicates if cookies should be serialized.
      */
     protected static bool $serialize = false;
@@ -171,6 +181,10 @@ class EncryptCookies
      */
     public function isDisabled(string $name): bool
     {
+        if (static::$onlyEncrypt !== []) {
+            return ! in_array($name, static::$onlyEncrypt);
+        }
+
         return in_array($name, array_merge($this->except, static::$neverEncrypt));
     }
 
@@ -181,6 +195,19 @@ class EncryptCookies
     {
         static::$neverEncrypt = array_values(array_unique(
             array_merge(static::$neverEncrypt, Arr::wrap($cookies))
+        ));
+    }
+
+    /**
+     * Indicate that only the given cookies should be encrypted.
+     *
+     * When set, all other cookies pass through unencrypted.
+     * Takes precedence over except() and the $except property.
+     */
+    public static function only(array|string $cookies): void
+    {
+        static::$onlyEncrypt = array_values(array_unique(
+            array_merge(static::$onlyEncrypt, Arr::wrap($cookies))
         ));
     }
 
@@ -198,6 +225,7 @@ class EncryptCookies
     public static function flushState(): void
     {
         static::$neverEncrypt = [];
+        static::$onlyEncrypt = [];
 
         static::$serialize = false;
     }
