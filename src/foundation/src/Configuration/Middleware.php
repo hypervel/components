@@ -455,10 +455,17 @@ class Middleware
      * Configure the cookie encryption middleware.
      *
      * @param array<int, string> $except
+     * @param array<int, string> $only
      */
-    public function encryptCookies(array $except = []): static
+    public function encryptCookies(array $except = [], array $only = []): static
     {
-        EncryptCookies::except($except);
+        if ($except !== []) {
+            EncryptCookies::except($except);
+        }
+
+        if ($only !== []) {
+            EncryptCookies::only($only);
+        }
 
         return $this;
     }
