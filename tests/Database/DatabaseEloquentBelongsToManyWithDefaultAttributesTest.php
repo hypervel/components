@@ -20,13 +20,14 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
 {
     public function testWithPivotValueMethodSetsWhereConditionsForFetching()
     {
-        $relation = $this->getMockBuilder(BelongsToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
+        $relation = new BelongsToMany(...$this->getRelationArguments());
         $relation->withPivotValue(['is_admin' => 1]);
     }
 
     public function testWithPivotValueMethodSetsDefaultArgumentsForInsertion()
     {
         $relation = $this->getMockBuilder(BelongsToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
+        $relation->expects($this->once())->method('touchIfTouching');
         $relation->withPivotValue(['is_admin' => 1]);
 
         $query = m::mock(QueryBuilder::class);

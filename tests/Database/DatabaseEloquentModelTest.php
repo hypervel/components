@@ -912,7 +912,7 @@ class DatabaseEloquentModelTest extends TestCase
         $query->shouldReceive('update')->once()->with(['name' => 'taylor'])->andReturn(1);
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->never())->method('updateTimestamps');
-        $model->expects($this->any())->method('fireModelEvent')->willReturn(true);
+        $model->expects($this->exactly(4))->method('fireModelEvent')->willReturn(true);
 
         $model->id = 1;
         $model->syncOriginal();
@@ -946,8 +946,12 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testTimestampsAreReturnedAsObjects()
     {
-        $model = $this->getMockBuilder(DateModelStub::class)->onlyMethods(['getDateFormat'])->getMock();
-        $model->expects($this->any())->method('getDateFormat')->willReturn('Y-m-d');
+        $model = new class extends DateModelStub {
+            public function getDateFormat(): string
+            {
+                return 'Y-m-d';
+            }
+        };
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
             'updated_at' => '2012-12-05',
@@ -959,8 +963,12 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testTimestampsAreReturnedAsObjectsFromPlainDatesAndTimestamps()
     {
-        $model = $this->getMockBuilder(DateModelStub::class)->onlyMethods(['getDateFormat'])->getMock();
-        $model->expects($this->any())->method('getDateFormat')->willReturn('Y-m-d H:i:s');
+        $model = new class extends DateModelStub {
+            public function getDateFormat(): string
+            {
+                return 'Y-m-d H:i:s';
+            }
+        };
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
             'updated_at' => $this->currentTime(),
@@ -1056,8 +1064,12 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testFromDateTimeMilliseconds()
     {
-        $model = $this->getMockBuilder(DateModelStub::class)->onlyMethods(['getDateFormat'])->getMock();
-        $model->expects($this->any())->method('getDateFormat')->willReturn('Y-m-d H:s.vi');
+        $model = new class extends DateModelStub {
+            public function getDateFormat(): string
+            {
+                return 'Y-m-d H:s.vi';
+            }
+        };
         $model->setRawAttributes([
             'created_at' => '2012-12-04 22:59.32130',
         ]);
@@ -3551,7 +3563,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new ModelWithUseEloquentBuilderAttributeStub();
 
-        $query = $this->createMock(BaseBuilder::class);
+        $query = $this->createStub(BaseBuilder::class);
         $eloquentBuilder = $model->newEloquentBuilder($query);
 
         $this->assertInstanceOf(CustomBuilder::class, $eloquentBuilder);
@@ -3561,7 +3573,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new ModelWithoutUseEloquentBuilderAttributeStub();
 
-        $query = $this->createMock(BaseBuilder::class);
+        $query = $this->createStub(BaseBuilder::class);
         $eloquentBuilder = $model->newEloquentBuilder($query);
 
         $this->assertNotInstanceOf(CustomBuilder::class, $eloquentBuilder);

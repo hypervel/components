@@ -20,16 +20,12 @@ use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\Str;
-use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
 
 /**
- * TODO(laravel-container-port): This test requires Laravel's container to be ported.
- * It relies on Container::setInstance(null) and other Laravel-specific container behaviors
- * that differ from Hypervel's container. Once Laravel's container is ported, remove the
- * markTestSkipped() call in setUp() and this test should work.
  * @internal
  * @coversNothing
  */
@@ -37,10 +33,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 {
     protected function setUp(): void
     {
-        $this->markTestSkipped(
-            'Requires Laravel container port - uses Container::setInstance(null) and other Laravel-specific container behaviors'
-        );
-
         $container = Container::getInstance();
         $container->singleton(Generator::class, function ($app, $parameters) {
             return \Faker\Factory::create('en_US');
@@ -210,6 +202,31 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(0, User::all());
     }
 
+    public function testMakeManyCreatesUnpersistedModelInstances()
+    {
+        $users = UserFactory::new()->makeMany([
+            ['name' => 'Taylor Otwell'],
+            ['name' => 'Jeffrey Way'],
+        ]);
+
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertSame('Taylor Otwell', $users[0]->name);
+        $this->assertSame('Jeffrey Way', $users[1]->name);
+        $this->assertCount(0, User::all());
+
+        $users = UserFactory::new()->makeMany(3);
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(3, $users);
+        $this->assertInstanceOf(User::class, $users->first());
+        $this->assertCount(0, User::all());
+
+        $users = UserFactory::new()->makeMany();
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(1, $users);
+        $this->assertCount(0, User::all());
+    }
+
     public function testBasicModelAttributesCanBeCreated()
     {
         $user = UserFactory::new()->raw();
@@ -268,6 +285,54 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame($user, $_SERVER['__test.user.creating']);
 
         unset($_SERVER['__test.user.making'], $_SERVER['__test.user.creating']);
+    }
+
+    public function testWithoutAfterMakingRemovesCallbacks()
+    {
+        $user = UserFactory::new()
+            ->afterMaking(function ($user) {
+                $_SERVER['__test.user.making'] = $user;
+            })
+            ->withoutAfterMaking()
+            ->create();
+
+        $this->assertArrayNotHasKey('__test.user.making', $_SERVER);
+    }
+
+    public function testWithoutAfterCreatingRemovesCallbacks()
+    {
+        $user = UserFactory::new()
+            ->afterCreating(function ($user) {
+                $_SERVER['__test.user.creating'] = $user;
+            })
+            ->withoutAfterCreating()
+            ->create();
+
+        $this->assertArrayNotHasKey('__test.user.creating', $_SERVER);
+    }
+
+    public function testWithoutAfterMakingRemovesConfigureCallbacks()
+    {
+        $user = UserWithCallbacksFactory::new()
+            ->withoutAfterMaking()
+            ->create();
+
+        $this->assertArrayNotHasKey('__test.user.making', $_SERVER);
+        $this->assertSame($user, $_SERVER['__test.user.creating']);
+
+        unset($_SERVER['__test.user.creating']);
+    }
+
+    public function testWithoutAfterCreatingRemovesConfigureCallbacks()
+    {
+        $user = UserWithCallbacksFactory::new()
+            ->withoutAfterCreating()
+            ->create();
+
+        $this->assertSame($user, $_SERVER['__test.user.making']);
+        $this->assertArrayNotHasKey('__test.user.creating', $_SERVER);
+
+        unset($_SERVER['__test.user.making']);
     }
 
     public function testHasManyRelationship()
@@ -903,7 +968,7 @@ class DatabaseEloquentFactoryTest extends TestCase
             ->make();
 
         $this->assertNull($comment->user_id);
-        $this->assertNull($comment->commentable->id);
+        $this->assertNull($comment->commentable_id);
     }
 
     public function testCanDefaultToWithoutParents()
@@ -1279,6 +1344,28 @@ class UserWithArrayFactory extends Factory
             'name' => 'killer mike',
             'options' => ['rtj'],
         ];
+    }
+}
+
+class UserWithCallbacksFactory extends Factory
+{
+    protected ?string $model = User::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+            'options' => null,
+        ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterMaking(function ($user) {
+            $_SERVER['__test.user.making'] = $user;
+        })->afterCreating(function ($user) {
+            $_SERVER['__test.user.creating'] = $user;
+        });
     }
 }
 

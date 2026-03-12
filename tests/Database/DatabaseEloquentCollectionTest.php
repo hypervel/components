@@ -742,7 +742,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $user->articles->loadExists('comments');
         $commentsExists = $user->articles->pluck('comments_exists')->toArray();
 
-        $this->assertContainsOnly('bool', $commentsExists);
+        $this->assertContainsOnlyBool($commentsExists);
     }
 
     public function testWithNonScalarKey()

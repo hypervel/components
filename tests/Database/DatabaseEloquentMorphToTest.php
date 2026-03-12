@@ -144,7 +144,7 @@ class DatabaseEloquentMorphToTest extends TestCase
     public function testMorphToWithZeroMorphType()
     {
         $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
-        $parent->method('getAttributeFromArray')->with('relation_type')->willReturn(0);
+        $parent->expects($this->once())->method('getAttributeFromArray')->with('relation_type')->willReturn(0);
         $parent->expects($this->once())->method('morphInstanceTo');
         $parent->expects($this->never())->method('morphEagerTo');
 
@@ -154,7 +154,7 @@ class DatabaseEloquentMorphToTest extends TestCase
     public function testMorphToWithEmptyStringMorphType()
     {
         $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
-        $parent->method('getAttributeFromArray')->with('relation_type')->willReturn('');
+        $parent->expects($this->once())->method('getAttributeFromArray')->with('relation_type')->willReturn('');
         $parent->expects($this->once())->method('morphEagerTo');
         $parent->expects($this->never())->method('morphInstanceTo');
 

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 
 /**
  * Tests that database connections use the current event dispatcher.
@@ -34,6 +36,12 @@ class EventDispatcherFreshnessTest extends TestCase
      */
     public function testConnectionEstablishedUsesCurrentDispatcher(): void
     {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('warning')
+            ->once()
+            ->with('Database connection refreshing.');
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+
         // Ensure a connection exists and is cached
         $connection = DB::connection();
         $connection->select('SELECT 1');

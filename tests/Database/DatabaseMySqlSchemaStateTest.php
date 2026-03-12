@@ -23,7 +23,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
     #[DataProvider('provider')]
     public function testConnectionString(string $expectedConnectionString, array $expectedVariables, array $dbConfig): void
     {
-        $connection = $this->createMock(MySqlConnection::class);
+        $connection = $this->createStub(MySqlConnection::class);
         $connection->method('getConfig')->willReturn($dbConfig);
 
         $schemaState = new MySqlSchemaState($connection);
@@ -146,7 +146,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
 
     public function testExecuteDumpProcessForDepth()
     {
-        $mockProcess = $this->createMock(Process::class);
+        $mockProcess = $this->createStub(Process::class);
         $mockProcess->method('setTimeout')->willReturnSelf();
         $mockProcess->method('mustRun')->will(
             $this->throwException(new Exception('column-statistics'))
@@ -155,12 +155,18 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         $mockOutput = null;
         $mockVariables = [];
 
-        $schemaState = $this->getMockBuilder(MySqlSchemaState::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['makeProcess'])
-            ->getMock();
+        $connection = $this->createStub(MySqlConnection::class);
+        $schemaState = new class($connection, $mockProcess) extends MySqlSchemaState {
+            public function __construct(MySqlConnection $connection, private readonly Process $process)
+            {
+                parent::__construct($connection);
+            }
 
-        $schemaState->method('makeProcess')->willReturn($mockProcess);
+            public function makeProcess(mixed ...$arguments): Process
+            {
+                return $this->process;
+            }
+        };
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('Dump execution exceeded maximum depth of 30.');

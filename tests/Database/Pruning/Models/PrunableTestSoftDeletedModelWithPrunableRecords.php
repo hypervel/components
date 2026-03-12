@@ -7,15 +7,16 @@ namespace Hypervel\Tests\Database\Pruning\Models;
 use Hypervel\Database\Eloquent\MassPrunable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use UnitEnum;
 
 class PrunableTestSoftDeletedModelWithPrunableRecords extends Model
 {
     use MassPrunable;
     use SoftDeletes;
 
-    protected $table = 'prunables';
+    protected ?string $table = 'prunables';
 
-    protected $connection = 'default';
+    protected UnitEnum|string|null $connection = 'default';
 
     public function prunable()
     {

@@ -21,7 +21,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
     #[DataProvider('provider')]
     public function testConnectionString(string $expectedConnectionString, array $expectedVariables, array $dbConfig): void
     {
-        $connection = $this->createMock(MariaDbConnection::class);
+        $connection = $this->createStub(MariaDbConnection::class);
         $connection->method('getConfig')->willReturn($dbConfig);
 
         $schemaState = new MariaDbSchemaState($connection);
