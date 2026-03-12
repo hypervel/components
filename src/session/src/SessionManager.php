@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
@@ -60,7 +59,7 @@ class SessionManager extends Manager implements Factory
     protected function createCookieDriver(): Store
     {
         return $this->buildSession(new CookieSessionHandler(
-            $this->container->make(CookieContract::class),
+            $this->container->make('cookie'),
             $this->container->make(Request::class),
             $this->config->get('session.lifetime'),
             $this->config->get('session.expire_on_close')

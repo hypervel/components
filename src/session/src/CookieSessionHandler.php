@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
@@ -16,13 +16,13 @@ class CookieSessionHandler implements SessionHandlerInterface
     /**
      * Create a new cookie driven handler instance.
      *
-     * @param CookieContract $cookie the cookie jar instance
+     * @param CookieJar $cookie the cookie jar instance
      * @param Request $request the request instance
      * @param int $minutes the number of minutes the session should be valid
      * @param bool $expireOnClose indicates whether the session should be expired when the browser closes
      */
     public function __construct(
-        protected CookieContract $cookie,
+        protected CookieJar $cookie,
         protected Request $request,
         protected int $minutes,
         protected bool $expireOnClose = false
