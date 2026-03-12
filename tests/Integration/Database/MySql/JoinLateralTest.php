@@ -49,8 +49,8 @@ class JoinLateralTest extends MySqlTestCase
 
     protected function destroyDatabaseMigrations(): void
     {
-        Schema::drop('posts');
-        Schema::drop('users');
+        Schema::dropIfExists('posts');
+        Schema::dropIfExists('users');
     }
 
     protected function checkMySqlVersion(): void

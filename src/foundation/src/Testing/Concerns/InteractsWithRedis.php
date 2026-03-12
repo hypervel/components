@@ -142,6 +142,41 @@ trait InteractsWithRedis
     }
 
     /**
+     * Clean up keys matching multiple patterns using the trait's standard Redis test semantics.
+     *
+     * If Redis is unavailable on the default fallback configuration, cleanup is skipped just like
+     * setUpInteractsWithRedis()/tearDownInteractsWithRedis(). If Redis was explicitly configured,
+     * connection failures still propagate as real test environment errors.
+     */
+    protected function cleanupRedisKeysWithPatterns(string ...$patterns): void
+    {
+        if (static::$connectionFailedOnceWithDefaultsSkip) {
+            return;
+        }
+
+        try {
+            $client = $this->rawRedisClientWithoutPrefix();
+        } catch (Throwable $e) {
+            if (! $this->hasExplicitRedisConfig()) {
+                return;
+            }
+
+            throw $e;
+        }
+
+        try {
+            foreach ($patterns as $pattern) {
+                $keys = $client->keys($pattern);
+                if (! empty($keys)) {
+                    $client->del(...$keys);
+                }
+            }
+        } finally {
+            $client->close();
+        }
+    }
+
+    /**
      * Create a named Redis connection with a specific OPT_PREFIX for testing.
      *
      * Use this when a test needs multiple connections with different prefixes.

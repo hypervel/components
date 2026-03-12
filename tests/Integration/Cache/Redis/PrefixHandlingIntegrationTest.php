@@ -478,16 +478,16 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 
     protected function tearDown(): void
     {
-        // Clean up any keys created by OPT_PREFIX tests
-        $patterns = ['opt:*', 'app1:*', 'app2:*'];
-        foreach ($patterns as $pattern) {
-            $this->cleanupKeysWithPattern($pattern);
+        try {
+            $this->cleanupRedisKeysWithPatterns(
+                'opt:*',
+                'app1:*',
+                'app2:*',
+                'test_key',
+                'cache:*',
+            );
+        } finally {
+            parent::tearDown();
         }
-
-        // Also clean up no-prefix keys
-        $this->cleanupKeysWithPattern('test_key');
-        $this->cleanupKeysWithPattern('cache:*');
-
-        parent::tearDown();
     }
 }
