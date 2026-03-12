@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Support\Arr;
@@ -715,13 +716,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Get an instance of the maintenance mode manager implementation.
+     */
+    public function maintenanceMode(): MaintenanceModeContract
+    {
+        return $this->make(MaintenanceModeContract::class);
+    }
+
+    /**
      * Determine if the application is currently down for maintenance.
-     *
-     * @TODO Implement properly once maintenance mode is ported.
      */
     public function isDownForMaintenance(): bool
     {
-        return false;
+        return $this->maintenanceMode()->active();
     }
 
     /**
@@ -1109,8 +1116,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Config\Repository::class,
             ],
             'cookie' => [
-                \Hypervel\Cookie\CookieManager::class,
-                \Hypervel\Contracts\Cookie\Cookie::class,
+                \Hypervel\Cookie\CookieJar::class,
+                \Hypervel\Contracts\Cookie\Factory::class,
+                \Hypervel\Contracts\Cookie\QueueingFactory::class,
             ],
             'db' => [\Hypervel\Database\DatabaseManager::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
