@@ -154,7 +154,6 @@
         "psr/http-message": "^2.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "psr/simple-cache": "^3.0",
-        "ramsey/uuid": "^4.7",
         "sentry/sentry": "^4.15",
         "symfony/console": "^6.2|^7.0",
         "symfony/error-handler": "^6.3",
