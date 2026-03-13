@@ -15,7 +15,7 @@ use Sentry\Transport\TransportInterface;
  * @internal
  * @coversNothing
  */
-class ConfigRegressionTest extends SentryTestCase
+class ConfigTest extends SentryTestCase
 {
     public function testPoolIsConstructedFromSentryPoolConfig()
     {

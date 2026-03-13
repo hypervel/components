@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Tracing\Middleware;
 use ReflectionClass;
 
@@ -14,8 +13,6 @@ use ReflectionClass;
  */
 class TracingMiddlewareTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.dsn' => 'https://key@sentry.io/123',
     ];

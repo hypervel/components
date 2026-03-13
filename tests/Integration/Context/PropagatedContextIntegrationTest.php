@@ -8,7 +8,6 @@ use ErrorException;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -31,7 +30,6 @@ class User extends Model
 class PropagatedContextIntegrationTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     public function testItCanHydrateNull()
     {

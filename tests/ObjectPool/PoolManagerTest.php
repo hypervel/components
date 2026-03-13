@@ -6,7 +6,6 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolManager;
@@ -20,8 +19,6 @@ use RuntimeException;
  */
 class PoolManagerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected ContainerContract $container;
 
     protected PoolManager $manager;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pagination;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
@@ -27,8 +26,6 @@ use function Hypervel\Coroutine\go;
  */
 class PaginationResolverTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCurrentPageResolverReadsFromRequest(): void
     {
         $this->setUpMockRequest(['page' => '3']);

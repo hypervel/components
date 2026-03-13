@@ -13,7 +13,6 @@ use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Foundation\Http\FormRequest;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Testbench\TestCase;
@@ -25,8 +24,6 @@ use Hypervel\Validation\Rule;
  */
 class CustomCastingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Test enum casting.
      */

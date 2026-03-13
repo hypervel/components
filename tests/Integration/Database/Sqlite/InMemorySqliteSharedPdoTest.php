@@ -31,6 +31,8 @@ use function Hypervel\Coroutine\run;
  */
 class InMemorySqliteSharedPdoTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     protected function setUp(): void
     {
         parent::setUp();

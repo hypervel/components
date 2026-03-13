@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Prompts;
 
 use Closure;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SelectPrompt;
@@ -23,8 +22,6 @@ use function Hypervel\Coroutine\go;
  */
 class CoroutineSafetyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Get the protected Prompt::output() value from the current coroutine context.
      */

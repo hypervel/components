@@ -27,6 +27,8 @@ class RefreshDatabaseTest extends TestCase
     use RefreshDatabase;
     use InteractsWithConsole;
 
+    protected bool $runTestsInCoroutine = false;
+
     protected bool $dropViews = false;
 
     protected bool $seed = false;

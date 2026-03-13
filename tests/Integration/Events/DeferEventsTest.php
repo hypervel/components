@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Events\DeferEventsTest;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
@@ -15,8 +14,6 @@ use Hypervel\Testbench\TestCase;
  */
 class DeferEventsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testDeferEvents()
     {
         unset($_SERVER['__event.test']);

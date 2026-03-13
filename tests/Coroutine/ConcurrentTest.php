@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Coroutine;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Coroutine\Concurrent;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine;
 
@@ -17,8 +16,6 @@ use Swoole\Coroutine;
  */
 class ConcurrentTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function setUp(): void
     {
         parent::setUp();

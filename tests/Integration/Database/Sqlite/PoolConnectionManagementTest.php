@@ -31,6 +31,8 @@ use function Hypervel\Coroutine\run;
  */
 class PoolConnectionManagementTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     protected static string $databasePath;
 
     public static function setUpBeforeClass(): void

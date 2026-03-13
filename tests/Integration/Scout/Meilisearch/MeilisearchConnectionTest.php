@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
 
 /**
@@ -15,8 +14,6 @@ use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
  */
 class MeilisearchConnectionTest extends MeilisearchIntegrationTestCase
 {
-    use RunTestsInCoroutine;
-
     protected function setUpInCoroutine(): void
     {
         $this->initializeMeilisearch();

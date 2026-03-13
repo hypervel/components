@@ -8,7 +8,6 @@ use Error;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
@@ -19,8 +18,6 @@ use ReflectionProperty;
  */
 class EventsDispatcherTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function setUp(): void
     {
         parent::setUp();

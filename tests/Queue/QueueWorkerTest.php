@@ -14,7 +14,6 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Job as QueueJobContract;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -25,8 +24,8 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
@@ -36,8 +35,6 @@ use Throwable;
  */
 class QueueWorkerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected EventDispatcher $events;
 
     protected ExceptionHandlerContract $exceptionHandler;

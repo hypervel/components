@@ -16,7 +16,7 @@ use function Hypervel\Coroutine\run;
 
 trait RunTestsInCoroutine
 {
-    protected bool $enableCoroutine = true;
+    protected bool $runTestsInCoroutine = true;
 
     protected bool $copyNonCoroutineContext = true;
 
@@ -32,7 +32,7 @@ trait RunTestsInCoroutine
      */
     protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
-        if (Coroutine::getCid() !== -1 || ! $this->enableCoroutine) {
+        if (Coroutine::getCid() !== -1 || ! $this->runTestsInCoroutine) {
             return parent::invokeTestMethod($methodName, $testArguments);
         }
 

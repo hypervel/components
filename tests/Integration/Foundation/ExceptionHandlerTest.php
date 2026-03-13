@@ -11,7 +11,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Debug\ShouldntReport;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Support\Responsable;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
@@ -31,8 +30,6 @@ use Throwable;
  */
 class ExceptionHandlerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testItRendersAuthorizationExceptions()
     {
         Route::get('test-route', fn () => Response::deny('expected message', 321)->authorize());

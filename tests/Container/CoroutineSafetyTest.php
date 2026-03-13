@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Container;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -19,8 +18,6 @@ use function Hypervel\Coroutine\parallel;
  */
 class CoroutineSafetyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testScopedInstancesAreIsolatedPerCoroutine(): void
     {
         $container = new Container();

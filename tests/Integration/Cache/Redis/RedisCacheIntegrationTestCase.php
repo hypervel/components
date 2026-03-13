@@ -9,7 +9,6 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
@@ -34,7 +33,6 @@ use Redis as PhpRedis;
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {

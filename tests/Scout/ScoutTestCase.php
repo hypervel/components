@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -18,7 +17,6 @@ use Hypervel\Testbench\TestCase;
 class ScoutTestCase extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 

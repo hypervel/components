@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Engine;
 
 use Hypervel\Engine\WebSocket\Frame;
 use Hypervel\Engine\WebSocket\Response;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use stdClass;
 use Swoole\WebSocket\Frame as SwooleFrame;
@@ -19,8 +18,6 @@ use Swoole\WebSocket\Frame as SwooleFrame;
  */
 class WebSocketTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testFrameToString()
     {
         $frame = new Frame(payloadData: 'Hello World.');

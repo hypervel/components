@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\TransactionBeginning;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -25,8 +24,6 @@ use Mockery as m;
  */
 class EventDispatcherFreshnessTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Test that ConnectionEstablished events go through the current dispatcher.
      *

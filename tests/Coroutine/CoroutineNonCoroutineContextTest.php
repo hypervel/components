@@ -18,6 +18,8 @@ use function Hypervel\Coroutine\run;
  */
 class CoroutineNonCoroutineContextTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     public function testCoroutineInTopCoroutine()
     {
         run(function () {

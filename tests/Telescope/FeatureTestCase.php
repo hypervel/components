@@ -10,7 +10,6 @@ use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Facades\Schema;
@@ -31,7 +30,6 @@ use Hypervel\Testbench\TestCase;
 class FeatureTestCase extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 

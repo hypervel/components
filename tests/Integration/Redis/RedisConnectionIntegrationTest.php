@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testbench\TestCase;
 use Redis;
 use ReflectionClass;
@@ -20,7 +19,6 @@ use ReflectionClass;
 class RedisConnectionIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     protected bool $isOlderThan6 = false;
 

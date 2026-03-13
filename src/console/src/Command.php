@@ -275,6 +275,12 @@ class Command extends SymfonyCommand
                 $this->components->error($e->getMessage());
 
                 return $this->exitCode = static::FAILURE;
+            } catch (PromptValidationException) {
+                // PromptValidationException is intentional control flow used by ConfiguresPrompts
+                // to signal validation failure during tests. It must not fall through to the
+                // Throwable handler below, which would render it as an error and dispatch
+                // FailToHandle — producing unwanted warning output.
+                return $this->exitCode = static::FAILURE;
             } catch (Throwable $exception) {
                 if (class_exists(ExitException::class) && $exception instanceof ExitException) {
                     return $this->exitCode = (int) $exception->getStatus();

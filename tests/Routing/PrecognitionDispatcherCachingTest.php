@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Routing\PrecognitionDispatcherCachingTest;
 
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
@@ -22,8 +21,6 @@ use ReflectionProperty;
  */
 class PrecognitionDispatcherCachingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCallableDispatcherPrecognitionPropertyStartsNull()
     {
         $dispatcher = new CallableDispatcher(new Container());

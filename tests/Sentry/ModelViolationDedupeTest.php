@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Sentry;
 use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Integrations\ModelViolations\ModelViolationReporter;
 use Swoole\Coroutine\Channel;
 
@@ -20,8 +19,6 @@ use Swoole\Coroutine\Channel;
  */
 class ModelViolationDedupeTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     public function testDedupeIsIsolatedBetweenCoroutines()
     {
         $reported = [];

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
@@ -22,8 +21,6 @@ use Sentry\Transport\ResultStatus;
  */
 class FlushLifecycleTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testFlushReleasesAllTransportsCheckedOutDuringRequest()
     {
         // Simulate: two events sent during a request, then flush releases both

@@ -9,7 +9,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -21,8 +20,6 @@ use Mockery as m;
  */
 class DatabaseMigratorIntegrationTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected Migrator $migrator;
 
     protected function defineEnvironment(Application $app): void

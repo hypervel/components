@@ -15,6 +15,8 @@ use function Hypervel\Coroutine\run;
  */
 class OnceTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     public function testOnceCachesWithinCoroutine(): void
     {
         $counter = $this->newCounter();

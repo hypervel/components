@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Redis;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
@@ -33,7 +32,6 @@ use function Hypervel\Coroutine\go;
 class RedisSubscribeIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {

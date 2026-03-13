@@ -11,7 +11,6 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
@@ -35,8 +34,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ServerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         parent::tearDown();

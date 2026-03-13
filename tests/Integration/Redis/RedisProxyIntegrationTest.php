@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Redis;
 
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Redis;
@@ -26,7 +25,6 @@ use function Hypervel\Coroutine\go;
 class RedisProxyIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     public function testRedisOptionPrefix(): void
     {

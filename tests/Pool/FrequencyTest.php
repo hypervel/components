@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Pool;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Pool\Channel;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\Pool\Fixtures\ConstantFrequencyStub;
@@ -20,8 +19,6 @@ use Mockery as m;
  */
 class FrequencyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testFrequencyHit()
     {
         $frequency = new FrequencyStub();

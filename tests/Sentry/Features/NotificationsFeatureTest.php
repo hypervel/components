@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Support\Facades\Mail;
@@ -22,8 +21,6 @@ use Sentry\Tracing\SpanStatus;
  */
 class NotificationsFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.breadcrumbs.notifications' => true,
         'sentry.tracing.notifications' => true,

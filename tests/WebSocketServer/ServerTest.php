@@ -7,7 +7,6 @@ namespace Hypervel\Tests\WebSocketServer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketStub;
@@ -22,8 +21,6 @@ use Swoole\WebSocket\Server as WebSocketSwooleServer;
  */
 class ServerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Verify that deferOnOpen defers the onOpen call so it runs after
      * the calling coroutine exits, and that onOpen is invoked on

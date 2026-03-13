@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Pool;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Pool\Fixtures\HeartbeatPoolStub;
 use Hypervel\Tests\Pool\Fixtures\KeepaliveConnectionStub;
@@ -20,8 +19,6 @@ use Mockery as m;
  */
 class HeartbeatConnectionTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         Context::set('test.pool.heartbeat_connection', []);

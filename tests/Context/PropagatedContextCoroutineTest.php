@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Context;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\go;
@@ -18,8 +17,6 @@ use function Hypervel\Coroutine\go;
  */
 class PropagatedContextCoroutineTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testPropagatedContextIsIsolatedBetweenCoroutines()
     {
         $channel = new Channel(2);

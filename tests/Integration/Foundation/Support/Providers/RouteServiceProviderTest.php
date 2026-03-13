@@ -9,7 +9,6 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -22,8 +21,6 @@ use Hypervel\Testing\Assert;
 #[WithConfig('filesystems.disks.local.serve', false)]
 class RouteServiceProviderTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Resolve application implementation.
      */

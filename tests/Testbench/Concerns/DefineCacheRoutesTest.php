@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
@@ -16,8 +15,6 @@ use Hypervel\Testbench\TestCase;
  */
 class DefineCacheRoutesTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes()
     {
         $this->assertInstanceOf(

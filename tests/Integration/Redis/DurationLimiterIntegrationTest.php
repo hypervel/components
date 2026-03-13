@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Redis;
 
 use Hypervel\Contracts\Redis\LimiterTimeoutException;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
@@ -26,7 +25,6 @@ use Throwable;
 class DurationLimiterIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     public function testItLocksTasksWhenNoSlotAvailable()
     {

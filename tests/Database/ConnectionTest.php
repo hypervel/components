@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 
@@ -18,8 +17,6 @@ use Hypervel\Testbench\TestCase;
  */
 class ConnectionTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function defineEnvironment(Application $app): void
     {
         // Suppress "Database connection refreshing" warnings during disconnect tests

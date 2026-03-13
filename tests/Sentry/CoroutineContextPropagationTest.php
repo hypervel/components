@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Hub;
 use Sentry\State\Scope;
@@ -17,8 +16,6 @@ use Sentry\State\Scope;
  */
 class CoroutineContextPropagationTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     public function testChildCoroutineInheritsSentryStackFromParent()
     {
         // Set up a Sentry scope stack in the parent coroutine

@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -17,8 +16,6 @@ use Hypervel\Tests\TestCase;
  */
 class TimerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testAfter()
     {
         $this->wait(function () {

@@ -13,7 +13,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
 use Hypervel\Events\NullDispatcher;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testing\Assert;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -27,8 +26,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class SeedCommandTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testHandle()
     {
         $seeder = m::mock(Seeder::class);

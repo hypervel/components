@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\BackupStaticProperties;
-use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\spin;
 
@@ -18,8 +17,6 @@ use function Hypervel\Prompts\spin;
 #[BackupStaticProperties(true)]
 class SpinnerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testSpinner()
     {
         Prompt::fake();

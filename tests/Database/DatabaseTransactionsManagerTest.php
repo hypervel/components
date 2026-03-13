@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -14,8 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class DatabaseTransactionsManagerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testBeginningTransactions()
     {
         $manager = new DatabaseTransactionsManager();

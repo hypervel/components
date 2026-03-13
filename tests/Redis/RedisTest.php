@@ -9,7 +9,6 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
@@ -40,8 +39,6 @@ use function Hypervel\Coroutine\go;
  */
 class RedisTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected bool $isOlderThan6 = false;
 
     protected function setUp(): void

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Sanctum\Sanctum;
@@ -25,7 +24,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class GuardTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 

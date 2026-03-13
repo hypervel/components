@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Concerns\WithoutExceptionHandlingHandler;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
@@ -19,8 +18,6 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class InteractsWithExceptionHandlingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWithoutExceptionHandlingRethrowsExceptions()
     {
         $this->withoutExceptionHandling();

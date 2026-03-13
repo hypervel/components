@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -20,5 +19,4 @@ use Hypervel\Tests\TestCase;
  */
 abstract class RoutingTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
 }

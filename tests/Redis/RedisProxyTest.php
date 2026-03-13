@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -25,8 +24,6 @@ use Redis;
  */
 class RedisProxyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         parent::tearDown();

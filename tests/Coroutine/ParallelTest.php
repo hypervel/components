@@ -8,7 +8,6 @@ use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Throwable;
@@ -21,8 +20,6 @@ use function Hypervel\Coroutine\parallel;
  */
 class ParallelTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testParallel()
     {
         // Closure

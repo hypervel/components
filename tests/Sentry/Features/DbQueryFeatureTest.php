@@ -10,7 +10,6 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\DbQueryFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use ReflectionException;
@@ -22,8 +21,6 @@ use Sentry\Breadcrumb;
  */
 class DbQueryFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.features' => [
             DbQueryFeature::class,

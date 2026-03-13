@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\Concerns\InteractsWithSignals;
 use Hypervel\Console\SignalRegistry;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -18,8 +17,6 @@ use ReflectionProperty;
  */
 class InteractsWithSignalsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testTrapCreatesRegistry()
     {
         $command = new InteractsWithSignalsTestStub();

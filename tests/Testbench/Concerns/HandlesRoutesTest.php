@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
 
@@ -14,8 +13,6 @@ use Hypervel\Testbench\TestCase;
  */
 class HandlesRoutesTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected bool $defineRoutesCalled = false;
 
     protected bool $defineWebRoutesCalled = false;

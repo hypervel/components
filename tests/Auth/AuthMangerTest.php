@@ -17,7 +17,6 @@ use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -28,8 +27,6 @@ use Mockery as m;
  */
 class AuthMangerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testGetDefaultDriverFromConfig()
     {
         $manager = new AuthManager($container = $this->getContainer());

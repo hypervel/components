@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
 use Hypervel\Tests\Watcher\Fixtures\FswatchDriverStub;
@@ -19,8 +18,6 @@ use InvalidArgumentException;
  */
 class FswatchDriverTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWatch()
     {
         $container = ContainerStub::getContainer(FswatchDriver::class);

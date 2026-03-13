@@ -13,7 +13,6 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
@@ -25,8 +24,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class SubMinuteSchedulingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected Schedule $schedule;
 
     protected function setUp(): void

@@ -18,6 +18,8 @@ use function Hypervel\Coroutine\run;
  */
 class NumberTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     // ==========================================================================
     // Basic Formatting Tests
     // ==========================================================================
@@ -339,12 +341,8 @@ class NumberTest extends TestCase
         $this->assertSame('USD', $leakedCurrency);
     }
 
-    // ==========================================================================
-    // Regression Tests - Prevent the SUP-01 bug from recurring
-    // ==========================================================================
-
     /**
-     * Regression test for SUP-01: useCurrency was using Context::get instead of Context::set.
+     * useCurrency must call Context::set, not Context::get.
      */
     public function testUseCurrencyActuallySetsValue(): void
     {

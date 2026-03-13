@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Coroutine\Channel;
 
 use Hypervel\Coroutine\Channel\Manager as ChannelManager;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
@@ -17,8 +16,6 @@ use function Hypervel\Coroutine\go;
  */
 class ChannelManagerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testChannelManager()
     {
         $manager = new ChannelManager();

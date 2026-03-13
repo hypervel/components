@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis\Subscriber;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Testbench\TestCase;
 use Redis;
@@ -27,7 +26,6 @@ use function Hypervel\Coroutine\go;
 class SubscriberIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     public function testSubscribeReceivesMessage()
     {

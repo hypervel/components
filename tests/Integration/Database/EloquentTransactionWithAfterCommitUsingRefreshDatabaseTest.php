@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\DatabaseManager;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 
@@ -18,7 +17,6 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
 {
     use EloquentTransactionWithAfterCommitTests;
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected string $driver;
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 
@@ -24,7 +23,6 @@ use Hypervel\Testbench\TestCase;
 class TransformIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     public function testGetReturnsNullForMissingKey()
     {

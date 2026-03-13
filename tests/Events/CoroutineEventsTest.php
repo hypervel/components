@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Events\CoroutineEventsTest;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use RuntimeException;
@@ -20,8 +19,6 @@ use function Hypervel\Coroutine\go;
  */
 class CoroutineEventsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testDeferredEventsAreCoroutineIsolated()
     {
         $dispatcher = new Dispatcher();

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -24,8 +23,6 @@ use Sentry\State\HubInterface;
  */
 class RedisFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.tracing.redis_commands' => true,
         'sentry.tracing.redis_origin' => false, // Disable origin tracking to avoid complex dependencies

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Foundation\Support\Providers;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -18,8 +17,6 @@ use Hypervel\Testbench\TestCase;
 #[WithConfig('filesystems.disks.local.serve', false)]
 class RouteServiceProviderHealthTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Resolve application implementation.
      */

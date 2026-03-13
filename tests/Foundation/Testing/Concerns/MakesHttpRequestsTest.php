@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
@@ -22,8 +21,6 @@ use PHPUnit\Framework\AssertionFailedError;
  */
 class MakesHttpRequestsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWithTokenSetsAuthorizationHeader()
     {
         $this->withToken('foobar');

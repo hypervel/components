@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Database;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Throwable;
@@ -18,8 +17,6 @@ use Throwable;
  */
 class DatabaseTransactionsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Setup the database schema.
      */

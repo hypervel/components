@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Router;
@@ -24,7 +23,6 @@ use Hypervel\Tests\Sanctum\Fixtures\User;
 class FrontendRequestsAreStatefulTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 

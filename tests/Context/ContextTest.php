@@ -22,6 +22,8 @@ use function Hypervel\Coroutine\run;
  */
 class ContextTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     public function testSetMany()
     {
         $values = [

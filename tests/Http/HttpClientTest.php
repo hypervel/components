@@ -55,6 +55,8 @@ use function Hypervel\Coroutine\run;
  */
 class HttpClientTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     protected Factory $factory;
 
     protected function setUp(): void

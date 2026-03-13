@@ -28,6 +28,8 @@ use function Hypervel\Coroutine\run;
  */
 class SQLiteFilePoolingTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     protected static string $databasePath;
 
     public static function setUpBeforeClass(): void

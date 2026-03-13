@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Redis\Subscriber;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\CommandInvoker;
 use Hypervel\Redis\Subscriber\Connection;
 use Hypervel\Redis\Subscriber\Exceptions\SocketException;
@@ -21,8 +20,6 @@ use Mockery as m;
  */
 class CommandInvokerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testInvokeSendsCommandAndCollectsResults()
     {
         // Simulate a subscribe confirmation response:

@@ -9,7 +9,6 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -21,8 +20,6 @@ use function Hypervel\Coroutine\wait;
  */
 class WaiterTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function setUp(): void
     {
         parent::setUp();

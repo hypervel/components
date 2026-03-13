@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Cache\Events\RetrievingKey;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Session\SessionManager;
 use Hypervel\Support\Facades\Cache;
@@ -18,8 +17,6 @@ use Sentry\Tracing\Span;
  */
 class CacheFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.breadcrumbs.cache' => true,
         'sentry.tracing.cache' => true,

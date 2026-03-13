@@ -16,7 +16,6 @@ use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
@@ -26,8 +25,6 @@ use RuntimeException;
  */
 class CallbackSchedulingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $log = [];
 
     protected function setUp(): void

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Coroutine\Channel;
 
 use Hypervel\Coroutine\Channel\Caller;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
@@ -18,8 +17,6 @@ use function Hypervel\Coroutine\go;
  */
 class CallerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCallerWithNull()
     {
         $caller = new Caller(static function () {

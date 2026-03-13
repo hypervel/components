@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\WebSocketServer;
 
 use Hypervel\Context\Context as CoContext;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Context;
 
@@ -17,8 +16,6 @@ use function Hypervel\Coroutine\parallel;
  */
 class ContextTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testHas()
     {
         Context::set('a', 42);

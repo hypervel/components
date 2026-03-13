@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Engine;
 
 use Hypervel\Engine\Http\Http;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -14,8 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class HttpTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testHttpPackRequest()
     {
         $data = Http::packRequest('GET', '/', ['Content-Type' => 'application/json'], 'Hello World');

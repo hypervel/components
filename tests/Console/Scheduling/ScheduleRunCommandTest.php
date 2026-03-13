@@ -17,7 +17,6 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
@@ -33,8 +32,6 @@ use Swoole\Coroutine;
  */
 class ScheduleRunCommandTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $dispatched;
 
     protected Dispatcher $dispatcher;

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Horizon;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Horizon;
@@ -22,8 +21,6 @@ use Hypervel\Testbench\TestCase;
 
 abstract class IntegrationTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public const HORIZON_PREFIX = 'hypervel_test_horizon:';
 
     protected array $originalQueueConfig = [];

@@ -17,6 +17,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Facade;
 use Throwable;
 
@@ -33,6 +34,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithSession;
     use InteractsWithTime;
     use MocksApplicationServices;
+    use RunTestsInCoroutine;
 
     /**
      * The callbacks that should be run after the application is created.

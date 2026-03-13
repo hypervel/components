@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Events\ShouldDispatchAfterCommitEventTest;
 
 use Exception;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -17,8 +16,6 @@ use Hypervel\Testbench\TestCase;
  */
 class ShouldDispatchAfterCommitEventTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         TransactionUnawareTestEvent::$ran = false;

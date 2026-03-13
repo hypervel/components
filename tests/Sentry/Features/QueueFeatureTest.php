@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Exception;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
@@ -21,8 +20,6 @@ use function Sentry\captureException;
  */
 class QueueFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.breadcrumbs.queue_info' => true,
         'sentry.tracing.queue_jobs' => true,

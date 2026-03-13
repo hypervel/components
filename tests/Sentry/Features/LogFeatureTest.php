@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Sentry\SentryTestCase;
@@ -19,8 +18,6 @@ use Sentry\Severity;
  */
 class LogFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.features' => [
             LogFeature::class,

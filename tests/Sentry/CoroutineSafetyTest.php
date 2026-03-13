@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Tests\TestCase;
@@ -21,16 +20,14 @@ use Swoole\Coroutine\Channel;
 /**
  * Verify that per-request mutable state is isolated between concurrent coroutines.
  *
- * These tests guard against regressions where instance properties or static
- * properties are used for state that should be coroutine-local.
+ * Verifies that instance properties and static properties used for per-request
+ * mutable state are properly isolated between concurrent coroutines.
  *
  * @internal
  * @coversNothing
  */
 class CoroutineSafetyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testIntegrationTransactionNameIsIsolatedPerCoroutine()
     {
         // Set transaction name in parent coroutine

@@ -9,7 +9,6 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
@@ -20,8 +19,6 @@ use RuntimeException;
  */
 class ConsoleSchedulingFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.features' => [
             ConsoleSchedulingFeature::class,

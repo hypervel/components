@@ -9,7 +9,6 @@ use Exception;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
@@ -25,7 +24,6 @@ use PHPUnit\Framework\ExpectationFailedException;
 class EventFakeTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected function afterRefreshingDatabase()
     {

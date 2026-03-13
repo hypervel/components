@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Engine;
 
 use Hypervel\Engine\Signal;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -14,8 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class SignalTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testSignal()
     {
         $res = Signal::wait(SIGUSR1, 0.05);

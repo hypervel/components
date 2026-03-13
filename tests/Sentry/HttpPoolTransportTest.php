@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Tests\TestCase;
@@ -21,8 +20,6 @@ use Sentry\Transport\ResultStatus;
  */
 class HttpPoolTransportTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testBackpressureReturnsSkippedWhenPoolExhausted()
     {
         $pool = m::mock(Pool::class);

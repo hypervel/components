@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Engine;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -17,7 +16,6 @@ use Hypervel\Tests\TestCase;
 abstract class EngineIntegrationTestCase extends TestCase
 {
     use InteractsWithServer;
-    use RunTestsInCoroutine;
 
     protected function setUp(): void
     {

@@ -9,7 +9,6 @@ use Hypervel\Contracts\Engine\CoroutineInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Throwable;
 
@@ -19,8 +18,6 @@ use Throwable;
  */
 class CoroutineTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCoroutineCreate()
     {
         $coroutine = new Coroutine(function () {

@@ -114,6 +114,13 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->app->make(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
+                // During tests, PendingCommand handles command exceptions itself
+                // (capturing via its own FailToHandle listener and re-throwing).
+                // Rendering here would produce duplicate, unwanted output to stdout.
+                if ($this->app->runningUnitTests()) {
+                    return;
+                }
+
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
                     /** @var \Hypervel\Console\Application $artisan */
                     $artisan = $this->app->make(ConsoleKernel::class)->getArtisan();

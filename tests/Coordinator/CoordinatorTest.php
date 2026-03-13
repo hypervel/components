@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Coordinator;
 
 use Hypervel\Coordinator\Coordinator;
 use Hypervel\Coroutine\WaitGroup;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
@@ -17,8 +16,6 @@ use function Hypervel\Coroutine\go;
  */
 class CoordinatorTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testYield()
     {
         $coord = new Coordinator();

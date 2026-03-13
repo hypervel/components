@@ -11,7 +11,6 @@ use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
@@ -25,8 +24,6 @@ use Symfony\Component\HttpFoundation\Cookie;
  */
 class MaintenanceModeTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {

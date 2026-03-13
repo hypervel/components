@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -15,8 +14,6 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
  */
 class SupportNumberTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testDefaultLocale()
     {
         $this->assertSame('en', Number::defaultLocale());

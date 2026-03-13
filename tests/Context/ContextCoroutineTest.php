@@ -10,7 +10,6 @@ use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
@@ -26,8 +25,6 @@ use function Hypervel\Coroutine\parallel;
  */
 class ContextCoroutineTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testCopy()
     {
         Context::set('test.store.id', $uid = uniqid());

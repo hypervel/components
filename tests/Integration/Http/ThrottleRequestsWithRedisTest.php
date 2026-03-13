@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Routing\Middleware\ThrottleRequestsWithRedis;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Route;
@@ -22,7 +21,6 @@ use Throwable;
 class ThrottleRequestsWithRedisTest extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     public function testLockOpensImmediatelyAfterDecay()
     {

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Watcher\Driver;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
 use Hypervel\Tests\Watcher\Fixtures\ScanFileDriverStub;
@@ -19,8 +18,6 @@ use Hypervel\Watcher\Option;
  */
 class ScanFileDriverTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWatch()
     {
         $container = ContainerStub::getContainer(ScanFileDriver::class);

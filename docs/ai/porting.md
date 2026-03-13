@@ -507,42 +507,41 @@ All test support files — PHP classes, non-class PHP files, and non-PHP files (
 
 #### Coroutine Support
 
-Code that uses `Context` for state (like `DatabaseTransactionsManager`) requires tests to run in coroutines. Without this, Context state persists across tests since they share the non-coroutine context.
+All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
 
-**Add the `RunTestsInCoroutine` trait** to individual test classes that need it:
-```php
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+**Never add `use RunTestsInCoroutine;` to individual test classes.** It's inherited from the base class. If you encounter a test extending raw `PHPUnit\Framework\TestCase`, change it to extend `Hypervel\Tests\TestCase` instead.
 
-class MyTest extends TestCase
-{
-    use RunTestsInCoroutine;
-}
-```
+**Opting out of coroutines:** Set `protected bool $runTestsInCoroutine = false;` on the test class. This is needed when:
+- Tests call `run()` directly to create their own coroutines (e.g., pool management tests, parallel HTTP tests)
+- Tests explicitly verify non-coroutine → coroutine transitions
 
-Each test runs in a fresh coroutine. Context is automatically destroyed when the coroutine ends — no manual cleanup needed.
+**PHPUnit constraint:** `setUp()` and `tearDown()` run outside the test method's coroutine (PHPUnit 13's `runBare()` is `final`). For DB operations in setUp/tearDown, Foundation TestCase provides `runInCoroutine()` which creates temporary coroutines and bridges transaction state via `preserveTransactionContext()`.
 
-**Prefer applying `RunTestsInCoroutine` to the whole test class when possible.**
-If one or more tests in a class require coroutine context, first check whether the other tests in that class also run correctly inside coroutines. If they do, add `RunTestsInCoroutine` to the entire class instead of splitting the file or mixing coroutine and non-coroutine execution styles.
+**Optional hooks** for code that must run inside the test's coroutine:
+- `setUpInCoroutine()` — runs inside the coroutine before the test method
+- `tearDownInCoroutine()` — runs inside the coroutine after the test method
 
-Only split tests into separate classes when some tests genuinely must run outside coroutine context. Unnecessary mixing makes failures harder to reason about and often leads to incorrect test setups that exercise the code from the wrong execution context.
+These are primarily useful for DB operations or external service setup that needs coroutine context. Most ported Laravel tests won't need them.
 
-**Optional hooks** (define if needed):
-- `setUpInCoroutine()` — runs inside the coroutine before the test
-- `tearDownInCoroutine()` — runs inside the coroutine after the test
+#### Static State and Test Cleanup
 
-**Disabling coroutines:** If a base class uses `RunTestsInCoroutine` but a specific test class needs to run outside coroutine context, set `protected bool $enableCoroutine = false;` on that class. This is only relevant when the trait is present (via the class itself or a parent).
+`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled.
+
+When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
+1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
+2. Check whether the subscriber (`tests/Support/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
 #### Per-Package Base Test Cases
 
-Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`, `CoroutineTestCase`) just for coroutine support. Use `Hypervel\Tests\TestCase` + trait directly.
+Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`, `CoroutineTestCase`) just for coroutine support — it's already on the base class.
 
-A per-package base class is only justified when there is shared setUp logic beyond just coroutines — e.g., shared container mock setup, shared helpers, or shared test fixtures that multiple test classes in the package need.
+A per-package base class is only justified when there is shared setUp logic — e.g., shared container mock setup, shared helpers, or shared test fixtures that multiple test classes in the package need.
 
 #### Mockery
 
 **Always import as `m`:** Use `use Mockery as m;` and call `m::mock()`, `m::spy()`, etc. Never use the full `Mockery::` prefix.
 
-**Never add `Mockery::close()` to tearDown.** It's handled globally by `AfterEachTestExtension` for all tests.
+**Never add `Mockery::close()` to tearDown.** It's handled globally by `AfterEachTestSubscriber` for all tests.
 
 #### Docblocks and Types
 
@@ -654,7 +653,7 @@ $handler->shouldReceive('report')->with($exception)->twice();
 
 #### NonCoroutine Tests
 
-Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests that must run outside a coroutine. In Hypervel, extract those methods to a separate test class. If the base class uses `RunTestsInCoroutine`, set `protected bool $enableCoroutine = false;` on the new class.
+Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests that must run outside a coroutine. In Hypervel, extract those methods to a separate test class with `protected bool $runTestsInCoroutine = false;`.
 
 #### Hyperf Quick Checklist
 
@@ -663,14 +662,13 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 3. Change `Hyperf\` imports to `Hypervel\`
 4. Remove Hyperf license header and PHPUnit attributes
 5. Extend `Hypervel\Tests\TestCase` (not `PHPUnit\Framework\TestCase`)
-6. Add `use RunTestsInCoroutine;` if tests need coroutine context
-7. Add `@internal` and `@coversNothing` docblock
-8. Do **not** add `: void` return types to test methods
-9. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
-10. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
-11. Extract `#[Group('NonCoroutine')]` methods to separate class
-12. Ensure `parent::setUp()` is called
-13. Run tests and fix any remaining type errors
+6. Add `@internal` and `@coversNothing` docblock
+7. Do **not** add `: void` return types to test methods
+8. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
+9. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
+10. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
+11. Ensure `parent::setUp()` is called
+12. Run tests and fix any remaining type errors
 
 ### Porting Laravel Tests
 

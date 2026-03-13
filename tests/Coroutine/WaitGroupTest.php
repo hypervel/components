@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\WaitGroup;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine;
 
@@ -15,8 +14,6 @@ use Swoole\Coroutine;
  */
 class WaitGroupTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWaitAgain()
     {
         $wg = new WaitGroup();

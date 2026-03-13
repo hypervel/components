@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coordinator;
 
 use Hypervel\Coroutine\WaitGroup;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coordinator\block;
@@ -18,8 +17,6 @@ use function Hypervel\Coroutine\go;
  */
 class FunctionTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testBlock()
     {
         $aborted = block(0.001);
