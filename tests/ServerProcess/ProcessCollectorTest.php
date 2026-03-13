@@ -14,13 +14,6 @@ use Swoole\Process;
  */
 class ProcessCollectorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        ProcessCollector::flushState();
-
-        parent::tearDown();
-    }
-
     public function testIsEmptyInitially()
     {
         $this->assertTrue(ProcessCollector::isEmpty());

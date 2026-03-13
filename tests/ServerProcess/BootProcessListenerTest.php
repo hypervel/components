@@ -21,12 +21,6 @@ use Swoole\Server;
  */
 class BootProcessListenerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        ProcessManager::flushState();
-    }
-
     public function testBootsProcessesFromConfig()
     {
         $server = m::mock(Server::class);

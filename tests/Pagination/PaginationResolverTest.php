@@ -29,13 +29,6 @@ class PaginationResolverTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected function tearDown(): void
-    {
-        RequestContext::forget();
-
-        parent::tearDown();
-    }
-
     public function testCurrentPageResolverReadsFromRequest(): void
     {
         $this->setUpMockRequest(['page' => '3']);

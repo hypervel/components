@@ -133,6 +133,8 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         HtmlDumper::resolveDumpSourceUsing(null);
         ImplicitRouteBinding::flushCache();
         Lottery::determineResultNormally();
+        Model::clearBootedModels();
+        Model::flushCasterCache();
         Model::preventAccessingMissingAttributes(false);
         Model::preventLazyLoading(false);
         Model::preventSilentlyDiscardingAttributes(false);

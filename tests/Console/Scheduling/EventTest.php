@@ -56,11 +56,6 @@ class EventTest extends TestCase
         Container::setInstance($this->container);
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-    }
-
     public function testSendOutputToWithIsNotFile()
     {
         $event = new Event(m::mock(EventMutex::class), 'php -v');
@@ -288,8 +283,6 @@ class EventTest extends TestCase
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('0 19 * * 3', $event->wednesdays()->at('19:00')->timezone('EST')->getExpression());
         $this->assertTrue($event->isDue($app));
-
-        Carbon::setTestNow(null);
     }
 
     public function testTimeBetweenChecks()
@@ -318,8 +311,6 @@ class EventTest extends TestCase
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertFalse($event->between('10:00', '8:00')->filtersPass($app));
-
-        Carbon::setTestNow(null);
     }
 
     public function testTimeUnlessBetweenChecks()
@@ -348,7 +339,5 @@ class EventTest extends TestCase
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertTrue($event->unlessBetween('10:00', '8:00')->filtersPass($app));
-
-        Carbon::setTestNow(null);
     }
 }

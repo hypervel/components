@@ -15,12 +15,6 @@ use Hypervel\Tests\TestCase;
  */
 class ProcessStopHandlerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        ProcessManager::flushState();
-    }
-
     public function testImplementsSignalHandlerInterface()
     {
         $handler = new ProcessStopHandler();

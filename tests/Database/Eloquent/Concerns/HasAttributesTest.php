@@ -17,13 +17,6 @@ use Hypervel\Testbench\TestCase;
  */
 class HasAttributesTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Model::flushCasterCache();
-    }
-
     public function testGetCastsIncludesCastsMethodForIncrementingModels(): void
     {
         $model = new HasAttributesIncrementingModel();

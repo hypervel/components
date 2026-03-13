@@ -53,13 +53,6 @@ use UnitEnum;
  */
 class ValidationValidatorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow(null);
-    }
-
     public function testNestedErrorMessagesAreRetrievedFromLocalArray()
     {
         $trans = $this->getArrayTranslator();

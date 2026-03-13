@@ -47,8 +47,6 @@ class JWTManagerTest extends TestCase
 
     private int $testNowTimestamp;
 
-    private UuidFactoryInterface $originalUuidFactory;
-
     protected function setUp(): void
     {
         $this->setTestNow();
@@ -56,15 +54,6 @@ class JWTManagerTest extends TestCase
         $this->mockConfig();
         $this->mockProvider();
         $this->mockBlacklist();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        if (isset($this->originalUuidFactory)) {
-            Uuid::setFactory($this->originalUuidFactory);
-        }
     }
 
     public function testEncodeAPayload()
@@ -263,10 +252,6 @@ class JWTManagerTest extends TestCase
 
     private function mockUuid(string $value)
     {
-        if (! isset($this->originalUuidFactory)) {
-            $this->originalUuidFactory = Uuid::getFactory();
-        }
-
         /** @var MockInterface|UuidFactoryInterface */
         $factory = m::mock(UuidFactoryInterface::class);
         $factory->shouldReceive('uuid4')->andReturn(Uuid::fromString($value));

@@ -55,13 +55,6 @@ class QueueWorkerTest extends TestCase
         Container::setInstance($this->container);
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow();
-    }
-
     public function testJobCanBeFired()
     {
         $worker = $this->getWorker('default', ['queue' => [$job = new WorkerFakeJob()]]);

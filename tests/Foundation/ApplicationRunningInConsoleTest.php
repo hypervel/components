@@ -23,9 +23,6 @@ class ApplicationRunningInConsoleTest extends TestCase
         parent::setUp();
 
         $this->originalArgv = $_SERVER['argv'] ?? null;
-
-        // Clear any cached instance so each test gets a fresh Application
-        Application::setInstance(null);
     }
 
     protected function tearDown(): void
@@ -39,9 +36,6 @@ class ApplicationRunningInConsoleTest extends TestCase
 
         // Clear env var if set
         putenv('APP_RUNNING_IN_CONSOLE');
-
-        // Restore the instance
-        Application::setInstance(null);
 
         parent::tearDown();
     }

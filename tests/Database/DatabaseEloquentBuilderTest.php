@@ -33,13 +33,6 @@ use stdClass;
  */
 class DatabaseEloquentBuilderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow(null);
-
-        parent::tearDown();
-    }
-
     public function testFindMethod()
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);

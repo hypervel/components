@@ -19,13 +19,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationRollbackCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testRollbackCommandCallsMigratorWithProperArguments()
     {
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);

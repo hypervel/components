@@ -17,16 +17,6 @@ class SupportNumberTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected function setUpInCoroutine(): void
-    {
-        Number::flushState();
-    }
-
-    protected function tearDownInCoroutine(): void
-    {
-        Number::flushState();
-    }
-
     public function testDefaultLocale()
     {
         $this->assertSame('en', Number::defaultLocale());

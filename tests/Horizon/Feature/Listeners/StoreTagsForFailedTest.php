@@ -18,11 +18,6 @@ use Mockery as m;
  */
 class StoreTagsForFailedTest extends IntegrationTestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-    }
-
     public function testTemporaryFailedJobShouldBeDeletedWhenTheMainJobIsDeleted(): void
     {
         config()->set('horizon.trim.failed', 120);

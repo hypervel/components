@@ -57,8 +57,6 @@ class FilesystemAdapterTest extends TestCase
         );
         $filesystem->deleteDirectory(basename($this->tempDir));
 
-        Container::setInstance(null);
-
         unset($this->tempDir, $this->filesystem, $this->adapter);
     }
 

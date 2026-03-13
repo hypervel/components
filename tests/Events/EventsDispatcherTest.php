@@ -30,13 +30,6 @@ class EventsDispatcherTest extends TestCase
         Container::setInstance(new Container());
     }
 
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testBasicEventExecution()
     {
         unset($_SERVER['__event.test']);

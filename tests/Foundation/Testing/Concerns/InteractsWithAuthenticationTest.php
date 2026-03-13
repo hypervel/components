@@ -20,13 +20,6 @@ class InteractsWithAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;
 
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::forget('__auth.defaults.guard');
-    }
-
     public function testAssertAsGuest()
     {
         $guard = m::mock(Guard::class);

@@ -19,13 +19,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationInstallCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testFireCallsRepositoryToInstall()
     {
         $app = new ApplicationDatabaseInstallStub();

@@ -206,11 +206,6 @@ class DatabaseEloquentIntegrationTest extends TestCase
             $this->schema($connection)->drop('photos');
         }
 
-        Relation::morphMap([], false);
-        Eloquent::unsetConnectionResolver();
-
-        Carbon::setTestNow(null);
-        Str::createUuidsNormally();
         DB::flushQueryLog();
 
         parent::tearDown();

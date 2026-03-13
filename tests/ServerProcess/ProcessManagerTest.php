@@ -16,12 +16,6 @@ use RuntimeException;
  */
 class ProcessManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        ProcessManager::flushState();
-    }
-
     public function testIsNotRunningInitially()
     {
         $this->assertFalse(ProcessManager::isRunning());

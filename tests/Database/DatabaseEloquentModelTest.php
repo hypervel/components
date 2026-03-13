@@ -2225,6 +2225,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModels()
     {
         ModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch');
         $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
         $events->shouldReceive('forget');
@@ -2235,6 +2236,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsWithString()
     {
         ModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch');
         $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
         $events->shouldReceive('forget');
@@ -2245,6 +2247,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsThroughAnArray()
     {
         ModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch');
         $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
         $events->shouldReceive('forget');
@@ -2301,6 +2304,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsThroughCallingObserveMethodOnlyOnce()
     {
         ModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch');
         $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
 
@@ -2320,10 +2324,10 @@ class DatabaseEloquentModelTest extends TestCase
     public function testWithoutEventDispatcher()
     {
         SaveStub::setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch')->byDefault();
         $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@creating');
         $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@saved');
         $events->shouldNotReceive('until');
-        $events->shouldNotReceive('dispatch');
         $events->shouldReceive('forget');
         SaveStub::observe(TestObserverStub::class);
 

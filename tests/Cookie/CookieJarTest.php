@@ -35,13 +35,6 @@ enum CookieJarTestNameIntEnum: int
  */
 class CookieJarTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        RequestContext::forget();
-    }
-
     public function testHas()
     {
         $request = m::mock(Request::class);

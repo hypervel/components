@@ -29,13 +29,6 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         Carbon::setTestNow('2023-01-01 00:00:00');
     }
 
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-
-        parent::tearDown();
-    }
-
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
         $model = new ParentModel();

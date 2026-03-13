@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Log;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Log\ContextLogProcessor;
 use Hypervel\Log\Logger;
@@ -37,12 +36,6 @@ use RuntimeException;
  */
 class LogManagerTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-        Context::forget('__logger.shared_context');
-    }
-
     public function testLogManagerCachesLoggerInstances()
     {
         $manager = new LogManager($this->getContainer(), new DispatcherStub());

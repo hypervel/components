@@ -14,13 +14,6 @@ use PHPUnit\Framework\TestCase;
  */
 class WormholeTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow();
-    }
-
     public function testCanTravelBackToPresent()
     {
         // Preserve the timelines we want to compare the reality with...

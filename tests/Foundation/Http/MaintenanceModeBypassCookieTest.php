@@ -15,13 +15,6 @@ use Symfony\Component\HttpFoundation\Cookie;
  */
 class MaintenanceModeBypassCookieTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-
-        parent::tearDown();
-    }
-
     public function testCreateReturnsCookieInstance()
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');

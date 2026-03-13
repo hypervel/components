@@ -26,13 +26,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationMigrateCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testBasicMigrationsCallMigratorWithProperArguments()
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);

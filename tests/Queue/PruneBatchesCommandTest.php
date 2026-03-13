@@ -18,11 +18,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class PruneBatchesCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-    }
-
     public function testAllowPruningAllUnfinishedBatches()
     {
         $repo = m::mock(DatabaseBatchRepository::class);

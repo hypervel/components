@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hypervel\Context\Context;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Log\Logger;
 use Mockery as m;
@@ -18,11 +17,6 @@ use RuntimeException;
  */
 class LogLoggerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::forget('__logger.context');
-    }
-
     public function testMethodsPassErrorAdditionsToMonolog()
     {
         $writer = new Logger($monolog = m::mock(Monolog::class));

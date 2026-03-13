@@ -10,7 +10,6 @@ use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
-use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Tests\ServerProcess\Fixtures\FooProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -26,7 +25,6 @@ class AbstractProcessTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ProcessCollector::flushState();
         FooProcess::$handled = false;
 
         parent::tearDown();

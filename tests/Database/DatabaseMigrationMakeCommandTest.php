@@ -20,13 +20,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationMakeCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testBasicCreateDumpsAutoload()
     {
         $app = new ApplicationDatabaseMigrationMakeStub();

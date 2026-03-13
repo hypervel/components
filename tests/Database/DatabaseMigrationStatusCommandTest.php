@@ -20,13 +20,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationStatusCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testPendingOptionReturnsConfiguredExitCodeAsInteger()
     {
         $app = new ApplicationDatabaseStatusStub(['path.database' => __DIR__]);
