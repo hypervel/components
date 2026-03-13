@@ -203,22 +203,31 @@ class VendorPublishCommandTest extends TestCase
 
     public function testPublishAllWithFlag()
     {
-        $source1 = $this->sourceDir . '/one.php';
-        $source2 = $this->sourceDir . '/two.php';
-        $dest1 = $this->destDir . '/one.php';
-        $dest2 = $this->destDir . '/two.php';
+        // Isolate $publishes so --all only sees the test's entries,
+        // not real framework providers that would publish into workbench.
+        $originalPublishes = ServiceProvider::$publishes;
+        ServiceProvider::$publishes = [];
 
-        file_put_contents($source1, '<?php return ["one"];');
-        file_put_contents($source2, '<?php return ["two"];');
+        try {
+            $source1 = $this->sourceDir . '/one.php';
+            $source2 = $this->sourceDir . '/two.php';
+            $dest1 = $this->destDir . '/one.php';
+            $dest2 = $this->destDir . '/two.php';
 
-        ServiceProvider::$publishes[TestPublishProvider::class] = [$source1 => $dest1];
-        ServiceProvider::$publishes[OtherPublishProvider::class] = [$source2 => $dest2];
+            file_put_contents($source1, '<?php return ["one"];');
+            file_put_contents($source2, '<?php return ["two"];');
 
-        $this->artisan('vendor:publish', ['--all' => true])
-            ->assertExitCode(0);
+            ServiceProvider::$publishes[TestPublishProvider::class] = [$source1 => $dest1];
+            ServiceProvider::$publishes[OtherPublishProvider::class] = [$source2 => $dest2];
 
-        $this->assertFileExists($dest1);
-        $this->assertFileExists($dest2);
+            $this->artisan('vendor:publish', ['--all' => true])
+                ->assertExitCode(0);
+
+            $this->assertFileExists($dest1);
+            $this->assertFileExists($dest2);
+        } finally {
+            ServiceProvider::$publishes = $originalPublishes;
+        }
     }
 
     public function testDontUpdateMigrationDates()
