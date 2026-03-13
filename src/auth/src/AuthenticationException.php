@@ -72,4 +72,12 @@ class AuthenticationException extends Exception
     {
         static::$redirectToCallback = $redirectToCallback;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$redirectToCallback = null;
+    }
 }

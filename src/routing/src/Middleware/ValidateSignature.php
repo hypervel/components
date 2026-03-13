@@ -91,4 +91,12 @@ class ValidateSignature
             array_merge(static::$neverValidate, Arr::wrap($parameters))
         ));
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$neverValidate = [];
+    }
 }
