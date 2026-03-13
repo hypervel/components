@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Routing;
+namespace Hypervel\Foundation\Routing;
 
+use Hypervel\Routing\ControllerDispatcher;
+use Hypervel\Routing\Route;
 use RuntimeException;
 
 class PrecognitionControllerDispatcher extends ControllerDispatcher

@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Queue;
+namespace Hypervel\Foundation\Queue;
 
 use Hypervel\Bus\Queueable as QueueableByBus;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\SerializesModels;
 
 trait Queueable
 {

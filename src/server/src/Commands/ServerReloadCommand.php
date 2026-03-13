@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Console;
+namespace Hypervel\Server\Commands;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;

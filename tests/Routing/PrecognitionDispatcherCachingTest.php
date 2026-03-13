@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Routing\PrecognitionDispatcherCachingTest;
 
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Routing\PrecognitionCallableDispatcher;
+use Hypervel\Foundation\Routing\PrecognitionControllerDispatcher;
 use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
-use Hypervel\Routing\PrecognitionCallableDispatcher;
-use Hypervel\Routing\PrecognitionControllerDispatcher;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use ReflectionProperty;

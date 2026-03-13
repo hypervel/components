@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 

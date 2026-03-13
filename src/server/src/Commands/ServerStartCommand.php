@@ -21,7 +21,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use function Hypervel\Support\swoole_hook_flags;
 
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
-class StartServer extends Command
+class ServerStartCommand extends Command
 {
     public function __construct(private Container $container)
     {

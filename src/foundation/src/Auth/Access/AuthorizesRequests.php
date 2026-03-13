@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Auth\Access;
+namespace Hypervel\Foundation\Auth\Access;
 
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Authenticatable;

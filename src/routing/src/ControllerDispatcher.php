@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
+use Hypervel\Foundation\Routing\PrecognitionControllerDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Support\Collection;
 use ReflectionMethod;

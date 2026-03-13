@@ -7,6 +7,7 @@ namespace Hypervel\Routing;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
+use Hypervel\Foundation\Routing\PrecognitionCallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use ReflectionFunction;
 use ReflectionMethod;

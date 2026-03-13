@@ -9,7 +9,7 @@ use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\WithConsoleEvents;
+use Hypervel\Foundation\Testing\WithConsoleEvents;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;

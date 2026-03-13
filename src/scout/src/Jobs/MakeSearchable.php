@@ -7,7 +7,7 @@ namespace Hypervel\Scout\Jobs;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Queue\Queueable;
+use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Scout\Contracts\SearchableInterface;
 
 /**

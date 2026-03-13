@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Auth\Access;
+namespace Hypervel\Foundation\Auth\Access;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;

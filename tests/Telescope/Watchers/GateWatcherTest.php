@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hypervel\Auth\Access\AuthorizesRequests;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Foundation\Auth\Access\AuthorizesRequests;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\GateWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;

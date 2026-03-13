@@ -120,7 +120,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $_SERVER['argv'] = ['artisan', 'serve'];
         $app = $this->getApplication();
 
-        // Simulate what StartServer::execute() does before $serverFactory->start()
+        // Simulate what ServerStartCommand::execute() does before $serverFactory->start()
         $app->setRunningInConsole(false);
 
         $this->assertFalse($app->runningInConsole());
@@ -337,7 +337,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $this->assertTrue($app->runningInConsole());
         $this->assertTrue($app->runningConsoleCommand('serve'));
 
-        // Phase 2: StartServer::execute() flips the flag before server starts
+        // Phase 2: ServerStartCommand::execute() flips the flag before server starts
         $app->setRunningInConsole(false);
 
         // Phase 3: HTTP server is running — request handlers see non-console

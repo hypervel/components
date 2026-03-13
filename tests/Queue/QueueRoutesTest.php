@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue\QueueRoutesTest;
 
-use Hypervel\Queue\Queueable;
+use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
 

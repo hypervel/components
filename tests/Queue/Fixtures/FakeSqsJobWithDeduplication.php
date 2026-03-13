@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Queue\Fixtures;
 
 use Closure;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Queue\Queueable;
+use Hypervel\Foundation\Queue\Queueable;
 
 /**
  * @internal

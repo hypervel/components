@@ -22,7 +22,6 @@ use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Console\RouteCacheCommand;
 use Hypervel\Foundation\Console\RouteClearCommand;
-use Hypervel\Foundation\Console\ServerReloadCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Http\HtmlDumper;
@@ -95,7 +94,6 @@ class FoundationServiceProvider extends ServiceProvider
             DownCommand::class,
             RouteCacheCommand::class,
             RouteClearCommand::class,
-            ServerReloadCommand::class,
             UpCommand::class,
             VendorPublishCommand::class,
         ]);

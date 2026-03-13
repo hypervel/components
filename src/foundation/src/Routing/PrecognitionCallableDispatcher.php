@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Routing;
+namespace Hypervel\Foundation\Routing;
+
+use Hypervel\Routing\CallableDispatcher;
+use Hypervel\Routing\Route;
 
 class PrecognitionCallableDispatcher extends CallableDispatcher
 {
