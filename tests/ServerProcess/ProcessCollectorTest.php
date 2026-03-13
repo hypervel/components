@@ -6,7 +6,6 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Tests\TestCase;
-use ReflectionClass;
 use Swoole\Process;
 
 /**
@@ -17,12 +16,9 @@ class ProcessCollectorTest extends TestCase
 {
     protected function tearDown(): void
     {
-        parent::tearDown();
+        ProcessCollector::flushState();
 
-        // Reset static state via reflection
-        $ref = new ReflectionClass(ProcessCollector::class);
-        $prop = $ref->getProperty('processes');
-        $prop->setValue(null, []);
+        parent::tearDown();
     }
 
     public function testIsEmptyInitially()

@@ -26,14 +26,10 @@ class AbstractProcessTest extends TestCase
 {
     protected function tearDown(): void
     {
-        parent::tearDown();
-
-        // Reset ProcessCollector static state
-        $ref = new ReflectionClass(ProcessCollector::class);
-        $prop = $ref->getProperty('processes');
-        $prop->setValue(null, []);
-
+        ProcessCollector::flushState();
         FooProcess::$handled = false;
+
+        parent::tearDown();
     }
 
     public function testIsEnableReturnsTrueByDefault()

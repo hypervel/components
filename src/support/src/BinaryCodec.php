@@ -84,6 +84,14 @@ class BinaryCodec
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$customCodecs = [];
+    }
+
+    /**
      * Determine if the given value is binary data.
      */
     public static function isBinary(mixed $value): bool

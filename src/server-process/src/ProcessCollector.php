@@ -55,4 +55,12 @@ class ProcessCollector
     {
         return static::$processes === [];
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$processes = [];
+    }
 }
