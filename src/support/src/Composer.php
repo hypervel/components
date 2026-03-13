@@ -171,8 +171,12 @@ class Composer
 
     public static function setBasePath(?string $basePath = null): void
     {
-        // Reset content to reload lock file
-        static::reset();
+        // Clear cached content so it reloads from the new path
+        static::$content = null;
+        static::$json = null;
+        static::$extra = [];
+        static::$scripts = [];
+        static::$versions = [];
 
         static::$basePath = $basePath;
     }
@@ -235,12 +239,17 @@ class Composer
         return explode(' ', $output)[2] ?? null;
     }
 
-    protected static function reset(): void
+    /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
     {
         static::$content = null;
         static::$json = null;
         static::$extra = [];
         static::$scripts = [];
         static::$versions = [];
+        static::$classLoader = null;
+        static::$basePath = null;
     }
 }

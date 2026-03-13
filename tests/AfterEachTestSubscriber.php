@@ -6,6 +6,7 @@ namespace Hypervel\Tests;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\BoundMethod;
@@ -53,6 +54,7 @@ use Hypervel\Routing\UrlGenerator;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Scout\Scout;
 use Hypervel\ServerProcess\ProcessManager;
+use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Session\Store;
 use Hypervel\Support\Composer;
 use Hypervel\Support\DateFactory;
@@ -83,132 +85,91 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
 {
     public function notify(AfterTestMethodFinished $event): void
     {
-        // Mockery
         if (class_exists(Mockery::class)) {
             Mockery::close();
         }
 
-        // Time, randomness, and faking
-        Carbon::setTestNow();
-        CarbonImmutable::setTestNow();
-        Carbon::resetToStringFormat();
-        Carbon::serializeUsing(null);
-        Sleep::fake(false);
-        Str::resetFactoryState();
-        Lottery::determineResultNormally();
-        DateFactory::useDefault();
-        if (class_exists(\Ramsey\Uuid\Uuid::class)) {
-            \Ramsey\Uuid\Uuid::setFactory(new UuidFactory());
-        }
-
-        // Context (coroutine and non-coroutine)
-        Context::flush();
-
-        // Container and application singletons
-        Container::setInstance(null);
-        Facade::clearResolvedInstances();
-
-        // Eloquent model state
-        Model::unsetEventDispatcher();
-        Model::unsetConnectionResolver();
-        Model::preventSilentlyDiscardingAttributes(false);
-        Model::preventLazyLoading(false);
-        Model::preventAccessingMissingAttributes(false);
-        Relation::morphMap([], false);
-        Relation::requireMorphMap(false);
-        Factory::flushState();
-
-        // Database
-        SchemaBuilder::flushState();
-
-        // Queue
-        Queue::createPayloadUsing(null);
-
-        // Routing
-        UrlGenerator::flushRequestState();
-        AbstractPaginator::currentPathResolver(fn () => '/');
-        AbstractPaginator::currentPageResolver(fn () => 1);
         AbstractCursorPaginator::currentCursorResolver(fn () => null);
-        ResourceRegistrar::verbs(['create' => 'create', 'edit' => 'edit']);
-        ResourceRegistrar::setParameters();
-        ResourceRegistrar::singularParameters();
-        ImplicitRouteBinding::flushCache();
-        CallableDispatcher::flushCache();
-        ControllerDispatcher::flushCache();
-        RouteSignatureParameters::flushCache();
-        SortedMiddleware::flushCache();
-        CompiledRouteCollection::flushCache();
-
-        // Middleware and bootstrapper static state
-        EncryptCookies::flushState();
-        ConvertEmptyStringsToNull::flushState();
-        PreventRequestForgery::flushState();
-        PreventRequestsDuringMaintenance::flushState();
-        TrimStrings::flushState();
-        TrustProxies::flushState();
-        HandleCors::flushState();
-        TrustHosts::flushState();
-        RouteServiceProvider::flushState();
-        RegisterProviders::flushState();
-        WorkerCachedMaintenanceMode::flushCache();
-
-        // Session
-        Store::flushState();
-
-        // View
-        Component::flushCache();
-        Component::forgetFactory();
-        Component::forgetComponentsResolver();
-
-        // Broadcasting
-        Broadcaster::flushChannels();
-
-        // Support utilities
-        BoundMethod::flushMethodRecipeCache();
-        Once::flush();
-        Once::enable();
-        StrCache::flushState();
-        Number::flushState();
-        Composer::setBasePath(null);
-
-        // Validation
-        Validator::flushState();
-
-        // Console
-        ConsoleApplication::forgetBootstrappers();
-        FreshCommand::prohibit(false);
-        RefreshCommand::prohibit(false);
-        ResetCommand::prohibit(false);
-        WipeCommand::prohibit(false);
-        SeedCommand::prohibit(false);
-
-        // Service provider publish state
-        ServiceProvider::flushState();
-
-        // Coroutine
-        Coroutine::flushAfterCreated();
-
-        // Dumpers
-        CliDumper::resolveDumpSourceUsing(null);
-        HtmlDumper::resolveDumpSourceUsing(null);
-
-        // DI / AOP
+        AbstractPaginator::currentPageResolver(fn () => 1);
+        AbstractPaginator::currentPathResolver(fn () => '/');
         AspectCollector::flushState();
         AspectManager::flushState();
         AstVisitorRegistry::flushState();
+        AuthenticateSession::flushState();
+        BoundMethod::flushMethodRecipeCache();
+        Broadcaster::flushChannels();
+        CallableDispatcher::flushCache();
+        Carbon::resetToStringFormat();
+        Carbon::serializeUsing(null);
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
         ClassMapManager::flushState();
-        ReflectionManager::flushState();
-
-        // Server processes
+        CliDumper::resolveDumpSourceUsing(null);
+        CompiledRouteCollection::flushCache();
+        Composer::flushState();
+        ConsoleApplication::forgetBootstrappers();
+        Container::setInstance(null);
+        Context::flush();
+        ControllerDispatcher::flushCache();
+        ConvertEmptyStringsToNull::flushState();
+        Coroutine::flushAfterCreated();
+        DateFactory::useDefault();
+        EncryptCookies::flushState();
+        Facade::clearResolvedInstances();
+        Factory::flushState();
+        FreshCommand::prohibit(false);
+        HandleCors::flushState();
+        HtmlDumper::resolveDumpSourceUsing(null);
+        ImplicitRouteBinding::flushCache();
+        Lottery::determineResultNormally();
+        Model::preventAccessingMissingAttributes(false);
+        Model::preventLazyLoading(false);
+        Model::preventSilentlyDiscardingAttributes(false);
+        Model::unsetConnectionResolver();
+        Model::unsetEventDispatcher();
+        Number::flushState();
+        Once::enable();
+        Once::flush();
+        PreventRequestForgery::flushState();
+        PreventRequestsDuringMaintenance::flushState();
         ProcessManager::flushState();
-
-        // Sanctum
+        Queue::createPayloadUsing(null);
+        RedirectIfAuthenticated::flushState();
+        ReflectionManager::flushState();
+        RefreshCommand::prohibit(false);
+        RegisterProviders::flushState();
+        Relation::morphMap([], false);
+        Relation::requireMorphMap(false);
+        ResetCommand::prohibit(false);
+        ResourceRegistrar::setParameters();
+        ResourceRegistrar::singularParameters();
+        ResourceRegistrar::verbs(['create' => 'create', 'edit' => 'edit']);
+        RouteServiceProvider::flushState();
+        RouteSignatureParameters::flushCache();
         Sanctum::flushState();
-
-        // Scout
+        SchemaBuilder::flushState();
         Scout::flushState();
-
-        // Telescope
+        SeedCommand::prohibit(false);
+        ServiceProvider::flushState();
+        Sleep::fake(false);
+        SortedMiddleware::flushCache();
+        Store::flushState();
+        Str::resetFactoryState();
+        StrCache::flushState();
         Telescope::flushState();
+        TrimStrings::flushState();
+        TrustHosts::flushState();
+        TrustProxies::flushState();
+        UrlGenerator::flushRequestState();
+        Validator::flushState();
+        Component::flushCache();
+        Component::forgetComponentsResolver();
+        Component::forgetFactory();
+        WipeCommand::prohibit(false);
+        WorkerCachedMaintenanceMode::flushCache();
+
+        if (class_exists(\Ramsey\Uuid\Uuid::class)) {
+            \Ramsey\Uuid\Uuid::setFactory(new UuidFactory());
+        }
     }
 }

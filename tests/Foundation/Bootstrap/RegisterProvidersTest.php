@@ -22,7 +22,7 @@ class RegisterProvidersTest extends TestCase
 
     public function tearDown(): void
     {
-        Composer::setBasePath(null);
+        Composer::flushState();
 
         parent::tearDown();
     }

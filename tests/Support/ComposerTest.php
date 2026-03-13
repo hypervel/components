@@ -23,7 +23,7 @@ class ComposerTest extends TestCase
 
     protected function tearDown(): void
     {
-        Composer::setBasePath(null);
+        Composer::flushState();
 
         parent::tearDown();
     }

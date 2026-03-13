@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Carbon\Carbon;
-use Carbon\CarbonImmutable;
 use Faker\Generator as FakerGenerator;
-use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
@@ -152,8 +148,6 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
             $this->flushApplication();
-            /* @phpstan-ignore-next-line */
-            Coroutine::flushAfterCreated();
         }
 
         $this->afterApplicationCreatedCallbacks = [];
@@ -163,23 +157,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             throw $this->callbackException;
         }
 
-        if (class_exists(Carbon::class)) {
-            Carbon::setTestNow();
-        }
-
-        if (class_exists(CarbonImmutable::class)) {
-            CarbonImmutable::setTestNow();
-        }
-
-        ConsoleApplication::forgetBootstrappers();
         HandleExceptions::flushState($this);
-
-        // Reset Model strict mode flags to prevent test pollution.
-        // These are process-global in Swoole, so tests that enable strict
-        // modes must not leak that state to subsequent tests.
-        Model::preventSilentlyDiscardingAttributes(false);
-        Model::preventLazyLoading(false);
-        Model::preventAccessingMissingAttributes(false);
 
         $this->setUpHasRun = false;
     }
