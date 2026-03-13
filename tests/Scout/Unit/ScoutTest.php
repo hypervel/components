@@ -20,12 +20,6 @@ use Mockery as m;
  */
 class ScoutTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        Scout::flushState();
-        parent::tearDown();
-    }
-
     public function testDefaultMakeSearchableJobClass(): void
     {
         $this->assertSame(MakeSearchable::class, Scout::$makeSearchableJob);

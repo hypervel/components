@@ -33,14 +33,6 @@ class PropagatedContextIntegrationTest extends TestCase
     use RefreshDatabase;
     use RunTestsInCoroutine;
 
-    protected function tearDown(): void
-    {
-        Context::propagated()->handleUnserializeExceptionsUsing(null);
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testItCanHydrateNull()
     {
         Context::propagated()->hydrate(null);

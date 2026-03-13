@@ -15,6 +15,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\BoundMethod;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Context\PropagatedContext;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Console\Migrations\FreshCommand;
@@ -76,8 +77,8 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Validation\Validator;
 use Hypervel\View\Component;
 use Mockery;
-use PHPUnit\Event\Test\AfterTestMethodFinished;
-use PHPUnit\Event\Test\AfterTestMethodFinishedSubscriber;
+use PHPUnit\Event\Test\Finished;
+use PHPUnit\Event\Test\FinishedSubscriber;
 use Ramsey\Uuid\UuidFactory;
 
 /**
@@ -87,9 +88,9 @@ use Ramsey\Uuid\UuidFactory;
  * Centralizes static state resets so individual tests don't need to remember
  * them, and prevents state leaks even when a test forgets to clean up.
  */
-final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
+final class AfterEachTestSubscriber implements FinishedSubscriber
 {
-    public function notify(AfterTestMethodFinished $event): void
+    public function notify(Finished $event): void
     {
         if (class_exists(Mockery::class)) {
             Mockery::close();
@@ -119,6 +120,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         ConsoleApplication::forgetBootstrappers();
         Container::setInstance(null);
         Context::flush();
+        PropagatedContext::flushState();
         ControllerDispatcher::flushState();
         ConvertEmptyStringsToNull::flushState();
         Coroutine::flushAfterCreated();
@@ -137,8 +139,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Model::unsetConnectionResolver();
         Model::unsetEventDispatcher();
         Number::flushState();
-        Once::enable();
-        Once::flush();
+        Once::flushState();
         PreventRequestForgery::flushState();
         PreventRequestsDuringMaintenance::flushState();
         ProcessCollector::flushState();

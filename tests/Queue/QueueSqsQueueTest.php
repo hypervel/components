@@ -125,13 +125,6 @@ class QueueSqsQueueTest extends TestCase
         ]);
     }
 
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
     protected function createMockedUuid(string $value): UuidInterface
     {
         return Uuid::fromString($value);

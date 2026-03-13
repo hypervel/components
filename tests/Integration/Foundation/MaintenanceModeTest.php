@@ -12,7 +12,6 @@ use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
@@ -33,13 +32,9 @@ class MaintenanceModeTest extends TestCase
         $this->beforeApplicationDestroyed(function () {
             @unlink(storage_path('framework/down'));
             @unlink(storage_path('framework/maintenance.php'));
-            PreventRequestsDuringMaintenance::flushState();
-            WorkerCachedMaintenanceMode::flushCache();
         });
 
         parent::setUp();
-
-        WorkerCachedMaintenanceMode::flushCache();
     }
 
     public function testBasicMaintenanceModeResponse()

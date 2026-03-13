@@ -6,7 +6,6 @@ namespace Hypervel\Tests\View\Blade;
 
 use Mockery;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
 
 /**
@@ -15,13 +14,6 @@ use Ramsey\Uuid\UuidFactoryInterface;
  */
 class BladePrependTest extends AbstractBladeTestCase
 {
-    protected function tearDown(): void
-    {
-        Uuid::setFactory(new UuidFactory());
-
-        parent::tearDown();
-    }
-
     public function testPrependIsCompiled()
     {
         $string = '@prepend(\'foo\')

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -28,13 +27,6 @@ use Psr\Http\Message\StreamInterface;
  */
 class OAuthTwoTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
-    }
-
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
     {
         $request = m::mock(Request::class);

@@ -20,12 +20,6 @@ use Hypervel\Tests\Scout\ScoutTestCase;
  */
 class QueueDispatchTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        Scout::flushState();
-        parent::tearDown();
-    }
-
     public function testQueueMakeSearchableDispatchesJobWhenQueueEnabled(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);

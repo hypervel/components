@@ -20,13 +20,6 @@ use InvalidArgumentException;
  */
 class DateFacadeTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        DateFactory::use(Carbon::class);
-
-        parent::tearDown();
-    }
-
     protected static function assertBetweenStartAndNow($start, $actual)
     {
         static::assertThat(

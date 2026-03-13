@@ -303,9 +303,4 @@ class HtmlDumperTest extends TestCase
 
         return tap(file_get_contents($outputFile), fn () => @unlink($outputFile));
     }
-
-    protected function tearDown(): void
-    {
-        HtmlDumper::resolveDumpSourceUsing(null);
-    }
 }

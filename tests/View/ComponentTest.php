@@ -44,16 +44,6 @@ class ComponentTest extends TestCase
         Container::setInstance($container);
     }
 
-    protected function tearDown(): void
-    {
-        m::close();
-
-        Component::flushCache();
-        Component::forgetFactory();
-
-        parent::tearDown();
-    }
-
     public function testInlineViewsGetCreated()
     {
         $this->config->shouldReceive('get')->once()->with('view.compiled')->andReturn('/tmp');

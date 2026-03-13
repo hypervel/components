@@ -18,14 +18,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseWipeCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        WipeCommand::prohibit(false);
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testWipeCommandDropsSchemaObjectsAndPurgesConnection()
     {
         $schemaBuilder = m::mock();

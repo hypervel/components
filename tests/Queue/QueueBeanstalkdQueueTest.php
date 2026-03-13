@@ -21,7 +21,6 @@ use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
 
 /**
@@ -39,12 +38,6 @@ class QueueBeanstalkdQueueTest extends TestCase
      * @var Container
      */
     private $container;
-
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-        Uuid::setFactory(new UuidFactory());
-    }
 
     public function testPushProperlyPushesJobOntoBeanstalkd()
     {

@@ -27,14 +27,6 @@ use Hypervel\Testbench\TestCase;
  */
 class DateFactoryTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        // Reset the DateFactory to default state after each test
-        DateFactory::useDefault();
-
-        parent::tearDown();
-    }
-
     // ==========================================
     // Date Facade Tests
     // ==========================================

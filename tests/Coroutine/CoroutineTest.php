@@ -95,9 +95,6 @@ class CoroutineTest extends TestCase
         });
 
         $this->assertTrue($executed);
-
-        // Clean up
-        Coroutine::flushAfterCreated();
     }
 
     public function testAfterCreatedCallbacksExecuteInOrder()
@@ -117,9 +114,6 @@ class CoroutineTest extends TestCase
         });
 
         $this->assertSame([1, 2, 3], $order);
-
-        // Clean up
-        Coroutine::flushAfterCreated();
     }
 
     public function testFlushAfterCreatedClearsCallbacks()
@@ -164,8 +158,5 @@ class CoroutineTest extends TestCase
 
         $this->assertTrue($secondCallbackRan);
         $this->assertTrue($mainCallableRan);
-
-        // Clean up
-        Coroutine::flushAfterCreated();
     }
 }

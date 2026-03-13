@@ -27,13 +27,6 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         ])->bootEloquent();
     }
 
-    protected function tearDown(): void
-    {
-        Model::unsetConnectionResolver();
-
-        parent::tearDown();
-    }
-
     public function testGlobalScopeIsApplied()
     {
         $model = new GlobalScopesModel();

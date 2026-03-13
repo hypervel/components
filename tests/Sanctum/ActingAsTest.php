@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -40,13 +39,6 @@ class ActingAsTest extends TestCase
                     'model' => User::class,
                 ],
             ]);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
     }
 
     public function testActingAsSetsUserInContext(): void

@@ -16,7 +16,6 @@ use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
 use Ramsey\Uuid\UuidInterface;
 
@@ -26,12 +25,6 @@ use Ramsey\Uuid\UuidInterface;
  */
 class QueueRedisQueueTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-        Uuid::setFactory(new UuidFactory());
-    }
-
     public function testPushProperlyPushesJobOntoRedis()
     {
         $now = Carbon::now();

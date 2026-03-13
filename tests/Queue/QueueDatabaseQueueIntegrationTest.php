@@ -16,7 +16,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
 
 /**
@@ -42,13 +41,6 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         );
         $this->queue->setConnectionName('default');
         $this->queue->setContainer($this->app);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Uuid::setFactory(new UuidFactory());
     }
 
     protected function migrateFreshUsing(): array

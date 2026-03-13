@@ -22,13 +22,6 @@ use Mockery as m;
  */
 class DatabaseEloquentMorphTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Relation::morphMap([], false);
-
-        parent::tearDown();
-    }
-
     public function testMorphOneSetsProperConstraints()
     {
         $this->getOneRelation();

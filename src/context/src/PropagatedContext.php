@@ -556,6 +556,15 @@ class PropagatedContext
         return $this;
     }
 
+    /**
+     * Reset all static state on the class.
+     */
+    public static function flushState(): void
+    {
+        static::$handleUnserializeExceptionsUsing = null;
+        static::flushMacros();
+    }
+
     // --- Internal transport (called by queue infrastructure) ---
 
     /**

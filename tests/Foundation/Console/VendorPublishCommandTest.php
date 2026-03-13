@@ -30,8 +30,6 @@ class VendorPublishCommandTest extends TestCase
 
         mkdir($this->sourceDir, 0755, true);
         mkdir($this->destDir, 0755, true);
-
-        ServiceProvider::flushState();
     }
 
     protected function tearDown(): void
@@ -39,8 +37,6 @@ class VendorPublishCommandTest extends TestCase
         $filesystem = new Filesystem();
         $filesystem->deleteDirectory($this->sourceDir);
         $filesystem->deleteDirectory($this->destDir);
-
-        ServiceProvider::flushState();
 
         parent::tearDown();
     }

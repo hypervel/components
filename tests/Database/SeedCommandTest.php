@@ -29,15 +29,6 @@ class SeedCommandTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected function tearDown(): void
-    {
-        SeedCommand::prohibit(false);
-        Application::setInstance(null);
-        Model::unsetEventDispatcher();
-
-        parent::tearDown();
-    }
-
     public function testHandle()
     {
         $seeder = m::mock(Seeder::class);

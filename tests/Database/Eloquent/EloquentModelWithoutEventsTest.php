@@ -19,14 +19,6 @@ use RuntimeException;
  */
 class EloquentModelWithoutEventsTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        // Ensure context is clean after each test
-        Context::forget('__database.model.events_disabled');
-        TestModel::unsetEventDispatcher();
-        parent::tearDown();
-    }
-
     public function testWithoutEventsExecutesCallback(): void
     {
         $callbackExecuted = false;

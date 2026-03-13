@@ -104,8 +104,6 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         $this->schema()->drop('users');
 
-        Container::setInstance(null);
-
         parent::tearDown();
     }
 

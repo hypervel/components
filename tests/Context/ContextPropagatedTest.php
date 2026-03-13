@@ -14,20 +14,6 @@ use Hypervel\Testbench\TestCase;
  */
 class ContextPropagatedTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Context::flush();
-    }
-
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testPropagatedReturnsPropagatedContextInstance()
     {
         $this->assertInstanceOf(PropagatedContext::class, Context::propagated());

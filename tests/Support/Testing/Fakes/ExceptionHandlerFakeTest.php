@@ -20,12 +20,6 @@ use RuntimeException;
  */
 class ExceptionHandlerFakeTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Exceptions::clearResolvedInstances();
-        parent::tearDown();
-    }
-
     public function testFakeReturnsExceptionHandlerFake(): void
     {
         $fake = Exceptions::fake();

@@ -23,13 +23,6 @@ use WeakMap;
  */
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
-    protected function tearDown(): void
-    {
-        ImplicitRouteBinding::flushCache();
-
-        parent::tearDown();
-    }
-
     public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute()
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {

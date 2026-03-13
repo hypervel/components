@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -23,13 +22,6 @@ use Psr\Http\Message\StreamInterface;
  */
 class OpenIdProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
-    }
-
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
     {
         $request = m::mock(Request::class);

@@ -13,9 +13,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
-use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
@@ -36,14 +34,9 @@ class SubMinuteSchedulingTest extends TestCase
         $this->beforeApplicationDestroyed(function () {
             @unlink(storage_path('framework/down'));
             @unlink(storage_path('framework/maintenance.php'));
-            PreventRequestsDuringMaintenance::flushState();
-            WorkerCachedMaintenanceMode::flushCache();
-            Carbon::setTestNow();
         });
 
         parent::setUp();
-
-        WorkerCachedMaintenanceMode::flushCache();
 
         $this->schedule = $this->app->make(Schedule::class);
 

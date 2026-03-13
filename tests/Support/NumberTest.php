@@ -18,20 +18,6 @@ use function Hypervel\Coroutine\run;
  */
 class NumberTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Context::flush();
-    }
-
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     // ==========================================================================
     // Basic Formatting Tests
     // ==========================================================================

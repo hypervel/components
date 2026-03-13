@@ -14,13 +14,6 @@ use RuntimeException;
  */
 class LotteryTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Lottery::determineResultNormally();
-
-        parent::tearDown();
-    }
-
     public function testItCanWin()
     {
         $wins = false;

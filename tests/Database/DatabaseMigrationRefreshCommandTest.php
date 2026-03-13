@@ -24,14 +24,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationRefreshCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        RefreshCommand::prohibit(false);
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testRefreshCommandCallsCommandsWithProperArguments()
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);

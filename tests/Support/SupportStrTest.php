@@ -10,7 +10,6 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
 use LogicException;
-use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Ramsey\Uuid\Uuid;
@@ -24,14 +23,6 @@ use ValueError;
  */
 class SupportStrTest extends TestCase
 {
-    #[Override]
-    protected function tearDown(): void
-    {
-        Str::resetFactoryState();
-
-        parent::tearDown();
-    }
-
     public function testStringCanBeLimitedByWords(): void
     {
         $this->assertSame('Taylor...', Str::words('Taylor Otwell', 1));

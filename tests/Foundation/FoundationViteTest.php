@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Context\Context;
 use Hypervel\Foundation\Vite;
 use Hypervel\Foundation\ViteException;
 use Hypervel\Support\Facades\Vite as ViteFacade;
@@ -29,9 +28,6 @@ class FoundationViteTest extends TestCase
     {
         $this->cleanViteManifest();
         $this->cleanViteHotFile();
-        Context::set('hypervel.vite.nonce', null);
-        Context::set('hypervel.vite.preloaded_assets', []);
-        Context::forget('__request.root.uri');
 
         parent::tearDown();
     }

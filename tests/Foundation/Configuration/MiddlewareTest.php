@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Configuration;
 
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Foundation\MaintenanceMode;
@@ -28,19 +27,6 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
  */
 class MiddlewareTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-        ConvertEmptyStringsToNull::flushState();
-        EncryptCookies::flushState();
-        PreventRequestForgery::flushState();
-        PreventRequestsDuringMaintenance::flushState();
-        TrimStrings::flushState();
-        TrustProxies::flushState();
-
-        parent::tearDown();
-    }
-
     public function testConvertEmptyStringsToNull()
     {
         $configuration = new Middleware();

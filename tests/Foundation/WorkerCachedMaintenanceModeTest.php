@@ -15,13 +15,6 @@ use Mockery as m;
  */
 class WorkerCachedMaintenanceModeTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        WorkerCachedMaintenanceMode::flushCache();
-
-        parent::tearDown();
-    }
-
     public function testActiveCallsDriverOnlyOnceAndCachesResult()
     {
         $driver = m::mock(MaintenanceModeContract::class);

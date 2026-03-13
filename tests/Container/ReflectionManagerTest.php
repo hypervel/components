@@ -14,13 +14,6 @@ use ReflectionException;
  */
 class ReflectionManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        ReflectionManager::flushState();
-
-        parent::tearDown();
-    }
-
     public function testReflectClassReturnsSameInstanceOnRepeatedCalls(): void
     {
         $first = ReflectionManager::reflectClass(ReflectionManagerTestStub::class);

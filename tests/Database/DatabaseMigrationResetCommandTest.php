@@ -20,14 +20,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationResetCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        ResetCommand::prohibit(false);
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testResetCommandCallsMigratorWithProperArguments()
     {
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);

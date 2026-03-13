@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -53,16 +52,6 @@ class GuardTest extends TestCase
 
         $this->createUsersTable();
         $this->defineTestRoutes();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::forget('__sanctum.acting_as_user');
-        Context::forget('__sanctum.acting_as_guard');
-
-        Sanctum::flushState();
     }
 
     /**

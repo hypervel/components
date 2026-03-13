@@ -18,13 +18,6 @@ use SessionHandlerInterface;
  */
 class SessionStoreTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Store::flushState();
-
-        parent::tearDown();
-    }
-
     public function testSessionIsLoadedFromHandler()
     {
         $session = $this->getSession();

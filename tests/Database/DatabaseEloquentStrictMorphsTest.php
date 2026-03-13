@@ -73,14 +73,6 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
         $pivotModel->getMorphClass();
     }
-
-    protected function tearDown(): void
-    {
-        Relation::morphMap([], false);
-        Relation::requireMorphMap(false);
-
-        parent::tearDown();
-    }
 }
 
 class ModelStub extends Model

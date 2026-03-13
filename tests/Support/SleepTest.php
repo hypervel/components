@@ -20,15 +20,6 @@ use RuntimeException;
  */
 class SleepTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Sleep::fake(false);
-
-        Carbon::setTestNow();
-
-        parent::tearDown();
-    }
-
     public function testItSleepsForSeconds()
     {
         $start = microtime(true);

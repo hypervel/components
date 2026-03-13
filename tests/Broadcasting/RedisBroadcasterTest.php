@@ -9,7 +9,6 @@ use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
-use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -34,13 +33,6 @@ class RedisBroadcasterTest extends TestCase
         $this->container = m::mock(Container::class);
         $factory = m::mock(Redis::class);
         $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $factory])->makePartial();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Facade::clearResolvedInstances();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()

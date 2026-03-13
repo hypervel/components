@@ -40,16 +40,6 @@ class DatabaseEloquentFactoryTest extends TestCase
         ];
     }
 
-    /**
-     * Tear down the database schema.
-     */
-    protected function tearDown(): void
-    {
-        Factory::flushState();
-
-        parent::tearDown();
-    }
-
     public function testBasicModelCanBeCreated()
     {
         $user = FactoryTestUserFactory::new()->create();

@@ -9,7 +9,6 @@ use Hypervel\Console\CommandMutex;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Console\PruneCommand;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events\ModelPruningFinished;
 use Hypervel\Database\Events\ModelPruningStarting;
 use Hypervel\Database\Events\ModelsPruned;
@@ -282,18 +281,5 @@ class PruneCommandTest extends TestCase
             ->run($input, $output);
 
         return $output;
-    }
-
-    protected function tearDown(): void
-    {
-        Application::setInstance(null);
-
-        // Clean up the connection resolver set by bootEloquent() in tests that
-        // use Capsule. Without this, Model::$resolver points to a stale Capsule
-        // DatabaseManager after the test, causing reconnect warnings in
-        // subsequent tests that use pooled connections.
-        Model::unsetConnectionResolver();
-
-        parent::tearDown();
     }
 }

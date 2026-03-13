@@ -21,13 +21,6 @@ use Psr\Http\Message\StreamInterface;
  */
 class LinkedInProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
-    }
-
     public function testMapUserWithoutEmailAndAddress()
     {
         $request = m::mock(Request::class);

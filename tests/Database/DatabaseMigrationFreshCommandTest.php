@@ -21,14 +21,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DatabaseMigrationFreshCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        FreshCommand::prohibit(false);
-        Application::setInstance(null);
-
-        parent::tearDown();
-    }
-
     public function testFreshCommandDropsTablesMigratesAndSeeds()
     {
         $app = new ApplicationDatabaseFreshStub();

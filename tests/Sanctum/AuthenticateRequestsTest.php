@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -60,13 +59,6 @@ class AuthenticateRequestsTest extends TestCase
             'sanctum.stateful' => ['localhost', '127.0.0.1'],
             'sanctum.guard' => ['web'],
         ]);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
     }
 
     /**

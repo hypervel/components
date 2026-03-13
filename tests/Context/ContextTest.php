@@ -22,19 +22,6 @@ use function Hypervel\Coroutine\run;
  */
 class ContextTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Context::flush();
-    }
-
-    protected function tearDown(): void
-    {
-        Context::flush();
-        parent::tearDown();
-    }
-
     public function testSetMany()
     {
         $values = [

@@ -13,13 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class StrCacheTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        StrCache::flushState();
-
-        parent::tearDown();
-    }
-
     public function testSnake()
     {
         $this->assertSame('foo_bar', StrCache::snake('fooBar'));

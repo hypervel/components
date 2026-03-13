@@ -22,13 +22,6 @@ use Psr\Http\Message\StreamInterface;
  */
 class SlackOpenIdProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::flush();
-    }
-
     public function testResponse()
     {
         $user = $this->fromResponse([

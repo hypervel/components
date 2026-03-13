@@ -12,7 +12,6 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Queue\Queue;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Telescope\Contracts\EntriesRepository;
@@ -71,15 +70,6 @@ class FeatureTestCase extends TestCase
             ->set('production');
         $this->app->make(Environment::class)
             ->setDebug(false);
-    }
-
-    protected function tearDown(): void
-    {
-        Telescope::flushState();
-
-        Queue::createPayloadUsing(null);
-
-        parent::tearDown();
     }
 
     protected function migrateFreshUsing(): array

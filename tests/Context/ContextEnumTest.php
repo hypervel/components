@@ -32,19 +32,6 @@ enum ContextKeyUnitEnum
  */
 class ContextEnumTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Context::flush();
-    }
-
-    protected function tearDown(): void
-    {
-        Context::flush();
-        parent::tearDown();
-    }
-
     public function testSetAndGetWithBackedEnum()
     {
         Context::set(ContextKeyBackedEnum::CurrentUser, 'user-123');

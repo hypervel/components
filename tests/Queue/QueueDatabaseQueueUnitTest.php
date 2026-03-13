@@ -19,7 +19,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
 use ReflectionClass;
 use stdClass;
@@ -30,12 +29,6 @@ use stdClass;
  */
 class QueueDatabaseQueueUnitTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-        Uuid::setFactory(new UuidFactory());
-    }
-
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {

@@ -30,7 +30,6 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
@@ -97,16 +96,6 @@ class FoundationExceptionHandlerTest extends TestCase
         Context::forget(Store::CONTEXT_KEY);
 
         $this->handler = new Handler($this->container);
-    }
-
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow();
-        Lottery::determineResultNormally();
-        Context::forget('__request.root.uri');
-        Facade::clearResolvedInstances();
     }
 
     public function testHandlerReportsExceptionAsContext()

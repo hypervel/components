@@ -10,7 +10,6 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
-use Hypervel\Queue\Queue;
 use Hypervel\Queue\Queueable;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Testbench\TestCase;
@@ -22,21 +21,6 @@ use Mockery as m;
  */
 class PropagatedContextQueueTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Context::flush();
-    }
-
-    protected function tearDown(): void
-    {
-        Context::flush();
-        Queue::createPayloadUsing(null);
-
-        parent::tearDown();
-    }
-
     public function testPropagatedContextIsIncludedInJobPayload()
     {
         Context::propagated()->add('trace_id', 'abc-123');

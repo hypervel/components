@@ -37,13 +37,6 @@ enum SessionUnitKey
  */
 class SessionStoreBackedEnumTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Store::flushState();
-
-        parent::tearDown();
-    }
-
     // =========================================================================
     // get() tests
     // =========================================================================

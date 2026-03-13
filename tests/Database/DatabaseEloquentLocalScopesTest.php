@@ -24,13 +24,6 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         ])->bootEloquent();
     }
 
-    protected function tearDown(): void
-    {
-        Model::unsetConnectionResolver();
-
-        parent::tearDown();
-    }
-
     public function testCanCheckExistenceOfLocalScope()
     {
         $model = new ScopedModel();
