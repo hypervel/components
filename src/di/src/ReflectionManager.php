@@ -85,9 +85,9 @@ class ReflectionManager
     }
 
     /**
-     * Clear all cached reflection data.
+     * Flush all cached reflection data.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$container = [];
     }

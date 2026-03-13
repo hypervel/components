@@ -51,9 +51,9 @@ class AstVisitorRegistry
     }
 
     /**
-     * Clear all registered visitors.
+     * Flush all registered visitors.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$queue = null;
         static::$values = [];

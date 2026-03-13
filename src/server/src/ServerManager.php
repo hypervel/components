@@ -41,9 +41,9 @@ class ServerManager
     }
 
     /**
-     * Clear all registered server entries.
+     * Flush all registered server entries.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$container = [];
     }

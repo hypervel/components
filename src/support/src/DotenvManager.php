@@ -68,12 +68,12 @@ class DotenvManager
     }
 
     /**
-     * Reset all static state, allowing load() to run again.
+     * Flush all static state, allowing load() to run again.
      *
      * Removes any previously loaded env vars before clearing
      * the internal tracking, so immutable repositories don't see stale values.
      */
-    public static function reset(): void
+    public static function flushState(): void
     {
         if (static::$cachedValues !== null) {
             Env::deleteMany(array_keys(static::$cachedValues));

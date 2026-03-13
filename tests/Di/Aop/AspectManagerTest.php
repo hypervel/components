@@ -15,7 +15,7 @@ class AspectManagerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AspectManager::clear();
+        AspectManager::flushState();
 
         parent::tearDown();
     }
@@ -47,12 +47,12 @@ class AspectManagerTest extends TestCase
         $this->assertSame(['Aspect1', 'Aspect2'], AspectManager::get('Foo', 'bar'));
     }
 
-    public function testClearRemovesAllEntries()
+    public function testFlushStateRemovesAllEntries()
     {
         AspectManager::set('Foo', 'bar', ['Aspect1']);
         AspectManager::set('Baz', 'qux', ['Aspect2']);
 
-        AspectManager::clear();
+        AspectManager::flushState();
 
         $this->assertFalse(AspectManager::has('Foo', 'bar'));
         $this->assertFalse(AspectManager::has('Baz', 'qux'));

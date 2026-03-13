@@ -38,8 +38,8 @@ abstract class IntegrationTestCase extends TestCase
 
         $this->beforeApplicationDestroyed(function () {
             /* $this->flushRedis(); */
-            WorkerCommandString::reset();
-            SupervisorCommandString::reset();
+            WorkerCommandString::flushState();
+            SupervisorCommandString::flushState();
             Horizon::$authUsing = null;
         });
     }

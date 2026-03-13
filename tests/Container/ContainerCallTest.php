@@ -28,12 +28,12 @@ class ContainerCallTest extends TestCase
     {
         parent::setUp();
 
-        BoundMethod::clearMethodRecipeCache();
+        BoundMethod::flushMethodRecipeCache();
     }
 
     protected function tearDown(): void
     {
-        BoundMethod::clearMethodRecipeCache();
+        BoundMethod::flushMethodRecipeCache();
         Context::flush();
 
         parent::tearDown();

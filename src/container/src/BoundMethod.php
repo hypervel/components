@@ -21,7 +21,7 @@ class BoundMethod
      * objects). Closures and global function strings are not cached since they
      * lack a deterministic ClassName::methodName key.
      *
-     * Persists for the worker lifetime. Cleared via clearMethodRecipeCache()
+     * Persists for the worker lifetime. Flushed via flushMethodRecipeCache()
      * which Container::flush() calls for test isolation.
      *
      * @var array<string, ParameterRecipe[]>
@@ -151,9 +151,9 @@ class BoundMethod
     }
 
     /**
-     * Clear the method recipe cache.
+     * Flush the method recipe cache.
      */
-    public static function clearMethodRecipeCache(): void
+    public static function flushMethodRecipeCache(): void
     {
         static::$methodRecipes = [];
     }

@@ -22,7 +22,7 @@ class ScoutTest extends ScoutTestCase
 {
     protected function tearDown(): void
     {
-        Scout::resetJobClasses();
+        Scout::flushState();
         parent::tearDown();
     }
 
@@ -50,12 +50,12 @@ class ScoutTest extends ScoutTestCase
         $this->assertSame(CustomRemoveFromSearch::class, Scout::$removeFromSearchJob);
     }
 
-    public function testResetJobClassesRestoresDefaults(): void
+    public function testFlushStateRestoresDefaults(): void
     {
         Scout::makeSearchableUsing(CustomMakeSearchable::class);
         Scout::removeFromSearchUsing(CustomRemoveFromSearch::class);
 
-        Scout::resetJobClasses();
+        Scout::flushState();
 
         $this->assertSame(MakeSearchable::class, Scout::$makeSearchableJob);
         $this->assertSame(RemoveFromSearch::class, Scout::$removeFromSearchJob);

@@ -21,7 +21,7 @@ class ProxyTraitTest extends TestCase
     protected function tearDown(): void
     {
         AspectCollector::clear();
-        AspectManager::clear();
+        AspectManager::flushState();
 
         parent::tearDown();
     }

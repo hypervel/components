@@ -15,7 +15,7 @@ class AstVisitorRegistryTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AstVisitorRegistry::clear();
+        AstVisitorRegistry::flushState();
 
         parent::tearDown();
     }
@@ -44,12 +44,12 @@ class AstVisitorRegistryTest extends TestCase
         $this->assertSame('LowPriority', $items[1]);
     }
 
-    public function testClearResetsAllState()
+    public function testFlushStateResetsAllState()
     {
         AstVisitorRegistry::insert('FooVisitor');
         $this->assertTrue(AstVisitorRegistry::exists('FooVisitor'));
 
-        AstVisitorRegistry::clear();
+        AstVisitorRegistry::flushState();
 
         $this->assertFalse(AstVisitorRegistry::exists('FooVisitor'));
         $this->assertTrue(AstVisitorRegistry::getQueue()->isEmpty());

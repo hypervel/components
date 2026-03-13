@@ -14,7 +14,7 @@ use ReflectionProperty;
  *
  * Reflection is expensive. This caches reflection objects for the worker
  * lifetime, eliminating repeated reflection overhead in Swoole's long-running
- * process model. Cleared in Container::flush() for test isolation.
+ * process model. Flushed in Container::flush() for test isolation.
  */
 class ReflectionManager
 {
@@ -66,9 +66,9 @@ class ReflectionManager
     }
 
     /**
-     * Clear all cached reflection objects.
+     * Flush all cached reflection objects.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$container = [];
     }

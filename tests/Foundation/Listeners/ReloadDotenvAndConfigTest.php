@@ -23,13 +23,13 @@ class ReloadDotenvAndConfigTest extends TestCase
     {
         parent::setUp();
 
-        DotenvManager::reset();
+        DotenvManager::flushState();
         Env::flushState();
     }
 
     protected function tearDown(): void
     {
-        DotenvManager::reset();
+        DotenvManager::flushState();
         Env::flushState();
 
         parent::tearDown();

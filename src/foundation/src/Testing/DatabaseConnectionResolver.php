@@ -20,7 +20,7 @@ use function Hypervel\Support\enum_value;
  *
  * Caches connections statically to prevent pool exhaustion (since the testing
  * environment doesn't use defer() to release connections back to the pool).
- * Call resetCachedConnections() at the start of each test to ensure clean
+ * Call flushCachedConnections() at the start of each test to ensure clean
  * state without the test pollution that static caching would otherwise cause.
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
@@ -44,7 +44,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     protected static bool $rebindingRegistered = false;
 
     /**
-     * Reset all cached connections to clean state.
+     * Flush all cached connections to clean state.
      *
      * Called after Application is created to prevent test pollution (query logs,
      * event listeners, transaction state, etc.) from leaking between tests.
@@ -54,7 +54,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      * services. A rebinding hook is registered so Event::fake() automatically
      * updates cached connections with the new dispatcher.
      */
-    public static function resetCachedConnections(): void
+    public static function flushCachedConnections(): void
     {
         $container = Container::getInstance();
         $currentContainerId = spl_object_id($container);

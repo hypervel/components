@@ -39,13 +39,13 @@ class LoadEnvironmentVariablesTest extends TestCase
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
         putenv('APP_ENV');
 
-        DotenvManager::reset();
+        DotenvManager::flushState();
         Env::flushState();
     }
 
     protected function tearDown(): void
     {
-        DotenvManager::reset();
+        DotenvManager::flushState();
         Env::flushState();
 
         // Restore original APP_ENV state.

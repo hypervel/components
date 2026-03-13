@@ -24,15 +24,15 @@ class DotenvManagerTest extends TestCase
         // DotenvManager::load() is a one-shot method that returns early when
         // cachedValues is already set. In the full suite, ClassLoader::init()
         // calls load() during Testbench bootstrap, so our test's load() call
-        // would be a no-op. Reset clears all static state so load() works fresh.
-        DotenvManager::reset();
+        // would be a no-op. flushState() clears all static state so load() works fresh.
+        DotenvManager::flushState();
     }
 
     protected function tearDown(): void
     {
-        // Reset so we don't leak test env vars or custom adapters into
-        // subsequent tests. flushState() clears custom adapters too.
-        DotenvManager::reset();
+        // Flush so we don't leak test env vars or custom adapters into
+        // subsequent tests. Env::flushState() clears custom adapters too.
+        DotenvManager::flushState();
         Env::flushState();
 
         parent::tearDown();
@@ -99,14 +99,14 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(Env::get('NEW_FLAG'));
     }
 
-    public function testResetClearsLoadedValues()
+    public function testFlushStateClearsLoadedValues()
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', env('TEST_VERSION'));
 
-        DotenvManager::reset();
+        DotenvManager::flushState();
 
-        // After reset, the env vars are removed.
+        // After flush, the env vars are removed.
         $this->assertNull(env('TEST_VERSION'));
     }
 

@@ -22,7 +22,7 @@ class QueueDispatchTest extends ScoutTestCase
 {
     protected function tearDown(): void
     {
-        Scout::resetJobClasses();
+        Scout::flushState();
         parent::tearDown();
     }
 

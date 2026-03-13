@@ -31,8 +31,8 @@ class GenerateProxiesTest extends TestCase
         }
 
         AspectCollector::clear();
-        AspectManager::clear();
-        AstVisitorRegistry::clear();
+        AspectManager::flushState();
+        AstVisitorRegistry::flushState();
 
         parent::tearDown();
     }

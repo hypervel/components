@@ -15,7 +15,7 @@ class StrCacheTest extends TestCase
 {
     protected function tearDown(): void
     {
-        StrCache::flush();
+        StrCache::flushState();
 
         parent::tearDown();
     }
@@ -130,7 +130,7 @@ class StrCacheTest extends TestCase
         StrCache::singular('users');
         StrCache::pluralStudly('UserProfile');
 
-        StrCache::flush();
+        StrCache::flushState();
 
         // After flush, results are recomputed (same values, but cache was cleared)
         $this->assertSame('foo_bar', StrCache::snake('fooBar'));

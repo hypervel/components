@@ -34,9 +34,9 @@ class WorkerCommandString
     }
 
     /**
-     * Reset the base command back to its default value.
+     * Flush all static state back to defaults.
      */
-    public static function reset(): void
+    public static function flushState(): void
     {
         static::$command = 'exec @php artisan horizon:work';
     }

@@ -152,7 +152,7 @@ class StrCache
     /**
      * Flush all caches.
      */
-    public static function flush(): void
+    public static function flushState(): void
     {
         static::$snakeCache = [];
         static::$camelCache = [];

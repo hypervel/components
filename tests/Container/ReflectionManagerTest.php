@@ -16,7 +16,7 @@ class ReflectionManagerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ReflectionManager::clear();
+        ReflectionManager::flushState();
 
         parent::tearDown();
     }
@@ -45,33 +45,33 @@ class ReflectionManagerTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testClearResetsClassCache(): void
+    public function testFlushStateResetsClassCache(): void
     {
         $before = ReflectionManager::reflectClass(ReflectionManagerTestStub::class);
 
-        ReflectionManager::clear();
+        ReflectionManager::flushState();
 
         $after = ReflectionManager::reflectClass(ReflectionManagerTestStub::class);
 
         $this->assertNotSame($before, $after);
     }
 
-    public function testClearResetsMethodCache(): void
+    public function testFlushStateResetsMethodCache(): void
     {
         $before = ReflectionManager::reflectMethod(ReflectionManagerTestStub::class, 'greet');
 
-        ReflectionManager::clear();
+        ReflectionManager::flushState();
 
         $after = ReflectionManager::reflectMethod(ReflectionManagerTestStub::class, 'greet');
 
         $this->assertNotSame($before, $after);
     }
 
-    public function testClearResetsPropertyCache(): void
+    public function testFlushStateResetsPropertyCache(): void
     {
         $before = ReflectionManager::reflectProperty(ReflectionManagerTestStub::class, 'name');
 
-        ReflectionManager::clear();
+        ReflectionManager::flushState();
 
         $after = ReflectionManager::reflectProperty(ReflectionManagerTestStub::class, 'name');
 

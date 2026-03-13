@@ -164,10 +164,10 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Broadcaster::flushChannels();
 
         // Support utilities
-        BoundMethod::clearMethodRecipeCache();
+        BoundMethod::flushMethodRecipeCache();
         Once::flush();
         Once::enable();
-        StrCache::flush();
+        StrCache::flushState();
         Number::flushState();
         Composer::setBasePath(null);
 
@@ -195,10 +195,10 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
 
         // DI / AOP
         AspectCollector::clear();
-        AspectManager::clear();
-        AstVisitorRegistry::clear();
+        AspectManager::flushState();
+        AstVisitorRegistry::flushState();
         ClassMapManager::clear();
-        ReflectionManager::clear();
+        ReflectionManager::flushState();
 
         // Server processes
         ProcessManager::clear();
@@ -209,7 +209,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Sanctum::$accessTokenAuthenticationCallback = null;
 
         // Scout
-        Scout::resetJobClasses();
+        Scout::flushState();
 
         // Telescope
         Telescope::$filterUsing = [];

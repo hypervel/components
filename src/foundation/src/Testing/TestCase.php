@@ -69,7 +69,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
         // Reset after Application exists so container-change detection works correctly
         // and rebinding hooks are registered on the current container.
-        DatabaseConnectionResolver::resetCachedConnections();
+        DatabaseConnectionResolver::flushCachedConnections();
 
         $this->setUpFaker();
 

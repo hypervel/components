@@ -19,12 +19,12 @@ class EnvTest extends TestCase
     {
         parent::setUp();
 
-        DotenvManager::reset();
+        DotenvManager::flushState();
     }
 
     protected function tearDown(): void
     {
-        DotenvManager::reset();
+        DotenvManager::flushState();
         Env::flushState();
 
         parent::tearDown();
@@ -123,7 +123,7 @@ class EnvTest extends TestCase
         Env::resetRepository();
 
         // After delete + reset, the fresh ImmutableWriter allows writing.
-        DotenvManager::reset();
+        DotenvManager::flushState();
         DotenvManager::load([__DIR__ . '/envs/newEnv']);
 
         $this->assertSame('2.0', Env::get('TEST_VERSION'));

@@ -50,9 +50,9 @@ class AspectManager
     }
 
     /**
-     * Clear all cached aspect resolutions.
+     * Flush all cached aspect resolutions.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$container = [];
     }
