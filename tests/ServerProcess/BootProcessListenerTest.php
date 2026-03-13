@@ -24,8 +24,7 @@ class BootProcessListenerTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        ProcessManager::clear();
-        ProcessManager::setRunning(false);
+        ProcessManager::flushState();
     }
 
     public function testBootsProcessesFromConfig()

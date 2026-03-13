@@ -30,7 +30,7 @@ class GenerateProxiesTest extends TestCase
             $this->originalLoader = null;
         }
 
-        AspectCollector::clear();
+        AspectCollector::flushState();
         AspectManager::flushState();
         AstVisitorRegistry::flushState();
 

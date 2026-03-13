@@ -15,7 +15,7 @@ class AspectCollectorTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AspectCollector::clear();
+        AspectCollector::flushState();
 
         parent::tearDown();
     }
@@ -64,24 +64,24 @@ class AspectCollectorTest extends TestCase
         $this->assertSame([], AspectCollector::getRule('NonExistent'));
     }
 
-    public function testClearSpecificAspect()
+    public function testForgetAspectRemovesSpecificAspect()
     {
         AspectCollector::setAround('Aspect1', ['Class1']);
         AspectCollector::setAround('Aspect2', ['Class2']);
 
-        AspectCollector::clear('Aspect1');
+        AspectCollector::forgetAspect('Aspect1');
 
         $this->assertSame([], AspectCollector::getRule('Aspect1'));
         $this->assertNotEmpty(AspectCollector::getRule('Aspect2'));
         $this->assertTrue(AspectCollector::hasAspects());
     }
 
-    public function testClearAllAspects()
+    public function testFlushStateRemovesAllAspects()
     {
         AspectCollector::setAround('Aspect1', ['Class1']);
         AspectCollector::setAround('Aspect2', ['Class2']);
 
-        AspectCollector::clear();
+        AspectCollector::flushState();
 
         $this->assertFalse(AspectCollector::hasAspects());
         $this->assertSame([], AspectCollector::getRules());

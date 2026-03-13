@@ -78,16 +78,20 @@ class AspectCollector
     }
 
     /**
-     * Clear a specific aspect or all aspects.
+     * Remove a specific aspect from the registry.
      */
-    public static function clear(?string $key = null): void
+    public static function forgetAspect(string $aspect): void
     {
-        if ($key !== null) {
-            unset(static::$container['classes'][$key], static::$aspectRules[$key]);
-        } else {
-            static::$container = [];
-            static::$aspectRules = [];
-        }
+        unset(static::$container['classes'][$aspect], static::$aspectRules[$aspect]);
+    }
+
+    /**
+     * Flush all registered aspects and metadata.
+     */
+    public static function flushState(): void
+    {
+        static::$container = [];
+        static::$aspectRules = [];
     }
 
     /**

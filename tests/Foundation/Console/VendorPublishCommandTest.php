@@ -31,9 +31,7 @@ class VendorPublishCommandTest extends TestCase
         mkdir($this->sourceDir, 0755, true);
         mkdir($this->destDir, 0755, true);
 
-        // Reset static state
-        ServiceProvider::$publishes = [];
-        ServiceProvider::$publishGroups = [];
+        ServiceProvider::flushState();
     }
 
     protected function tearDown(): void
@@ -42,8 +40,7 @@ class VendorPublishCommandTest extends TestCase
         $filesystem->deleteDirectory($this->sourceDir);
         $filesystem->deleteDirectory($this->destDir);
 
-        ServiceProvider::$publishes = [];
-        ServiceProvider::$publishGroups = [];
+        ServiceProvider::flushState();
 
         parent::tearDown();
     }

@@ -17,7 +17,7 @@ class AspectTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AspectCollector::clear();
+        AspectCollector::flushState();
 
         parent::tearDown();
     }

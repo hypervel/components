@@ -37,11 +37,12 @@ class ProcessManager
     }
 
     /**
-     * Clear all registered processes.
+     * Flush all static state back to defaults.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$processes = [];
+        static::$running = false;
     }
 
     /**

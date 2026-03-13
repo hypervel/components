@@ -65,9 +65,9 @@ class ClassMapManager
     }
 
     /**
-     * Clear all registered entries.
+     * Flush all registered entries.
      */
-    public static function clear(): void
+    public static function flushState(): void
     {
         static::$entries = [];
     }

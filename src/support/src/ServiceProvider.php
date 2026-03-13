@@ -330,6 +330,16 @@ abstract class ServiceProvider
     }
 
     /**
+     * Flush all static publish state.
+     */
+    public static function flushState(): void
+    {
+        static::$publishes = [];
+        static::$publishGroups = [];
+        static::$publishableMigrationPaths = [];
+    }
+
+    /**
      * Register the package's custom Artisan commands.
      */
     public function commands(array $commands): void

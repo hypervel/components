@@ -19,8 +19,7 @@ class ProcessManagerTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        ProcessManager::clear();
-        ProcessManager::setRunning(false);
+        ProcessManager::flushState();
     }
 
     public function testIsNotRunningInitially()
@@ -65,13 +64,16 @@ class ProcessManagerTest extends TestCase
         $this->assertSame($process2, ProcessManager::all()[1]);
     }
 
-    public function testClear()
+    public function testFlushState()
     {
         ProcessManager::register(m::mock(ProcessInterface::class));
+        ProcessManager::setRunning(true);
         $this->assertCount(1, ProcessManager::all());
+        $this->assertTrue(ProcessManager::isRunning());
 
-        ProcessManager::clear();
+        ProcessManager::flushState();
         $this->assertSame([], ProcessManager::all());
+        $this->assertFalse(ProcessManager::isRunning());
     }
 
     public function testRegisterThrowsWhenRunning()

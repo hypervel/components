@@ -62,8 +62,7 @@ class GuardTest extends TestCase
         Context::forget('__sanctum.acting_as_user');
         Context::forget('__sanctum.acting_as_guard');
 
-        Sanctum::$accessTokenRetrievalCallback = null;
-        Sanctum::$accessTokenAuthenticationCallback = null;
+        Sanctum::flushState();
     }
 
     /**

@@ -18,8 +18,7 @@ class ProcessStopHandlerTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        ProcessManager::clear();
-        ProcessManager::setRunning(false);
+        ProcessManager::flushState();
     }
 
     public function testImplementsSignalHandlerInterface()

@@ -119,7 +119,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Factory::flushState();
 
         // Database
-        SchemaBuilder::$defaultMorphKeyType = 'int';
+        SchemaBuilder::flushState();
 
         // Queue
         Queue::createPayloadUsing(null);
@@ -183,8 +183,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         SeedCommand::prohibit(false);
 
         // Service provider publish state
-        ServiceProvider::$publishes = [];
-        ServiceProvider::$publishGroups = [];
+        ServiceProvider::flushState();
 
         // Coroutine
         Coroutine::flushAfterCreated();
@@ -194,19 +193,17 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         HtmlDumper::resolveDumpSourceUsing(null);
 
         // DI / AOP
-        AspectCollector::clear();
+        AspectCollector::flushState();
         AspectManager::flushState();
         AstVisitorRegistry::flushState();
-        ClassMapManager::clear();
+        ClassMapManager::flushState();
         ReflectionManager::flushState();
 
         // Server processes
-        ProcessManager::clear();
-        ProcessManager::setRunning(false);
+        ProcessManager::flushState();
 
         // Sanctum
-        Sanctum::$accessTokenRetrievalCallback = null;
-        Sanctum::$accessTokenAuthenticationCallback = null;
+        Sanctum::flushState();
 
         // Scout
         Scout::flushState();

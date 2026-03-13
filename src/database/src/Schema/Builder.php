@@ -89,6 +89,16 @@ class Builder
     }
 
     /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$defaultStringLength = 255;
+        static::$defaultTimePrecision = 0;
+        static::$defaultMorphKeyType = 'int';
+    }
+
+    /**
      * Set the default morph key type for migrations to UUIDs.
      */
     public static function morphUsingUuids(): void

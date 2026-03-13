@@ -18,7 +18,7 @@ class ClassMapManagerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        ClassMapManager::clear();
+        ClassMapManager::flushState();
 
         parent::tearDown();
     }
@@ -97,13 +97,13 @@ class ClassMapManagerTest extends TestCase
         ], ClassMapManager::getEntries());
     }
 
-    public function testClearRemovesAllEntries()
+    public function testFlushStateRemovesAllEntries()
     {
         ClassMapManager::add([
             'Fake\ClassA' => '/tmp/a.php',
         ]);
 
-        ClassMapManager::clear();
+        ClassMapManager::flushState();
 
         $this->assertFalse(ClassMapManager::hasEntries());
         $this->assertSame([], ClassMapManager::getEntries());

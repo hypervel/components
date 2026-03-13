@@ -126,4 +126,14 @@ class Sanctum
     {
         return static::$personalAccessTokenModel;
     }
+
+    /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$personalAccessTokenModel = PersonalAccessToken::class;
+        static::$accessTokenRetrievalCallback = null;
+        static::$accessTokenAuthenticationCallback = null;
+    }
 }

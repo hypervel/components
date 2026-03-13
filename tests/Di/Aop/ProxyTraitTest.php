@@ -20,7 +20,7 @@ class ProxyTraitTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AspectCollector::clear();
+        AspectCollector::flushState();
         AspectManager::flushState();
 
         parent::tearDown();
@@ -100,7 +100,7 @@ class ProxyTraitTest extends TestCase
 
     public function testProceedingJoinPointGetArguments()
     {
-        AspectCollector::clear();
+        AspectCollector::flushState();
 
         $obj = new ProxyTraitObject();
         $this->assertEquals(['id' => 1, 'variadic' => ['2', 'foo' => '3'], 'func_get_args' => [1, '2']], $obj->getParams(1, '2', foo: '3'));

@@ -21,8 +21,8 @@ class ServiceProviderDiTest extends TestCase
 {
     protected function tearDown(): void
     {
-        AspectCollector::clear();
-        ClassMapManager::clear();
+        AspectCollector::flushState();
+        ClassMapManager::flushState();
 
         parent::tearDown();
     }
