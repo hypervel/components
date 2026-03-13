@@ -53,15 +53,15 @@ class Env
     }
 
     /**
-     * Reset the environment repository.
+     * Flush the environment repository.
      *
      * Clears the cached repository so the next getRepository() call creates
      * a fresh instance with a new ImmutableWriter. This is required before
      * reloading env files — the ImmutableWriter tracks which keys it loaded
-     * and refuses to overwrite "externally defined" keys. Resetting creates
+     * and refuses to overwrite "externally defined" keys. Flushing creates
      * a clean writer that treats all keys as writable.
      */
-    public static function resetRepository(): void
+    public static function flushRepository(): void
     {
         static::$repository = null;
         static::$adapters = [];
@@ -70,7 +70,7 @@ class Env
     /**
      * Reset all static state including custom adapters and putenv config.
      *
-     * This is a full teardown intended for testing. Unlike resetRepository(),
+     * This is a full teardown intended for testing. Unlike flushRepository(),
      * which preserves custom adapters and putenv configuration, this method
      * restores Env to its initial state.
      */

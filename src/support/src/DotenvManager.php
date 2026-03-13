@@ -62,7 +62,7 @@ class DotenvManager
         }
 
         Env::deleteMany(array_keys(static::$cachedValues));
-        Env::resetRepository();
+        Env::flushRepository();
 
         static::$cachedValues = static::createDotenv($paths, $name)->load();
     }
@@ -79,7 +79,7 @@ class DotenvManager
             Env::deleteMany(array_keys(static::$cachedValues));
         }
 
-        Env::resetRepository();
+        Env::flushRepository();
 
         static::$cachedValues = null;
     }

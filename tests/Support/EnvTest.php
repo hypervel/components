@@ -69,24 +69,24 @@ class EnvTest extends TestCase
         $this->assertTrue(Env::get('OLD_FLAG'));
     }
 
-    public function testResetRepositoryClearsRepository()
+    public function testFlushRepositoryClearsRepository()
     {
         $repository1 = Env::getRepository();
-        Env::resetRepository();
+        Env::flushRepository();
         $repository2 = Env::getRepository();
 
-        // resetRepository creates a fresh instance — not the same object.
+        // flushRepository creates a fresh instance — not the same object.
         $this->assertNotSame($repository1, $repository2);
     }
 
-    public function testResetRepositoryAllowsRewrite()
+    public function testFlushRepositoryAllowsRewrite()
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
 
-        // Manually clear the env var and reset repository.
+        // Manually clear the env var and flush repository.
         Env::deleteMany(['TEST_VERSION']);
-        Env::resetRepository();
+        Env::flushRepository();
 
         // Now a fresh load can write TEST_VERSION again.
         putenv('TEST_VERSION=overridden');
@@ -120,9 +120,9 @@ class EnvTest extends TestCase
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
 
         Env::deleteMany(['TEST_VERSION', 'OLD_FLAG']);
-        Env::resetRepository();
+        Env::flushRepository();
 
-        // After delete + reset, the fresh ImmutableWriter allows writing.
+        // After delete + flush, the fresh ImmutableWriter allows writing.
         DotenvManager::flushState();
         DotenvManager::load([__DIR__ . '/envs/newEnv']);
 
