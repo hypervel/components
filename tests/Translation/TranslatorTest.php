@@ -8,10 +8,10 @@ use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Coroutine\run;
 
@@ -36,6 +36,8 @@ enum TranslatorTestUnitEnum
  */
 class TranslatorTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull()
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();

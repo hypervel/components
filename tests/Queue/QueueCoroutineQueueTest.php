@@ -13,8 +13,8 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\CoroutineQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Coroutine\run;
 
@@ -24,6 +24,8 @@ use function Hypervel\Coroutine\run;
  */
 class QueueCoroutineQueueTest extends TestCase
 {
+    protected bool $runTestsInCoroutine = false;
+
     public function testPushShouldCoroutine()
     {
         unset($_SERVER['__coroutine.test']);
