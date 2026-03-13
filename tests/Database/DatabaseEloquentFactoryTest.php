@@ -1004,6 +1004,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasManyRelationshipHasPendingAttributes()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has(new PostFactory(), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', Post::first()->title);
@@ -1011,6 +1013,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has((new PostFactory())->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', Post::first()->title);
@@ -1018,6 +1022,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasOneRelationshipHasPendingAttributes()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has(new PostFactory(), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', Post::first()->title);
@@ -1025,6 +1031,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has((new PostFactory())->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', Post::first()->title);
@@ -1032,6 +1040,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has(new RoleFactory(), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('foo bar baz', Role::first()->name);
@@ -1039,6 +1049,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride()
     {
+        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+
         User::factory()->has((new RoleFactory())->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('other name', Role::first()->name);
