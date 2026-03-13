@@ -596,4 +596,17 @@ class ResourceRegistrar
 
         return static::$verbs;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$parameterMap = [];
+        static::$singularParameters = true;
+        static::$verbs = [
+            'create' => 'create',
+            'edit' => 'edit',
+        ];
+    }
 }

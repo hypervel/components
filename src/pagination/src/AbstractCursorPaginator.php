@@ -491,6 +491,14 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$currentCursorResolver = null;
+    }
+
+    /**
      * Get an iterator for the items.
      *
      * @return ArrayIterator<TKey, TValue>

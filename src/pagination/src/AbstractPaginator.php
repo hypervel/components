@@ -577,6 +577,19 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$currentPathResolver = null;
+        static::$currentPageResolver = null;
+        static::$queryStringResolver = null;
+        static::$viewFactoryResolver = null;
+        static::$defaultView = 'pagination::tailwind';
+        static::$defaultSimpleView = 'pagination::simple-tailwind';
+    }
+
+    /**
      * Get an iterator for the items.
      *
      * @return Traversable<TKey, TValue>
