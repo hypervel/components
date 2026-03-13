@@ -9,9 +9,9 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\BinaryCodec;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Ramsey\Uuid\Uuid;
 use ReflectionClass;
 use Symfony\Component\Uid\Ulid;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -52,7 +52,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     {
         $uuid = '550e8400-e29b-41d4-a716-446655440000';
         $model = new TestModel();
-        $model->setRawAttributes(['uuid' => Uuid::fromString($uuid)->getBytes()]);
+        $model->setRawAttributes(['uuid' => Uuid::fromString($uuid)->toBinary()]);
 
         $this->assertSame($uuid, $model->uuid);
     }
@@ -63,7 +63,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
         $model = new TestModel();
         $model->uuid = $uuid;
 
-        $this->assertSame(Uuid::fromString($uuid)->getBytes(), $model->getAttributes()['uuid']);
+        $this->assertSame(Uuid::fromString($uuid)->toBinary(), $model->getAttributes()['uuid']);
     }
 
     public function testGetDecodesUlidFromBinary()
