@@ -15,13 +15,6 @@ use Hypervel\Tests\TestCase;
  */
 class ContextualBindingTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testContainerCanInjectDifferentImplementationsDependingOnContext()
     {
         $container = new Container();

@@ -13,13 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class AspectCollectorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectCollector::flushState();
-
-        parent::tearDown();
-    }
-
     public function testHasAspectsReturnsFalseWhenEmpty()
     {
         $this->assertFalse(AspectCollector::hasAspects());

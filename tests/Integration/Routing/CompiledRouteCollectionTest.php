@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use ArrayIterator;
 use Hypervel\Http\Request;
-use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Support\Arr;
@@ -40,8 +39,6 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
     protected function tearDown(): void
     {
-        CompiledRouteCollection::flushCache();
-
         unset($this->routeCollection, $this->router);
 
         parent::tearDown();

@@ -24,21 +24,6 @@ use stdClass;
  */
 class ContainerCallTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        BoundMethod::flushMethodRecipeCache();
-    }
-
-    protected function tearDown(): void
-    {
-        BoundMethod::flushMethodRecipeCache();
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException()
     {
         $this->expectException(Error::class);

@@ -39,10 +39,9 @@ class BroadcasterTest extends TestCase
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-
-        RequestContext::forget();
         FakeBroadcaster::flushChannels();
+
+        parent::tearDown();
     }
 
     public function testExtractingParametersWhileCheckingForUserAccess()

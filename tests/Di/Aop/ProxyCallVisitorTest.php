@@ -19,13 +19,6 @@ use ReflectionMethod;
  */
 class ProxyCallVisitorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectCollector::flushState();
-
-        parent::tearDown();
-    }
-
     public function testShouldRewrite()
     {
         $code = <<<'CODETEMPLATE'

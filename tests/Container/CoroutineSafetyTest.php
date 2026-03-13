@@ -21,13 +21,6 @@ class CoroutineSafetyTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testScopedInstancesAreIsolatedPerCoroutine(): void
     {
         $container = new Container();

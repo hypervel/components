@@ -17,13 +17,6 @@ use Symfony\Component\Uid\Ulid;
  */
 class SupportBinaryCodecTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        BinaryCodec::flushState();
-
-        parent::tearDown();
-    }
-
     public function testFormatsReturnsDefaultFormats()
     {
         $formats = BinaryCodec::formats();

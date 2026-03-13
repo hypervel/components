@@ -13,13 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class AspectManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectManager::flushState();
-
-        parent::tearDown();
-    }
-
     public function testHasReturnsFalseForUnsetEntry()
     {
         $this->assertFalse(AspectManager::has('Foo', 'bar'));

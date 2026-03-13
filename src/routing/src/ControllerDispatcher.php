@@ -115,6 +115,15 @@ class ControllerDispatcher implements ControllerDispatcherContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushCache();
+        static::flushEnumCache();
+    }
+
+    /**
      * Get the middleware for the controller instance.
      */
     public function getMiddleware(mixed $controller, string $method): array

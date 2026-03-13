@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Container\Container;
 use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
-use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Controllers\HasMiddleware;
@@ -15,7 +14,6 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteSignatureParameters;
-use Hypervel\Routing\SortedMiddleware;
 use Hypervel\Tests\TestCase;
 use ReflectionParameter;
 use ReflectionProperty;
@@ -32,20 +30,6 @@ use ReflectionProperty;
  */
 class RouteWarmupTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Flush all static caches before each test to ensure isolation.
-        CompiledRouteCollection::flushCache();
-        ControllerDispatcher::flushCache();
-        CallableDispatcher::flushCache();
-        RouteSignatureParameters::flushCache();
-        SortedMiddleware::flushCache();
-        ControllerDispatcher::flushEnumCache();
-        CallableDispatcher::flushEnumCache();
-    }
-
     public function testWarmUpPopulatesCompiledRegexOnRoutes(): void
     {
         $router = $this->createRouter();

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 
@@ -15,13 +14,6 @@ use Hypervel\Tests\TestCase;
  */
 class ContainerResolveNonInstantiableTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testResolvingNonInstantiableWithDefaultRemovesWiths()
     {
         $container = new Container();

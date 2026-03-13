@@ -15,13 +15,6 @@ use Hypervel\Tests\TestCase;
  */
 class AspectTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectCollector::flushState();
-
-        parent::tearDown();
-    }
-
     public function testParseMoreThanOneMethods()
     {
         $aspect = 'App\Aspect\DebugAspect';

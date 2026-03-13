@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Di\Aop;
 
 use Hypervel\Di\Aop\AspectCollector;
-use Hypervel\Di\Aop\AspectManager;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Di\Stub\Aspect\GetNameAspect;
 use Hypervel\Tests\Di\Stub\Aspect\GetParamsAspect;
@@ -18,14 +17,6 @@ use Hypervel\Tests\Di\Stub\ProxyTraitObject;
  */
 class ProxyTraitTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectCollector::flushState();
-        AspectManager::flushState();
-
-        parent::tearDown();
-    }
-
     public function testGetParamsMap()
     {
         $obj = new ProxyTraitObject();

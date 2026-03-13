@@ -16,13 +16,6 @@ use RuntimeException;
  */
 class ClassMapManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        ClassMapManager::flushState();
-
-        parent::tearDown();
-    }
-
     public function testHasEntriesReturnsFalseWhenEmpty()
     {
         $this->assertFalse(ClassMapManager::hasEntries());

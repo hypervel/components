@@ -20,13 +20,6 @@ class RegisterProvidersTest extends TestCase
 {
     use HasMockedApplication;
 
-    public function tearDown(): void
-    {
-        Composer::flushState();
-
-        parent::tearDown();
-    }
-
     public function testRegisterProviders()
     {
         $mergedProviders = null;

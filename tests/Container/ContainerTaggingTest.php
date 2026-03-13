@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -14,13 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class ContainerTaggingTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testContainerTags()
     {
         $container = new Container();

@@ -107,7 +107,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         BinaryCodec::flushState();
         BoundMethod::flushMethodRecipeCache();
         Broadcaster::flushChannels();
-        CallableDispatcher::flushCache();
+        CallableDispatcher::flushState();
         Carbon::resetToStringFormat();
         Carbon::serializeUsing(null);
         Carbon::setTestNow();
@@ -119,7 +119,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         ConsoleApplication::forgetBootstrappers();
         Container::setInstance(null);
         Context::flush();
-        ControllerDispatcher::flushCache();
+        ControllerDispatcher::flushState();
         ConvertEmptyStringsToNull::flushState();
         Coroutine::flushAfterCreated();
         DateFactory::useDefault();

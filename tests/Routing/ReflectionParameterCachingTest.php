@@ -27,14 +27,6 @@ use WeakMap;
  */
 class ReflectionParameterCachingTest extends RoutingTestCase
 {
-    protected function tearDown(): void
-    {
-        CallableDispatcher::flushCache();
-        ControllerDispatcher::flushCache();
-
-        parent::tearDown();
-    }
-
     public function testClosureParametersAreCached()
     {
         $router = $this->getRouter();

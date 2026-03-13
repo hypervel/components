@@ -13,13 +13,6 @@ use Hypervel\Tests\TestCase;
  */
 class AstVisitorRegistryTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AstVisitorRegistry::flushState();
-
-        parent::tearDown();
-    }
-
     public function testInsertAndExists()
     {
         $this->assertFalse(AstVisitorRegistry::exists('FooVisitor'));

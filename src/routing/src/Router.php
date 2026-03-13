@@ -1257,13 +1257,11 @@ class Router implements BindingRegistrar, RegistrarContract
     protected function flushRoutingCaches(): void
     {
         CompiledRouteCollection::flushCache();
-        ControllerDispatcher::flushCache();
-        CallableDispatcher::flushCache();
+        ControllerDispatcher::flushState();
+        CallableDispatcher::flushState();
         RouteSignatureParameters::flushCache();
         SortedMiddleware::flushCache();
         ImplicitRouteBinding::flushCache();
-        ControllerDispatcher::flushEnumCache();
-        CallableDispatcher::flushEnumCache();
     }
 
     /**

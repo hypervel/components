@@ -98,4 +98,13 @@ class CallableDispatcher implements CallableDispatcherContract
     {
         static::$reflectionCache = new WeakMap();
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushCache();
+        static::flushEnumCache();
+    }
 }

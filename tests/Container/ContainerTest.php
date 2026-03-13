@@ -28,14 +28,6 @@ use TypeError;
  */
 class ContainerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testContainerSingleton()
     {
         $container = Container::setInstance(new Container());

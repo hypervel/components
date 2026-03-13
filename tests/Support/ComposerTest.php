@@ -21,13 +21,6 @@ class ComposerTest extends TestCase
         Composer::setBasePath(__DIR__ . '/Fixtures/composer');
     }
 
-    protected function tearDown(): void
-    {
-        Composer::flushState();
-
-        parent::tearDown();
-    }
-
     public function testGetLoader()
     {
         $loader = Composer::getLoader();

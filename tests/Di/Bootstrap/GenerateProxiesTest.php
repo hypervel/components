@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Di\Bootstrap;
 
 use Composer\Autoload\ClassLoader;
 use Hypervel\Di\Aop\AspectCollector;
-use Hypervel\Di\Aop\AspectManager;
 use Hypervel\Di\Aop\AstVisitorRegistry;
 use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Bootstrap\GenerateProxies;
@@ -29,10 +28,6 @@ class GenerateProxiesTest extends TestCase
             Composer::setLoader($this->originalLoader);
             $this->originalLoader = null;
         }
-
-        AspectCollector::flushState();
-        AspectManager::flushState();
-        AstVisitorRegistry::flushState();
 
         parent::tearDown();
     }

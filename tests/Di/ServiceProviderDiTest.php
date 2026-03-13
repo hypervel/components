@@ -19,14 +19,6 @@ use Mockery as m;
  */
 class ServiceProviderDiTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        AspectCollector::flushState();
-        ClassMapManager::flushState();
-
-        parent::tearDown();
-    }
-
     public function testAspectsRegistersIntoCollector()
     {
         $provider = new TestServiceProvider($this->createMockApp());

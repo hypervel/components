@@ -15,13 +15,6 @@ use stdClass;
  */
 class ContainerExtendTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::flush();
-
-        parent::tearDown();
-    }
-
     public function testExtendedBindings()
     {
         $container = new Container();
