@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-use Mockery;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
+use Hypervel\Support\Str;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -42,9 +41,7 @@ test
 
     public function testPrependOnceIsCompiledWhenIdIsMissing()
     {
-        $factory = Mockery::mock(UuidFactoryInterface::class);
-        $factory->shouldReceive('uuid4')->andReturn(Uuid::fromString('e60e8f77-9ac3-4f71-9f8e-a044ef481d7f'));
-        Uuid::setFactory($factory);
+        Str::createUuidsUsing(fn () => Uuid::fromString('e60e8f77-9ac3-4f71-9f8e-a044ef481d7f'));
 
         $string = '@prependOnce(\'foo\')
 test
