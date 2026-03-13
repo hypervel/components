@@ -20,8 +20,6 @@ use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
 
 /**
  * @internal
@@ -46,9 +44,7 @@ class QueueBeanstalkdQueueTest extends TestCase
 
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $this->setQueue('default', 60);
         $pheanstalk = $this->queue->getPheanstalk();
@@ -69,9 +65,7 @@ class QueueBeanstalkdQueueTest extends TestCase
 
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $this->setQueue('default', 60);
         $pheanstalk = $this->queue->getPheanstalk();

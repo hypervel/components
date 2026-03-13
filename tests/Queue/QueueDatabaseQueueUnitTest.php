@@ -18,8 +18,6 @@ use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
 use ReflectionClass;
 use stdClass;
 
@@ -32,9 +30,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -83,9 +79,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -152,9 +146,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
         $queue = new TestDatabaseQueue(

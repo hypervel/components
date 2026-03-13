@@ -14,9 +14,6 @@ use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
 
 /**
  * @internal
@@ -209,9 +206,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
 
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $this->app->make(Dispatcher::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
             $jobQueueingEvent = $e;

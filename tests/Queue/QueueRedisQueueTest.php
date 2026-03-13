@@ -15,9 +15,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
-use Ramsey\Uuid\UuidInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -148,13 +146,11 @@ class QueueRedisQueueTest extends TestCase
         $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
-    protected function mockUuid(): UuidInterface
+    protected function mockUuid(): Uuid
     {
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         return $uuid;
     }

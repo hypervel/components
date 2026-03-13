@@ -22,8 +22,7 @@ use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -125,7 +124,7 @@ class QueueSqsQueueTest extends TestCase
         ]);
     }
 
-    protected function createMockedUuid(string $value): UuidInterface
+    protected function createMockedUuid(string $value): Uuid
     {
         return Uuid::fromString($value);
     }
