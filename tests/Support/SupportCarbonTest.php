@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use DateTimeInterface;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 /**
  * @internal
@@ -127,13 +128,18 @@ class SupportCarbonTest extends TestCase
         $uuidv1 = Carbon::createFromId('71513cb4-f071-11ed-a0cf-325096b39f47');
         $this->assertEquals('2023-05-12 03:02:34.147346', $uuidv1->toDateTimeString('microsecond'));
 
-        $uuidv2 = Carbon::createFromId('000003e8-f072-21ed-9200-325096b39f47');
-        $this->assertEquals('2023-05-12 03:06:33.529139', $uuidv2->toDateTimeString('microsecond'));
-
         $uuidv6 = Carbon::createFromId('1edf0746-5d1c-6ce8-88ad-e0cb4effa035');
         $this->assertEquals('2023-05-12 03:23:43.347428', $uuidv6->toDateTimeString('microsecond'));
 
         $uuidv7 = Carbon::createFromId('01880dfa-2825-72e4-acbb-b1e4981cf8af');
-        $this->assertEquals('2023-05-12 03:21:18.117000', $uuidv7->toDateTimeString('microsecond'));
+        $this->assertEquals('2023-05-12 03:21:18.117185', $uuidv7->toDateTimeString('microsecond'));
+    }
+
+    public function testCreateFromIdRejectsNonTimeBasedUuid()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The given UUID is not time-based and cannot be converted to a date.');
+
+        Carbon::createFromId('a0a2a2d2-0b87-4a18-83f2-2529882be2de'); // v4 UUID
     }
 }

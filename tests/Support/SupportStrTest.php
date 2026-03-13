@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Countable;
+use DateTimeImmutable;
 use Exception;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
@@ -12,9 +13,8 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Uid\Ulid;
+use Symfony\Component\Uid\Uuid;
 use ValueError;
 
 /**
@@ -1459,9 +1459,38 @@ class SupportStrTest extends TestCase
 
     public function testUuid()
     {
-        $this->assertInstanceOf(UuidInterface::class, Str::uuid());
-        $this->assertInstanceOf(UuidInterface::class, Str::orderedUuid());
-        $this->assertInstanceOf(UuidInterface::class, Str::uuid7());
+        $this->assertInstanceOf(Uuid::class, Str::uuid());
+        $this->assertInstanceOf(Uuid::class, Str::orderedUuid());
+        $this->assertInstanceOf(Uuid::class, Str::uuid7());
+    }
+
+    public function testUuidProducesVersion4()
+    {
+        $uuid = (string) Str::uuid();
+
+        $this->assertSame('4', $uuid[14]);
+    }
+
+    public function testOrderedUuidProducesVersion7()
+    {
+        $uuid = (string) Str::orderedUuid();
+
+        $this->assertSame('7', $uuid[14]);
+    }
+
+    public function testUuid7WithTimeParameter()
+    {
+        $time = new DateTimeImmutable('2023-05-12 03:21:18.117');
+        $uuid = Str::uuid7($time);
+
+        $this->assertInstanceOf(Uuid::class, $uuid);
+        $this->assertSame('7', ((string) $uuid)[14]);
+
+        // Verify the timestamp is embedded correctly by round-tripping
+        $parsed = Uuid::fromString((string) $uuid);
+        $extracted = $parsed->getDateTime();
+        $this->assertSame('2023-05-12', $extracted->format('Y-m-d'));
+        $this->assertSame('03', $extracted->format('H'));
     }
 
     public function testAsciiNull()
