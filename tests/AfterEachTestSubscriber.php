@@ -79,7 +79,6 @@ use Hypervel\View\Component;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
 use PHPUnit\Event\Test\FinishedSubscriber;
-use Ramsey\Uuid\UuidFactory;
 
 /**
  * Global cleanup after every test method.
@@ -179,9 +178,5 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         Component::forgetFactory();
         WipeCommand::prohibit(false);
         WorkerCachedMaintenanceMode::flushCache();
-
-        if (class_exists(\Ramsey\Uuid\Uuid::class)) {
-            \Ramsey\Uuid\Uuid::setFactory(new UuidFactory());
-        }
     }
 }
