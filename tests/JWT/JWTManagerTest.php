@@ -12,12 +12,12 @@ use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\JWTManager;
 use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\Support\Str;
 use Hypervel\Tests\JWT\Fixtures\ValidationStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -252,10 +252,6 @@ class JWTManagerTest extends TestCase
 
     private function mockUuid(string $value)
     {
-        /** @var MockInterface|UuidFactoryInterface */
-        $factory = m::mock(UuidFactoryInterface::class);
-        $factory->shouldReceive('uuid4')->andReturn(Uuid::fromString($value));
-
-        Uuid::setFactory($factory);
+        Str::createUuidsUsing(fn () => Uuid::fromString($value));
     }
 }
