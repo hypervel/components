@@ -14,15 +14,10 @@ use League\CommonMark\Extension\InlinesOnly\InlinesOnlyExtension;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use League\CommonMark\MarkdownConverter;
 use LogicException;
-use Ramsey\Uuid\Codec\TimestampFirstCombCodec;
-use Ramsey\Uuid\Exception\InvalidUuidStringException;
-use Ramsey\Uuid\Generator\CombGenerator;
-use Ramsey\Uuid\Rfc4122\FieldsInterface;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
-use Ramsey\Uuid\UuidInterface;
 use Stringable as BaseStringable;
 use Symfony\Component\Uid\Ulid;
+use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Uid\UuidV7;
 use Throwable;
 use Traversable;
 use voku\helper\ASCII;
@@ -39,7 +34,7 @@ class Str
     /**
      * The callback that should be used to generate UUIDs.
      *
-     * @var null|(Closure(): \Ramsey\Uuid\UuidInterface)
+     * @var null|(Closure(): Uuid)
      */
     protected static ?Closure $uuidFactory = null;
 
@@ -529,33 +524,23 @@ class Str
             return false;
         }
 
+        if (preg_match('/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/D', $value) !== 1) {
+            return false;
+        }
+
         if ($version === null) {
-            return preg_match('/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/D', $value) > 0;
-        }
-
-        $factory = new UuidFactory();
-
-        try {
-            $factoryUuid = $factory->fromString($value);
-        } catch (InvalidUuidStringException) {
-            return false;
-        }
-
-        $fields = $factoryUuid->getFields();
-
-        if (! $fields instanceof FieldsInterface) {
-            return false;
+            return true;
         }
 
         if ($version === 0 || $version === 'nil') {
-            return $fields->isNil();
+            return $value === '00000000-0000-0000-0000-000000000000';
         }
 
         if ($version === 'max') {
-            return $fields->isMax(); // @phpstan-ignore method.notFound (method exists on concrete class, not interface)
+            return strtolower($value) === 'ffffffff-ffff-ffff-ffff-ffffffffffff';
         }
 
-        return $fields->getVersion() === $version;
+        return (int) $value[14] === $version;
     }
 
     /**
@@ -1547,50 +1532,53 @@ class Str
     /**
      * Generate a UUID (version 4).
      */
-    public static function uuid(): UuidInterface
+    public static function uuid(): Uuid
     {
         return static::$uuidFactory
-            ? call_user_func(static::$uuidFactory)
-            : Uuid::uuid4();
+            ? static::factoryUuid()
+            : Uuid::v4();
     }
 
     /**
      * Generate a UUID (version 7).
      */
-    public static function uuid7(?DateTimeInterface $time = null): UuidInterface|string
+    public static function uuid7(?DateTimeInterface $time = null): Uuid
     {
-        return static::$uuidFactory
-            ? call_user_func(static::$uuidFactory)
-            : Uuid::uuid7($time);
+        if (static::$uuidFactory) {
+            return static::factoryUuid();
+        }
+
+        if ($time === null) {
+            return Uuid::v7();
+        }
+
+        return Uuid::fromString(UuidV7::generate($time));
     }
 
     /**
-     * Generate a time-ordered UUID.
+     * Generate a time-ordered UUID (version 7).
      */
-    public static function orderedUuid(): UuidInterface
+    public static function orderedUuid(): Uuid
     {
-        if (static::$uuidFactory) {
-            return call_user_func(static::$uuidFactory);
-        }
+        return static::$uuidFactory
+            ? static::factoryUuid()
+            : Uuid::v7();
+    }
 
-        $factory = new UuidFactory();
+    /**
+     * Resolve a UUID from the custom factory, coercing strings to Uuid instances.
+     */
+    protected static function factoryUuid(): Uuid
+    {
+        $uuid = call_user_func(static::$uuidFactory);
 
-        $factory->setRandomGenerator(new CombGenerator(
-            $factory->getRandomGenerator(),
-            $factory->getNumberConverter()
-        ));
-
-        $factory->setCodec(new TimestampFirstCombCodec(
-            $factory->getUuidBuilder()
-        ));
-
-        return $factory->uuid4();
+        return $uuid instanceof Uuid ? $uuid : Uuid::fromString((string) $uuid);
     }
 
     /**
      * Set the callable that will be used to generate UUIDs.
      *
-     * @param null|(callable(): UuidInterface) $factory
+     * @param null|(callable(): Uuid) $factory
      */
     public static function createUuidsUsing(?callable $factory = null): void
     {
@@ -1600,8 +1588,8 @@ class Str
     /**
      * Set the sequence that will be used to generate UUIDs.
      *
-     * @param UuidInterface[] $sequence
-     * @param null|(callable(): UuidInterface) $whenMissing
+     * @param Uuid[] $sequence
+     * @param null|(callable(): Uuid) $whenMissing
      */
     public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
@@ -1633,9 +1621,9 @@ class Str
     /**
      * Always return the same UUID when generating new UUIDs.
      *
-     * @param null|(Closure(UuidInterface): mixed) $callback
+     * @param null|(Closure(Uuid): mixed) $callback
      */
-    public static function freezeUuids(?Closure $callback = null): UuidInterface
+    public static function freezeUuids(?Closure $callback = null): Uuid
     {
         $uuid = Str::uuid();
 
