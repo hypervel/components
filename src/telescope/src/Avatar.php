@@ -39,6 +39,14 @@ class Avatar
     }
 
     /**
+     * Flush the avatar callback.
+     */
+    public static function flushState(): void
+    {
+        static::$callback = null;
+    }
+
+    /**
      * Find the custom avatar for a user.
      */
     protected static function resolve(array $user): ?string

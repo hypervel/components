@@ -75,10 +75,7 @@ class FeatureTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        Telescope::$filterUsing = [];
-        Telescope::$filterBatchUsing = [];
-        Telescope::$afterRecordingHook = null;
-        Telescope::flushWatchers();
+        Telescope::flushState();
 
         Queue::createPayloadUsing(null);
 

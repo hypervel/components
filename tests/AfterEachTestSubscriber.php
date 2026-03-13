@@ -209,10 +209,6 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Scout::flushState();
 
         // Telescope
-        Telescope::$filterUsing = [];
-        Telescope::$filterBatchUsing = [];
-        Telescope::$afterRecordingHook = null;
-        Telescope::flushWatchers();
-        Telescope::auth(null);
+        Telescope::flushState();
     }
 }

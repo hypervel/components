@@ -737,6 +737,35 @@ class Telescope
     }
 
     /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$filterUsing = [];
+        static::$filterBatchUsing = [];
+        static::$afterRecordingHook = null;
+        static::$afterStoringHooks = [];
+        static::$tagUsing = [];
+        static::$hiddenRequestHeaders = [
+            'authorization',
+            'php-auth-pw',
+        ];
+        static::$hiddenRequestParameters = [
+            'password',
+            'password_confirmation',
+        ];
+        static::$hiddenResponseParameters = [];
+        static::$ignoreFrameworkEvents = true;
+        static::$useDarkTheme = false;
+        static::$started = false;
+        static::$ignoredUris = [];
+        static::$store = null;
+        static::$authUsing = null;
+        static::flushWatchers();
+        Avatar::flushState();
+    }
+
+    /**
      * Get the default JavaScript variables for Telescope.
      */
     public static function scriptVariables(): array
