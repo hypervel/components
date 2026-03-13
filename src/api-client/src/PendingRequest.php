@@ -247,7 +247,7 @@ class PendingRequest
     /**
      * Flush the cached middleware instances.
      */
-    public function flushCache(): void
+    public static function flushCache(): void
     {
         static::$cachedMiddleware = [];
     }

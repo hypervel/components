@@ -6,6 +6,9 @@ namespace Hypervel\Tests;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Hypervel\ApiClient\PendingRequest as ApiClientPendingRequest;
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Console\Application as ConsoleApplication;
@@ -47,15 +50,18 @@ use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\ImplicitRouteBinding;
+use Hypervel\Routing\Middleware\ValidateSignature;
 use Hypervel\Routing\ResourceRegistrar;
 use Hypervel\Routing\RouteSignatureParameters;
 use Hypervel\Routing\SortedMiddleware;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Scout\Scout;
+use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Session\Store;
+use Hypervel\Support\BinaryCodec;
 use Hypervel\Support\Composer;
 use Hypervel\Support\DateFactory;
 use Hypervel\Support\Facades\Facade;
@@ -89,13 +95,16 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
             Mockery::close();
         }
 
-        AbstractCursorPaginator::currentCursorResolver(fn () => null);
-        AbstractPaginator::currentPageResolver(fn () => 1);
-        AbstractPaginator::currentPathResolver(fn () => '/');
+        AbstractCursorPaginator::flushState();
+        AbstractPaginator::flushState();
+        ApiClientPendingRequest::flushCache();
         AspectCollector::flushState();
         AspectManager::flushState();
         AstVisitorRegistry::flushState();
+        Authenticate::flushState();
+        AuthenticationException::flushState();
         AuthenticateSession::flushState();
+        BinaryCodec::flushState();
         BoundMethod::flushMethodRecipeCache();
         Broadcaster::flushChannels();
         CallableDispatcher::flushCache();
@@ -132,6 +141,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Once::flush();
         PreventRequestForgery::flushState();
         PreventRequestsDuringMaintenance::flushState();
+        ProcessCollector::flushState();
         ProcessManager::flushState();
         Queue::createPayloadUsing(null);
         RedirectIfAuthenticated::flushState();
@@ -141,9 +151,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         Relation::morphMap([], false);
         Relation::requireMorphMap(false);
         ResetCommand::prohibit(false);
-        ResourceRegistrar::setParameters();
-        ResourceRegistrar::singularParameters();
-        ResourceRegistrar::verbs(['create' => 'create', 'edit' => 'edit']);
+        ResourceRegistrar::flushState();
         RouteServiceProvider::flushState();
         RouteSignatureParameters::flushCache();
         Sanctum::flushState();
@@ -161,6 +169,7 @@ final class AfterEachTestSubscriber implements AfterTestMethodFinishedSubscriber
         TrustHosts::flushState();
         TrustProxies::flushState();
         UrlGenerator::flushRequestState();
+        ValidateSignature::flushState();
         Validator::flushState();
         Component::flushCache();
         Component::forgetComponentsResolver();
