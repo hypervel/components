@@ -8,8 +8,10 @@ use Carbon\Carbon as BaseCarbon;
 use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
-use Ramsey\Uuid\Uuid;
+use InvalidArgumentException;
+use Symfony\Component\Uid\TimeBasedUidInterface;
 use Symfony\Component\Uid\Ulid;
+use Symfony\Component\Uid\Uuid;
 
 class Carbon extends BaseCarbon
 {
@@ -23,12 +25,18 @@ class Carbon extends BaseCarbon
     }
 
     /**
-     * Create a Carbon instance from a given ordered UUID or ULID.
+     * Create a Carbon instance from a given time-based UUID or ULID.
      */
     public static function createFromId(Uuid|Ulid|string $id): static
     {
         if (is_string($id)) {
             $id = Ulid::isValid($id) ? Ulid::fromString($id) : Uuid::fromString($id);
+        }
+
+        if (! $id instanceof TimeBasedUidInterface) {
+            throw new InvalidArgumentException(
+                'The given UUID is not time-based and cannot be converted to a date.'
+            );
         }
 
         return static::createFromInterface($id->getDateTime());
