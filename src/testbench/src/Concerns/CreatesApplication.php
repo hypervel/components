@@ -19,6 +19,7 @@ use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
@@ -41,6 +42,8 @@ use function Hypervel\Testbench\refresh_router_lookups;
  */
 trait CreatesApplication
 {
+    use InteractsWithParallelDatabase;
+
     /**
      * Get the base path for the application.
      */
@@ -206,6 +209,11 @@ trait CreatesApplication
         $app->bootstrapWith([LoadEnvironmentVariables::class]);
 
         $app->make(LoadConfiguration::class)->bootstrap($app);
+
+        // Rewrite the default database name for parallel testing before
+        // defineEnvironment() runs, so custom connections derived from
+        // the default connection inherit the per-worker database name.
+        $this->configureParallelDatabaseName($app);
 
         $this->resolveApplicationProviders($app);
         $this->registerPackageAliases($app);

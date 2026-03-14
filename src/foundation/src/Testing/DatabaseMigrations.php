@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
 trait DatabaseMigrations
 {
     use CanConfigureMigrationCommands;
+    use InteractsWithParallelDatabase;
 
     /**
      * Define hooks to migrate the database before and after each test.
      */
     public function runDatabaseMigrations(): void
     {
+        $this->ensureParallelDatabaseExists();
+
         $this->beforeRefreshingDatabase();
 
         $this->command('migrate:fresh', $this->migrateFreshUsing());

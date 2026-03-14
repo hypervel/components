@@ -6,10 +6,13 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 
 trait DatabaseTransactions
 {
+    use InteractsWithParallelDatabase;
+
     /**
      * Handle database transactions on the specified connections.
      *
@@ -22,6 +25,7 @@ trait DatabaseTransactions
      */
     public function beginDatabaseTransaction(): void
     {
+        $this->ensureParallelDatabaseExists();
         // If using RunTestsInCoroutine, defer to coroutine-aware methods
         if (in_array(RunTestsInCoroutine::class, class_uses_recursive(static::class), true)) {
             return;

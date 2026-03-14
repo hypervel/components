@@ -8,12 +8,14 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
 trait RefreshDatabase
 {
     use CanConfigureMigrationCommands;
+    use InteractsWithParallelDatabase;
 
     /**
      * Define hooks to migrate the database before and after each test.
@@ -24,6 +26,8 @@ trait RefreshDatabase
      */
     public function refreshDatabase(): void
     {
+        $this->ensureParallelDatabaseExists();
+
         $this->beforeRefreshingDatabase();
 
         // Restore in-memory database BEFORE migrations for all tests.

@@ -49,6 +49,7 @@ class BatchableTransactionTest extends DatabaseTestCase
         try {
             remote('queue:work --stop-when-empty', [
                 'DB_CONNECTION' => config('database.default'),
+                'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
                 'QUEUE_CONNECTION' => config('queue.default'),
             ])->run();
         } catch (Throwable $e) {

@@ -4,14 +4,13 @@
 declare(strict_types=1);
 
 /**
- * ParaTest wrapper that caps worker count to available Redis databases.
+ * ParaTest wrapper for parallel-safe test execution.
  *
- * ParaTest assigns each worker a TEST_TOKEN (1, 2, 3...). The InteractsWithRedis
- * trait uses Redis DB = REDIS_DB + TEST_TOKEN for per-worker isolation. This script
- * ensures --processes doesn't exceed the available DB slots.
+ * Handles pre-flight setup before spawning ParaTest workers:
+ * - Caps worker count to available Redis databases (REDIS_DB + TEST_TOKEN)
+ * - Flushes the shared secondary Redis DB for select() tests
  *
- * It also flushes the base DB (shared secondary for select() tests) once before
- * spawning workers, so each run starts with a clean secondary DB.
+ * Per-worker databases are created on demand by InteractsWithParallelDatabase.
  *
  * Usage:
  *   composer test:parallel              # auto-capped, safe default
