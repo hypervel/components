@@ -316,6 +316,7 @@
                 "Hypervel\\Session\\SessionServiceProvider",
                 "Hypervel\\Signal\\SignalServiceProvider",
                 "Hypervel\\Socialite\\SocialiteServiceProvider",
+                "Hypervel\\Testing\\TestingServiceProvider",
                 "Hypervel\\Translation\\TranslationServiceProvider",
                 "Hypervel\\Validation\\ValidationServiceProvider",
                 "Hypervel\\WebSocketServer\\WebSocketServerServiceProvider",

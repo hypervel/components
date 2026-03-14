@@ -53,6 +53,11 @@
     "extra": {
         "branch-alias": {
             "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Testing\\TestingServiceProvider"
+            ]
         }
     }
 }

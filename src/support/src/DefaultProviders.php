@@ -46,6 +46,7 @@ class DefaultProviders
             \Hypervel\Session\SessionServiceProvider::class,
             \Hypervel\Signal\SignalServiceProvider::class,
             \Hypervel\Socialite\SocialiteServiceProvider::class,
+            \Hypervel\Testing\TestingServiceProvider::class,
             \Hypervel\Translation\TranslationServiceProvider::class,
             \Hypervel\Validation\ValidationServiceProvider::class,
             \Hypervel\Watcher\WatcherServiceProvider::class,

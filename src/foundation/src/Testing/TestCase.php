@@ -19,6 +19,7 @@ use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\Facades\ParallelTesting;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -63,6 +64,8 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         /* @phpstan-ignore-next-line */
         if (! $this->app) {
             $this->refreshApplication();
+
+            ParallelTesting::callSetUpTestCaseCallbacks($this);
         }
 
         // Reset after Application exists so container-change detection works correctly
@@ -149,6 +152,9 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             $this->runInCoroutine(
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
+
+            ParallelTesting::callTearDownTestCaseCallbacks($this);
+
             $this->flushApplication();
         }
 
