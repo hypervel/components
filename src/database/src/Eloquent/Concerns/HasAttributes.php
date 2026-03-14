@@ -1342,7 +1342,7 @@ trait HasAttributes
     protected function asDecimal(float|string $value, int $decimals): string
     {
         try {
-            return (string) BigDecimal::of($value)->toScale($decimals, RoundingMode::HALF_UP);
+            return (string) BigDecimal::of((string) $value)->toScale($decimals, RoundingMode::HalfUp);
         } catch (BrickMathException $e) {
             throw new MathException('Unable to cast value to a decimal.', previous: $e);
         }
@@ -1405,7 +1405,7 @@ trait HasAttributes
             $date = Date::createFromFormat($format, $value);
             // @phpstan-ignore catch.neverThrown (defensive: some Carbon versions/configs may throw)
         } catch (InvalidArgumentException) {
-            $date = false;
+            $date = null;
         }
 
         return $date ?: Date::parse($value);

@@ -1231,7 +1231,7 @@ class Builder implements BuilderContract
                 ->whereBetween(new Expression('(' . $sub . ')'), $values, $boolean, $not);
         }
 
-        if ($values instanceof CarbonPeriod) {
+        if ($values instanceof CarbonPeriod) { // @phpstan-ignore instanceof.alwaysFalse (Carbon v3 lazy-loaded class hierarchy not statically resolvable)
             $values = [$values->getStartDate(), $values->getEndDate()];
         }
 
@@ -2251,7 +2251,7 @@ class Builder implements BuilderContract
     {
         $type = 'between';
 
-        if ($values instanceof CarbonPeriod) {
+        if ($values instanceof CarbonPeriod) { // @phpstan-ignore instanceof.alwaysFalse (Carbon v3 lazy-loaded class hierarchy not statically resolvable)
             $values = [$values->getStartDate(), $values->getEndDate()];
         }
 

@@ -151,7 +151,7 @@ class Event
     public function shouldRepeatNow(): bool
     {
         return $this->isRepeatable()
-            && $this->lastChecked?->diffInSeconds() >= $this->repeatSeconds;
+            && abs($this->lastChecked?->diffInSeconds()) >= $this->repeatSeconds;
     }
 
     /**

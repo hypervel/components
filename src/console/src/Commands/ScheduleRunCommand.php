@@ -317,7 +317,7 @@ class ScheduleRunCommand extends Command
             $this->lastChecked = Date::now();
         }
 
-        if ($this->shouldStop || $this->lastChecked->diffInSeconds() < 1) {
+        if ($this->shouldStop || abs($this->lastChecked->diffInSeconds()) < 1) {
             return $this->shouldStop;
         }
 
