@@ -37,7 +37,7 @@
         "hypervel/engine": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/server": "^0.4",
-        "symfony/http-foundation": "^7.0 || ^8.0"
+        "symfony/http-foundation": "^8.0"
     },
     "config": {
         "sort-packages": true

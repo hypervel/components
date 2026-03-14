@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "psr/container": "^2.0.2",
+        "psr/container": "^2.0.1",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/reflection": "^0.4"

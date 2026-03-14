@@ -27,8 +27,8 @@
     "require": {
         "php": "^8.4",
         "ext-json": "*",
-        "firebase/php-jwt": "^6.4",
-        "guzzlehttp/guzzle": "^6.0|^7.0",
+        "firebase/php-jwt": "^7.0",
+        "guzzlehttp/guzzle": "^7.8.2",
         "league/oauth1-client": "^1.11",
         "phpseclib/phpseclib": "^3.0",
         "hypervel/collections": "^0.4",

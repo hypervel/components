@@ -20,9 +20,9 @@
     ],
     "require": {
         "php": "^8.4",
-        "mockery/mockery": "^1.6.10",
-        "phpunit/phpunit": "^10.0.7",
-        "symfony/yaml": "^7.3",
+        "mockery/mockery": "1.6.x-dev",
+        "phpunit/phpunit": "^13.0.3",
+        "symfony/yaml": "^8.0",
         "vlucas/phpdotenv": "^5.6.1",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",

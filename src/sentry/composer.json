@@ -26,7 +26,7 @@
     },
     "require": {
         "php": "^8.4",
-        "sentry/sentry": "^4.15.0",
+        "sentry/sentry": "^4.15",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",

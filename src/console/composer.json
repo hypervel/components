@@ -26,9 +26,9 @@
     },
     "require": {
         "php": "^8.4",
-        "dragonmantank/cron-expression": "^3.3.2",
+        "dragonmantank/cron-expression": "^3.4",
         "guzzlehttp/guzzle": "^7.8.2",
-        "symfony/console": "^6.2|^7.0",
+        "symfony/console": "^8.0",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",

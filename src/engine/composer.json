@@ -25,6 +25,7 @@
     ],
     "require": {
         "php": "^8.4",
+        "ext-swoole": "^6.1",
         "psr/http-message": "^2.0",
         "hypervel/contracts": "^0.4",
         "hypervel/http": "^0.4",
@@ -40,11 +41,7 @@
         ]
     },
     "suggest": {
-        "ext-sockets": "*",
-        "ext-swoole": ">=5.0"
-    },
-    "conflict": {
-        "ext-swoole": "<5.0"
+        "ext-sockets": "*"
     },
     "extra": {
         "hypervel": {

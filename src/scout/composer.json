@@ -48,10 +48,10 @@
         "hypervel/pagination": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/console": "^6.2|^7.0"
+        "symfony/console": "^8.0"
     },
     "suggest": {
-        "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.0)",
+        "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.16)",
         "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },
     "config": {

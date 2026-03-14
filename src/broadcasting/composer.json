@@ -43,7 +43,7 @@
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
         "hypervel/redis": "Required to use the Redis broadcast driver (^0.4).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
-        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0)."
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2)."
     },
     "config": {
         "sort-packages": true

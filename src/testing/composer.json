@@ -30,9 +30,9 @@
     },
     "require": {
         "php": "^8.4",
-        "mockery/mockery": "^1.6.10",
-        "symfony/console": "^6.2|^7.0",
-        "symfony/http-foundation": "^7.0 || ^8.0",
+        "mockery/mockery": "1.6.x-dev",
+        "symfony/console": "^8.0",
+        "symfony/http-foundation": "^8.0",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/console": "^0.4",

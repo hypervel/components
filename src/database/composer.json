@@ -31,10 +31,10 @@
     },
     "require": {
         "php": "^8.4",
-        "brick/math": "^0.12",
-        "nesbot/carbon": "^2.72.6",
-        "symfony/console": "^6.2|^7.0",
-        "symfony/process": "^6.2|^7.0",
+        "brick/math": "^0.16",
+        "nesbot/carbon": "^3.8.4",
+        "symfony/console": "^8.0",
+        "symfony/process": "^8.0.5",
         "hypervel/broadcasting": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
@@ -55,7 +55,7 @@
         "hypervel/support": "^0.4"
     },
     "require-dev": {
-        "fakerphp/faker": "^2.0"
+        "fakerphp/faker": "^1.24"
     },
     "config": {
         "sort-packages": true

@@ -25,7 +25,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/http-foundation": "^8.0",
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",

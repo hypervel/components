@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "nesbot/carbon": "^2.72.6",
+        "nesbot/carbon": "^3.8.4",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
