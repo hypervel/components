@@ -18,10 +18,21 @@ use function Hypervel\Support\enum_value;
 /**
  * Database connection resolver for the testing environment.
  *
- * Caches connections statically to prevent pool exhaustion (since the testing
- * environment doesn't use defer() to release connections back to the pool).
- * Call flushCachedConnections() at the start of each test to ensure clean
- * state without the test pollution that static caching would otherwise cause.
+ * Uses a hybrid lifecycle model: connections are created through the real
+ * pool infrastructure (same factory, config, and connection path as production)
+ * but cached statically instead of using the pool's checkout/release cycle.
+ *
+ * This is intentional — tests don't run in coroutines with defer(), so the
+ * normal pool lifecycle (checkout → defer release → coroutine ends) doesn't
+ * apply. Instead, connections are cached per-name and reused across test
+ * methods within the same worker process.
+ *
+ * The PooledConnection wrapper is discarded after extracting the bare
+ * Connection. This means pool release() never runs on the wrapper, but
+ * that's acceptable because:
+ * - flushCachedConnections() handles per-test state reset (resetForPool)
+ * - flush() / flushCachedConnections() disconnect PDOs to prevent leaks
+ * - DB::purge() flushes the entire pool when connection config changes
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
 {
@@ -59,10 +70,17 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
         $container = Container::getInstance();
         $currentContainerId = spl_object_id($container);
 
-        // If container changed, flush all cached connections since they hold
-        // stale references to the old container's dispatcher and other services
+        // If container changed, disconnect and flush all cached connections since
+        // they hold stale references to the old container's dispatcher and other services
         if (static::$containerId !== $currentContainerId) {
             static::$containerId = $currentContainerId;
+
+            foreach (static::$connections as $connection) {
+                if ($connection instanceof Connection) {
+                    $connection->disconnect();
+                }
+            }
+
             static::$connections = [];
             static::$rebindingRegistered = false;
         }
@@ -108,16 +126,25 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     /**
      * Flush a cached connection.
      *
-     * Clears the static cache so the next connection() call creates a fresh
-     * connection with current configuration.
+     * Disconnects the underlying PDO before clearing the cache, ensuring
+     * the database connection is properly closed rather than orphaned.
      */
     public function flush(string $name): void
     {
+        if (isset(static::$connections[$name]) && static::$connections[$name] instanceof Connection) {
+            static::$connections[$name]->disconnect();
+        }
+
         unset(static::$connections[$name]);
     }
 
     /**
      * Get a database connection instance.
+     *
+     * Creates connections through the pool factory so they use the same
+     * configuration and creation path as production, then caches the bare
+     * Connection statically. The PooledConnection wrapper is intentionally
+     * discarded — see the class docblock for the reasoning.
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
@@ -135,6 +162,8 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             return $connection;
         }
 
+        // Check out from pool, extract bare Connection, discard the wrapper.
+        // The wrapper's release() is not needed — see class docblock.
         return static::$connections[$name] = $this->factory
             ->getPool($name)
             ->get()
