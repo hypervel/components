@@ -73,9 +73,11 @@ Search **both `src/` and `tests/`** for any `use` statements or references to th
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
 
-#### 7. Run full phpunit
+#### 7. Run the full test suite
 
-Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoroughly — don't assume a failure is caused by the porting without confirming. For straightforward fixes (e.g., a missed namespace update), fix and continue. For anything more complex (behavioural changes, test logic issues, unclear root causes), stop and explain the cause along with your recommended fix for approval.
+**Always use `composer test:parallel`** to run the test suite. This invokes `bin/paratest`, a custom wrapper that configures per-worker Redis DB isolation and caps the process count to available Redis databases. Running `vendor/bin/paratest` directly bypasses this setup and may cause Redis test failures.
+
+Investigate all failures thoroughly — don't assume a failure is caused by the porting without confirming. For straightforward fixes (e.g., a missed namespace update), fix and continue. For anything more complex (behavioural changes, test logic issues, unclear root causes), stop and explain the cause along with your recommended fix for approval.
 
 ### Rules
 
@@ -482,9 +484,9 @@ Use this exact cadence for each test class:
 4. If any failure exposes a source code bug (typing, logic, behavior), STOP and report root cause + recommended fix for approval.
 5. Once green, commit that test class (and any approved source fixes) before moving to the next class.
 
-#### 6. Run full phpunit
+#### 6. Run the full test suite
 
-After all test files are ported, run the full test suite. Same rules as the source porting workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
+After all test files are ported, run the full test suite with `composer test:parallel`. Same rules as the source porting workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
 
 ### General Rules
 
