@@ -39,7 +39,7 @@ class CacheDatabaseStoreTest extends TestCase
         $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
             'key' => 'prefixfoo',
             'value' => serialize('bar'),
-            'expiration' => $now->subSeconds(10)->getTimestamp(),
+            'expiration' => $now->copy()->subSeconds(10)->getTimestamp(),
         ]]));
 
         // Second call for deletion of expired items
@@ -107,7 +107,7 @@ class CacheDatabaseStoreTest extends TestCase
             (object) [
                 'key' => 'prefixfoo',
                 'value' => serialize('bar'),
-                'expiration' => $now->subSeconds(10)->getTimestamp(),
+                'expiration' => $now->copy()->subSeconds(10)->getTimestamp(),
             ],
         ]));
 

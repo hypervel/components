@@ -286,6 +286,17 @@ class CacheRepositoryTest extends TestCase
         ];
     }
 
+    public function testGetSecondsCeilsSubSecondTtl()
+    {
+        Carbon::setTestNow(Carbon::parse($this->getTestDate()));
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 1);
+        $repo->put('foo', 'bar', Carbon::parse($this->getTestDate())->addMilliseconds(400));
+
+        $this->assertTrue(true);
+    }
+
     public function testRegisterMacroWithNonStaticCall()
     {
         $repo = $this->getRepository();

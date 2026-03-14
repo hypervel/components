@@ -240,6 +240,30 @@ class CustomCastingTest extends TestCase
     }
 
     /**
+     * Test datetime casting preserves app timezone for Unix timestamps.
+     */
+    public function testDatetimeCastingPreservesAppTimezone()
+    {
+        $originalTimezone = date_default_timezone_get();
+        date_default_timezone_set('America/New_York');
+
+        try {
+            $request = DatetimeCastingRequest::create('/', 'POST', [
+                'created_at' => 1705315800,
+                'published_date' => '2024-01-15',
+                'updated_timestamp' => '2024-01-15 10:50:00',
+            ]);
+            $request->setContainer($this->app);
+
+            $createdAt = $request->casted('created_at', false);
+            $this->assertInstanceOf(CarbonInterface::class, $createdAt);
+            $this->assertSame('America/New_York', $createdAt->getTimezone()->getName());
+        } finally {
+            date_default_timezone_set($originalTimezone);
+        }
+    }
+
+    /**
      * Test DataObject casting with DataObject.
      */
     public function testDataObjectCasting()
