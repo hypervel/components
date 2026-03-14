@@ -256,6 +256,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
+        "brianium/paratest": "^7.19",
         "fakerphp/faker": "^1.24",
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
@@ -332,6 +333,7 @@
     },
     "scripts": {
         "test": "phpunit",
+        "test:parallel": "php bin/paratest",
         "analyse": [
             "phpstan analyse",
             "phpstan analyse -c phpstan.types.neon.dist"

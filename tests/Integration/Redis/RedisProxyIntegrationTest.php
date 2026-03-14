@@ -268,10 +268,11 @@ class RedisProxyIntegrationTest extends TestCase
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
 
-        $redis->select(1);
-        $redis->set('concurrent_pipeline_test_callback_and_select_value', $id = uniqid(), 'EX', 600);
+        $redis->select($this->getSecondaryRedisDb());
+        $valueKey = 'pipeline_select_value_' . uniqid();
+        $redis->set($valueKey, $id = uniqid(), 'EX', 600);
 
-        $key = 'concurrent_pipeline_test_callback_and_select';
+        $key = 'pipeline_select_' . uniqid();
         $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
             $pipe->set($key, "value_{$key}");
             $pipe->incr("{$key}_counter");
@@ -280,7 +281,7 @@ class RedisProxyIntegrationTest extends TestCase
         });
 
         $this->assertCount(4, $results);
-        $this->assertSame($id, $redis->get('concurrent_pipeline_test_callback_and_select_value'));
+        $this->assertSame($id, $redis->get($valueKey));
     }
 
     public function testPipelineCallbackAndPipeline(): void
@@ -290,9 +291,10 @@ class RedisProxyIntegrationTest extends TestCase
 
         $openPipeline = $redis->pipeline();
         // This uses integer expiry while a pipeline is open to assert queue-mode bypasses transformed callSet().
-        $redis->set('concurrent_pipeline_test_callback_and_select_value', $id = uniqid(), 600);
+        $valueKey = 'pipeline_pipeline_value_' . uniqid();
+        $redis->set($valueKey, $id = uniqid(), 600);
 
-        $key = 'concurrent_pipeline_test_callback_and_select';
+        $key = 'pipeline_pipeline_' . uniqid();
         $callbackResults = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
             $pipe->set($key, "value_{$key}");
             $pipe->incr("{$key}_counter");
@@ -300,22 +302,25 @@ class RedisProxyIntegrationTest extends TestCase
             $pipe->get("{$key}_counter");
         });
 
-        go(static function () use ($redis) {
-            $redis->select(1);
-            $redis->set('xxx', 'x');
-            $redis->set('xxx', 'x');
-            $redis->set('xxx', 'x');
+        $secondaryDb = $this->getSecondaryRedisDb();
+        $selectKey = 'pipeline_select_junk_' . uniqid();
+        go(static function () use ($redis, $secondaryDb, $selectKey) {
+            $redis->select($secondaryDb);
+            $redis->set($selectKey, 'x');
+            $redis->set($selectKey, 'x');
+            $redis->set($selectKey, 'x');
         });
 
-        $openPipeline->set('xxxxxx', 'x');
-        $openPipeline->set('xxxxxx', 'x');
-        $openPipeline->set('xxxxxx', 'x');
-        $openPipeline->set('xxxxxx', 'x');
+        $pipelineKey = 'pipeline_junk_' . uniqid();
+        $openPipeline->set($pipelineKey, 'x');
+        $openPipeline->set($pipelineKey, 'x');
+        $openPipeline->set($pipelineKey, 'x');
+        $openPipeline->set($pipelineKey, 'x');
 
         $this->assertInstanceOf(PhpRedis::class, $openPipeline);
         // The pre-callback set() is queued on the open pipeline connection, so callback exec includes 5 queued results.
         $this->assertCount(5, $callbackResults);
-        $this->assertSame($id, $redis->get('concurrent_pipeline_test_callback_and_select_value'));
+        $this->assertSame($id, $redis->get($valueKey));
     }
 
     public function testSelectIsolationAcrossCoroutines(): void
@@ -324,32 +329,33 @@ class RedisProxyIntegrationTest extends TestCase
         $redis->flushdb();
 
         $uniqueKey = 'select_isolation_' . uniqid();
+        $secondaryDb = $this->getSecondaryRedisDb();
 
         $channelA = new Channel(1);
         $channelB = new Channel(1);
 
-        // Coroutine A: select db 1, set a key
-        go(static function () use ($redis, $uniqueKey, $channelA) {
-            $redis->select(1);
-            $redis->set($uniqueKey, 'from_db1');
+        // Coroutine A: select secondary db, set a key
+        go(static function () use ($redis, $uniqueKey, $channelA, $secondaryDb) {
+            $redis->select($secondaryDb);
+            $redis->set($uniqueKey, 'from_secondary_db');
             $channelA->push($redis->get($uniqueKey));
         });
 
-        // Coroutine B: stays on default db 0, should NOT see the key
+        // Coroutine B: stays on primary db, should NOT see the key
         go(static function () use ($redis, $uniqueKey, $channelB) {
             // Small delay to let coroutine A execute first
             usleep(5_000);
             $channelB->push($redis->get($uniqueKey));
         });
 
-        // Coroutine A should see its key on db 1
-        $this->assertSame('from_db1', $channelA->pop());
+        // Coroutine A should see its key on secondary db
+        $this->assertSame('from_secondary_db', $channelA->pop());
 
-        // Coroutine B should NOT see the key (it's on db 0)
+        // Coroutine B should NOT see the key (it's on primary db)
         $this->assertNull($channelB->pop());
 
-        // Clean up db 1
-        $redis->select(1);
+        // Clean up secondary db
+        $redis->select($secondaryDb);
         $redis->del($uniqueKey);
     }
 
@@ -574,7 +580,7 @@ class RedisProxyIntegrationTest extends TestCase
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', 8),
+            'db' => $this->getParallelRedisDb(),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => $maxConnections,

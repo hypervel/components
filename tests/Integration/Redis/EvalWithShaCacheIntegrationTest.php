@@ -94,13 +94,14 @@ class EvalWithShaCacheIntegrationTest extends TestCase
 
     public function testEvalWithShaCacheFallsBackToEvalOnNoscript(): void
     {
-        $script = 'return "fallback_test"';
+        // Use a unique script body so it's guaranteed to not be in the server's script cache,
+        // triggering the NOSCRIPT fallback path without needing SCRIPT FLUSH (which is a
+        // server-global operation unsafe for parallel testing).
+        $uniqueId = uniqid('', true);
+        $script = "return 'fallback_test_{$uniqueId}'";
         $sha = sha1($script);
 
-        // Flush script cache to ensure NOSCRIPT scenario
-        Redis::client()->script('flush');
-
-        // Verify script is not cached
+        // Verify script is not cached (fresh unique script)
         $exists = Redis::client()->script('exists', $sha);
         $this->assertEquals([0], $exists, 'Script should not be cached before test');
 
@@ -109,7 +110,7 @@ class EvalWithShaCacheIntegrationTest extends TestCase
             return $connection->evalWithShaCache($script, [], []);
         });
 
-        $this->assertEquals('fallback_test', $result);
+        $this->assertEquals("fallback_test_{$uniqueId}", $result);
 
         // Verify script is now cached after successful eval
         $exists = Redis::client()->script('exists', $sha);

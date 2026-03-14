@@ -62,7 +62,7 @@ class RedisConnectionIntegrationTest extends TestCase
         }
 
         $this->assertTrue(
-            $redis->select((int) env('REDIS_DB', 8))
+            $redis->select($this->getParallelRedisDb())
         );
 
         $ping = $redis->ping();
