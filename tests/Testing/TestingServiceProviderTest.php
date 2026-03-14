@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Testing\TestingServiceProvider;
 
 /**
  * @internal
@@ -13,6 +15,13 @@ use Hypervel\Testing\ParallelTesting;
  */
 class TestingServiceProviderTest extends TestCase
 {
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            TestingServiceProvider::class,
+        ];
+    }
+
     public function testRegistersParallelTestingSingleton()
     {
         $this->assertTrue($this->app->bound(ParallelTesting::class));

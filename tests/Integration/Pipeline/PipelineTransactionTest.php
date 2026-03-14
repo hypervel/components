@@ -9,7 +9,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
-use Hypervel\Pipeline\PipelineServiceProvider;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Pipeline;
 use Hypervel\Testbench\TestCase;
@@ -21,13 +20,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class PipelineTransactionTest extends TestCase
 {
-    protected function getPackageProviders(ApplicationContract $app): array
-    {
-        return [
-            PipelineServiceProvider::class,
-        ];
-    }
-
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);

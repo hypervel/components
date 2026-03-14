@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pipeline;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Pipeline\Pipeline;
-use Hypervel\Pipeline\PipelineServiceProvider;
 use Hypervel\Support\Facades\Pipeline as PipelineFacade;
 use Hypervel\Testbench\TestCase;
 
@@ -16,13 +14,6 @@ use Hypervel\Testbench\TestCase;
  */
 class PipelineFacadeTest extends TestCase
 {
-    protected function getPackageProviders(ApplicationContract $app): array
-    {
-        return [
-            PipelineServiceProvider::class,
-        ];
-    }
-
     public function testFacadeReturnsFreshInstanceOnEveryAccess()
     {
         $first = PipelineFacade::getFacadeRoot();
