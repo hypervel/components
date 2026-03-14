@@ -126,6 +126,8 @@ trait CreatesApplication
      */
     public function createApplication(): ApplicationContract
     {
+        $this->configureParallelCachePaths();
+
         $app = $this->resolveApplication();
 
         $this->resolveApplicationBindings($app);
@@ -310,5 +312,24 @@ trait CreatesApplication
         $config = $app->make('config');
         $existing = $config->get('app.aliases', []);
         $config->set('app.aliases', array_merge($existing, $aliases));
+    }
+
+    /**
+     * Configure worker-specific cache paths for parallel testing.
+     *
+     * When running under ParaTest, each worker gets a unique route cache
+     * path to prevent filesystem races. Without this, one worker's
+     * defineCacheRoutes() writes a shared cache file that causes other
+     * workers' routesAreCached() to return true, skipping route setup.
+     */
+    protected function configureParallelCachePaths(): void
+    {
+        $token = env('TEST_TOKEN');
+
+        if ($token === null) {
+            return;
+        }
+
+        $_SERVER['APP_ROUTES_CACHE'] = "cache/routes-v7-test-{$token}.php";
     }
 }

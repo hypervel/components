@@ -23,6 +23,12 @@ use Swoole\Server;
  */
 class AbstractProcessTest extends TestCase
 {
+    // SwooleProcess creation fails with "unable to create Swoole\Process with async-io
+    // threads" when the test runs inside a coroutine and multiple ParaTest workers create
+    // processes simultaneously. These tests only verify callback logic and event dispatch,
+    // not coroutine behavior, so opting out is safe.
+    protected bool $runTestsInCoroutine = false;
+
     protected function tearDown(): void
     {
         FooProcess::$handled = false;

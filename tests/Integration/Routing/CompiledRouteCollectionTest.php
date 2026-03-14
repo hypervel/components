@@ -101,8 +101,10 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
     public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions()
     {
-        @unlink(__DIR__ . '/Fixtures/cache/routes-v7.php');
         $this->app->useBootstrapPath(__DIR__ . '/Fixtures');
+        $cachePath = $this->app->getCachedRoutesPath();
+        @unlink($cachePath);
+
         $app = (static function () {
             $refresh = true;
 
@@ -115,11 +117,11 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/{bar}', $app['router']->getRoutes()->getByAction('FooController@show')->uri);
 
         $this->artisan('route:cache')->assertExitCode(0);
-        require __DIR__ . '/Fixtures/cache/routes-v7.php';
+        require $cachePath;
 
         $this->assertSame('foo/{bar}', $app['router']->getRoutes()->getByAction('FooController@show')->uri);
 
-        unlink(__DIR__ . '/Fixtures/cache/routes-v7.php');
+        @unlink($cachePath);
     }
 
     public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForNames()
