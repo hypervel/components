@@ -6,8 +6,13 @@ namespace Hypervel\Support\Facades;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Js;
+use Hypervel\Support\Number;
+use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\Fake;
+use Hypervel\Support\Uri;
 use Mockery;
 use Mockery\LegacyMockInterface;
 use RuntimeException;
@@ -236,6 +241,7 @@ abstract class Facade
     {
         return new Collection([
             'App' => App::class,
+            'Arr' => Arr::class,
             'Artisan' => Artisan::class,
             'Auth' => Auth::class,
             'Blade' => Blade::class,
@@ -254,11 +260,13 @@ abstract class Facade
             'Gate' => Gate::class,
             'Hash' => Hash::class,
             'Http' => Http::class,
+            'Js' => Js::class,
             'JWT' => JWT::class,
             'Lang' => Lang::class,
             'Log' => Log::class,
             'Mail' => Mail::class,
             'Notification' => Notification::class,
+            'Number' => Number::class,
             'Process' => Process::class,
             'Queue' => Queue::class,
             'RateLimiter' => RateLimiter::class,
@@ -266,12 +274,16 @@ abstract class Facade
             'Request' => Request::class,
             'Response' => Response::class,
             'Route' => Route::class,
+            'Schema' => Schema::class,
             'Schedule' => Schedule::class,
             'Session' => Session::class,
             'Storage' => Storage::class,
+            'Str' => Str::class,
+            'Uri' => Uri::class,
             'URL' => URL::class,
             'Validator' => Validator::class,
             'View' => View::class,
+            'Vite' => Vite::class,
         ]);
     }
 
