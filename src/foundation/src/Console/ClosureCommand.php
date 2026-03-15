@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use BadMethodCallException;
 use Closure;
 use Hypervel\Console\Command;
-use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Support\Facades\Schedule;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -47,16 +46,10 @@ class ClosureCommand extends Command
             }
         }
 
-        try {
-            return (int) $this->hypervel->call(
-                $this->callback->bindTo($this, $this),
-                $parameters
-            );
-        } catch (ManuallyFailedException $e) {
-            $this->components->error($e->getMessage());
-
-            return static::FAILURE;
-        }
+        return (int) $this->hypervel->call(
+            $this->callback->bindTo($this, $this),
+            $parameters
+        );
     }
 
     /**

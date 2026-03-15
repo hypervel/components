@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Closure;
-use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
@@ -21,67 +20,103 @@ class AboutCommand extends Command
 
     protected string $description = 'Display basic information about your application';
 
+    /**
+     * The data to display.
+     */
+    protected static array $data = [];
+
+    /**
+     * The registered callables that add custom data to the command output.
+     */
+    protected static array $customDataResolvers = [];
+
+    /**
+     * Create a new command instance.
+     */
     public function __construct(
-        protected Repository $config,
         protected Composer $composer,
     ) {
         parent::__construct();
     }
 
+    /**
+     * Execute the console command.
+     */
     public function handle()
     {
-        $only = $this->sections();
-        $information = $this->gatherApplicationInformation();
+        $this->gatherApplicationInformation();
 
-        if ($only = $this->sections()) {
-            $information = array_filter($information, function ($section) use ($only) {
-                return in_array($this->toSearchKeyword($section), $only);
-            }, ARRAY_FILTER_USE_KEY);
-        }
+        (new Collection(static::$data))
+            ->map(
+                fn ($items) => (new Collection($items))
+                    ->map(function ($value) {
+                        if (is_array($value)) {
+                            return [$value];
+                        }
 
-        $this->display($information);
+                        if (is_string($value)) {
+                            $value = $this->hypervel->make($value);
+                        }
+
+                        return (new Collection($this->hypervel->call($value)))
+                            ->map(fn ($value, $key) => [$key, $value])
+                            ->values()
+                            ->all();
+                    })->flatten(1)
+            )
+            ->sortBy(function ($data, $key) {
+                $index = array_search($key, ['Environment', 'Cache', 'Drivers']);
+
+                return $index === false ? 99 : $index;
+            })
+            ->filter(function ($data, $key) {
+                return $this->option('only') ? in_array($this->toSearchKeyword($key), $this->sections()) : true;
+            })
+            ->pipe(fn ($data) => $this->display($data));
+
+        $this->newLine();
+
+        return 0;
     }
 
     /**
      * Display the application information.
      */
-    protected function display(array $information): void
+    protected function display(Collection $data): void
     {
-        $this->option('json')
-            ? $this->displayJson($information)
-            : $this->displayDetail($information);
+        $this->option('json') ? $this->displayJson($data) : $this->displayDetail($data);
     }
 
     /**
      * Display the application information as a detail view.
      */
-    protected function displayDetail(array $information): void
+    protected function displayDetail(Collection $data): void
     {
-        foreach ($information as $section => $data) {
+        $data->each(function ($data, $section) {
             $this->newLine();
 
             $this->components->twoColumnDetail('  <fg=green;options=bold>' . $section . '</>');
 
-            foreach ($data as $key => $value) {
-                $this->components->twoColumnDetail($key, value($value, false));
-            }
-        }
+            $data->pipe(fn ($data) => $section !== 'Environment' ? $data->sort() : $data)->each(function ($detail) {
+                [$label, $value] = $detail;
+
+                $this->components->twoColumnDetail($label, value($value, false));
+            });
+        });
     }
 
     /**
      * Display the application information as JSON.
      */
-    protected function displayJson(array $information): void
+    protected function displayJson(Collection $data): void
     {
-        $output = [];
-        foreach ($information as $section => $data) {
-            $section = $this->toSearchKeyword($section);
-            $output[$section] = array_map(function ($value, $key) {
-                return [
-                    $this->toSearchKeyword($key) => value($value, true),
-                ];
-            }, $data, array_keys($data));
-        }
+        $output = $data->flatMap(function ($data, $section) {
+            return [
+                (new Stringable($section))->snake()->value() => $data->mapWithKeys(fn ($item, $key) => [
+                    $this->toSearchKeyword($item[0]) => value($item[1], true),
+                ]),
+            ];
+        });
 
         $this->output->writeln(strip_tags(json_encode($output)));
     }
@@ -89,40 +124,60 @@ class AboutCommand extends Command
     /**
      * Gather information about the application.
      */
-    protected function gatherApplicationInformation(): array
+    protected function gatherApplicationInformation(): void
     {
-        $data = [];
+        self::$data = [];
 
         $formatEnabledStatus = fn ($value) => $value ? '<fg=yellow;options=bold>ENABLED</>' : 'OFF';
         $formatCachedStatus = fn ($value) => $value ? '<fg=green;options=bold>CACHED</>' : '<fg=yellow;options=bold>NOT CACHED</>';
+        $formatStorageLinkedStatus = fn ($value) => $value ? '<fg=green;options=bold>LINKED</>' : '<fg=yellow;options=bold>NOT LINKED</>';
 
-        $data['Environment'] = [
-            'Application Name' => $this->config->get('app.name'),
-            'Hypervel Version' => $this->hypervel->version(), /* @phpstan-ignore-line */
+        static::addToSection('Environment', fn () => [
+            'Application Name' => config('app.name'),
+            'Hypervel Version' => $this->hypervel->version(),
             'PHP Version' => phpversion(),
             'Swoole Version' => swoole_version(),
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
-            'Environment' => $this->hypervel->environment(), /* @phpstan-ignore-line */
-            'Debug Mode' => $this->format($this->config->get('app.debug'), console: $formatEnabledStatus),
-            'URL' => Str::of($this->config->get('app.url'))->replace(['http://', 'https://'], ''),
-            'Timezone' => $this->config->get('app.timezone'),
-            'Locale' => $this->config->get('app.locale'),
-        ];
+            'Environment' => $this->hypervel->environment(),
+            'Debug Mode' => static::format(config('app.debug'), console: $formatEnabledStatus),
+            'URL' => Str::of(config('app.url'))->replace(['http://', 'https://'], ''),
+            'Maintenance Mode' => static::format($this->hypervel->isDownForMaintenance(), console: $formatEnabledStatus),
+            'Timezone' => config('app.timezone'),
+            'Locale' => config('app.locale'),
+        ]);
 
-        $data['Cache'] = [
-            'Runtime Proxy' => static::format($this->hasPhpFiles($this->hypervel->basePath('runtime/container'), 'cache'), console: $formatCachedStatus), /* @phpstan-ignore-line */
-            'Views' => static::format($this->hasPhpFiles($this->hypervel->storagePath('framework/views')), console: $formatCachedStatus), /* @phpstan-ignore-line */
-        ];
+        static::addToSection('Cache', fn () => [
+            'Config' => static::format($this->hypervel->configurationIsCached(), console: $formatCachedStatus), /* @phpstan-ignore-line */
+            // @TODO Uncomment once eventsAreCached() is added to Application (Phase 1.7)
+            // 'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
+            'Routes' => static::format($this->hypervel->routesAreCached(), console: $formatCachedStatus),
+            'Runtime Proxy' => static::format($this->hasPhpFiles($this->hypervel->basePath('runtime/container'), 'cache'), console: $formatCachedStatus),
+            'Views' => static::format($this->hasPhpFiles(config('view.compiled')), console: $formatCachedStatus),
+        ]);
 
-        $data['Drivers'] = array_filter([
-            'Broadcasting' => $this->config->get('broadcasting.default'),
-            'Cache' => $this->config->get('cache.default'),
-            'Database' => $this->config->get('database.default'),
+        static::addToSection('Drivers', fn () => array_filter([
+            'Broadcasting' => config('broadcasting.default'),
+            'Cache' => function ($json) {
+                $cacheStore = config('cache.default');
+
+                if (config('cache.stores.' . $cacheStore . '.driver') === 'failover') {
+                    $secondary = new Collection(config('cache.stores.' . $cacheStore . '.stores'));
+
+                    return value(static::format(
+                        value: $cacheStore,
+                        console: fn ($value) => '<fg=yellow;options=bold>' . $value . '</> <fg=gray;options=bold>/</> ' . $secondary->implode(', '),
+                        json: fn () => $secondary->all(),
+                    ), $json);
+                }
+
+                return $cacheStore;
+            },
+            'Database' => config('database.default'),
             'Logs' => function ($json) {
-                $logChannel = $this->config->get('logging.default');
+                $logChannel = config('logging.default');
 
-                if ($this->config->get('logging.channels.' . $logChannel . '.driver') === 'stack') {
-                    $secondary = new Collection($this->config->get('logging.channels.' . $logChannel . '.channels'));
+                if (config('logging.channels.' . $logChannel . '.driver') === 'stack') {
+                    $secondary = new Collection(config('logging.channels.' . $logChannel . '.channels'));
 
                     return value(static::format(
                         value: $logChannel,
@@ -130,16 +185,64 @@ class AboutCommand extends Command
                         json: fn () => $secondary->all(),
                     ), $json);
                 }
-                $logs = $logChannel;
 
-                return $logs;
+                return $logChannel;
             },
-            'Mail' => $this->config->get('mail.default'),
-            'Queue' => $this->config->get('queue.default'),
-            'Session' => $this->config->get('session.driver'),
+            'Mail' => function ($json) {
+                $mailMailer = config('mail.default');
+
+                if (in_array(config('mail.mailers.' . $mailMailer . '.transport'), ['failover', 'roundrobin'])) {
+                    $secondary = new Collection(config('mail.mailers.' . $mailMailer . '.mailers'));
+
+                    return value(static::format(
+                        value: $mailMailer,
+                        console: fn ($value) => '<fg=yellow;options=bold>' . $value . '</> <fg=gray;options=bold>/</> ' . $secondary->implode(', '),
+                        json: fn () => $secondary->all(),
+                    ), $json);
+                }
+
+                return $mailMailer;
+            },
+            'Queue' => function ($json) {
+                $queueConnection = config('queue.default');
+
+                if (config('queue.connections.' . $queueConnection . '.driver') === 'failover') {
+                    $secondary = new Collection(config('queue.connections.' . $queueConnection . '.connections'));
+
+                    return value(static::format(
+                        value: $queueConnection,
+                        console: fn ($value) => '<fg=yellow;options=bold>' . $value . '</> <fg=gray;options=bold>/</> ' . $secondary->implode(', '),
+                        json: fn () => $secondary->all(),
+                    ), $json);
+                }
+
+                return $queueConnection;
+            },
+            'Scout' => config('scout.driver'),
+            'Session' => config('session.driver'),
+        ]));
+
+        static::addToSection('Storage', fn () => [
+            ...$this->determineStoragePathLinkStatus($formatStorageLinkedStatus),
         ]);
 
-        return $data;
+        (new Collection(static::$customDataResolvers))->each->__invoke();
+    }
+
+    /**
+     * Determine storage symbolic link status.
+     *
+     * @return array<string, mixed>
+     */
+    protected function determineStoragePathLinkStatus(callable $formatStorageLinkedStatus): array
+    {
+        return (new Collection(config('filesystems.links', [])))
+            ->mapWithKeys(function ($target, $link) use ($formatStorageLinkedStatus) {
+                $path = Str::replace(public_path(), '', $link);
+
+                return [public_path($path) => static::format(is_link($link), console: $formatStorageLinkedStatus)];
+            })
+            ->toArray();
     }
 
     /**
@@ -148,6 +251,30 @@ class AboutCommand extends Command
     protected function hasPhpFiles(string $path, string $extension = 'php'): bool
     {
         return count(glob($path . "/*.{$extension}")) > 0;
+    }
+
+    /**
+     * Add additional data to the output of the "about" command.
+     */
+    public static function add(string $section, callable|string|array $data, ?string $value = null): void
+    {
+        static::$customDataResolvers[] = fn () => static::addToSection($section, $data, $value);
+    }
+
+    /**
+     * Add additional data to the output of the "about" command.
+     */
+    protected static function addToSection(string $section, callable|string|array $data, ?string $value = null): void
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                self::$data[$section][] = [$key, $value];
+            }
+        } elseif (is_callable($data) || ($value === null && class_exists($data))) {
+            self::$data[$section][] = $data;
+        } else {
+            self::$data[$section][] = [$data, $value];
+        }
     }
 
     /**
@@ -164,12 +291,11 @@ class AboutCommand extends Command
     /**
      * Materialize a function that formats a given value for CLI or JSON output.
      *
-     * @param mixed $value
-     * @param null|(Closure(mixed):(mixed)) $console
-     * @param null|(Closure(mixed):(mixed)) $json
-     * @return Closure(bool):mixed
+     * @param null|(Closure(mixed): mixed) $console
+     * @param null|(Closure(mixed): mixed) $json
+     * @return Closure(bool): mixed
      */
-    protected function format($value, ?Closure $console = null, ?Closure $json = null): mixed
+    public static function format(mixed $value, ?Closure $console = null, ?Closure $json = null): Closure
     {
         return function ($isJson) use ($value, $console, $json) {
             if ($isJson === true && $json instanceof Closure) {
@@ -189,5 +315,15 @@ class AboutCommand extends Command
     protected function toSearchKeyword(string $value): string
     {
         return (new Stringable($value))->lower()->snake()->value();
+    }
+
+    /**
+     * Flush the registered about data.
+     */
+    public static function flushState(): void
+    {
+        static::$data = [];
+
+        static::$customDataResolvers = [];
     }
 }
