@@ -39,7 +39,7 @@ class EventHandler
 
     private const CONTEXT_PARENT_SPANS_KEY = '__sentry.tracing.parent_spans';
 
-    private const CONTEXT_CURRENT_SPANS_KEY = '__sentry.tracing.current_spans';
+    public const CONTEXT_CURRENT_SPANS_KEY = '__sentry.tracing.current_spans';
 
     /**
      * Create a new tracing event handler instance.

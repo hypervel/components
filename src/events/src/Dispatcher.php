@@ -51,6 +51,21 @@ class Dispatcher implements DispatcherContract
     use ResolvesQueueRoutes;
 
     /**
+     * Context key for whether event deferral is active.
+     */
+    public const DEFERRING_CONTEXT_KEY = '__events.deferring';
+
+    /**
+     * Context key for the queue of deferred events.
+     */
+    public const DEFERRED_EVENTS_CONTEXT_KEY = '__events.deferred_events';
+
+    /**
+     * Context key for the list of event classes to defer.
+     */
+    public const EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
+
+    /**
      * The IoC container instance.
      */
     protected ContainerContract $container;
@@ -270,7 +285,7 @@ class Dispatcher implements DispatcherContract
         ];
 
         if ($this->shouldDeferEvent($parsedEvent)) {
-            Context::override('__events.deferred_events', function (?array $events) use ($event, $payload, $halt) {
+            Context::override(self::DEFERRED_EVENTS_CONTEXT_KEY, function (?array $events) use ($event, $payload, $halt) {
                 $events = $events ?? [];
                 $events[] = [$event, $payload, $halt];
 
@@ -789,28 +804,28 @@ class Dispatcher implements DispatcherContract
      */
     public function defer(callable $callback, ?array $events = null): mixed
     {
-        $wasDeferring = Context::get('__events.deferring', false);
-        $previousDeferredEvents = Context::get('__events.deferred_events', []);
-        $previousEventsToDefer = Context::get('__events.events_to_defer');
+        $wasDeferring = Context::get(self::DEFERRING_CONTEXT_KEY, false);
+        $previousDeferredEvents = Context::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
+        $previousEventsToDefer = Context::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
 
-        Context::set('__events.deferring', true);
-        Context::set('__events.deferred_events', []);
-        Context::set('__events.events_to_defer', $events);
+        Context::set(self::DEFERRING_CONTEXT_KEY, true);
+        Context::set(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
+        Context::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $events);
 
         try {
             $result = $callback();
 
-            Context::set('__events.deferring', false);
+            Context::set(self::DEFERRING_CONTEXT_KEY, false);
 
-            foreach (Context::get('__events.deferred_events', []) as $args) {
+            foreach (Context::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []) as $args) {
                 $this->dispatch(...$args);
             }
 
             return $result;
         } finally {
-            Context::set('__events.deferring', $wasDeferring);
-            Context::set('__events.deferred_events', $previousDeferredEvents);
-            Context::set('__events.events_to_defer', $previousEventsToDefer);
+            Context::set(self::DEFERRING_CONTEXT_KEY, $wasDeferring);
+            Context::set(self::DEFERRED_EVENTS_CONTEXT_KEY, $previousDeferredEvents);
+            Context::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $previousEventsToDefer);
         }
     }
 
@@ -819,11 +834,11 @@ class Dispatcher implements DispatcherContract
      */
     protected function shouldDeferEvent(string $event): bool
     {
-        if (! Context::get('__events.deferring', false)) {
+        if (! Context::get(self::DEFERRING_CONTEXT_KEY, false)) {
             return false;
         }
 
-        $eventsToDefer = Context::get('__events.events_to_defer');
+        $eventsToDefer = Context::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
 
         return $eventsToDefer === null || in_array($event, $eventsToDefer);
     }

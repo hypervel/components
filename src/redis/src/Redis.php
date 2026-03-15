@@ -29,6 +29,11 @@ class Redis implements FactoryContract, ConnectionContract
 {
     use MultiExec;
 
+    /**
+     * Context key prefix for per-connection pool state.
+     */
+    public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
+
     protected string $poolName = 'default';
 
     public function __construct(
@@ -217,7 +222,7 @@ class Redis implements FactoryContract, ConnectionContract
      */
     protected function getContextKey(): string
     {
-        return sprintf('__redis.connection.%s', $this->poolName);
+        return self::CONNECTION_CONTEXT_PREFIX . $this->poolName;
     }
 
     /**

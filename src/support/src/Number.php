@@ -14,6 +14,16 @@ class Number
     use Macroable;
 
     /**
+     * Context key for the per-request locale override.
+     */
+    public const LOCALE_CONTEXT_KEY = '__support.number.locale';
+
+    /**
+     * Context key for the per-request currency override.
+     */
+    public const CURRENCY_CONTEXT_KEY = '__support.number.currency';
+
+    /**
      * The current default locale.
      */
     protected static string $locale = 'en';
@@ -295,7 +305,7 @@ class Number
      */
     public static function useLocale(string $locale): void
     {
-        Context::set('__support.number.locale', $locale);
+        Context::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**
@@ -303,7 +313,7 @@ class Number
      */
     public static function useCurrency(string $currency): void
     {
-        Context::set('__support.number.currency', $currency);
+        Context::set(self::CURRENCY_CONTEXT_KEY, $currency);
     }
 
     /**
@@ -311,7 +321,7 @@ class Number
      */
     public static function defaultLocale(): string
     {
-        return Context::get('__support.number.locale', static::$locale);
+        return Context::get(self::LOCALE_CONTEXT_KEY, static::$locale);
     }
 
     /**
@@ -319,7 +329,7 @@ class Number
      */
     public static function defaultCurrency(): string
     {
-        return Context::get('__support.number.currency', static::$currency);
+        return Context::get(self::CURRENCY_CONTEXT_KEY, static::$currency);
     }
 
     /**
@@ -327,8 +337,8 @@ class Number
      */
     public static function flushState(): void
     {
-        Context::forget('__support.number.locale');
-        Context::forget('__support.number.currency');
+        Context::forget(self::LOCALE_CONTEXT_KEY);
+        Context::forget(self::CURRENCY_CONTEXT_KEY);
     }
 
     /**

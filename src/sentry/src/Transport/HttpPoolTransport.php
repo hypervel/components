@@ -18,7 +18,7 @@ class HttpPoolTransport implements TransportInterface
     /**
      * Context key for the per-coroutine list of checked-out transports.
      */
-    private const CONTEXT_TRANSPORTS_KEY = '__sentry.transports';
+    public const CONTEXT_TRANSPORTS_KEY = '__sentry.transports';
 
     public function __construct(protected Pool $pool)
     {

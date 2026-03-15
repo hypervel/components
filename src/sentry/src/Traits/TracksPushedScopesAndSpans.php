@@ -109,10 +109,15 @@ trait TracksPushedScopesAndSpans
     }
 
     /**
+     * Context key prefix for per-class span tracking state.
+     */
+    public const SPANS_CONTEXT_PREFIX = '__sentry.spans.';
+
+    /**
      * Build a coroutine Context key scoped to this class.
      */
     private function contextKey(string $suffix): string
     {
-        return '__sentry.spans.' . static::class . '.' . $suffix;
+        return self::SPANS_CONTEXT_PREFIX . static::class . '.' . $suffix;
     }
 }

@@ -79,7 +79,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Context key for storing whether mass assignment is unguarded.
      */
-    protected const UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
+    public const UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
 
     /**
      * The connection name for the model.
