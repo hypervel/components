@@ -23,6 +23,13 @@ class CompilerEngine extends PhpEngine
     public const COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
 
     /**
+     * The view paths that were compiled or are not expired, keyed by the path.
+     *
+     * @var array<string, true>
+     */
+    protected static array $compiledOrNotExpired = [];
+
+    /**
      * Create a new compiler engine instance.
      */
     public function __construct(
@@ -44,7 +51,7 @@ class CompilerEngine extends PhpEngine
         // If this given view has expired, which means it has simply been edited since
         // it was last compiled, we will re-compile the views so we can evaluate a
         // fresh copy of the view. We'll pass the compiler the path of the view.
-        if ($this->compiler->isExpired($path)) {
+        if (! isset(static::$compiledOrNotExpired[$path]) && $this->compiler->isExpired($path)) {
             $this->compiler->compile($path);
         }
 
@@ -59,10 +66,16 @@ class CompilerEngine extends PhpEngine
                 throw $e;
             }
 
+            if (! isset(static::$compiledOrNotExpired[$path])) {
+                throw $e;
+            }
+
             $this->compiler->compile($path);
 
             $results = $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
         }
+
+        static::$compiledOrNotExpired[$path] = true;
 
         $this->popCompiledPath();
 
@@ -119,5 +132,13 @@ class CompilerEngine extends PhpEngine
     public function getCompiler(): CompilerInterface
     {
         return $this->compiler;
+    }
+
+    /**
+     * Clear the cache of views that were compiled or not expired.
+     */
+    public static function forgetCompiledOrNotExpired(): void
+    {
+        static::$compiledOrNotExpired = [];
     }
 }

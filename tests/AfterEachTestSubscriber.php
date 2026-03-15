@@ -76,6 +76,7 @@ use Hypervel\Support\StrCache;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Validation\Validator;
 use Hypervel\View\Component;
+use Hypervel\View\Engines\CompilerEngine;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
 use PHPUnit\Event\Test\FinishedSubscriber;
@@ -173,6 +174,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         UrlGenerator::flushRequestState();
         ValidateSignature::flushState();
         Validator::flushState();
+        CompilerEngine::forgetCompiledOrNotExpired();
         Component::flushCache();
         Component::forgetComponentsResolver();
         Component::forgetFactory();
