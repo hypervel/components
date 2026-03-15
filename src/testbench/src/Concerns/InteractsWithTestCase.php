@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
@@ -181,7 +182,7 @@ trait InteractsWithTestCase
         // Execute Invokable attributes (excluding WithConfig which runs earlier
         // in resolveApplicationBootstrappers() before providers boot)
         $attributes
-            ->filter(static fn ($instance) => $instance instanceof Invokable && ! $instance instanceof WithConfig)
+            ->filter(static fn ($instance) => $instance instanceof Invokable && ! $instance instanceof WithConfig && ! $instance instanceof WithEnv)
             ->each(fn ($instance) => $instance($this->app));
 
         // Execute Actionable attributes (like DefineRoute, DefineDatabase)

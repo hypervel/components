@@ -16,10 +16,11 @@ class RemoteCommandCleanupTest extends TestCase
 {
     public function testRemoteCommandDoesNotDeleteWorkbenchComposerLock(): void
     {
-        $composerLockPath = dirname(__DIR__, 2) . '/src/testbench/workbench/composer.lock';
+        $composerLockPath = BASE_PATH . '/composer.lock';
 
         // The workbench composer.lock is created by Bootstrapper::generateComposerLock()
-        // during test suite bootstrap. Verify it exists before the remote command runs.
+        // during test suite bootstrap in the runtime copy. Verify it exists before the
+        // remote command runs.
         $this->assertFileExists($composerLockPath);
 
         $result = remote('list')->mustRun();

@@ -20,7 +20,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => 'MockedUser',
+            'model' => Hypervel\Foundation\Auth\User::class,
         ],
     ],
 ];

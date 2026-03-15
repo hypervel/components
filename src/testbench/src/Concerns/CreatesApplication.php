@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Closure;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -25,6 +26,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Workbench\App\Exceptions\ExceptionHandler;
 
@@ -264,8 +266,14 @@ trait CreatesApplication
         // which runs WithConfig during LoadConfiguration, before RegisterProviders.
         $this->resolvePhpUnitAttributes()
             ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof WithConfig)
-            ->each(fn ($instance) => $instance($app));
+            ->filter(static fn ($instance) => $instance instanceof WithConfig || $instance instanceof WithEnv)
+            ->each(function ($instance) use ($app) {
+                $teardown = $instance($app);
+
+                if ($teardown instanceof Closure) {
+                    $this->beforeApplicationDestroyed($teardown);
+                }
+            });
 
         $app->make(RegisterProviders::class)->bootstrap($app);
         $app->make(GenerateProxies::class)->bootstrap($app);

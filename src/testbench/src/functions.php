@@ -61,15 +61,20 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 /**
  * Get the path to the default skeleton application.
  *
- * Returns the path to the workbench app used for testing.
+ * Returns the path to the runtime copy of the workbench app used for testing.
+ * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
  *
  * @param array<int, null|string>|string $path
  */
 function default_skeleton_path(array|string $path = ''): string|false
 {
-    return realpath(
-        join_paths(dirname(__DIR__), 'workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path))
-    );
+    if (! defined('BASE_PATH')) {
+        return false;
+    }
+
+    $result = join_paths(BASE_PATH, ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+
+    return realpath($result);
 }
 
 /**

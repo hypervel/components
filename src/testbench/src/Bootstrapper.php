@@ -12,9 +12,16 @@ use function Hypervel\Filesystem\join_paths;
 
 class Bootstrapper
 {
-    protected static $config = [];
+    protected static array $config = [];
 
     protected static ?Filesystem $filesystem = null;
+
+    /**
+     * The path to the disposable runtime copy of the workbench.
+     *
+     * Null until bootstrap() creates the copy.
+     */
+    protected static ?string $runtimePath = null;
 
     public static function bootstrap(): void
     {
@@ -22,10 +29,12 @@ class Bootstrapper
             $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : dirname(__DIR__)
         );
 
-        $basePath = "{$workingPath}/workbench";
+        $sourcePath = "{$workingPath}/workbench";
         if (static::$config['hypervel'] ?? null) {
-            $basePath = static::$config['hypervel'];
+            $sourcePath = static::$config['hypervel'];
         }
+
+        $basePath = static::createRuntimeCopy($sourcePath);
 
         ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
@@ -100,6 +109,68 @@ class Bootstrapper
             join_paths(BASE_PATH, '/.env'),
             implode(PHP_EOL, $env)
         );
+    }
+
+    /**
+     * Create a disposable runtime copy of the workbench directory.
+     *
+     * Tests write generated files (make:provider, make:model, etc.) and mutate
+     * bootstrap/providers.php into the app's basePath. By copying the workbench
+     * to a temp directory and using that as BASE_PATH, the committed workbench
+     * stays clean. The copy is deleted on shutdown.
+     */
+    protected static function createRuntimeCopy(string $sourcePath): string
+    {
+        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        $pid = getmypid();
+        $runtimePath = sys_get_temp_dir() . "/hypervel-components-testbench-{$token}-{$pid}";
+
+        $filesystem = static::getFilesystem();
+
+        // Purge stale dirs for this worker token from previous crashed runs.
+        // Only delete dirs whose PID is no longer running to avoid destroying
+        // a parent process's live copy when remote() spawns a subprocess.
+        foreach (glob(sys_get_temp_dir() . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
+            if (! $filesystem->isDirectory($staleDir)) {
+                continue;
+            }
+
+            $stalePid = (int) substr($staleDir, strrpos($staleDir, '-') + 1);
+
+            if ($stalePid > 0 && posix_kill($stalePid, 0)) {
+                continue; // Process still running — don't delete
+            }
+
+            $filesystem->deleteDirectory($staleDir);
+        }
+
+        $filesystem->copyDirectory($sourcePath, $runtimePath);
+
+        static::$runtimePath = $runtimePath;
+
+        register_shutdown_function(static function () {
+            static::deleteRuntimeCopy();
+        });
+
+        return $runtimePath;
+    }
+
+    /**
+     * Delete the disposable runtime copy.
+     */
+    protected static function deleteRuntimeCopy(): void
+    {
+        if (static::$runtimePath === null) {
+            return;
+        }
+
+        $filesystem = static::getFilesystem();
+
+        if ($filesystem->isDirectory(static::$runtimePath)) {
+            $filesystem->deleteDirectory(static::$runtimePath);
+        }
+
+        static::$runtimePath = null;
     }
 
     protected static function registerPurgeFiles(): void

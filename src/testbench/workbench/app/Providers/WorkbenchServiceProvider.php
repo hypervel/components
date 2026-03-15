@@ -12,21 +12,21 @@ class WorkbenchServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        $config = Bootstrapper::getConfig()['workbench']['discover'] ?? [];
+        $config = Bootstrapper::getConfig()['workbench']['discovers'] ?? [];
 
         if ($config['web'] ?? false) {
             Route::middleware('web')
-                ->group(dirname(__DIR__, 2) . '/routes/web.php');
+                ->group(base_path('routes/web.php'));
         }
 
         if ($config['api'] ?? false) {
             Route::middleware('api')
                 ->prefix('api')
-                ->group(dirname(__DIR__, 2) . '/routes/api.php');
+                ->group(base_path('routes/api.php'));
         }
 
         if ($config['commands'] ?? false) {
-            require dirname(__DIR__, 2) . '/routes/console.php';
+            require base_path('routes/console.php');
         }
     }
 }

@@ -29,5 +29,5 @@ return [
     |
     */
 
-    'compiled' => BASE_PATH . '/runtime/cache/views',
+    'compiled' => env('VIEW_COMPILED_PATH', BASE_PATH . '/runtime/cache/views'),
 ];

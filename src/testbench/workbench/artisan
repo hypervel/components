@@ -1,0 +1,51 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+ini_set('display_errors', 'on');
+ini_set('display_startup_errors', 'on');
+ini_set('memory_limit', '1G');
+
+error_reporting(E_ALL);
+
+! defined('BASE_PATH') && define('BASE_PATH', __DIR__);
+
+$autoloadPaths = array_filter([
+    getenv('HYPERVEL_AUTOLOAD_PATH') ?: null,
+    BASE_PATH . '/vendor/autoload.php',
+    getcwd() . '/vendor/autoload.php',
+    is_string(getenv('TESTBENCH_WORKING_PATH'))
+        ? dirname((string) getenv('TESTBENCH_WORKING_PATH'), 2) . '/vendor/autoload.php'
+        : null,
+]);
+
+foreach ($autoloadPaths as $autoloadPath) {
+    if (is_file($autoloadPath)) {
+        require $autoloadPath;
+        break;
+    }
+}
+
+if (! class_exists(Hypervel\Foundation\Application::class)) {
+    fwrite(STDERR, "Unable to locate Composer autoloader for the Hypervel testbench workbench.\n");
+    exit(1);
+}
+
+! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+
+(function () {
+    /** @var Hypervel\Contracts\Foundation\Application $app */
+    $app = require BASE_PATH . '/bootstrap/app.php';
+
+    $kernel = $app->make(Hypervel\Contracts\Console\Kernel::class);
+
+    $input = new Symfony\Component\Console\Input\ArgvInput();
+    $output = new Symfony\Component\Console\Output\ConsoleOutput();
+
+    $status = $kernel->handle($input, $output);
+
+    $kernel->terminate($input, $status);
+
+    exit($status);
+})();
