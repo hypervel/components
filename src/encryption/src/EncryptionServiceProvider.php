@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Encryption;
 
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
-use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
@@ -70,7 +69,7 @@ class EncryptionServiceProvider extends ServiceProvider
     /**
      * Extract the encryption key from the given configuration.
      *
-     * @throws \Hypervel\Encryption\Exceptions\MissingAppKeyException
+     * @throws \Hypervel\Encryption\MissingAppKeyException
      */
     protected function key(array $config): string
     {
