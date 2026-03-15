@@ -10,7 +10,7 @@ class AccessGateTestPolicyWithNonGuestBefore
 {
     public function before(Authenticatable $user)
     {
-        $_SERVER['__hyperf.testBefore'] = true;
+        $_SERVER['__hypervel.testBefore'] = true;
     }
 
     public function edit(?Authenticatable $user, AccessGateTestDummy $dummy)

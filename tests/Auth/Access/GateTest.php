@@ -115,7 +115,7 @@ class GateTest extends TestCase
 
     public function testPoliciesCanAllowGuests()
     {
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
 
         $gate = $this->getGuestGate();
 
@@ -123,7 +123,7 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertFalse($gate->check('update', new AccessGateTestDummy()));
-        $this->assertTrue($_SERVER['__hyperf.testBefore']);
+        $this->assertTrue($_SERVER['__hypervel.testBefore']);
 
         $gate = $this->getBasicGate();
 
@@ -132,12 +132,12 @@ class GateTest extends TestCase
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertTrue($gate->check('update', new AccessGateTestDummy()));
 
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
     }
 
     public function testPolicyBeforeNotCalledWithGuestsIfItDoesntAllowThem()
     {
-        $_SERVER['__hyperf.testBefore'] = false;
+        $_SERVER['__hypervel.testBefore'] = false;
 
         $gate = $this->getGuestGate();
 
@@ -145,34 +145,34 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertFalse($gate->check('update', new AccessGateTestDummy()));
-        $this->assertFalse($_SERVER['__hyperf.testBefore']);
+        $this->assertFalse($_SERVER['__hypervel.testBefore']);
 
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
     }
 
     public function testBeforeAndAfterCallbacksCanAllowGuests()
     {
-        $_SERVER['__hyperf.gateBefore'] = false;
-        $_SERVER['__hyperf.gateBefore2'] = false;
-        $_SERVER['__hyperf.gateAfter'] = false;
-        $_SERVER['__hyperf.gateAfter2'] = false;
+        $_SERVER['__hypervel.gateBefore'] = false;
+        $_SERVER['__hypervel.gateBefore2'] = false;
+        $_SERVER['__hypervel.gateAfter'] = false;
+        $_SERVER['__hypervel.gateAfter2'] = false;
 
         $gate = $this->getGuestGate();
 
         $gate->before(function (?Authenticatable $user) {
-            $_SERVER['__hyperf.gateBefore'] = true;
+            $_SERVER['__hypervel.gateBefore'] = true;
         });
 
         $gate->after(function (?Authenticatable $user) {
-            $_SERVER['__hyperf.gateAfter'] = true;
+            $_SERVER['__hypervel.gateAfter'] = true;
         });
 
         $gate->before(function (Authenticatable $user) {
-            $_SERVER['__hyperf.gateBefore2'] = true;
+            $_SERVER['__hypervel.gateBefore2'] = true;
         });
 
         $gate->after(function (Authenticatable $user) {
-            $_SERVER['__hyperf.gateAfter2'] = true;
+            $_SERVER['__hypervel.gateAfter2'] = true;
         });
 
         $gate->define('foo', function ($user = null) {
@@ -181,16 +181,16 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('foo'));
 
-        $this->assertTrue($_SERVER['__hyperf.gateBefore']);
-        $this->assertFalse($_SERVER['__hyperf.gateBefore2']);
-        $this->assertTrue($_SERVER['__hyperf.gateAfter']);
-        $this->assertFalse($_SERVER['__hyperf.gateAfter2']);
+        $this->assertTrue($_SERVER['__hypervel.gateBefore']);
+        $this->assertFalse($_SERVER['__hypervel.gateBefore2']);
+        $this->assertTrue($_SERVER['__hypervel.gateAfter']);
+        $this->assertFalse($_SERVER['__hypervel.gateAfter2']);
 
         unset(
-            $_SERVER['__hyperf.gateBefore'],
-            $_SERVER['__hyperf.gateBefore2'],
-            $_SERVER['__hyperf.gateAfter'],
-            $_SERVER['__hyperf.gateAfter2']
+            $_SERVER['__hypervel.gateBefore'],
+            $_SERVER['__hypervel.gateBefore2'],
+            $_SERVER['__hypervel.gateAfter'],
+            $_SERVER['__hypervel.gateAfter2']
         );
     }
 

@@ -55,8 +55,8 @@ class MailWatcher extends Watcher
      */
     protected function getMailable(MessageSent $event): string
     {
-        if (isset($event->data['__laravel_notification'])) {
-            return $event->data['__laravel_notification'];
+        if (isset($event->data['__hypervel_notification'])) {
+            return $event->data['__hypervel_notification'];
         }
 
         return $event->data['__telescope_mailable'] ?? '';
@@ -67,8 +67,8 @@ class MailWatcher extends Watcher
      */
     protected function getQueuedStatus(MessageSent $event): bool
     {
-        if (isset($event->data['__laravel_notification_queued'])) {
-            return $event->data['__laravel_notification_queued'];
+        if (isset($event->data['__hypervel_notification_queued'])) {
+            return $event->data['__hypervel_notification_queued'];
         }
 
         return $event->data['__telescope_queued'] ?? false;

@@ -62,7 +62,7 @@ EOF;
                     $this->compileProps($bindings),
                     $this->compileBindings($bindings),
                     class_exists($class) ? '{{ $attributes }}' : '',
-                    $this->compileSlots($data['__laravel_slots']),
+                    $this->compileSlots($data['__hypervel_slots']),
                     '{{ $slot ?? "" }}',
                 ],
                 $template

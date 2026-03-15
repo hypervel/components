@@ -126,9 +126,9 @@ class MailChannel
     protected function additionalMessageData(Notification $notification): array
     {
         return [
-            '__laravel_notification_id' => $notification->id,
-            '__laravel_notification' => get_class($notification),
-            '__laravel_notification_queued' => in_array(
+            '__hypervel_notification_id' => $notification->id,
+            '__hypervel_notification' => get_class($notification),
+            '__hypervel_notification_queued' => in_array(
                 ShouldQueue::class,
                 class_implements($notification)
             ),
