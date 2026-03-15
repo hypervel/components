@@ -1193,6 +1193,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ],
             'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             'view' => [\Hypervel\View\Factory::class, \Hypervel\Contracts\View\Factory::class],
+            'view.engine.resolver' => [\Hypervel\View\Engines\EngineResolver::class],
+            'view.finder' => [\Hypervel\View\ViewFinderInterface::class],
             'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
             'session' => [
                 \Hypervel\Session\SessionManager::class,

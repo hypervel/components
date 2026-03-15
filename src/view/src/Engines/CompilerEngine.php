@@ -20,7 +20,7 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    protected const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
+    public const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
 
     /**
      * Create a new compiler engine instance.
