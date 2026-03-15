@@ -697,7 +697,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->assertCount(1, $reported);
 
         // Simulate a new request by clearing the Context key.
-        Context::forget('__errors.reportedExceptionMap');
+        Context::forget(Handler::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
 
         $this->handler->report($exception);
 

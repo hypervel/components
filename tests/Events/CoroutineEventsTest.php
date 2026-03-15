@@ -137,24 +137,24 @@ class CoroutineEventsTest extends TestCase
         });
 
         // Before defer, no deferred event state should exist
-        $this->assertFalse(Context::get('__events.deferring', false));
-        $this->assertSame([], Context::get('__events.deferred_events', []));
-        $this->assertNull(Context::get('__events.events_to_defer'));
+        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
 
         $dispatcher->defer(function () use ($dispatcher) {
             // Inside defer, state should be active
-            $this->assertTrue(Context::get('__events.deferring', false));
+            $this->assertTrue(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
 
             $dispatcher->dispatch('test-event');
 
             // Deferred events should be collected
-            $this->assertNotEmpty(Context::get('__events.deferred_events', []));
+            $this->assertNotEmpty(Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
         });
 
         // After defer completes, state should be restored to pre-defer values
-        $this->assertFalse(Context::get('__events.deferring', false));
-        $this->assertSame([], Context::get('__events.deferred_events', []));
-        $this->assertNull(Context::get('__events.events_to_defer'));
+        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
     public function testContextKeysAreCleanedUpAfterDeferThrowsException()
@@ -178,9 +178,9 @@ class CoroutineEventsTest extends TestCase
         }
 
         // After exception, state should be restored to pre-defer values
-        $this->assertFalse(Context::get('__events.deferring', false));
-        $this->assertSame([], Context::get('__events.deferred_events', []));
-        $this->assertNull(Context::get('__events.events_to_defer'));
+        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
     public function testNestedDeferRestoresOuterStateAfterInnerCompletes()

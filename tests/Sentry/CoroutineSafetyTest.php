@@ -8,6 +8,7 @@ use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
+use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use Sentry\SentrySdk;
@@ -70,7 +71,7 @@ class CoroutineSafetyTest extends TestCase
         $this->pushSpanOnHandler($handler, $parentSpan);
 
         // Verify parent has a span on its stack
-        $parentStackKey = '__sentry.tracing.current_spans';
+        $parentStackKey = TracingEventHandler::CONTEXT_CURRENT_SPANS_KEY;
         $parentStack = Context::get($parentStackKey, []);
         $this->assertCount(1, $parentStack);
 
@@ -97,8 +98,8 @@ class CoroutineSafetyTest extends TestCase
         // The trait uses Context keys namespaced by class name.
         // Verify that different coroutines get independent stacks.
         $featureClass = 'Hypervel\Sentry\Features\CacheFeature';
-        $scopeKey = '__sentry.spans.' . $featureClass . '.scope_count';
-        $currentSpansKey = '__sentry.spans.' . $featureClass . '.current_spans';
+        $scopeKey = TracksPushedScopesAndSpans::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
+        $currentSpansKey = TracksPushedScopesAndSpans::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
 
         // Simulate pushing scope/span state in parent
         Context::set($scopeKey, 3);

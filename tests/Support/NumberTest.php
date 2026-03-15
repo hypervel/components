@@ -166,7 +166,7 @@ class NumberTest extends TestCase
         Number::useLocale('de');
 
         $this->assertSame('de', Number::defaultLocale());
-        $this->assertSame('de', Context::get('__support.number.locale'));
+        $this->assertSame('de', Context::get(Number::LOCALE_CONTEXT_KEY));
     }
 
     public function testUseCurrencyStoresInContext(): void
@@ -176,19 +176,19 @@ class NumberTest extends TestCase
         Number::useCurrency('EUR');
 
         $this->assertSame('EUR', Number::defaultCurrency());
-        $this->assertSame('EUR', Context::get('__support.number.currency'));
+        $this->assertSame('EUR', Context::get(Number::CURRENCY_CONTEXT_KEY));
     }
 
     public function testDefaultLocaleReturnsStaticDefaultWhenNotSet(): void
     {
         $this->assertSame('en', Number::defaultLocale());
-        $this->assertNull(Context::get('__support.number.locale'));
+        $this->assertNull(Context::get(Number::LOCALE_CONTEXT_KEY));
     }
 
     public function testDefaultCurrencyReturnsStaticDefaultWhenNotSet(): void
     {
         $this->assertSame('USD', Number::defaultCurrency());
-        $this->assertNull(Context::get('__support.number.currency'));
+        $this->assertNull(Context::get(Number::CURRENCY_CONTEXT_KEY));
     }
 
     public function testWithLocaleTemporarilySetsLocale(): void
@@ -347,12 +347,12 @@ class NumberTest extends TestCase
     public function testUseCurrencyActuallySetsValue(): void
     {
         // Before the fix, useCurrency() called Context::get() which doesn't set anything
-        $this->assertNull(Context::get('__support.number.currency'));
+        $this->assertNull(Context::get(Number::CURRENCY_CONTEXT_KEY));
 
         Number::useCurrency('JPY');
 
         // After calling useCurrency, the value should be set in Context
-        $this->assertSame('JPY', Context::get('__support.number.currency'));
+        $this->assertSame('JPY', Context::get(Number::CURRENCY_CONTEXT_KEY));
         $this->assertSame('JPY', Number::defaultCurrency());
     }
 
