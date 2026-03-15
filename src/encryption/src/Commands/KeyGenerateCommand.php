@@ -4,26 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption\Commands;
 
-use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Encrypter;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'key:generate')]
 class KeyGenerateCommand extends Command
 {
     use ConfirmableTrait;
 
-    public function __construct(
-        protected Container $container,
-        protected Repository $config
-    ) {
-        parent::__construct('key:generate');
-    }
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = 'key:generate
+                    {--show : Display the key instead of modifying files}
+                    {--force : Force the operation to run when in production}';
 
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Set the application key';
+
+    /**
+     * Execute the console command.
+     */
     public function handle()
     {
         $key = $this->generateRandomKey();
@@ -39,16 +44,9 @@ class KeyGenerateCommand extends Command
             return;
         }
 
-        $this->config->set('app.key', $key);
+        $this->hypervel['config']['app.key'] = $key;
 
-        $this->info('Application key set successfully.');
-    }
-
-    protected function configure(): void
-    {
-        $this->setDescription('Set the application key')
-            ->addOption('show', null, InputOption::VALUE_OPTIONAL, 'Display the key instead of modifying files')
-            ->addOption('force', null, InputOption::VALUE_OPTIONAL, 'Force the operation to run when in production');
+        $this->components->info('Application key set successfully.');
     }
 
     /**
@@ -56,10 +54,8 @@ class KeyGenerateCommand extends Command
      */
     protected function generateRandomKey(): string
     {
-        $cipher = $this->config->get('app.cipher');
-
         return 'base64:' . base64_encode(
-            Encrypter::generateKey($cipher)
+            Encrypter::generateKey($this->hypervel['config']['app.cipher'])
         );
     }
 
@@ -68,9 +64,9 @@ class KeyGenerateCommand extends Command
      */
     protected function setKeyInEnvironmentFile(string $key): bool
     {
-        $currentKey = $this->config->get('app.key');
+        $currentKey = $this->hypervel['config']['app.key'];
 
-        if (strlen($currentKey ?: '') !== 0 && (! $this->confirmToProceed())) {
+        if (strlen($currentKey) !== 0 && (! $this->confirmToProceed())) {
             return false;
         }
 
@@ -86,21 +82,23 @@ class KeyGenerateCommand extends Command
      */
     protected function writeNewEnvironmentFileWith(string $key): bool
     {
-        $envPath = $this->hypervel->environmentFilePath();
-
         $replaced = preg_replace(
             $this->keyReplacementPattern(),
             'APP_KEY=' . $key,
-            $input = file_get_contents($envPath)
+            $input = file_get_contents($this->hypervel->environmentFilePath())
         );
 
         if ($replaced === $input || $replaced === null) {
-            $this->error('Unable to set application key. No APP_KEY variable was found in the .env file.');
+            if (isset($_ENV['APP_KEY'])) {
+                $this->components->error('Unable to set application key. APP_KEY is already present in the environment.');
+            } else {
+                $this->components->error('Unable to set application key. No APP_KEY variable was found in the .env file.');
+            }
 
             return false;
         }
 
-        file_put_contents($envPath, $replaced);
+        file_put_contents($this->hypervel->environmentFilePath(), $replaced);
 
         return true;
     }
@@ -110,9 +108,7 @@ class KeyGenerateCommand extends Command
      */
     protected function keyReplacementPattern(): string
     {
-        $key = $this->config->get('app.key');
-
-        $escaped = preg_quote('=' . $key, '/');
+        $escaped = preg_quote('=' . $this->hypervel['config']['app.key'], '/');
 
         return "/^APP_KEY{$escaped}/m";
     }
