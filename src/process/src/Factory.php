@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Macroable\Macroable;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class Factory

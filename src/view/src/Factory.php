@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Closure;
-use Hypervel\Container\Contracts\Container;
 use Hypervel\Context\Context;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\View\Contracts\Engine;
-use Hypervel\View\Contracts\Factory as FactoryContract;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 
@@ -31,12 +31,12 @@ class Factory implements FactoryContract
     /**
      * The number of active rendering operations.
      */
-    protected const RENDER_COUNT_CONTEXT_KEY = 'render_count';
+    protected const RENDER_COUNT_CONTEXT_KEY = '__view.render_count';
 
     /**
      * The "once" block IDs that have been rendered.
      */
-    protected const RENDERED_ONCE_CONTEXT_KEY = 'rendered_once';
+    protected const RENDERED_ONCE_CONTEXT_KEY = '__view.rendered_once';
 
     /**
      * The IoC container instance.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Operations;
 
 use Generator;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -111,8 +112,7 @@ final class SafeScan
      */
     private function scanStandard(string $scanPattern, int $count, int $prefixLen): Generator
     {
-        // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
-        $iterator = $this->getInitialCursor();
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // SCAN returns keys as they exist in Redis (with full prefix)
@@ -152,7 +152,7 @@ final class SafeScan
 
         foreach ($masters as $master) {
             // Each master node needs its own cursor
-            $iterator = $this->getInitialCursor();
+            $iterator = PhpRedis::initialScanCursor();
 
             do {
                 // RedisCluster::scan() signature: scan(&$iter, $node, $pattern, $count)
@@ -173,18 +173,5 @@ final class SafeScan
                 }
             } while ($iterator > 0);
         }
-    }
-
-    /**
-     * Get the initial cursor value based on phpredis version.
-     *
-     * phpredis 6.1.0+ uses null as initial cursor, older versions use 0.
-     */
-    private function getInitialCursor(): ?int
-    {
-        return match (true) {
-            version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,
-            default => 0,
-        };
     }
 }

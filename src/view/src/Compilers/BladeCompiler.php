@@ -7,15 +7,15 @@ namespace Hypervel\View\Compilers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface
@@ -46,17 +46,17 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /*
      * Temporarily store the raw blocks found in the template.
      */
-    protected const RAW_BLOCKS_CONTEXT_KEY = 'raw_blocks';
+    protected const RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
 
     /*
      * Footer lines to be added to the template.
      */
-    protected const FOOTER_CONTEXT_KEY = 'footer';
+    protected const FOOTER_CONTEXT_KEY = '__view.footer';
 
     /**
      * The "regular" / legacy echo string format.
      */
-    protected const ECHO_FORMAT_CONTEXT_KEY = 'echo_format';
+    protected const ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
 
     /**
      * All of the registered extensions.
@@ -264,7 +264,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         };
 
         $view = Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->make($component->resolveView(), $data);
 
         return tap($view->render(), function () use ($view, $deleteCachedView) {
@@ -290,7 +290,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             return $view->toHtml();
         }
         return Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->make($view, $data)
             ->render();
     }
@@ -522,7 +522,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     {
         $tokens = token_get_all('<?php ' . $expression);
 
-        if (Arr::last($tokens) !== ')') {
+        if (array_last($tokens) !== ')') {
             return false;
         }
 
@@ -698,7 +698,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         ];
 
         Container::getInstance()
-            ->get(ViewFactory::class)
+            ->make(ViewFactory::class)
             ->addNamespace($prefixHash, $path);
     }
 
@@ -752,7 +752,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function aliasComponent(string $path, ?string $alias = null): void
     {
-        $alias = $alias ?: Arr::last(explode('.', $path));
+        $alias = $alias ?: array_last(explode('.', $path));
 
         $this->directive($alias, function ($expression) use ($path) {
             return $expression
@@ -778,7 +778,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function aliasInclude(string $path, ?string $alias = null): void
     {
-        $alias = $alias ?: Arr::last(explode('.', $path));
+        $alias = $alias ?: array_last(explode('.', $path));
 
         $this->directive($alias, function ($expression) use ($path) {
             $expression = $this->stripParentheses($expression) ?: '[]';

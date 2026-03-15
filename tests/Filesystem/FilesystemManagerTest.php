@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
@@ -203,7 +200,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = (new FilesystemManager($container))
             ->addPoolable('local');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
     }
@@ -276,15 +273,15 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
-    protected function getContainer(array $config = []): ContainerInterface
+    protected function getContainer(array $config = []): Container
     {
-        $config = new Config(['filesystems' => $config]);
+        $config = new Repository(['filesystems' => $config]);
 
-        return new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => $config,
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance('config', $config);
+        $container->instance(ContainerContract::class, $container);
+        $container->singleton(PoolFactory::class, PoolManager::class);
+
+        return $container;
     }
 }

@@ -6,7 +6,8 @@ namespace Hypervel\Tests\Foundation;
 
 use Carbon\Carbon;
 use DateTimeZone;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\TestCase;
 
 enum HelpersTestStringEnum: string
 {
@@ -144,5 +145,43 @@ class HelpersTest extends TestCase
         $result = today(null);
 
         $this->assertInstanceOf(Carbon::class, $result);
+    }
+
+    public function testEventHelperReturnsArrayForNormalDispatch()
+    {
+        Event::listen('test.event', function () {
+            return 'response';
+        });
+
+        $result = event('test.event');
+
+        $this->assertIsArray($result);
+        $this->assertSame(['response'], $result);
+    }
+
+    public function testEventHelperReturnsNonArrayForHaltedDispatch()
+    {
+        Event::listen('test.halted', function () {
+            return 42;
+        });
+
+        $result = event('test.halted', [], true);
+
+        $this->assertSame(42, $result);
+    }
+
+    public function testEventHelperReturnsNullWhenNoListenersAndHalted()
+    {
+        $result = event('test.no-listeners', [], true);
+
+        $this->assertNull($result);
+    }
+
+    public function testEventHelperReturnsEmptyArrayWhenNoListeners()
+    {
+        $result = event('test.no-listeners');
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result);
     }
 }

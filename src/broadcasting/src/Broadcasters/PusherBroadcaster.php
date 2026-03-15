@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class PusherBroadcaster extends Broadcaster
 {
@@ -21,7 +21,7 @@ class PusherBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Pusher $pusher
     ) {
     }
@@ -32,7 +32,7 @@ class PusherBroadcaster extends Broadcaster
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication
      * See: https://pusher.com/docs/channels/server_api/authenticating-users/#response
      */
-    public function resolveAuthenticatedUser(RequestInterface $request): ?array
+    public function resolveAuthenticatedUser(Request $request): ?array
     {
         if (! $user = parent::resolveAuthenticatedUser($request)) {
             return null;
@@ -66,7 +66,7 @@ class PusherBroadcaster extends Broadcaster
      *
      * @throws AccessDeniedHttpException
      */
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         $channelName = $request->input('channel_name');
         $normalizeChannelName = $this->normalizeChannelName($channelName);
@@ -86,7 +86,7 @@ class PusherBroadcaster extends Broadcaster
     /**
      * Return the valid authentication response.
      */
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         $channelName = $request->input('channel_name');
         $socketId = $request->input('socket_id');

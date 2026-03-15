@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Testbench\ConfigProviderRegister;
 use ReflectionException;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -41,7 +40,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        $app->get(ConfigInterface::class)
+        $app->make('config')
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -52,7 +51,11 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        tap($app->get(ConfigInterface::class), function (ConfigInterface $config) {
+        tap($app->make('config'), function (Repository $config) {
+            // Set a dummy DSN so the ServiceProvider boots features in active mode.
+            // The before_send callback below returns null to suppress actual sending.
+            $config->set('sentry.dsn', 'https://key@sentry.test/1');
+
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
@@ -75,22 +78,16 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         });
     }
 
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        ConfigProviderRegister::add(SentryServiceProvider::class);
-        parent::setUp();
-    }
-
-    protected function refreshApplication(): void
-    {
-        parent::refreshApplication();
-        $this->defineEnvironment($this->app);
-        $this->app->register(SentryServiceProvider::class, true);
+        return [
+            SentryServiceProvider::class,
+        ];
     }
 
     protected function getSentryHubFromContainer(): HubInterface
     {
-        return $this->app->get(HubInterface::class);
+        return $this->app->make(HubInterface::class);
     }
 
     protected function getSentryClientFromContainer(): ClientInterface

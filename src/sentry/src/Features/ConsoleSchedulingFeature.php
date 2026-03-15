@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use DateTimeZone;
-use Hypervel\Cache\Contracts\Factory as Cache;
-use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -113,14 +113,14 @@ class ConsoleSchedulingFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable('console_scheduling')
-            || $this->switcher->isBreadcrumbEnable('console_scheduling');
+        return $this->isTracingFeatureEnabled('console_scheduling')
+            || $this->isBreadcrumbFeatureEnabled('console_scheduling');
     }
 
     public function onBoot(): void
     {
         $this->shouldHandleCheckIn = true;
-        $dispatcher = $this->container()->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
 
         $dispatcher->listen(ScheduledTaskStarting::class, [$this, 'handleScheduledTaskStarting']);
         $dispatcher->listen(ScheduledTaskFinished::class, [$this, 'handleScheduledTaskFinished']);

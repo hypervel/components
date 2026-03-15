@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Tests\Sentry\SentryTestCase;
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery as m;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
@@ -22,8 +21,6 @@ use Sentry\Tracing\SpanStatus;
  */
 class NotificationsFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.breadcrumbs.notifications' => true,
         'sentry.tracing.notifications' => true,
@@ -35,7 +32,7 @@ class NotificationsFeatureTest extends SentryTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $app->instance(ViewFactory::class, m::mock(ViewFactory::class)->shouldIgnoreMissing());
     }
 
     public function testSpanIsRecorded(): void

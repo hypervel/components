@@ -63,11 +63,9 @@ class Scout
     }
 
     /**
-     * Reset the job classes to their defaults.
-     *
-     * Useful for testing to ensure clean state between tests.
+     * Flush all static state back to defaults.
      */
-    public static function resetJobClasses(): void
+    public static function flushState(): void
     {
         static::$makeSearchableJob = MakeSearchable::class;
         static::$removeFromSearchJob = RemoveFromSearch::class;

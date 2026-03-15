@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Traits;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
 
 trait ResolvesEventOrigin
 {
+    /**
+     * Retrieve the application container.
+     */
+    protected function container(): Container
+    {
+        return app();
+    }
+
     protected function resolveEventOrigin(): ?array
     {
-        $backtraceHelper = $this->getBacktraceHelper();
+        $backtraceHelper = $this->makeBacktraceHelper();
 
         // We limit the backtrace to 20 frames to prevent too much overhead and we'd reasonable expect the origin to be within the first 20 frames
         $firstAppFrame = $backtraceHelper->findFirstInAppFrameForBacktrace(
@@ -43,8 +52,8 @@ trait ResolvesEventOrigin
         return "{$origin['code.filepath']}:{$origin['code.lineno']}";
     }
 
-    private function getBacktraceHelper(): BacktraceHelper
+    private function makeBacktraceHelper(): BacktraceHelper
     {
-        return $this->container()->get(BacktraceHelper::class);
+        return $this->container()->make(BacktraceHelper::class);
     }
 }

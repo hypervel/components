@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Tests\Validation\fixtures\Values;
+use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
@@ -93,6 +93,51 @@ class ValidationContainsRuleTest extends TestCase
 
         // Combined with other rules
         $v = new Validator($trans, ['x' => ['foo', 'bar']], ['x' => ['required', 'array', Rule::contains('foo')]]);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testContainsValidation()
+    {
+        $trans = new Translator(new ArrayLoader(), 'en');
+
+        // Test fails when value is string
+        $v = new Validator($trans, ['roles' => 'admin'], ['roles' => Rule::contains('editor')]);
+        $this->assertTrue($v->fails());
+
+        // Test passes when array contains the value
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => Rule::contains('admin')]);
+        $this->assertTrue($v->passes());
+
+        // Test fails when array doesn't contain all the values
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => Rule::contains(['admin', 'editor'])]);
+        $this->assertTrue($v->fails());
+
+        // Test fails when array doesn't contain all the values (using multiple arguments)
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => Rule::contains('admin', 'editor')]);
+        $this->assertTrue($v->fails());
+
+        // Test passes when array contains all the values
+        $v = new Validator($trans, ['roles' => ['admin', 'user', 'editor']], ['roles' => Rule::contains(['admin', 'editor'])]);
+        $this->assertTrue($v->passes());
+
+        // Test passes when array contains all the values (using multiple arguments)
+        $v = new Validator($trans, ['roles' => ['admin', 'user', 'editor']], ['roles' => Rule::contains('admin', 'editor')]);
+        $this->assertTrue($v->passes());
+
+        // Test fails when array doesn't contain the value
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => Rule::contains('editor')]);
+        $this->assertTrue($v->fails());
+
+        // Test fails when array doesn't contain any of the values
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => Rule::contains(['editor', 'manager'])]);
+        $this->assertTrue($v->fails());
+
+        // Test with empty array
+        $v = new Validator($trans, ['roles' => []], ['roles' => Rule::contains('admin')]);
+        $this->assertTrue($v->fails());
+
+        // Test with nullable field
+        $v = new Validator($trans, ['roles' => null], ['roles' => ['nullable', Rule::contains('admin')]]);
         $this->assertTrue($v->passes());
     }
 }

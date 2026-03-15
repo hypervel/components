@@ -4,26 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Integrations;
 
+// @TODO: Uncomment once Hypervel\Foundation\Configuration\Exceptions is ported
+// use Hypervel\Foundation\Configuration\Exceptions;
+use Hypervel\Context\Context;
+use Hypervel\Routing\Route;
+use Hypervel\Sentry\Integrations\ModelViolations as ModelViolationReports;
 use Sentry\Breadcrumb;
 use Sentry\Event;
+use Sentry\EventHint;
+use Sentry\EventId;
+use Sentry\ExceptionMechanism;
 use Sentry\Integration\IntegrationInterface;
+use Sentry\Logs\Logs;
+use Sentry\Metrics\TraceMetrics;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
-use Sentry\Tracing\Span;
+use Sentry\Tracing\TransactionSource;
+use Throwable;
 
 use function Sentry\addBreadcrumb;
 use function Sentry\configureScope;
 use function Sentry\getBaggage;
+use function Sentry\getTraceparent;
 
 use const SWOOLE_VERSION;
 
 class Integration implements IntegrationInterface
 {
-    private static ?string $transaction = null;
+    private const CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
 
     public function setupOnce(): void
     {
-        Scope::addGlobalEventProcessor(function (Event $event): Event {
+        Scope::addGlobalEventProcessor(static function (Event $event): Event {
             $self = SentrySdk::getCurrentHub()->getIntegration(self::class);
 
             if (! $self instanceof self) {
@@ -36,23 +48,27 @@ class Integration implements IntegrationInterface
                 ]);
             }
 
-            if (defined('\Swow\Extension::VERSION')) {
-                $event->setContext('swow', [
-                    /* @phpstan-ignore-next-line */
-                    'version' => \Swow\Extension::VERSION,
-                ]);
-            }
-
             if (empty($event->getTransaction())) {
-                $event->setTransaction($self->getTransaction());
+                $event->setTransaction(self::getTransaction());
             }
 
             return $event;
         });
     }
 
+    // @TODO: Uncomment once Hypervel\Foundation\Configuration\Exceptions is ported
+    // /**
+    //  * Register the exception handler with the Hypervel exception configuration.
+    //  */
+    // public static function handles(Exceptions $exceptions): void
+    // {
+    //     $exceptions->reportable(static function (Throwable $exception) {
+    //         self::captureUnhandledException($exception);
+    //     });
+    // }
+
     /**
-     * Adds a breadcrumb.
+     * Add a breadcrumb if the integration is enabled.
      */
     public static function addBreadcrumb(Breadcrumb $breadcrumb): void
     {
@@ -66,7 +82,7 @@ class Integration implements IntegrationInterface
     }
 
     /**
-     * Configures the scope.
+     * Configure the scope if the integration is enabled.
      */
     public static function configureScope(callable $callback): void
     {
@@ -79,18 +95,24 @@ class Integration implements IntegrationInterface
         configureScope($callback);
     }
 
+    /**
+     * Get the current transaction name from coroutine-local storage.
+     */
     public static function getTransaction(): ?string
     {
-        return self::$transaction;
-    }
-
-    public static function setTransaction(?string $transaction): void
-    {
-        self::$transaction = $transaction;
+        return Context::get(self::CONTEXT_TRANSACTION_KEY);
     }
 
     /**
-     * Block until all async events are processed for the HTTP transport.
+     * Set the current transaction name in coroutine-local storage.
+     */
+    public static function setTransaction(?string $transaction): void
+    {
+        Context::set(self::CONTEXT_TRANSACTION_KEY, $transaction);
+    }
+
+    /**
+     * Block until all events are processed by the PHP SDK client.
      *
      * @internal this is not part of the public API and is here temporarily until
      *  the underlying issue can be resolved, this method will be removed
@@ -101,7 +123,25 @@ class Integration implements IntegrationInterface
 
         if ($client !== null) {
             $client->flush();
+
+            Logs::getInstance()->flush();
+            TraceMetrics::getInstance()->flush();
         }
+    }
+
+    /**
+     * Extract the readable name and transaction source for a route.
+     *
+     * @return array{0: string, 1: TransactionSource}
+     *
+     * @internal this helper is used in various places to extract meaningful info from a Route object
+     */
+    public static function extractNameAndSourceForRoute(Route $route): array
+    {
+        return [
+            '/' . ltrim($route->uri(), '/'),
+            TransactionSource::route(),
+        ];
     }
 
     /**
@@ -114,17 +154,11 @@ class Integration implements IntegrationInterface
     }
 
     /**
-     * Retrieve the meta tags with tracing information to link this request to front-end requests.
+     * Retrieve the `sentry-trace` meta tag with tracing information to link this request to front-end requests.
      */
     public static function sentryTracingMeta(): string
     {
-        $span = self::currentTracingSpan();
-
-        if ($span === null) {
-            return '';
-        }
-
-        return sprintf('<meta name="sentry-trace" content="%s"/>', $span->toTraceparent());
+        return sprintf('<meta name="sentry-trace" content="%s"/>', self::escapeMetaTagContent(getTraceparent()));
     }
 
     /**
@@ -133,16 +167,101 @@ class Integration implements IntegrationInterface
      */
     public static function sentryBaggageMeta(): string
     {
-        return sprintf('<meta name="baggage" content="%s"/>', getBaggage());
+        return sprintf('<meta name="baggage" content="%s"/>', self::escapeMetaTagContent(getBaggage()));
     }
 
     /**
-     * Get the current active tracing span from the scope.
-     *
-     * @internal this is used internally as an easy way to retrieve the current active tracing span
+     * Capture an unhandled exception and report it to Sentry.
      */
-    public static function currentTracingSpan(): ?Span
+    public static function captureUnhandledException(Throwable $throwable): ?EventId
     {
-        return SentrySdk::getCurrentHub()->getSpan();
+        // We instruct users to call `captureUnhandledException` in their exception handler, however this does not mean
+        // the exception was actually unhandled. Hypervel has the `report` helper function that is used to report to a log
+        // file or Sentry, but that means they are handled otherwise they wouldn't have been routed through `report`. So to
+        // prevent marking those as "unhandled" we try and make an educated guess if the call to `captureUnhandledException`
+        // came from the `report` helper and shouldn't be marked as "unhandled" even though they come to us here to be reported
+        $handled = self::makeAnEducatedGuessIfTheExceptionMaybeWasHandled();
+
+        $hint = EventHint::fromArray([
+            'mechanism' => new ExceptionMechanism(ExceptionMechanism::TYPE_GENERIC, $handled),
+        ]);
+
+        return SentrySdk::getCurrentHub()->captureException($throwable, $hint);
+    }
+
+    /**
+     * Return a callback for `Model::handleMissingAttributeViolationUsing` to report missing attribute violations to Sentry.
+     */
+    public static function missingAttributeViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
+    {
+        return new ModelViolationReports\MissingAttributeModelViolationReporter($callback, $suppressDuplicateReports, $reportAfterResponse);
+    }
+
+    /**
+     * Return a callback for `Model::handleLazyLoadingViolationUsing` to report lazy loading violations to Sentry.
+     */
+    public static function lazyLoadingViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
+    {
+        return new ModelViolationReports\LazyLoadingModelViolationReporter($callback, $suppressDuplicateReports, $reportAfterResponse);
+    }
+
+    /**
+     * Return a callback for `Model::handleDiscardedAttributeViolationUsing` to report discarded attribute violations to Sentry.
+     */
+    public static function discardedAttributeViolationReporter(?callable $callback = null, bool $suppressDuplicateReports = true, bool $reportAfterResponse = true): callable
+    {
+        return new ModelViolationReports\DiscardedAttributeViolationReporter($callback, $suppressDuplicateReports, $reportAfterResponse);
+    }
+
+    /**
+     * Escape a value for safe use in an HTML meta tag content attribute.
+     */
+    private static function escapeMetaTagContent(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Try to make an educated guess if the call came from the `report` helper.
+     *
+     * @see https://github.com/laravel/framework/blob/008a4dd49c3a13343137d2bc43297e62006c7f29/src/Illuminate/Foundation/helpers.php#L667-L682
+     */
+    private static function makeAnEducatedGuessIfTheExceptionMaybeWasHandled(): bool
+    {
+        // We limit the amount of backtrace frames since it is very unlikely to be any deeper
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20);
+
+        // We are looking for `$handler->report()` to be called from the `report()` function
+        foreach ($trace as $frameIndex => $frame) {
+            // We need a frame with a class defined, we can skip top-level function frames
+            if (! isset($frame['class'])) {
+                continue;
+            }
+
+            // Check if the frame was indeed `$handler->report()`
+            if ($frame['type'] !== '->' || $frame['function'] !== 'report') {
+                continue;
+            }
+
+            // Make sure we have a next frame, we could have reached the end of the trace
+            if (! isset($trace[$frameIndex + 1])) {
+                continue;
+            }
+
+            // The next frame should contain the call to the `report()` helper function
+            $nextFrame = $trace[$frameIndex + 1];
+
+            // If a class was set or the function name is not `report` we can skip this frame
+            if (isset($nextFrame['class']) || $nextFrame['function'] !== 'report') {
+                continue;
+            }
+
+            // If we reached this point we can be pretty sure the `report` function was called
+            // and we can come to the educated conclusion the exception was indeed handled
+            return true;
+        }
+
+        // If we reached this point we can be pretty sure the `report` function was not called
+        return false;
     }
 }

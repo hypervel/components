@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Model;
 use Hypervel\Auth\Authenticatable as AuthenticatableUser;
-use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\Providers\EloquentUserProvider;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -36,7 +36,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testRetrievingWithOnlyPasswordCredentialReturnsNull()
     {
-        $provider = $this->getProviderMock();
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), User::class);
         $user = $provider->retrieveByCredentials(['api_password' => 'foo']);
 
         $this->assertNull($user);
@@ -77,7 +77,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testRetrieveByCredentialsWithMultiplyPasswordsReturnsNull()
     {
-        $provider = $this->getProviderMock();
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), User::class);
         $user = $provider->retrieveByCredentials([
             'password' => 'dayle',
             'password2' => 'night',

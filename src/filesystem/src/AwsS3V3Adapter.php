@@ -6,7 +6,7 @@ namespace Hypervel\Filesystem;
 
 use Aws\S3\S3Client;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
 use League\Flysystem\FilesystemOperator;
 use RuntimeException;

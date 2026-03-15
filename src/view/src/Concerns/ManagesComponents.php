@@ -6,37 +6,37 @@ namespace Hypervel\View\Concerns;
 
 use Closure;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\ComponentSlot;
-use Hypervel\View\Contracts\View;
 
 trait ManagesComponents
 {
     /**
      * Context key for the components being rendered.
      */
-    protected const COMPONENT_STACK_CONTEXT_KEY = 'component_stack';
+    protected const COMPONENT_STACK_CONTEXT_KEY = '__view.component_stack';
 
     /**
      * Context key for the original data passed to the component.
      */
-    protected const COMPONENT_DATA_CONTEXT_KEY = 'component_data';
+    protected const COMPONENT_DATA_CONTEXT_KEY = '__view.component_data';
 
     /**
      * Context key for the component data for the component that is currently being rendered.
      */
-    protected const CURRENT_COMPONENT_DATA_CONTEXT_KEY = 'current_component_data';
+    protected const CURRENT_COMPONENT_DATA_CONTEXT_KEY = '__view.current_component_data';
 
     /**
      * Context key for the slot contents for the component.
      */
-    protected const SLOTS_CONTEXT_KEY = 'slots';
+    protected const SLOTS_CONTEXT_KEY = '__view.slots';
 
     /**
      * Context key for the names of the slots being rendered.
      */
-    protected const SLOT_STACK_CONTEXT_KEY = 'slot_stack';
+    protected const SLOT_STACK_CONTEXT_KEY = '__view.slot_stack';
 
     /**
      * Start a component rendering process.
@@ -61,7 +61,7 @@ trait ManagesComponents
         return count($componentStack);
     }
 
-    protected function popComponentStack(): View|Htmlable|Closure|string
+    protected function popComponentStack(): View|Htmlable|Closure|string|null
     {
         $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         $view = array_pop($componentStack);
@@ -145,7 +145,7 @@ trait ManagesComponents
             $componentData[$stackCount] ?? [],
             ['slot' => $defaultSlot],
             $slotsData[$stackCount] ?? [],
-            ['__laravel_slots' => $slots]
+            ['__hypervel_slots' => $slots]
         );
     }
 

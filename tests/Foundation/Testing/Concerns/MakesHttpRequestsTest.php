@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\HttpMessage\Base\Response;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Foundation\Testing\Http\ServerResponse;
-use Hypervel\Foundation\Testing\Http\TestResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
-use Hypervel\Router\RouteFileCollector;
+use Hypervel\Http\Response;
+use Hypervel\Routing\Router;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
 
 /**
@@ -23,8 +21,6 @@ use PHPUnit\Framework\AssertionFailedError;
  */
 class MakesHttpRequestsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testWithTokenSetsAuthorizationHeader()
     {
         $this->withToken('foobar');
@@ -67,7 +63,7 @@ class MakesHttpRequestsTest extends TestCase
 
         $this->withoutMiddleware();
         $this->assertTrue($this->app->has('middleware.disable'));
-        $this->assertTrue($this->app->get('middleware.disable'));
+        $this->assertTrue($this->app->make('middleware.disable'));
 
         $this->withMiddleware();
         $this->assertFalse($this->app->has('middleware.disable'));
@@ -82,18 +78,18 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertFalse($this->app->bound(MyMiddleware::class));
         $this->assertSame(
             'fooWithMiddleware',
-            $this->app->get(MyMiddleware::class)->handle('foo', $next)
+            $this->app->make(MyMiddleware::class)->handle('foo', $next)
         );
 
         $this->withoutMiddleware(MyMiddleware::class);
         $this->assertTrue($this->app->bound(MyMiddleware::class));
-        $this->assertInstanceOf(FakeMiddleware::class, $this->app->get(MyMiddleware::class));
+        $this->assertInstanceOf(FakeMiddleware::class, $this->app->make(MyMiddleware::class));
 
         $this->withMiddleware(MyMiddleware::class);
         $this->assertFalse($this->app->bound(MyMiddleware::class));
         $this->assertSame(
             'fooWithMiddleware',
-            $this->app->get(MyMiddleware::class)->handle('foo', $next)
+            $this->app->make(MyMiddleware::class)->handle('foo', $next)
         );
     }
 
@@ -118,18 +114,57 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('new-value', $this->defaultCookies['new-cookie']);
     }
 
+    public function testWithUnencryptedCookieSetCookie()
+    {
+        $this->withUnencryptedCookie('foo', 'bar');
+
+        $this->assertCount(1, $this->unencryptedCookies);
+        $this->assertSame('bar', $this->unencryptedCookies['foo']);
+    }
+
+    public function testWithUnencryptedCookiesSetsCookiesAndOverwritesPreviousValues()
+    {
+        $this->withUnencryptedCookie('foo', 'bar');
+        $this->withUnencryptedCookies([
+            'foo' => 'baz',
+            'new-cookie' => 'new-value',
+        ]);
+
+        $this->assertCount(2, $this->unencryptedCookies);
+        $this->assertSame('baz', $this->unencryptedCookies['foo']);
+        $this->assertSame('new-value', $this->unencryptedCookies['new-cookie']);
+    }
+
+    public function testWithoutAndWithCredentials()
+    {
+        $this->encryptCookies = false;
+
+        $this->assertSame([], $this->prepareCookiesForJsonRequest());
+
+        $this->withCredentials();
+        $this->defaultCookies = ['foo' => 'bar'];
+        $this->assertSame(['foo' => 'bar'], $this->prepareCookiesForJsonRequest());
+    }
+
+    public function testCookieHelperRespectsConfiguredSecureDefault()
+    {
+        config(['session.secure' => true]);
+
+        $cookie = cookie('foo', 'bar');
+
+        $this->assertTrue($cookie->isSecure());
+    }
+
     public function testFollowingRedirects()
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $router = $this->app->make(Router::class);
+        $router->get('/foo', fn () => 'foo');
 
-        $response = (new ServerResponse())
-            ->withStatus(301)
-            ->withHeader('Location', 'http://localhost/foo');
+        $response = new Response('', 301, ['Location' => '/foo']);
 
-        $this->followRedirects(new TestResponse($response))
+        $this->followRedirects(TestResponse::fromBaseResponse($response))
             ->assertSuccessful()
-            ->assertContent('foo');
+            ->assertSee('foo');
     }
 
     public function testGetNotFound()
@@ -140,63 +175,42 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testGetFoundRoute()
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
         $this->get('/foo')
-            ->assertSuccessFul()
-            ->assertContent('foo');
+            ->assertSuccessful()
+            ->assertSee('foo');
     }
 
     public function testGetFoundRouteWithTrailingSlash()
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/foo', fn () => 'foo');
 
         $this->get('/foo/')
-            ->assertSuccessFul()
-            ->assertContent('foo');
-    }
-
-    public function testGetServerParams()
-    {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
-
-        $this->get('/server-params?foo=bar')
             ->assertSuccessful()
-            ->assertJson([
-                'request_method' => 'GET',
-                'request_uri' => 'server-params',
-                'query_string' => 'foo=bar',
-            ]);
-    }
-
-    public function testGetStreamedContent()
-    {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
-
-        $this->get('/stream')
-            ->assertSuccessFul()
-            ->assertStreamedContent('stream');
+            ->assertSee('foo');
     }
 
     public function testWithHeaders()
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
+        $this->app->make(Router::class)->get('/headers', function (\Hypervel\Http\Request $request) {
+            return new Response(
+                'hello',
+                200,
+                ['X-Header' => $request->header('X-Header')]
+            );
+        });
 
         $this->withHeaders([
             'X-Header' => 'Value',
         ])->get('/headers')
-            ->assertSuccessFul()
+            ->assertSuccessful()
             ->assertHeader('X-Header', 'Value');
     }
 
     public function testAssertSessionHasErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -213,7 +227,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertJsonSerializedSessionHasErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -234,7 +248,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->expectException(AssertionFailedError::class);
 
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -251,7 +265,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHasNoErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -279,7 +293,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHas()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('foo', 'value');
         $store->put('bar', 'value');
@@ -295,7 +309,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->expectException(AssertionFailedError::class);
 
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('foo', 'value');
 
@@ -305,7 +319,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHasInput()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('_old_input', [
             'foo' => 'value',

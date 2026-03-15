@@ -4,35 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hyperf\Stringable\Str;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Input\InputInterface;
+use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 
-class ModelCommand extends GeneratorCommand
+#[AsCommand(name: 'make:model')]
+class ModelCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:model');
-    }
+    protected ?string $name = 'make:model';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new Eloquent model class');
+    protected string $description = 'Create a new Eloquent model class';
 
-        parent::configure();
-    }
+    protected string $type = 'Model';
 
     /**
      * Execute the console command.
      */
-    public function execute(InputInterface $input, OutputInterface $output): int
+    public function handle(): bool|int
     {
-        parent::execute($input, $output);
+        if (parent::handle() === self::FAILURE) {
+            return self::FAILURE;
+        }
 
-        if ($this->input->getOption('all')) {
+        if ($this->option('all')) {
             $this->input->setOption('factory', true);
             $this->input->setOption('seed', true);
             $this->input->setOption('migration', true);
@@ -41,28 +35,29 @@ class ModelCommand extends GeneratorCommand
             $this->input->setOption('resource', true);
         }
 
-        if ($this->input->getOption('factory')) {
+        if ($this->option('factory')) {
             $this->createFactory();
         }
 
-        if ($this->input->getOption('migration')) {
+        if ($this->option('migration')) {
             $this->createMigration();
         }
 
-        if ($this->input->getOption('seed')) {
+        if ($this->option('seed')) {
             $this->createSeeder();
         }
 
-        if ($this->input->getOption('controller') || $this->input->getOption('resource') || $this->input->getOption('api')) {
+        if ($this->option('controller') || $this->option('resource') || $this->option('api')) {
             $this->createController();
-        } elseif ($this->input->getOption('requests')) {
+        } elseif ($this->option('requests')) {
             $this->createFormRequests();
         }
 
-        if ($this->input->getOption('policy')) {
+        if ($this->option('policy')) {
             $this->createPolicy();
         }
-        return 0;
+
+        return self::SUCCESS;
     }
 
     /**
@@ -82,7 +77,7 @@ class ModelCommand extends GeneratorCommand
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/model.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Models';
     }
@@ -107,22 +102,22 @@ class ModelCommand extends GeneratorCommand
     /**
      * Create a model factory for the model.
      */
-    protected function createFactory()
+    protected function createFactory(): void
     {
-        $factory = Str::studly($this->input->getArgument('name'));
+        $factory = Str::studly($this->argument('name'));
 
         $this->call('make:factory', [
             'name' => "{$factory}Factory",
-            '--force' => $this->input->getOption('force'),
+            '--force' => $this->option('force'),
         ]);
     }
 
     /**
      * Create a migration file for the model.
      */
-    protected function createMigration()
+    protected function createMigration(): void
     {
-        $table = Str::snake(Str::pluralStudly(class_basename($this->input->getArgument('name'))));
+        $table = Str::snake(Str::pluralStudly(class_basename($this->argument('name'))));
 
         $this->call('make:migration', [
             'name' => "create_{$table}_table",
@@ -133,39 +128,39 @@ class ModelCommand extends GeneratorCommand
     /**
      * Create a seeder file for the model.
      */
-    protected function createSeeder()
+    protected function createSeeder(): void
     {
-        $seeder = Str::studly($this->input->getArgument('name'));
+        $seeder = Str::studly($this->argument('name'));
 
         $this->call('make:seeder', [
             'name' => "{$seeder}Seeder",
-            '--force' => $this->input->getOption('force'),
+            '--force' => $this->option('force'),
         ]);
     }
 
     /**
      * Create a controller for the model.
      */
-    protected function createController()
+    protected function createController(): void
     {
-        $controller = Str::studly($this->input->getArgument('name'));
+        $controller = Str::studly($this->argument('name'));
 
         $modelName = $this->qualifyClass($this->getNameInput());
 
         $this->call('make:controller', array_filter([
             'name' => "{$controller}Controller",
-            '--model' => $this->input->getOption('resource') || $this->input->getOption('api') ? $modelName : null,
-            '--api' => $this->input->getOption('api'),
-            '--requests' => $this->input->getOption('requests') || $this->input->getOption('all'),
+            '--model' => $this->option('resource') || $this->option('api') ? $modelName : null,
+            '--api' => $this->option('api'),
+            '--requests' => $this->option('requests') || $this->option('all'),
         ]));
     }
 
     /**
      * Create the form requests for the model.
      */
-    protected function createFormRequests()
+    protected function createFormRequests(): void
     {
-        $request = Str::studly($this->input->getArgument('name'));
+        $request = Str::studly($this->argument('name'));
 
         $this->call('make:request', [
             'name' => "Store{$request}Request",
@@ -179,21 +174,13 @@ class ModelCommand extends GeneratorCommand
     /**
      * Create a policy file for the model.
      */
-    protected function createPolicy()
+    protected function createPolicy(): void
     {
-        $policy = Str::studly($this->input->getArgument('name'));
+        $policy = Str::studly($this->argument('name'));
 
         $this->call('make:policy', [
             'name' => "{$policy}Policy",
             '--model' => $policy,
         ]);
-    }
-
-    protected function call(string $command, array $parameters = []): int
-    {
-        return $this->getApplication()->doRun(
-            new ArrayInput(array_merge(['command' => $command], $parameters)),
-            $this->output
-        );
     }
 }

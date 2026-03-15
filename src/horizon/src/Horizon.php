@@ -6,9 +6,9 @@ namespace Hypervel\Horizon;
 
 use Closure;
 use Exception;
+use Hypervel\Http\Request;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
-use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 class Horizon
@@ -34,13 +34,6 @@ class Horizon
     public static ?string $email = null;
 
     /**
-     * Indicates if Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static bool $useDarkTheme = false;
-
-    /**
      * The database configuration methods.
      */
     public static array $databases = [
@@ -51,7 +44,7 @@ class Horizon
     /**
      * Determine if the given request can access the Horizon dashboard.
      */
-    public static function check(?ServerRequestInterface $request): bool
+    public static function check(?Request $request): bool
     {
         return (static::$authUsing ?: function () {
             return app()->environment('local');
@@ -83,7 +76,7 @@ class Horizon
 
         $config['options']['prefix'] = config('horizon.prefix') ?: 'horizon:';
 
-        config(['redis.horizon' => $config]);
+        config(['database.redis.horizon' => $config]);
     }
 
     /**
@@ -127,18 +120,6 @@ class Horizon
                 {$js}
             </script>
             HTML);
-    }
-
-    /**
-     * Specifies that Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static function night(): static
-    {
-        static::$useDarkTheme = true;
-
-        return new static();
     }
 
     /**

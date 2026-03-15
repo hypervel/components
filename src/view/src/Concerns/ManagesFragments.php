@@ -12,12 +12,12 @@ trait ManagesFragments
     /**
      * All of the captured, rendered fragments.
      */
-    protected const FRAGMENTS_CONTEXT_KEY = 'fragments';
+    protected const FRAGMENTS_CONTEXT_KEY = '__view.fragments';
 
     /**
      * The stack of in-progress fragment renders.
      */
-    protected const FRAGMENT_STACK_CONTEXT_KEY = 'fragment_stack';
+    protected const FRAGMENT_STACK_CONTEXT_KEY = '__view.fragment_stack';
 
     /**
      * Start injecting content into a fragment.

@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Controllers;
 
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
-use Psr\Http\Message\ResponseInterface;
 
 class CsrfCookieController
 {
     /**
-     * Return an empty response with the CSRF cookie.
+     * Return an empty response simply to trigger the storage of the CSRF cookie in the browser.
      */
-    public function __invoke(Request $request, Response $response): ResponseInterface
+    public function show(Request $request): JsonResponse|Response
     {
         if ($request->expectsJson()) {
-            return $response->json([])->withStatus(204);
+            return new JsonResponse(status: 204);
         }
 
-        return $response->html('')->withStatus(204);
+        return new Response(status: 204);
     }
 }

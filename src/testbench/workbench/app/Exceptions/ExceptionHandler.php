@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Workbench\App\Exceptions;
 
 use Hypervel\Foundation\Exceptions\Handler as BaseExceptionHandler;
-use Hypervel\Http\Request;
 use Throwable;
 
 class ExceptionHandler extends BaseExceptionHandler
@@ -26,10 +25,6 @@ class ExceptionHandler extends BaseExceptionHandler
      */
     public function register(): void
     {
-        $this->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
-            return true;
-        });
-
         $this->reportable(function (Throwable $e) {});
     }
 }

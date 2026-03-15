@@ -16,15 +16,15 @@ use Hypervel\JWT\Contracts\ManagerContract;
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\JWT\JWTManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\JWT\JWTManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\JWT\JWTManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\JWT\JWTManager forgetDrivers()
  *
  * @see \Hypervel\JWT\JWTManager
  */
 class JWT extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return ManagerContract::class;
     }

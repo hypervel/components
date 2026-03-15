@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Support\Filesystem\FileNotFoundException;
-use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Cache\FileStore;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -113,7 +113,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
-        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0644])->getMock();
+        $store = new FileStore($files, __DIR__, 0644);
         $hash = sha1('foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->shouldReceive('put')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, m::any(), m::any()])->andReturnUsing(function ($name, $value) {
@@ -127,14 +127,13 @@ class CacheFileStoreTest extends TestCase
         $this->assertTrue($result);
         $result = $store->put('foo', 'baz', 10);
         $this->assertTrue($result);
-        m::close();
     }
 
     public function testStoreItemDirectoryProperlySetsPermissions()
     {
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
-        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0606])->getMock();
+        $store = new FileStore($files, __DIR__, 0606);
         $hash = sha1('foo');
         $cache_parent_dir = substr($hash, 0, 2);
         $cache_dir = $cache_parent_dir . '/' . substr($hash, 2, 2);
@@ -152,7 +151,6 @@ class CacheFileStoreTest extends TestCase
 
         $result = $store->put('foo', 'foo', 10);
         $this->assertTrue($result);
-        m::close();
     }
 
     public function testForeversAreStoredWithHighTimestamp()

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Query\Builder;
-use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -22,7 +22,7 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testRetrieveByIDReturnsUserWhenUserIsFound()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'Dayle']);
+        $builder->shouldReceive('find')->once()->with(1)->andReturn((object) ['id' => 1, 'name' => 'Dayle']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);
@@ -52,7 +52,7 @@ class AuthDatabaseUserProviderTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->once()->with('username', 'dayle');
         $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
+        $builder->shouldReceive('first')->once()->andReturn((object) ['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);
@@ -69,7 +69,7 @@ class AuthDatabaseUserProviderTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->once()->with('username', 'dayle');
         $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
+        $builder->shouldReceive('first')->once()->andReturn((object) ['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);

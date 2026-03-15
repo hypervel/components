@@ -7,10 +7,9 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\Exceptions\ForbiddenException;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Http\Middleware\Authenticate;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
-use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * @internal
@@ -20,18 +19,18 @@ class AuthTest extends IntegrationTestCase
 {
     public function testAuthenticationCallbackWorks()
     {
-        Horizon::auth(function (ServerRequestInterface $request) {
-            return $request->getAttribute('user') === 'foo';
+        Horizon::auth(function (Request $request) {
+            return $request->attributes->get('user') === 'foo';
         });
 
-        $fooRequestMock = Mockery::mock(ServerRequestInterface::class);
-        $fooRequestMock->shouldReceive('getAttribute')->with('user')->andReturn('foo');
+        $fooRequest = Request::create('/');
+        $fooRequest->attributes->set('user', 'foo');
 
-        $barRequestMock = Mockery::mock(ServerRequestInterface::class);
-        $barRequestMock->shouldReceive('getAttribute')->with('user')->andReturn('bar');
+        $barRequest = Request::create('/');
+        $barRequest->attributes->set('user', 'bar');
 
-        $this->assertTrue(Horizon::check($fooRequestMock));
-        $this->assertFalse(Horizon::check($barRequestMock));
+        $this->assertTrue(Horizon::check($fooRequest));
+        $this->assertFalse(Horizon::check($barRequest));
     }
 
     public function testAuthenticationMiddlewareCanPass()
@@ -41,11 +40,11 @@ class AuthTest extends IntegrationTestCase
         });
 
         $middleware = new Authenticate();
-        $requestMock = Mockery::mock(ServerRequestInterface::class);
+        $request = Request::create('/');
         $response = new Response();
 
         $responseFromMiddleware = $middleware->handle(
-            $requestMock,
+            $request,
             fn () => $response
         );
 
@@ -61,11 +60,11 @@ class AuthTest extends IntegrationTestCase
         });
 
         $middleware = new Authenticate();
-        $requestMock = Mockery::mock(ServerRequestInterface::class);
+        $request = Request::create('/');
         $response = new Response();
 
         $middleware->handle(
-            $requestMock,
+            $request,
             fn () => $response
         );
     }

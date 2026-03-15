@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ApiClient;
 
-use Hypervel\HttpClient\Response as HttpClientResponse;
+use Hypervel\Http\Client\Response as HttpClientResponse;
 use Psr\Http\Message\StreamInterface;
 
 class ApiResponse extends HttpClientResponse

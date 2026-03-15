@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\TagRepository;
+use Hypervel\Redis\RedisProxy;
 
 class RedisTagRepository implements TagRepository
 {
     /**
      * Create a new repository instance.
      *
-     * @param RedisFactory $redis the Redis connection instance
+     * @param Redis $redis the Redis connection instance
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -137,6 +137,6 @@ class RedisTagRepository implements TagRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

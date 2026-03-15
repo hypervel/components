@@ -1,11 +1,10 @@
 {
     "name": "hypervel/broadcasting",
     "type": "library",
-    "description": "The filesystem package for Hyperf.",
+    "description": "The broadcasting package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "swoole",
         "broadcasting",
         "hypervel"
@@ -26,34 +25,37 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
-        "hyperf/pool": "~3.1.0",
-        "hypervel/auth": "^0.3",
-        "hypervel/bus": "^0.3",
-        "hypervel/cache": "^0.3",
-        "hypervel/foundation": "^0.3",
-        "hypervel/queue": "^0.3",
-        "hypervel/router": "^0.3",
-        "hypervel/support": "^0.3",
-        "hypervel/object-pool": "^0.3"
+        "php": "^8.4",
+        "hypervel/auth": "^0.4",
+        "hypervel/bus": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/object-pool": "^0.4",
+        "hypervel/pool": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
-        "hyperf/redis": "Required to use the Redis broadcast driver (~3.1.0).",
+        "hypervel/redis": "Required to use the Redis broadcast driver (^0.4).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
-        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0)."
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2)."
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Broadcasting\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Broadcasting\\BroadcastServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

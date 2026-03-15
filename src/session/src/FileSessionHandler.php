@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use SessionHandlerInterface;
 use Symfony\Component\Finder\Finder;
 

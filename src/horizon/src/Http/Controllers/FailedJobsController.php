@@ -58,11 +58,11 @@ class FailedJobsController
     {
         $jobIds = $this->tags->paginate(
             'failed:' . $tag,
-            ($request->query('starting_at') ?: -1) + 1,
+            ((int) ($request->query('starting_at') ?? -1)) + 1,
             50
         );
 
-        $startingAt = (int) $request->query('starting_at', 0);
+        $startingAt = (int) $request->query('starting_at', '0');
 
         return $this->jobs->getJobs($jobIds, $startingAt)->map(function ($job) {
             return $this->decode($job);

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hypervel\Validation\Contracts\CompilableRules;
+use Hypervel\Contracts\Validation\CompilableRules;
 use stdClass;
 
 class NestedRules implements CompilableRules

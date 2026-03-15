@@ -7,15 +7,16 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\pause;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class PausePromptTest extends TestCase
 {
     public function testContinuesAfterEnter(): void

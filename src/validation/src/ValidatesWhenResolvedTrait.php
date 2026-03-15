@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Foundation\Precognition;
 
 /**
  * Provides default implementation of ValidatesWhenResolved contract.
@@ -23,6 +23,10 @@ trait ValidatesWhenResolvedTrait
         }
 
         $instance = $this->getValidatorInstance();
+
+        if ($this->isPrecognitive()) {
+            $instance->after(Precognition::afterValidationHook($this));
+        }
 
         if ($instance->fails()) {
             $this->failedValidation($instance);

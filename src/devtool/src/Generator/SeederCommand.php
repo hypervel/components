@@ -4,21 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class SeederCommand extends GeneratorCommand
+#[AsCommand(name: 'make:seeder')]
+class SeederCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:seeder');
-    }
+    protected ?string $name = 'make:seeder';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new seeder class');
+    protected string $description = 'Create a new seeder class';
 
-        parent::configure();
-    }
+    protected string $type = 'Seeder';
 
     protected function getStub(): string
     {
@@ -43,7 +38,7 @@ class SeederCommand extends GeneratorCommand
         return BASE_PATH . "/{$path}/{$name}.php";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return '';
     }

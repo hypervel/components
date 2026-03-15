@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use DateTimeInterface;
-use Hyperf\Database\Model\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Support\Str;
 use UnitEnum;

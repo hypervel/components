@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Support\Collection;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\progress;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class ProgressTest extends TestCase
 {
-    /**
-     * @dataProvider progressBarProvider
-     * @param mixed $steps
-     */
+    #[DataProvider('progressBarProvider')]
     public function testRendersProgressBar($steps): void
     {
         Prompt::fake();

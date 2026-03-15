@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Framework\Event\BeforeWorkerStart;
-use Hyperf\Support\DotenvManager;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
+use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Support\DotenvManager;
 
-class ReloadDotenvAndConfig implements ListenerInterface
+class ReloadDotenvAndConfig
 {
     protected static array $modifiedItems = [];
 
     protected static bool $stopCallback = false;
 
-    public function __construct(protected ApplicationContract $container)
+    public function __construct(protected Application $container)
     {
         $this->setConfigCallback();
 
-        $container->afterResolving(ConfigInterface::class, function (ConfigInterface $config) {
+        $container->afterResolving('config', function (Repository $config) {
             if (static::$stopCallback) {
                 return;
             }
@@ -33,14 +32,10 @@ class ReloadDotenvAndConfig implements ListenerInterface
         });
     }
 
-    public function listen(): array
-    {
-        return [
-            BeforeWorkerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
+    /**
+     * Reload dotenv and config before a worker starts.
+     */
+    public function handle(BeforeWorkerStart $event): void
     {
         $this->reloadDotenv();
         $this->reloadConfig();
@@ -48,24 +43,26 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function reloadConfig(): void
     {
-        $this->container->unbind(ConfigInterface::class);
+        $this->container->forgetInstance('config');
     }
 
     protected function reloadDotenv(): void
     {
-        $basePath = $this->container->basePath();
-        if (! file_exists($basePath . DIRECTORY_SEPARATOR . '.env')) {
+        if (! file_exists($this->container->environmentFilePath())) {
             return;
         }
 
-        DotenvManager::reload([$basePath]);
+        DotenvManager::reload(
+            [$this->container->environmentPath()],
+            $this->container->environmentFile(),
+        );
     }
 
     protected function setConfigCallback(): void
     {
-        $this->container->get(ConfigInterface::class)
+        $this->container->make('config')
             ->afterSettingCallback(function (array $values) {
-                static::$modifiedItems = array_merge(
+                static::$modifiedItems = array_replace(
                     static::$modifiedItems,
                     $values
                 );

@@ -20,20 +20,12 @@ class SupportServiceProviderTest extends TestCase
 
     protected function setUp(): void
     {
-        ServiceProvider::$publishes = [];
-        ServiceProvider::$publishGroups = [];
-
         $this->app = $app = m::mock(Application::class)->makePartial();
 
         $one = new ServiceProviderForTestingOne($app);
         $one->boot();
         $two = new ServiceProviderForTestingTwo($app);
         $two->boot();
-    }
-
-    protected function tearDown(): void
-    {
-        m::close();
     }
 
     public function testPublishableServiceProviders()

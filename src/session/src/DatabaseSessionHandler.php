@@ -5,24 +5,26 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Query\Builder;
-use Hyperf\HttpServer\Request;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Support\Traits\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
-
-use function Hyperf\Tappable\tap;
 
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
 {
     use InteractsWithTime;
+
+    /**
+     * Context key for whether the session record exists in the database.
+     */
+    protected const DATABASE_EXISTS_CONTEXT_KEY = '__session.database.exists';
 
     /**
      * Create a new database session handler instance.
@@ -37,7 +39,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         protected ?string $connection,
         protected string $table,
         protected int $minutes,
-        protected ?ContainerInterface $container = null
+        protected ?Container $container = null
     ) {
     }
 
@@ -161,7 +163,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userId(): mixed
     {
-        return $this->container->get(Guard::class)->id();
+        return $this->container->make(Guard::class)->id();
     }
 
     /**
@@ -169,7 +171,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function addRequestInformation(array &$payload): static
     {
-        if ($this->container->has(Request::class)) {
+        if (RequestContext::has()) {
             $payload = array_merge($payload, [
                 'ip_address' => $this->ipAddress(),
                 'user_agent' => $this->userAgent(),
@@ -184,14 +186,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function ipAddress(): ?string
     {
-        if (! RequestContext::has()) {
-            return '127.0.0.1';
-        }
-
-        $request = $this->container->get(Request::class);
-
-        return $request->getHeaderLine('x-real-ip')
-            ?: $request->server('remote_addr');
+        return $this->container->make('request')->ip();
     }
 
     /**
@@ -199,7 +194,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     protected function userAgent(): string
     {
-        return substr((string) $this->container->get(Request::class)->header('User-Agent'), 0, 500);
+        return mb_substr(mb_convert_encoding((string) $this->container->make('request')->header('User-Agent'), 'UTF-8'), 0, 500);
     }
 
     public function destroy(string $sessionId): bool
@@ -243,7 +238,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     /**
      * Set the application instance used by the handler.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 
@@ -255,7 +250,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function setExists(bool $value): static
     {
-        Context::set('_session.database.exists', $value);
+        Context::set(self::DATABASE_EXISTS_CONTEXT_KEY, $value);
 
         return $this;
     }
@@ -265,6 +260,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return Context::get('_session.database.exists', false);
+        return Context::get(self::DATABASE_EXISTS_CONTEXT_KEY, false);
     }
 }

@@ -23,14 +23,22 @@ class WorkerProcessTest extends IntegrationTestCase
         Event::fake();
         $process = Process::fromShellCommandline('exit 1');
         $workerProcess = new WorkerProcess($process);
-        $workerProcess->start(function () {
-        });
-        sleep(1);
-        $workerProcess->monitor();
-        $workerProcess->stop();
+        CarbonImmutable::setTestNow($time = CarbonImmutable::create(2026, 1, 1, 0, 0, 0));
 
-        Event::assertDispatched(WorkerProcessRestarting::class);
-        Event::assertDispatched(UnableToLaunchProcess::class);
+        try {
+            $workerProcess->start(function () {
+            });
+            $this->waitForProcessToExit($process);
+
+            CarbonImmutable::setTestNow($time->addSeconds(2));
+            $workerProcess->monitor();
+            $workerProcess->stop();
+
+            Event::assertDispatched(WorkerProcessRestarting::class);
+            Event::assertDispatched(UnableToLaunchProcess::class);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function testProcessIsNotRestartedDuringCooldownPeriod()
@@ -39,15 +47,25 @@ class WorkerProcessTest extends IntegrationTestCase
 
         $process = Process::fromShellCommandline('exit 1');
         $workerProcess = new WorkerProcess($process);
-        $workerProcess->start(function () {
-        });
-        sleep(1);
-        $workerProcess->monitor();
-        $workerProcess->monitor();
-        $workerProcess->stop();
+        CarbonImmutable::setTestNow($time = CarbonImmutable::create(2026, 1, 1, 0, 0, 0));
 
-        Event::assertDispatched(WorkerProcessRestarting::class);
-        $this->assertCount(1, Event::dispatched(WorkerProcessRestarting::class));
+        try {
+            $workerProcess->start(function () {
+            });
+            $this->waitForProcessToExit($process);
+
+            CarbonImmutable::setTestNow($time->addSeconds(2));
+            $workerProcess->monitor();
+            $this->waitForProcessToExit($process);
+
+            $workerProcess->monitor();
+            $workerProcess->stop();
+
+            Event::assertDispatched(WorkerProcessRestarting::class);
+            $this->assertCount(1, Event::dispatched(WorkerProcessRestarting::class));
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function testProcessIsRestartedAfterCooldownPeriod()
@@ -56,28 +74,37 @@ class WorkerProcessTest extends IntegrationTestCase
 
         $process = Process::fromShellCommandline('exit 1');
         $workerProcess = new WorkerProcess($process);
-        $workerProcess->start(function () {
+        CarbonImmutable::setTestNow($time = CarbonImmutable::create(2026, 1, 1, 0, 0, 0));
+
+        try {
+            $workerProcess->start(function () {
+            });
+            $this->waitForProcessToExit($process);
+
+            CarbonImmutable::setTestNow($time->addSeconds(2));
+            $workerProcess->monitor();
+            $this->assertTrue($workerProcess->coolingDown());
+            $this->waitForProcessToExit($process);
+
+            CarbonImmutable::setTestNow($time->addMinutes(3));
+            $this->assertFalse($workerProcess->coolingDown());
+
+            $workerProcess->monitor();
+            $workerProcess->stop();
+
+            Event::assertDispatched(WorkerProcessRestarting::class);
+            $this->assertCount(2, Event::dispatched(WorkerProcessRestarting::class));
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    protected function waitForProcessToExit(Process $process): void
+    {
+        $this->wait(function () use ($process) {
+            $this->assertTrue($process->isStarted());
+            $this->assertFalse($process->isRunning());
+            $this->assertNotNull($process->getExitCode());
         });
-
-        // Give process time to start...
-        sleep(1);
-
-        // Should fail and set cooldown timestamp...
-        $workerProcess->monitor();
-        $this->assertTrue($workerProcess->coolingDown());
-
-        // Travel to the future...
-        sleep(1);
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(3));
-        $this->assertFalse($workerProcess->coolingDown());
-
-        // Should try to restart now...
-        $workerProcess->monitor();
-        $workerProcess->stop();
-
-        Event::assertDispatched(WorkerProcessRestarting::class);
-        $this->assertCount(2, Event::dispatched(WorkerProcessRestarting::class));
-
-        CarbonImmutable::setTestNow();
     }
 }

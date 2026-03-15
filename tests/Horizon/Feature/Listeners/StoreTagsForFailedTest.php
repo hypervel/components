@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature\Listeners;
 
 use Exception;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
 use Hypervel\Queue\Jobs\Job;
@@ -18,13 +18,6 @@ use Mockery as m;
  */
 class StoreTagsForFailedTest extends IntegrationTestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        m::close();
-    }
-
     public function testTemporaryFailedJobShouldBeDeletedWhenTheMainJobIsDeleted(): void
     {
         config()->set('horizon.trim.failed', 120);

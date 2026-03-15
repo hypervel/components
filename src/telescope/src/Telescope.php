@@ -6,25 +6,25 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
-use Psr\Container\ContainerInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function event;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
-use function Hypervel\Event\event;
+use function Hypervel\Coroutine\defer;
 
 class Telescope
 {
@@ -120,7 +120,7 @@ class Telescope
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
-    public static function start(ContainerInterface $app): void
+    public static function start(ContainerContract $app): void
     {
         if (! config('telescope.enabled')) {
             return;
@@ -131,7 +131,7 @@ class Telescope
         static::registerMailableTagExtractor();
 
         static::$started = true;
-        static::$store = $app->get(EntriesRepository::class);
+        static::$store = $app->make(EntriesRepository::class);
     }
 
     /**
@@ -163,16 +163,16 @@ class Telescope
     /**
      * Determine if the application is handling an approved request.
      */
-    public static function handlingApprovedRequest(ContainerInterface $app): bool
+    public static function handlingApprovedRequest(ContainerContract $app): bool
     {
-        return static::requestIsToApprovedDomain($request = $app->get(RequestContract::class))
+        return static::requestIsToApprovedDomain($request = $app->make(Request::class))
             && static::requestIsToApprovedUri($request);
     }
 
     /**
      * Determine if the request is to an approved domain.
      */
-    protected static function requestIsToApprovedDomain(RequestContract $request): bool
+    protected static function requestIsToApprovedDomain(Request $request): bool
     {
         return is_null(config('telescope.domain'))
             || config('telescope.domain') !== $request->getHost();
@@ -181,7 +181,7 @@ class Telescope
     /**
      * Determine if the request is to an approved URI.
      */
-    protected static function requestIsToApprovedUri(RequestContract $request): bool
+    protected static function requestIsToApprovedUri(Request $request): bool
     {
         if (! empty($only = config('telescope.only_paths', []))) {
             return $request->is($only);
@@ -614,8 +614,8 @@ class Telescope
                             ->onQueue(config('telescope.queue.queue'))
                             ->delay(is_numeric($delay) && $delay > 0 ? now()->addSeconds($delay) : null);
                     } catch (Throwable $e) {
-                        ApplicationContext::getContainer()
-                            ->get(ExceptionHandler::class)
+                        Container::getInstance()
+                            ->make(ExceptionHandler::class)
                             ->report($e);
                     }
                 }
@@ -626,8 +626,8 @@ class Telescope
 
                 Collection::make(static::$afterStoringHooks)->every->__invoke(static::getEntriesQueue(), $batchId);
             } catch (Throwable $e) {
-                ApplicationContext::getContainer()
-                    ->get(ExceptionHandler::class)
+                Container::getInstance()
+                    ->make(ExceptionHandler::class)
                     ->report($e);
             }
         });
@@ -734,6 +734,35 @@ class Telescope
         Avatar::register($callback);
 
         return new static();
+    }
+
+    /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$filterUsing = [];
+        static::$filterBatchUsing = [];
+        static::$afterRecordingHook = null;
+        static::$afterStoringHooks = [];
+        static::$tagUsing = [];
+        static::$hiddenRequestHeaders = [
+            'authorization',
+            'php-auth-pw',
+        ];
+        static::$hiddenRequestParameters = [
+            'password',
+            'password_confirmation',
+        ];
+        static::$hiddenResponseParameters = [];
+        static::$ignoreFrameworkEvents = true;
+        static::$useDarkTheme = false;
+        static::$started = false;
+        static::$ignoredUris = [];
+        static::$store = null;
+        static::$authUsing = null;
+        static::flushWatchers();
+        Avatar::flushState();
     }
 
     /**

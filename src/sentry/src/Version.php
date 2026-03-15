@@ -10,7 +10,7 @@ final class Version
 {
     public const SDK_IDENTIFIER = 'sentry.php.hypervel';
 
-    public const SDK_VERSION = '3.1.0';
+    public const SDK_VERSION = '4.21.1';
 
     public static function getSdkIdentifier(): string
     {

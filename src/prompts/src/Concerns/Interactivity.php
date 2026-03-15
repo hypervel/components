@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 
 trait Interactivity
 {
+    /**
+     * Context key for the interactive mode override.
+     */
+    protected const INTERACTIVE_CONTEXT_KEY = '__prompts.interactive';
+
     /**
      * Whether to render the prompt interactively.
      */
@@ -18,7 +25,23 @@ trait Interactivity
      */
     public static function interactive(bool $interactive = true): void
     {
-        static::$interactive = $interactive;
+        if (Coroutine::inCoroutine()) {
+            Context::set(self::INTERACTIVE_CONTEXT_KEY, $interactive);
+        } else {
+            static::$interactive = $interactive;
+        }
+    }
+
+    /**
+     * Determine if the prompt is interactive.
+     */
+    public static function isInteractive(): ?bool
+    {
+        if (Coroutine::inCoroutine()) {
+            return Context::get(self::INTERACTIVE_CONTEXT_KEY) ?? (isset(static::$interactive) ? static::$interactive : null);
+        }
+
+        return isset(static::$interactive) ? static::$interactive : null;
     }
 
     /**

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Fixtures\User;
 
 /**
  * @internal
@@ -26,7 +24,7 @@ class ActingAsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure auth guards
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -41,13 +39,6 @@ class ActingAsTest extends TestCase
                     'model' => User::class,
                 ],
             ]);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
     }
 
     public function testActingAsSetsUserInContext(): void
@@ -91,7 +82,7 @@ class ActingAsTest extends TestCase
 
         Sanctum::actingAs($user, ['read'], 'api');
 
-        $this->assertSame($user, $this->app->get(AuthFactoryContract::class)->guard('api')->user());
+        $this->assertSame($user, $this->app->make(AuthFactoryContract::class)->guard('api')->user());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void

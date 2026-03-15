@@ -8,8 +8,7 @@ use DateTimeZone;
 use Hypervel\Bus\Queueable;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
@@ -20,8 +19,6 @@ use RuntimeException;
  */
 class ConsoleSchedulingFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.features' => [
             ConsoleSchedulingFeature::class,
@@ -129,7 +126,7 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
     public function testScheduledClosureCreatesTransaction(): void
     {
         $this->getScheduler()->call(function () {
-        })->everySecond();
+        })->everyMinute();
 
         $this->artisan('schedule:run --once');
 
@@ -156,7 +153,7 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
 
     protected function getScheduler(): Schedule
     {
-        return $this->app->get(Schedule::class);
+        return $this->app->make(Schedule::class);
     }
 }
 

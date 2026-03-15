@@ -18,7 +18,7 @@ class InteractsWithContainerTest extends TestCase
     {
         $this->app->instance(InstanceStub::class, new InstanceStub());
 
-        $this->assertSame('foo', $this->app->get(InstanceStub::class)->execute());
+        $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
 
         $stub = m::mock(InstanceStub::class);
         $stub->shouldReceive('execute')
@@ -27,7 +27,7 @@ class InteractsWithContainerTest extends TestCase
 
         $this->swap(InstanceStub::class, $stub);
 
-        $this->assertSame('bar', $this->app->get(InstanceStub::class)->execute());
+        $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
     }
 
     public function testMock()
@@ -37,10 +37,10 @@ class InteractsWithContainerTest extends TestCase
             ->once()
             ->andReturn('bar');
 
-        $this->assertSame('bar', $this->app->get(InstanceStub::class)->execute());
+        $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
 
         $this->forgetMock(InstanceStub::class);
-        $this->assertSame('foo', $this->app->get(InstanceStub::class)->execute());
+        $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
     }
 
     public function testPartialMock()
@@ -49,8 +49,8 @@ class InteractsWithContainerTest extends TestCase
             $mock->shouldReceive('partialExecute')->andReturn('mocked');
         });
 
-        $this->assertSame('foo', $this->app->get(InstanceStub::class)->execute());
-        $this->assertSame('mocked', $this->app->get(InstanceStub::class)->partialExecute());
+        $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
+        $this->assertSame('mocked', $this->app->make(InstanceStub::class)->partialExecute());
     }
 }
 

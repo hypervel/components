@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
@@ -42,15 +41,7 @@ class InteractsWithDataTest extends TestCase
     {
         parent::setUp();
 
-        ApplicationContext::setContainer($this->getApplication());
-        Date::clearResolvedInstances();
-    }
-
-    protected function tearDown(): void
-    {
-        Date::clearResolvedInstances();
-
-        parent::tearDown();
+        Container::setInstance($this->getApplication());
     }
 
     public function testDateReturnsNullWhenKeyIsNotFilled(): void

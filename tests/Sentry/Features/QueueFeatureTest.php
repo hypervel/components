@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
@@ -22,8 +20,6 @@ use function Sentry\captureException;
  */
 class QueueFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.breadcrumbs.queue_info' => true,
         'sentry.tracing.queue_jobs' => true,
@@ -62,14 +58,18 @@ class QueueFeatureTest extends SentryTestCase
         }
 
         // We still expect to find the breadcrumbs from the job here so they are attached to reported exceptions
+        // The 3rd breadcrumb is from the EventHandler's messageLogged handler logging the exception
 
-        $this->assertCount(2, $this->getCurrentSentryBreadcrumbs());
+        $this->assertCount(3, $this->getCurrentSentryBreadcrumbs());
 
         $firstBreadcrumb = $this->getCurrentSentryBreadcrumbs()[0];
         $this->assertEquals('queue.job', $firstBreadcrumb->getCategory());
 
         $secondBreadcrumb = $this->getCurrentSentryBreadcrumbs()[1];
         $this->assertEquals('test', $secondBreadcrumb->getCategory());
+
+        $thirdBreadcrumb = $this->getCurrentSentryBreadcrumbs()[2];
+        $this->assertEquals('log.error', $thirdBreadcrumb->getCategory());
     }
 
     public function testQueueJobsThatThrowPopsAndPushesScopeWithBreadcrumbsBeforeNewJob(): void
@@ -87,14 +87,18 @@ class QueueFeatureTest extends SentryTestCase
         }
 
         // We only expect to find the breadcrumbs from the second job here
+        // The 3rd breadcrumb is from the EventHandler's messageLogged handler logging the exception
 
-        $this->assertCount(2, $this->getCurrentSentryBreadcrumbs());
+        $this->assertCount(3, $this->getCurrentSentryBreadcrumbs());
 
         $firstBreadcrumb = $this->getCurrentSentryBreadcrumbs()[0];
         $this->assertEquals('queue.job', $firstBreadcrumb->getCategory());
 
         $secondBreadcrumb = $this->getCurrentSentryBreadcrumbs()[1];
         $this->assertEquals('test #2', $secondBreadcrumb->getMessage());
+
+        $thirdBreadcrumb = $this->getCurrentSentryBreadcrumbs()[2];
+        $this->assertEquals('log.error', $thirdBreadcrumb->getCategory());
     }
 
     public function testQueueJobsWithBreadcrumbSetInBetweenKeepsNonJobBreadcrumbsOnCurrentScope(): void
@@ -110,7 +114,7 @@ class QueueFeatureTest extends SentryTestCase
 
     public function testQueueJobCreatesTransactionByDefault(): void
     {
-        $this->app->get(ConfigInterface::class)->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();
@@ -130,8 +134,8 @@ class QueueFeatureTest extends SentryTestCase
      */
     public function testQueueJobDoesntCreateTransaction(): void
     {
-        $this->app->get(ConfigInterface::class)->set('sentry.traces_sample_rate', 1.0);
-        $this->app->get(ConfigInterface::class)->set('sentry.tracing.queue_job_transactions', false);
+        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $this->app->make('config')->set('sentry.tracing.queue_job_transactions', false);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();

@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 
 class DynamicComponent extends Component
@@ -62,7 +62,7 @@ EOF;
                     $this->compileProps($bindings),
                     $this->compileBindings($bindings),
                     class_exists($class) ? '{{ $attributes }}' : '',
-                    $this->compileSlots($data['__laravel_slots']),
+                    $this->compileSlots($data['__hypervel_slots']),
                     '{{ $slot ?? "" }}',
                 ],
                 $template
@@ -134,7 +134,7 @@ EOF;
     protected function compiler(): ComponentTagCompiler
     {
         if (! static::$compiler) {
-            $bladeCompiler = Container::getInstance()->get(CompilerInterface::class);
+            $bladeCompiler = Container::getInstance()->make(BladeCompiler::class);
 
             static::$compiler = new ComponentTagCompiler(
                 $bladeCompiler->getClassComponentAliases(),

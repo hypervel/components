@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Session\Contracts\Factory as SessionManagerContract;
-
 /**
- * @method static \Hypervel\Session\Contracts\Session store(string|null $name = null)
+ * @method static \Hypervel\Contracts\Session\Session store(string|null $name = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()
@@ -18,8 +16,8 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Session\SessionManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Session\SessionManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Session\SessionManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Session\SessionManager forgetDrivers()
  * @method static bool start()
  * @method static void save()
@@ -76,8 +74,8 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  */
 class Session extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return SessionManagerContract::class;
+        return 'session';
     }
 }

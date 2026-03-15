@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -34,7 +33,7 @@ class CliDumperTest extends TestCase
         $this->config = $this->getConfig();
 
         $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
+            'config' => fn () => $this->config,
         ]);
 
         CliDumper::resolveDumpSourceUsing(function () {
@@ -183,7 +182,7 @@ class CliDumperTest extends TestCase
 
     public function testGetOriginalViewCompiledFile()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
         $output = new BufferedOutput();
@@ -201,7 +200,7 @@ class CliDumperTest extends TestCase
 
     public function testWhenGetOriginalViewCompiledFileFails()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view-without-source-map.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
         $output = new BufferedOutput();
@@ -240,10 +239,5 @@ class CliDumperTest extends TestCase
         $dumper->dumpWithSource($cloner->cloneVar($value));
 
         return $output->fetch();
-    }
-
-    protected function tearDown(): void
-    {
-        CliDumper::resolveDumpSourceUsing(null);
     }
 }

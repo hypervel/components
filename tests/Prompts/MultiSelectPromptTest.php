@@ -8,15 +8,16 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\MultiSelectPrompt;
 use Hypervel\Prompts\Prompt;
+use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\multiselect;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
+#[BackupStaticProperties(true)]
 class MultiSelectPromptTest extends TestCase
 {
     public function testAcceptsAnArrayOfLabels()

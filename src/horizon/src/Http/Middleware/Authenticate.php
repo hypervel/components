@@ -4,24 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Http\Middleware;
 
+use Closure;
 use Hypervel\Horizon\Exceptions\ForbiddenException;
 use Hypervel\Horizon\Horizon;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class Authenticate implements MiddlewareInterface
+class Authenticate
 {
     /**
-     * Handle the incoming request.
+     * Handle an incoming request.
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    public function handle(Request $request, Closure $next): Response
     {
         if (! Horizon::check($request)) {
             throw ForbiddenException::make();
         }
 
-        return $handler->handle($request);
+        return $next($request);
     }
 }

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\LogWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
@@ -38,22 +38,20 @@ class LogWatcherTest extends FeatureTestCase
             'testLogWatcherRegistersRetryWithExceptionKey' => true,
         };
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 LogWatcher::class => $config,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('logging.default', 'null');
 
         $this->startTelescope();
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherRegistersEntryForAnyLevelByDefault(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -69,12 +67,10 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -94,12 +90,10 @@ class LogWatcherTest extends FeatureTestCase
         }
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -115,12 +109,10 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheBooleanFormat(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -132,12 +124,10 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
     public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheArrayFormat(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -165,7 +155,7 @@ class LogWatcherTest extends FeatureTestCase
 
     public function testLogWatcherRegistersRetryWithExceptionKey()
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->error('Some message', [
             'exception' => 'Some error message',

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Notifications\Contracts\Dispatcher;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Notifications\Dispatcher;
+use Hypervel\Support\Str;
 
 trait RoutesNotifications
 {
@@ -15,8 +15,8 @@ trait RoutesNotifications
      */
     public function notify(mixed $instance): void
     {
-        ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        Container::getInstance()
+            ->make(Dispatcher::class)
             ->send($this, $instance);
     }
 
@@ -25,8 +25,8 @@ trait RoutesNotifications
      */
     public function notifyNow(mixed $instance, ?array $channels = null): void
     {
-        ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
+        Container::getInstance()
+            ->make(Dispatcher::class)
             ->sendNow($this, $instance, $channels);
     }
 

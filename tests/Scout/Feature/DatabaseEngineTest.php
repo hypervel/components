@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
@@ -21,7 +20,7 @@ class DatabaseEngineTest extends ScoutTestCase
         parent::setUp();
 
         // Set driver to database for these tests
-        $this->app->get(ConfigInterface::class)->set('scout.driver', 'database');
+        $this->app->make('config')->set('scout.driver', 'database');
     }
 
     public function testSearchReturnsMatchingModels(): void

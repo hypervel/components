@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Carbon\Carbon;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use InvalidArgumentException;
 
 class ArrayLock extends Lock implements RefreshableLock

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\UniqueConstraintViolationException;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Context\Context;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -24,6 +24,11 @@ use function Hypervel\Config\config;
 
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {
+    /**
+     * Context key for the per-request monitored tags cache.
+     */
+    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+
     /**
      * Create a new database repository.
      *
@@ -73,7 +78,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     public function get(?string $type, EntryQueryOptions $options): Collection
     {
         return EntryModel::on($this->connection)
-            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound
+            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound (scope method registered at runtime)
             ->take($options->limit)
             ->orderByDesc('sequence')
             ->get()->reject(function ($entry) {
@@ -245,7 +250,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function getMonitorTags(): ?array
     {
-        return Context::get('telescope.monitored_tags', null);
+        return Context::get(self::MONITORED_TAGS_CONTEXT_KEY, null);
     }
 
     /**
@@ -253,7 +258,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function setMonitorTags(?array $tags): void
     {
-        Context::set('telescope.monitored_tags', $tags);
+        Context::set(self::MONITORED_TAGS_CONTEXT_KEY, $tags);
     }
 
     /**

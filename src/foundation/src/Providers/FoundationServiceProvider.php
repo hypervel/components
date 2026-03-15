@@ -4,41 +4,57 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
-use Hyperf\Command\Event\FailToHandle;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Grammar;
-use Hyperf\HttpServer\MiddlewareManager;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\ExceptionRenderer;
+use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Grammar;
+use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Console\ConfigShowCommand;
+use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
+use Hypervel\Foundation\Console\RouteCacheCommand;
+use Hypervel\Foundation\Console\RouteClearCommand;
+use Hypervel\Foundation\Console\UpCommand;
+use Hypervel\Foundation\Console\VendorPublishCommand;
+use Hypervel\Foundation\Exceptions\Renderer\Listener;
+use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
+use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\WorkerCachedMaintenanceMode;
+use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Validation\ValidationException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
 {
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     protected ConsoleOutputInterface $output;
 
     public function __construct(protected ApplicationContract $app)
     {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->make('config');
         $this->output = new ConsoleOutput();
 
         if ($app->hasDebugModeEnabled()) {
@@ -51,6 +67,26 @@ class FoundationServiceProvider extends ServiceProvider
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
         $this->setDatabaseConnection();
+
+        $events = $this->app->make('events');
+
+        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
+            $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
+        });
+
+        if ($this->app->hasDebugModeEnabled() && ! $this->app->has(ExceptionRenderer::class)) {
+            $this->app->make(Listener::class)->registerListeners(
+                $this->app->make(Dispatcher::class)
+            );
+        }
+
+        $this->publishes([
+            __DIR__ . '/../../config/app.php' => config_path('app.php'),
+        ], 'app-config');
+
+        $this->publishes([
+            __DIR__ . '/../Exceptions/views' => $this->app->resourcePath('views/errors/'),
+        ], 'hypervel-errors');
     }
 
     /**
@@ -58,16 +94,31 @@ class FoundationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->overrideHyperfConfigs();
+        $this->mergeConfigFrom(__DIR__ . '/../../config/app.php', 'app');
+
         $this->listenCommandException();
+        $this->registerMaintenanceModeManager();
+        $this->registerRequestValidation();
+        $this->registerRequestSignatureValidation();
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
+        $this->registerExceptionRenderer();
 
-        $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
+        $this->commands([
+            AboutCommand::class,
+            ConfigShowCommand::class,
+            DownCommand::class,
+            RouteCacheCommand::class,
+            RouteClearCommand::class,
+            UpCommand::class,
+            VendorPublishCommand::class,
+        ]);
+
+        $this->callAfterResolving(Request::class, function (Request $request) {
             $request->setUserResolver(function (?string $guard = null) {
                 return $this->app
-                    ->get(AuthFactoryContract::class)
+                    ->make(AuthFactoryContract::class)
                     ->guard($guard)
                     ->user();
             });
@@ -76,12 +127,19 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function listenCommandException(): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
+                // During tests, PendingCommand handles command exceptions itself
+                // (capturing via its own FailToHandle listener and re-throwing).
+                // Rendering here would produce duplicate, unwanted output to stdout.
+                if ($this->app->runningUnitTests()) {
+                    return;
+                }
+
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
-                    $this->app->get(ConsoleKernel::class)
-                        ->getArtisan()
-                        ->renderThrowable($throwable, $this->output);
+                    /** @var \Hypervel\Console\Application $artisan */
+                    $artisan = $this->app->make(ConsoleKernel::class)->getArtisan();
+                    $artisan->renderThrowable($throwable, $this->output);
                 }
             });
     }
@@ -101,70 +159,111 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setDatabaseConnection(): void
     {
         $connection = $this->config->get('database.default', 'mysql');
-        $this->app->get(ConnectionResolverInterface::class)
+        $this->app->make(ConnectionResolverInterface::class)
             ->setDefaultConnection($connection);
     }
 
-    protected function overrideHyperfConfigs(): void
+    /**
+     * Register the "validate" macro on the request.
+     *
+     * @throws ValidationException
+     */
+    protected function registerRequestValidation(): void
     {
-        $configs = [
-            'app_name' => $this->config->get('app.name'),
-            'app_env' => $this->config->get('app.env'),
-            StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
-            'databases' => $connections = $this->config->get('database.connections'),
-            'databases.migrations' => $migration = $this->config->get('database.migrations', 'migrations'),
-            'databases.default' => $connections[$this->config->get('database.default')] ?? [],
-            'databases.default.migrations' => $migration,
-            'redis' => $this->getRedisConfig(),
-        ];
+        Request::macro('validate', function (array $rules, ...$params) {
+            return tap(validator($this->all(), $rules, ...$params), function ($validator) {
+                if ($this->isPrecognitive()) {
+                    $validator->after(\Hypervel\Foundation\Precognition::afterValidationHook($this))
+                        ->setRules(
+                            $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
+                        );
+                }
+            })->validate();
+        });
 
-        foreach ($configs as $key => $value) {
-            if (! $this->config->has($key)) {
-                $this->config->set($key, $value);
+        Request::macro('validateWithBag', function (string $errorBag, array $rules, ...$params) {
+            try {
+                return $this->validate($rules, ...$params);
+            } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown ($this->validate() is a macro that throws ValidationException)
+                $e->errorBag = $errorBag;
+
+                throw $e;
             }
-        }
-
-        $this->config->set('middlewares', $this->getMiddlewareConfig());
+        });
     }
 
-    protected function getRedisConfig(): array
+    /**
+     * Register the "hasValidSignature" macro on the request.
+     */
+    protected function registerRequestSignatureValidation(): void
     {
-        $redisConfig = $this->config->get('database.redis', []);
-        $redisOptions = $redisConfig['options'] ?? [];
-        unset($redisConfig['options']);
+        Request::macro('hasValidSignature', function ($absolute = true) {
+            return URL::hasValidSignature($this, $absolute);
+        });
 
-        return array_map(function (array $config) use ($redisOptions) {
-            return array_merge($config, [
-                'options' => $redisOptions,
-            ]);
-        }, $redisConfig);
+        Request::macro('hasValidRelativeSignature', function () {
+            return URL::hasValidSignature($this, $absolute = false);
+        });
+
+        Request::macro('hasValidSignatureWhileIgnoring', function ($ignoreQuery = [], $absolute = true) {
+            return URL::hasValidSignature($this, $absolute, $ignoreQuery);
+        });
+
+        Request::macro('hasValidRelativeSignatureWhileIgnoring', function ($ignoreQuery = []) {
+            return URL::hasValidSignature($this, $absolute = false, $ignoreQuery);
+        });
     }
 
-    protected function getMiddlewareConfig(): array
+    /**
+     * Register the maintenance mode manager and its caching decorator.
+     */
+    protected function registerMaintenanceModeManager(): void
     {
-        if ($middleware = $this->config->get('middlewares', [])) {
-            foreach ($middleware as $server => $middlewareConfig) {
-                $middleware[$server] = MiddlewareManager::sortMiddlewares($middlewareConfig);
-            }
+        $this->app->singleton(
+            MaintenanceModeContract::class,
+            fn () => new WorkerCachedMaintenanceMode(
+                $this->app->make(MaintenanceModeManager::class)->driver()
+            )
+        );
+    }
+
+    /**
+     * Register the exception renderer.
+     */
+    protected function registerExceptionRenderer(): void
+    {
+        $this->loadViewsFrom(__DIR__ . '/../Exceptions/views', 'hypervel-exceptions');
+
+        if (! $this->app->hasDebugModeEnabled()) {
+            return;
         }
 
-        foreach ($this->config->get('server.kernels', []) as $server => $kernel) {
-            if (! is_string($kernel) || ! is_a($kernel, MiddlewareContract::class, true)) {
-                continue;
-            }
-            $middleware[$server] = array_merge(
-                $this->app->get($kernel)->getGlobalMiddleware(),
-                $middleware[$server] ?? [],
+        $this->loadViewsFrom(
+            __DIR__ . '/../../resources/exceptions/renderer',
+            'hypervel-exceptions-renderer'
+        );
+
+        $this->app->singleton(Renderer::class, function () {
+            $errorRenderer = new HtmlErrorRenderer(
+                $this->config->get('app.debug'),
             );
-        }
 
-        return $middleware;
+            return new Renderer(
+                $this->app->make(ViewFactory::class),
+                $this->app->make(Listener::class),
+                $errorRenderer,
+                $this->app->make(BladeMapper::class),
+                $this->app->basePath(),
+            );
+        });
+
+        $this->app->singleton(Listener::class);
     }
 
     protected function registerUriUrlGeneration(): void
     {
         Uri::setUrlGeneratorResolver(
-            fn () => $this->app->get(UrlGeneratorContract::class)
+            fn () => $this->app->make(UrlGeneratorContract::class)
         );
     }
 
@@ -187,7 +286,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $basePath = $this->app->basePath();
 
-        $compiledViewPath = $this->config->get('view.config.view_path');
+        $compiledViewPath = $this->config->get('view.compiled');
 
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 

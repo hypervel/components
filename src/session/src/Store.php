@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Session\Session;
+use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\ViewErrorBag;
 use SessionHandlerInterface;
 use stdClass;
@@ -21,6 +22,26 @@ use function Hypervel\Support\enum_value;
 class Store implements Session
 {
     use Macroable;
+
+    /**
+     * The context key used to store the active session for the current request.
+     */
+    public const CONTEXT_KEY = '__session.store';
+
+    /**
+     * Context key for whether the session has been started.
+     */
+    protected const STARTED_CONTEXT_KEY = '__session.store.started';
+
+    /**
+     * Context key for the session attributes.
+     */
+    protected const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
+
+    /**
+     * Context key for the session ID.
+     */
+    protected const ID_CONTEXT_KEY = '__session.store.id';
 
     /**
      * Create a new session instance.
@@ -47,7 +68,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set('_session.store.started', true);
+        return Context::set(self::STARTED_CONTEXT_KEY, true);
     }
 
     /**
@@ -55,7 +76,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get('_session.store.attributes', []);
+        return Context::get(self::ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -63,7 +84,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set('_session.store.attributes', $attributes);
+        Context::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
     }
 
     /**
@@ -72,8 +93,8 @@ class Store implements Session
     protected function replaceAttributes(array $attributes): void
     {
         Context::set(
-            '_session.store.attributes',
-            array_replace(Context::get('_session.store.attributes', []), $attributes)
+            self::ATTRIBUTES_CONTEXT_KEY,
+            array_replace(Context::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
         );
     }
 
@@ -148,7 +169,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set('_session.store.started', false);
+        Context::set(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -511,7 +532,17 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get('_session.store.started', false);
+        return Context::get(self::STARTED_CONTEXT_KEY, false);
+    }
+
+    /**
+     * Flush per-request session state from context.
+     */
+    public static function flushState(): void
+    {
+        Context::forget(self::STARTED_CONTEXT_KEY);
+        Context::forget(self::ID_CONTEXT_KEY);
+        Context::forget(self::ATTRIBUTES_CONTEXT_KEY);
     }
 
     /**
@@ -543,7 +574,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get('_session.store.id', null);
+        return Context::get(self::ID_CONTEXT_KEY, null);
     }
 
     /**
@@ -552,7 +583,7 @@ class Store implements Session
     public function setId(?string $id): void
     {
         Context::set(
-            '_session.store.id',
+            self::ID_CONTEXT_KEY,
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }
@@ -645,5 +676,23 @@ class Store implements Session
     public function setHandler(SessionHandlerInterface $handler): SessionHandlerInterface
     {
         return $this->handler = $handler;
+    }
+
+    /**
+     * Determine if the session handler needs a request.
+     */
+    public function handlerNeedsRequest(): bool
+    {
+        return $this->handler instanceof CookieSessionHandler;
+    }
+
+    /**
+     * Set the request on the handler instance.
+     */
+    public function setRequestOnHandler(Request $request): void
+    {
+        if ($this->handler instanceof CookieSessionHandler) {
+            $this->handler->setRequest($request);
+        }
     }
 }

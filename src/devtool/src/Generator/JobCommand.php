@@ -4,22 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-class JobCommand extends GeneratorCommand
+#[AsCommand(name: 'make:job')]
+class JobCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:job');
-    }
+    protected ?string $name = 'make:job';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new job class');
+    protected string $description = 'Create a new job class';
 
-        parent::configure();
-    }
+    protected string $type = 'Job';
 
     protected function getStub(): string
     {
@@ -27,12 +22,12 @@ class JobCommand extends GeneratorCommand
             return $stub;
         }
 
-        $stubName = $this->input->getOption('sync') ? 'job' : 'job.queued';
+        $stubName = $this->option('sync') ? 'job' : 'job.queued';
 
         return __DIR__ . "/stubs/{$stubName}.stub";
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Jobs';
     }

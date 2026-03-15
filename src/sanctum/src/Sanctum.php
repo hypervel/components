@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -36,6 +36,11 @@ class Sanctum
     public static $accessTokenAuthenticationCallback;
 
     /**
+     * A placeholder to instruct Sanctum to include the current request host in the list of stateful domains.
+     */
+    public static string $currentRequestHostPlaceholder = '__SANCTUM_CURRENT_REQUEST_HOST__';
+
+    /**
      * Get the current application URL from the "APP_URL" environment variable - with port.
      */
     public static function currentApplicationUrlWithPort(): string
@@ -46,9 +51,17 @@ class Sanctum
     }
 
     /**
+     * Get a fixed token instructing Sanctum to include the current request host in the list of stateful domains.
+     */
+    public static function currentRequestHost(): string
+    {
+        return ',' . static::$currentRequestHostPlaceholder;
+    }
+
+    /**
      * Set the current user for the application with the given abilities.
      *
-     * @param \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
+     * @param \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
      * @param array<string> $abilities
      */
     public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
@@ -72,7 +85,7 @@ class Sanctum
         }
 
         // Set the user on the guard
-        $authManager = ApplicationContext::getContainer()->get(AuthManager::class);
+        $authManager = Container::getInstance()->make(AuthManager::class);
         $authManager->guard($guard)->setUser($user);
 
         return $user;
@@ -112,5 +125,15 @@ class Sanctum
     public static function personalAccessTokenModel(): string
     {
         return static::$personalAccessTokenModel;
+    }
+
+    /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$personalAccessTokenModel = PersonalAccessToken::class;
+        static::$accessTokenRetrievalCallback = null;
+        static::$accessTokenAuthenticationCallback = null;
     }
 }

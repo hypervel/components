@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
@@ -64,7 +63,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -88,7 +87,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -112,7 +111,7 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
@@ -136,16 +135,16 @@ class DatabaseMigrationsTest extends TestCase
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            'config' => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
         ]);
 
         $this->runDatabaseMigrations();
     }
 
-    protected function getConfig(array $config = []): Config
+    protected function getConfig(array $config = []): Repository
     {
-        return new Config(array_merge([
+        return new Repository(array_merge([
             'database' => [
                 'default' => 'default',
             ],

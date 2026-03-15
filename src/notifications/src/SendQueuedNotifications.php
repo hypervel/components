@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use DateTime;
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Collection as EloquentCollection;
-use Hyperf\Database\Model\Model;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldBeEncrypted;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Collection;
 use Throwable;
 
 class SendQueuedNotifications implements ShouldQueue

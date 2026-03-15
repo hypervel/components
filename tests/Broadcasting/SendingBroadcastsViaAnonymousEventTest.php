@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -113,9 +113,9 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
     {
         Event::fake();
 
-        $request = m::mock(RequestInterface::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('header')->with('X-Socket-ID')->andReturn('12345');
-        $this->app->set(RequestInterface::class, $request);
+        $this->app->instance('request', $request);
 
         Broadcast::on('test-channel')->send();
 

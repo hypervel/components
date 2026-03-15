@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Channels;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Notification;
 use RuntimeException;
 

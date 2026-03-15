@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Tests\ObjectPool\Stub\FooPool;
+use Hypervel\Container\Container;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Tests\ObjectPool\Fixtures\FooPool;
 use Hypervel\Tests\TestCase;
-use Mockery;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use stdClass;
 
@@ -20,8 +17,6 @@ use stdClass;
  */
 class ObjectPoolTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testPoolFlush()
     {
         $container = $this->getContainer();
@@ -129,8 +124,8 @@ class ObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = Mockery::mock(ContainerInterface::class);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
+        Container::setInstance($container);
 
         return $container;
     }

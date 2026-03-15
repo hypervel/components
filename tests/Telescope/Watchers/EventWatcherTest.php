@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
 use Telescope\Dummies\DummyEventListener;
@@ -26,7 +26,7 @@ class EventWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 EventWatcher::class => [
                     'enabled' => true,
@@ -42,7 +42,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherRegistersAnyEvents()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -53,7 +53,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherStoresPayloads()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEvent('Telescope', 'Laravel', 'PHP'));
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -68,7 +68,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new DummyEventWithObject());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -84,7 +84,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherIgnoreEvent()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new IgnoredEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -92,14 +92,10 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider formatListenersProvider
-     * @param mixed $listener
-     * @param mixed $formatted
-     */
+    #[DataProvider('formatListenersProvider')]
     public function testFormatListeners($listener, $formatted)
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');

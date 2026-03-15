@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class RuleCommand extends GeneratorCommand
+#[AsCommand(name: 'make:rule')]
+class RuleCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:rule');
-    }
+    protected ?string $name = 'make:rule';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new validation rule');
+    protected string $description = 'Create a new validation rule';
 
-        parent::configure();
-    }
+    protected string $type = 'Rule';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/rule.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Rules';
     }

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use Hyperf\Di\MethodDefinitionCollector;
-use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -21,14 +19,12 @@ class BootProvidersTest extends TestCase
 
     public function testBoot()
     {
-        $app = $this->getApplication([
-            MethodDefinitionCollectorInterface::class => MethodDefinitionCollector::class,
-        ]);
+        $app = $this->getApplication();
         $app->register(ApplicationBasicServiceProviderStub::class);
 
         (new BootProviders())->bootstrap($app);
 
-        $this->assertSame('bar', $app->get('foo'));
+        $this->assertSame('bar', $app->make('foo'));
     }
 }
 
@@ -36,6 +32,6 @@ class ApplicationBasicServiceProviderStub extends ServiceProvider
 {
     public function boot()
     {
-        $this->app->bind('foo', fn () => 'bar');
+        $this->app->singleton('foo', fn () => 'bar');
     }
 }

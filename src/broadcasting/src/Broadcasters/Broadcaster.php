@@ -6,26 +6,26 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
-use Hypervel\Broadcasting\Contracts\Broadcaster as BroadcasterContract;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
-use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 abstract class Broadcaster implements BroadcasterContract
 {
     /**
      * The container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The callback to resolve the authenticated user information.
@@ -47,7 +47,7 @@ abstract class Broadcaster implements BroadcasterContract
      *
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication.
      */
-    public function resolveAuthenticatedUser(RequestInterface $request): ?array
+    public function resolveAuthenticatedUser(Request $request): ?array
     {
         if ($this->authenticatedUserCallback) {
             return $this->authenticatedUserCallback->__invoke($request);
@@ -89,7 +89,7 @@ abstract class Broadcaster implements BroadcasterContract
      *
      * @throws AccessDeniedHttpException
      */
-    protected function verifyUserCanAccessChannel(RequestInterface $request, string $channel): mixed
+    protected function verifyUserCanAccessChannel(Request $request, string $channel): mixed
     {
         foreach (static::$channels as $pattern => $callback) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {
@@ -233,7 +233,7 @@ abstract class Broadcaster implements BroadcasterContract
     protected function normalizeChannelHandlerToCallable($callback)
     {
         return is_callable($callback) ? $callback : function (...$args) use ($callback) {
-            return $this->container->get($callback)->join(...$args);
+            return $this->container->make($callback)->join(...$args);
         };
     }
 
@@ -245,7 +245,7 @@ abstract class Broadcaster implements BroadcasterContract
         $options = $this->retrieveChannelOptions($channel);
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->get(AuthManager::class);
+        $auth = $this->container->make(AuthManager::class);
 
         if (is_null($guards)) {
             return $auth->user();

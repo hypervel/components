@@ -5,20 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\JWTManager;
 use Hypervel\JWT\Providers\Lcobucci;
-use Hypervel\Tests\JWT\Stub\ValidationStub;
+use Hypervel\Support\Str;
+use Hypervel\Tests\JWT\Fixtures\ValidationStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactoryInterface;
-use Ramsey\Uuid\UuidInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @internal
@@ -27,14 +26,14 @@ use Ramsey\Uuid\UuidInterface;
 class JWTManagerTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var Container|MockInterface
      */
-    private ContainerInterface $container;
+    private Container $container;
 
     /**
-     * @var ConfigInterface|MockInterface
+     * @var MockInterface|Repository
      */
-    private ConfigInterface $config;
+    private Repository $config;
 
     /**
      * @var Lcobucci|MockInterface
@@ -48,8 +47,6 @@ class JWTManagerTest extends TestCase
 
     private int $testNowTimestamp;
 
-    private UuidFactoryInterface $originalUuidFactory;
-
     protected function setUp(): void
     {
         $this->setTestNow();
@@ -59,18 +56,9 @@ class JWTManagerTest extends TestCase
         $this->mockBlacklist();
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        if (isset($this->originalUuidFactory)) {
-            Uuid::setFactory($this->originalUuidFactory);
-        }
-    }
-
     public function testEncodeAPayload()
     {
-        $jti = 'foo';
+        $jti = '11111111-1111-4111-8111-111111111111';
         $token = 'foo.bar.baz';
         $payload = [
             'sub' => 1,
@@ -146,7 +134,7 @@ class JWTManagerTest extends TestCase
             'iat' => $this->testNowTimestamp,
             'jti' => 'foo',
         ];
-        $refreshJti = 'bar';
+        $refreshJti = '22222222-2222-4222-8222-222222222222';
         $refreshPayload = [
             'sub' => 1,
             'iss' => 'http://example.com',
@@ -229,26 +217,26 @@ class JWTManagerTest extends TestCase
 
     private function mockContainer()
     {
-        $this->container = Mockery::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
     }
 
     private function mockConfig()
     {
-        $this->config = Mockery::mock(ConfigInterface::class);
+        $this->config = m::mock(Repository::class);
 
-        $this->container->shouldReceive('get')->with(ConfigInterface::class)->andReturn($this->config);
+        $this->container->shouldReceive('make')->with('config')->andReturn($this->config);
     }
 
     private function mockProvider()
     {
-        $this->provider = Mockery::mock(Lcobucci::class);
+        $this->provider = m::mock(Lcobucci::class);
     }
 
     private function mockBlacklist()
     {
-        $this->blacklist = Mockery::mock(BlacklistContract::class);
+        $this->blacklist = m::mock(BlacklistContract::class);
 
-        $this->container->shouldReceive('get')->with(BlacklistContract::class)->andReturn($this->blacklist);
+        $this->container->shouldReceive('make')->with(BlacklistContract::class)->andReturn($this->blacklist);
     }
 
     private function createManager(): JWTManager
@@ -264,35 +252,6 @@ class JWTManagerTest extends TestCase
 
     private function mockUuid(string $value)
     {
-        if (! isset($this->originalUuidFactory)) {
-            $this->originalUuidFactory = Uuid::getFactory();
-        }
-
-        /** @var MockInterface|UuidFactoryInterface */
-        $factory = Mockery::mock(UuidFactoryInterface::class);
-
-        // Ignore Serializable interface deprecation warnings in PHP 8.1+
-        /** @var MockInterface|UuidInterface */
-        $uuid = $this->runInSpecifyErrorReportingLevel(
-            E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED,
-            fn () => Mockery::mock(UuidInterface::class)
-        );
-
-        $uuid->shouldReceive('__toString')->andReturn($value);
-
-        $factory->shouldReceive('uuid4')->andReturn($uuid);
-
-        Uuid::setFactory($factory);
-    }
-
-    private function runInSpecifyErrorReportingLevel(int $level, callable $callback)
-    {
-        $originalLevel = error_reporting($level);
-
-        $result = $callback();
-
-        error_reporting($originalLevel);
-
-        return $result;
+        Str::createUuidsUsing(fn () => Uuid::fromString($value));
     }
 }

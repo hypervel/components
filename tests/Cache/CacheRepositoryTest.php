@@ -10,18 +10,19 @@ use Carbon\Carbon;
 use DateInterval;
 use DateTime;
 use DateTimeImmutable;
-use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\Store;
-use Hypervel\Cache\Exceptions\InvalidArgumentException;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -260,10 +261,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @dataProvider dataProviderTestGetSeconds
-     * @param mixed $duration
-     */
+    #[DataProvider('dataProviderTestGetSeconds')]
     public function testGetSeconds($duration)
     {
         Carbon::setTestNow(Carbon::parse($this->getTestDate()));
@@ -286,6 +284,17 @@ class CacheRepositoryTest extends TestCase
             [new DateInterval('PT5M')],
             [300],
         ];
+    }
+
+    public function testGetSecondsCeilsSubSecondTtl()
+    {
+        Carbon::setTestNow(Carbon::parse($this->getTestDate()));
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 1);
+        $repo->put('foo', 'bar', Carbon::parse($this->getTestDate())->addMilliseconds(400));
+
+        $this->assertTrue(true);
     }
 
     public function testRegisterMacroWithNonStaticCall()
@@ -439,7 +448,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($nonTaggableRepo->supportsTags());
     }
 
-    public function testStringTypedGetter(): void
+    public function testStringTypedGetter()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('bar');
@@ -447,7 +456,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('bar', $repo->string('foo'));
     }
 
-    public function testStringTypedGetterThrowsExceptionForNonString(): void
+    public function testStringTypedGetterThrowsExceptionForNonString()
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Cache value for key [foo] must be a string, integer given.');
@@ -458,7 +467,7 @@ class CacheRepositoryTest extends TestCase
         $repo->string('foo');
     }
 
-    public function testStringTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testStringTypedGetterReturnsDefaultWhenKeyNotFound()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('default');
@@ -466,7 +475,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('default', $repo->string('foo', 'default'));
     }
 
-    public function testIntegerTypedGetter(): void
+    public function testIntegerTypedGetter()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(42);
@@ -474,7 +483,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(42, $repo->integer('foo'));
     }
 
-    public function testIntegerTypedGetterParsesNumericString(): void
+    public function testIntegerTypedGetterParsesNumericString()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('123');
@@ -482,7 +491,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(123, $repo->integer('foo'));
     }
 
-    public function testIntegerTypedGetterThrowsExceptionForNonInteger(): void
+    public function testIntegerTypedGetterThrowsExceptionForNonInteger()
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Cache value for key [foo] must be an integer, array given.');
@@ -493,7 +502,7 @@ class CacheRepositoryTest extends TestCase
         $repo->integer('foo');
     }
 
-    public function testIntegerTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testIntegerTypedGetterReturnsDefaultWhenKeyNotFound()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(100);
@@ -501,7 +510,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(100, $repo->integer('foo', 100));
     }
 
-    public function testFloatTypedGetter(): void
+    public function testFloatTypedGetter()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(3.14);
@@ -509,7 +518,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(3.14, $repo->float('foo'));
     }
 
-    public function testFloatTypedGetterParsesNumericString(): void
+    public function testFloatTypedGetterParsesNumericString()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('3.14');
@@ -517,10 +526,10 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(3.14, $repo->float('foo'));
     }
 
-    public function testFloatTypedGetterThrowsExceptionForNonFloat(): void
+    public function testFloatTypedGetterThrowsExceptionForNonFloat()
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache value for key [foo] must be an float, array given.');
+        $this->expectExceptionMessage('Cache value for key [foo] must be a float, array given.');
 
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(['bar']);
@@ -528,7 +537,7 @@ class CacheRepositoryTest extends TestCase
         $repo->float('foo');
     }
 
-    public function testFloatTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testFloatTypedGetterReturnsDefaultWhenKeyNotFound()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(2.5);
@@ -536,7 +545,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(2.5, $repo->float('foo', 2.5));
     }
 
-    public function testBooleanTypedGetter(): void
+    public function testBooleanTypedGetter()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(true);
@@ -544,7 +553,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->boolean('foo'));
     }
 
-    public function testBooleanTypedGetterReturnsFalse(): void
+    public function testBooleanTypedGetterReturnsFalse()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(false);
@@ -552,7 +561,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($repo->boolean('foo'));
     }
 
-    public function testBooleanTypedGetterThrowsExceptionForNonBoolean(): void
+    public function testBooleanTypedGetterThrowsExceptionForNonBoolean()
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Cache value for key [foo] must be a boolean, string given.');
@@ -563,7 +572,7 @@ class CacheRepositoryTest extends TestCase
         $repo->boolean('foo');
     }
 
-    public function testBooleanTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testBooleanTypedGetterReturnsDefaultWhenKeyNotFound()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(true);
@@ -571,7 +580,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->boolean('foo', true));
     }
 
-    public function testArrayTypedGetter(): void
+    public function testArrayTypedGetter()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(['bar', 'baz']);
@@ -579,7 +588,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['bar', 'baz'], $repo->array('foo'));
     }
 
-    public function testArrayTypedGetterReturnsAssociativeArray(): void
+    public function testArrayTypedGetterReturnsAssociativeArray()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(['key' => 'value']);
@@ -587,7 +596,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['key' => 'value'], $repo->array('foo'));
     }
 
-    public function testArrayTypedGetterThrowsExceptionForNonArray(): void
+    public function testArrayTypedGetterThrowsExceptionForNonArray()
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Cache value for key [foo] must be an array, string given.');
@@ -598,7 +607,7 @@ class CacheRepositoryTest extends TestCase
         $repo->array('foo');
     }
 
-    public function testArrayTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testArrayTypedGetterReturnsDefaultWhenKeyNotFound()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(['default']);

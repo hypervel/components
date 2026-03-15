@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 
 /**

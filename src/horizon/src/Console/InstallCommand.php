@@ -6,7 +6,9 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:install')]
 class InstallCommand extends Command
 {
     /**

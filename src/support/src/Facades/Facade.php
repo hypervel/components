@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Js;
+use Hypervel\Support\Number;
+use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\Fake;
+use Hypervel\Support\Uri;
 use Mockery;
 use Mockery\LegacyMockInterface;
 use RuntimeException;
@@ -20,11 +25,27 @@ abstract class Facade
     protected static array $resolvedInstance;
 
     /**
+     * Indicates if the resolved instance should be cached.
+     *
+     * When false, the facade resolves from the container on every access
+     * instead of caching in $resolvedInstance. Useful for stateful services
+     * like Pipeline where each usage needs a fresh instance.
+     *
+     * Important: for $cached = false to produce fresh instances, the
+     * underlying class must be explicitly bound with bind(), not singleton().
+     * Our container auto-singletons unbound classes, so an unbound class
+     * would still return the same instance from the container regardless
+     * of this setting. This differs from Laravel where unbound classes
+     * always resolve fresh.
+     */
+    protected static bool $cached = true;
+
+    /**
      * Run a Closure when the facade has been resolved.
      */
     public static function resolved(Closure $callback): void
     {
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
         $accessor = static::getFacadeAccessor();
 
         if ($container->resolved($accessor) === true) {
@@ -130,9 +151,10 @@ abstract class Facade
      */
     public static function swap(mixed $instance)
     {
-        static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
+        $accessor = static::getFacadeAccessor();
+        static::$resolvedInstance[$accessor] = $instance;
 
-        ApplicationContext::getContainer()->instance(static::getFacadeAccessor(), $instance);
+        Container::getInstance()->instance($accessor, $instance);
     }
 
     /**
@@ -174,21 +196,26 @@ abstract class Facade
     /**
      * Resolve the facade root instance from the container.
      */
-    protected static function resolveFacadeInstance(object|string $name): mixed
+    protected static function resolveFacadeInstance(string $name): mixed
     {
-        if (is_object($name)) {
-            return $name;
-        }
-
         if (isset(static::$resolvedInstance[$name])) {
             return static::$resolvedInstance[$name];
         }
 
-        if (ApplicationContext::getContainer()->has($name)) {
-            return static::$resolvedInstance[$name] = ApplicationContext::getContainer()->get($name);
+        $container = Container::getInstance();
+
+        // Guard against resolving facades before their services are available.
+        // Equivalent to Laravel's `if (static::$app)` null check — prevents
+        // auto-resolution cascades for unavailable accessors during bootstrap.
+        if (! $container->has($name)) {
+            return null;
         }
 
-        return null;
+        if (static::$cached) {
+            return static::$resolvedInstance[$name] = $container->make($name);
+        }
+
+        return $container->make($name);
     }
 
     /**
@@ -214,6 +241,7 @@ abstract class Facade
     {
         return new Collection([
             'App' => App::class,
+            'Arr' => Arr::class,
             'Artisan' => Artisan::class,
             'Auth' => Auth::class,
             'Blade' => Blade::class,
@@ -225,17 +253,19 @@ abstract class Facade
             'Crypt' => Crypt::class,
             'Date' => Date::class,
             'DB' => DB::class,
-            'Environment' => Environment::class,
             'Event' => Event::class,
+            'Exceptions' => Exceptions::class,
             'File' => File::class,
             'Gate' => Gate::class,
             'Hash' => Hash::class,
             'Http' => Http::class,
+            'Js' => Js::class,
             'JWT' => JWT::class,
             'Lang' => Lang::class,
             'Log' => Log::class,
             'Mail' => Mail::class,
             'Notification' => Notification::class,
+            'Number' => Number::class,
             'Process' => Process::class,
             'Queue' => Queue::class,
             'RateLimiter' => RateLimiter::class,
@@ -243,21 +273,23 @@ abstract class Facade
             'Request' => Request::class,
             'Response' => Response::class,
             'Route' => Route::class,
+            'Schema' => Schema::class,
             'Schedule' => Schedule::class,
             'Session' => Session::class,
             'Storage' => Storage::class,
+            'Str' => Str::class,
+            'Uri' => Uri::class,
             'URL' => URL::class,
             'Validator' => Validator::class,
             'View' => View::class,
+            'Vite' => Vite::class,
         ]);
     }
 
     /**
      * Get the registered name of the component.
-     *
-     * @return object|string
      */
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         throw new RuntimeException('Facade does not implement getFacadeAccessor method.');
     }

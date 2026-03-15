@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\Redis as HypervelRedis;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
@@ -25,13 +25,11 @@ use Redis;
  */
 class RedisProxyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
-        Context::destroy('redis.connection.cache');
+        Context::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default');
+        Context::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache');
     }
 
     public function testProxyUsesSpecifiedPoolName(): void
@@ -72,8 +70,8 @@ class RedisProxyTest extends TestCase
         $proxy->pipeline();
 
         // Context key should use the pool name
-        $this->assertTrue(Context::has('redis.connection.cache'));
-        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertTrue(Context::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache'));
+        $this->assertFalse(Context::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     /**

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Encryption;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Encryption\Encrypter;
-use Hypervel\Encryption\Exceptions\DecryptException;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 /**
@@ -235,10 +236,7 @@ class EncrypterTest extends TestCase
         $this->assertTrue(Encrypter::supported($key, 'aes-128-cbc'));
     }
 
-    /**
-     * @dataProvider provideTamperedData
-     * @param mixed $payload
-     */
+    #[DataProvider('provideTamperedData')]
     public function testTamperedPayloadWillGetRejected($payload)
     {
         $this->expectException(DecryptException::class);

@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Redis\Operations;
 
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Redis\Stub\FakeRedisClient;
-use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -19,12 +19,6 @@ use Mockery as m;
  */
 class FlushByPatternTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     /**
      * Create a RedisConnection wrapping a FakeRedisClient for testing.
      *

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers\Concerns;
 
 use Hypervel\Context\Context;
-use Hypervel\View\Contracts\ViewCompilationException;
+use Hypervel\Contracts\View\ViewCompilationException;
 
 trait CompilesLoops
 {
     /**
      * Counter to keep track of nested forelse statements.
      */
-    protected const FOR_ELSE_COUNTER_CONTEXT_KEY = 'for_else_counter';
+    protected const FOR_ELSE_COUNTER_CONTEXT_KEY = '__view.for_else_counter';
 
     protected function incrementForElseCounter(): int
     {

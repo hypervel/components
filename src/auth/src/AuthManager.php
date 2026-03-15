@@ -5,23 +5,36 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\StatefulGuard;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;
+use Hypervel\Config\Repository;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Http\Request;
 use Hypervel\JWT\JWTManager;
-use Hypervel\Session\Contracts\Session as SessionContract;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 
+/**
+ * @method null|\Hypervel\Contracts\Auth\Authenticatable user()
+ */
 class AuthManager implements AuthFactoryContract
 {
     use CreatesUserProviders;
+
+    /**
+     * Context key for the default guard override.
+     */
+    public const DEFAULT_GUARD_CONTEXT_KEY = '__auth.defaults.guard';
+
+    /**
+     * Context key for the user resolver callback override.
+     */
+    protected const RESOLVER_CONTEXT_KEY = '__auth.resolver';
 
     /**
      * The array of created "drivers".
@@ -43,12 +56,12 @@ class AuthManager implements AuthFactoryContract
     /**
      * The auth configuration.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
-        $this->config = $this->app->get(ConfigInterface::class);
+        $this->config = $this->app->make('config');
         $this->userResolver = function ($guard = null) {
             return $this->guard($guard)->user();
         };
@@ -106,7 +119,7 @@ class AuthManager implements AuthFactoryContract
         return new SessionGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(SessionContract::class)
+            $this->app->make(SessionContract::class)
         );
     }
 
@@ -118,8 +131,8 @@ class AuthManager implements AuthFactoryContract
         return new JwtGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(JWTManager::class),
-            $this->app->get(RequestInterface::class),
+            $this->app->make(JWTManager::class),
+            $this->app->make(Request::class),
             (int) $this->config->get('jwt.ttl', 120)
         );
     }
@@ -153,7 +166,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if ($driver = Context::get('__auth.defaults.guard')) {
+        if ($driver = Context::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
             return $driver;
         }
 
@@ -179,7 +192,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        Context::set('__auth.defaults.guard', $name);
+        Context::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
     }
 
     /**
@@ -197,7 +210,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function userResolver(): Closure
     {
-        if ($resolver = Context::get('__auth.resolver')) {
+        if ($resolver = Context::get(self::RESOLVER_CONTEXT_KEY)) {
             return $resolver;
         }
 
@@ -211,7 +224,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function resolveUsersUsing(Closure $userResolver): static
     {
-        Context::set('__auth.resolver', $userResolver);
+        Context::set(self::RESOLVER_CONTEXT_KEY, $userResolver);
 
         return $this;
     }
@@ -234,7 +247,7 @@ class AuthManager implements AuthFactoryContract
      *
      * @return $this
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

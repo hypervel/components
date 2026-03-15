@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
@@ -26,7 +26,7 @@ class ValidationFileRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             return new Translator(
                 new ArrayLoader(),
                 'en'
@@ -61,7 +61,7 @@ class ValidationFileRuleTest extends TestCase
 
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->get(TranslatorContract::class),
+                $this->app->make(TranslatorContract::class),
                 ['my_file' => $value],
                 ['my_file' => is_object($rule) ? clone $rule : $rule]
             );
@@ -84,13 +84,13 @@ class ValidationFileRuleTest extends TestCase
     {
         $this->fails(
             File::types('text/plain'),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.mimetypes']
         );
 
         $this->passes(
             File::types('image/png'),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -98,13 +98,13 @@ class ValidationFileRuleTest extends TestCase
     {
         $this->fails(
             File::types(['text/plain', 'image/jpeg']),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.mimetypes']
         );
 
         $this->passes(
             File::types(['text/plain', 'image/png']),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -112,13 +112,13 @@ class ValidationFileRuleTest extends TestCase
     {
         $this->fails(
             File::types('txt'),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.mimes']
         );
 
         $this->passes(
             File::types('png'),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -133,8 +133,8 @@ class ValidationFileRuleTest extends TestCase
         $this->passes(
             File::types(['png', 'jpg', 'jpeg', 'svg']),
             [
-                UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
-                UploadedFile::fake()->createWithContent('foo.svg', file_get_contents(__DIR__ . '/fixtures/image.svg')),
+                UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
+                UploadedFile::fake()->createWithContent('foo.svg', file_get_contents(__DIR__ . '/Fixtures/image.svg')),
             ]
         );
     }
@@ -149,7 +149,7 @@ class ValidationFileRuleTest extends TestCase
 
         $this->passes(
             File::types(['png', 'image/png']),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -157,25 +157,25 @@ class ValidationFileRuleTest extends TestCase
     {
         $this->fails(
             File::default()->extensions('png'),
-            UploadedFile::fake()->createWithContent('foo', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.extensions']
         );
 
         $this->fails(
             File::default()->extensions('png'),
-            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.extensions']
         );
 
         $this->fails(
             File::default()->extensions('jpeg'),
-            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.extensions']
         );
 
         $this->passes(
             File::default()->extensions('png'),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -183,19 +183,19 @@ class ValidationFileRuleTest extends TestCase
     {
         $this->fails(
             File::default()->extensions(['png', 'jpeg', 'jpg']),
-            UploadedFile::fake()->createWithContent('foo', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.extensions']
         );
 
         $this->fails(
             File::default()->extensions(['png', 'jpeg']),
-            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.jpg', file_get_contents(__DIR__ . '/Fixtures/image.png')),
             ['validation.extensions']
         );
 
         $this->passes(
             File::default()->extensions(['png', 'jpeg', 'jpg']),
-            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/fixtures/image.png')),
+            UploadedFile::fake()->createWithContent('foo.png', file_get_contents(__DIR__ . '/Fixtures/image.png')),
         );
     }
 
@@ -376,6 +376,49 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
+    public function testEncoding()
+    {
+        // ASCII file containing UTF-8.
+        $this->fails(
+            File::default()->encoding('ascii'),
+            UploadedFile::fake()->createWithContent('foo.txt', '✌️'),
+            ['validation.encoding'],
+        );
+
+        // UTF-8 file containing invalid UTF-8 byte sequence.
+        $this->fails(
+            File::default()->encoding('utf-8'),
+            UploadedFile::fake()->createWithContent('foo.txt', "\xf0\x28\x8c\x28"),
+            ['validation.encoding'],
+        );
+
+        $this->passes(
+            File::default()->encoding('utf-8'),
+            UploadedFile::fake()->createWithContent('foo.txt', '✌️'),
+        );
+
+        $this->passes(
+            File::default()->encoding('utf-8'),
+            [
+                UploadedFile::fake()->createWithContent('foo-1.txt', '✌️'),
+                UploadedFile::fake()->createWithContent('foo-2.txt', '👍'),
+            ]
+        );
+    }
+
+    public function testEncodingWithInvalidParameter()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Validation rule encoding parameter [FOOBAR] is not a valid encoding.');
+
+        // Invalid encoding.
+        $this->fails(
+            File::default()->encoding('FOOBAR'),
+            UploadedFile::fake()->createWithContent('foo.txt', ''),
+            ['validation.encoding'],
+        );
+    }
+
     public function testMacro()
     {
         File::macro('toDocument', function () {
@@ -402,7 +445,7 @@ class ValidationFileRuleTest extends TestCase
         file_put_contents($path = __DIR__ . '/test.json', 'this-is-a-test');
 
         // $file = new \Illuminate\Http\File($path);
-        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, null, true);
+        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, true);
 
         $this->fails(
             ['max:0'],

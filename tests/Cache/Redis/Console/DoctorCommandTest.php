@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -44,7 +44,7 @@ class DoctorCommandTest extends TestCase
             ->with('file')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput());
@@ -55,7 +55,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -69,7 +69,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -93,7 +93,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         // The command will fail at environment checks (Redis version check for 'any' mode)
         // but this tests that store detection works
@@ -117,7 +117,7 @@ class DoctorCommandTest extends TestCase
             return;
         }
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('file');
@@ -125,7 +125,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -150,7 +150,7 @@ class DoctorCommandTest extends TestCase
             ->with('custom-redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -163,7 +163,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysTagMode(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('redis');
@@ -171,7 +171,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
@@ -195,7 +195,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -209,7 +209,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorFailsWhenNoRedisStoreDetected(): void
     {
         // Set up config with NO redis stores
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -220,7 +220,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -233,7 +233,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysSystemInformation(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -246,7 +246,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
@@ -269,7 +269,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();

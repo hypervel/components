@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Translation;
 
+use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Translation\Contracts\Loader;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Coroutine\run;
 
@@ -36,10 +36,7 @@ enum TranslatorTestUnitEnum
  */
 class TranslatorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
+    protected bool $runTestsInCoroutine = false;
 
     public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull()
     {
@@ -111,7 +108,7 @@ class TranslatorTest extends TestCase
 
     public function testGetMethodProperlyLoadsAndRetrievesItemWithCapitalization()
     {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods([])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
+        $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
         $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['foo' => 'foo', 'baz' => 'breeze :0 :Foo :BAR']);
         $this->assertSame('breeze john Bar FOO', $translator->get('foo::bar.baz', ['john', 'foo' => 'bar', 'bar' => 'foo'], 'en'));

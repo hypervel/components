@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
+use DateTimeInterface;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;
+use Hypervel\Container\Container;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -26,6 +27,11 @@ class RateLimited
     protected string $limiterName;
 
     /**
+     * The number of seconds before a job should be available again if the limit is exceeded.
+     */
+    public DateTimeInterface|int|null $releaseAfter = null;
+
+    /**
      * Indicates if the job should be released if the limit is exceeded.
      */
     public bool $shouldRelease = true;
@@ -35,8 +41,8 @@ class RateLimited
      */
     public function __construct(UnitEnum|string $limiterName)
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
 
         $this->limiterName = enum_value($limiterName);
     }
@@ -77,7 +83,7 @@ class RateLimited
         foreach ($limits as $limit) {
             if ($this->limiter->tooManyAttempts($limit->key, $limit->maxAttempts)) {
                 return $this->shouldRelease
-                    ? $job->release($this->getTimeUntilNextRetry($limit->key))
+                    ? $job->release($this->releaseAfter ?: $this->getTimeUntilNextRetry($limit->key))
                     : false;
             }
 
@@ -85,6 +91,16 @@ class RateLimited
         }
 
         return $next($job);
+    }
+
+    /**
+     * Set the delay (in seconds) to release the job back to the queue.
+     */
+    public function releaseAfter(DateTimeInterface|int $releaseAfter): static
+    {
+        $this->releaseAfter = $releaseAfter;
+
+        return $this;
     }
 
     /**
@@ -121,7 +137,7 @@ class RateLimited
      */
     public function __wakeup()
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
     }
 }

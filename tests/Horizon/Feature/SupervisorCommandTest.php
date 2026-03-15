@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
-use Hypervel\Foundation\Console\Contracts\Kernel;
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Horizon\Console\SupervisorCommand;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSupervisorFactory;
@@ -43,8 +43,8 @@ class SupervisorCommandTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->app->get(Kernel::class)
-            ->registerCommand(SupervisorCommand::class);
+        $this->app->make(Kernel::class)
+            ->registerCommand($this->app->make(SupervisorCommand::class));
     }
 
     public function testSupervisorCommandCanStartSupervisorMonitoring()

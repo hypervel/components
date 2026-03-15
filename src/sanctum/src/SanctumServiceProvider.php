@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hypervel\Config\config;
 
@@ -22,7 +21,7 @@ class SanctumServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../publish/sanctum.php',
+            __DIR__ . '/../config/sanctum.php',
             'sanctum'
         );
     }
@@ -45,19 +44,19 @@ class SanctumServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('sanctum', function ($name, $config) use ($authManager) {
-                $request = $this->app->get(RequestInterface::class);
+                $request = $this->app->make(Request::class);
 
                 // Get the provider
                 $provider = $authManager->createUserProvider($config['provider'] ?? null);
 
                 // Get event dispatcher if available
                 $events = null;
-                if ($this->app->has(EventDispatcherInterface::class)) {
-                    $events = $this->app->get(EventDispatcherInterface::class);
+                if ($this->app->has(Dispatcher::class)) {
+                    $events = $this->app->make(Dispatcher::class);
                 }
 
                 // Get expiration from sanctum config
-                $expiration = $this->app->get(ConfigInterface::class)->get('sanctum.expiration');
+                $expiration = $this->app->make('config')->get('sanctum.expiration');
 
                 return new SanctumGuard(
                     name: $name,
@@ -75,13 +74,8 @@ class SanctumServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            '/',
-            __DIR__ . '/../routes/web.php',
-            [
-                'middleware' => config('sanctum.middleware', 'web'),
-            ]
-        );
+        Route::middleware(config('sanctum.middleware', 'web'))
+            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**
@@ -90,7 +84,7 @@ class SanctumServiceProvider extends ServiceProvider
     protected function registerPublishing(): void
     {
         $this->publishes([
-            __DIR__ . '/../publish/sanctum.php' => config_path('sanctum.php'),
+            __DIR__ . '/../config/sanctum.php' => config_path('sanctum.php'),
         ], 'sanctum-config');
 
         $this->publishes([

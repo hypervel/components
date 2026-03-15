@@ -12,8 +12,10 @@ workbench:
 
 purge:
   files:
+    # Do not purge composer.lock or composer.json:
+    # provider discovery reads Composer metadata during bootstrap, and remote()
+    # subprocess cleanup must not delete files required by the parent test process.
     - .env
-    - composer.lock
   directories:
     - runtime
     - public/vendor

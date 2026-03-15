@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Redis\Redis;
 use Hypervel\Cache\RedisLock;
+use Hypervel\Redis\Redis;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -16,13 +16,6 @@ use RuntimeException;
  */
 class RedisLockTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
-    }
-
     public function testAcquireWithExpirationUsesSETWithNXAndEX(): void
     {
         $redis = m::mock(Redis::class);
@@ -80,7 +73,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(m::type('string'), 1, 'lock:foo', 'owner123')
             ->andReturn(1);
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');
@@ -93,7 +86,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(m::type('string'), 1, 'lock:foo', 'owner123')
             ->andReturn(0);
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');

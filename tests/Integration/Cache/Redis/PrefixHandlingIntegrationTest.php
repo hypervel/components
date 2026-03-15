@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Redis\Factory as Redis;
 
 /**
  * Integration tests for prefix handling with different configurations.
@@ -28,7 +28,7 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
     {
         $this->skipIfAnyTagModeUnsupported();
 
-        $factory = $this->app->get(RedisFactory::class);
+        $factory = $this->app->make(Redis::class);
         $store = new RedisStore($factory, $cachePrefix, 'default');
         $store->setTagMode(TagMode::Any);
 
@@ -344,7 +344,7 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->skipIfAnyTagModeUnsupported();
 
         $connectionName = $this->createRedisConnectionWithPrefix($optPrefix);
-        $factory = $this->app->get(RedisFactory::class);
+        $factory = $this->app->make(Redis::class);
         $store = new RedisStore($factory, $cachePrefix, $connectionName);
         $store->setTagMode(TagMode::Any);
 
@@ -478,16 +478,16 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 
     protected function tearDown(): void
     {
-        // Clean up any keys created by OPT_PREFIX tests
-        $patterns = ['opt:*', 'app1:*', 'app2:*'];
-        foreach ($patterns as $pattern) {
-            $this->cleanupKeysWithPattern($pattern);
+        try {
+            $this->cleanupRedisKeysWithPatterns(
+                'opt:*',
+                'app1:*',
+                'app2:*',
+                'test_key',
+                'cache:*',
+            );
+        } finally {
+            parent::tearDown();
         }
-
-        // Also clean up no-prefix keys
-        $this->cleanupKeysWithPattern('test_key');
-        $this->cleanupKeysWithPattern('cache:*');
-
-        parent::tearDown();
     }
 }

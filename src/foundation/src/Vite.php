@@ -6,8 +6,8 @@ namespace Hypervel\Foundation;
 
 use Exception;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
@@ -21,17 +21,17 @@ class Vite implements Htmlable
     /**
      * The Content Security Policy nonce context key.
      */
-    protected const NONCE_CONTEXT_KEY = 'hypervel.vite.nonce';
+    protected const NONCE_CONTEXT_KEY = '__foundation.vite.nonce';
 
     /**
      * The entry points context key.
      */
-    protected const ENTRY_POINTS_CONTEXT_KEY = 'hypervel.vite.entry_points';
+    protected const ENTRY_POINTS_CONTEXT_KEY = '__foundation.vite.entry_points';
 
     /**
      * The preloaded assets context key.
      */
-    protected const PRELOADED_ASSETS_CONTEXT_KEY = 'hypervel.vite.preloaded_assets';
+    protected const PRELOADED_ASSETS_CONTEXT_KEY = '__foundation.vite.preloaded_assets';
 
     /**
      * The key to check for integrity hashes within the manifest.
@@ -529,7 +529,9 @@ class Vite implements Htmlable
             && ! array_key_exists($this->integrityKey, $chunk ?? [])
             && $this->scriptTagAttributesResolvers === []
             && $this->styleTagAttributesResolvers === []) {
-            return $this->makeTag($url);
+            return $this->isCssPath($url)
+                ? $this->makeStylesheetTagWithAttributes($url, [])
+                : $this->makeScriptTagWithAttributes($url, []);
         }
 
         if ($this->isCssPath($url)) {
@@ -628,40 +630,6 @@ class Vite implements Htmlable
         }
 
         return $attributes;
-    }
-
-    /**
-     * Generate an appropriate tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeTag(string $url): string
-    {
-        if ($this->isCssPath($url)) {
-            return $this->makeStylesheetTag($url);
-        }
-
-        return $this->makeScriptTag($url);
-    }
-
-    /**
-     * Generate a script tag for the given URL.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeScriptTag(string $url): string
-    {
-        return $this->makeScriptTagWithAttributes($url, []);
-    }
-
-    /**
-     * Generate a stylesheet tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeStylesheetTag(string $url): string
-    {
-        return $this->makeStylesheetTagWithAttributes($url, []);
     }
 
     /**

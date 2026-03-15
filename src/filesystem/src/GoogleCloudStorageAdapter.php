@@ -7,7 +7,7 @@ namespace Hypervel\Filesystem;
 use DateTimeInterface;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGoogleCloudAdapter;
 use League\Flysystem\UnableToReadFile;

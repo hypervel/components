@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
@@ -20,18 +19,18 @@ use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Workbench\App\Exceptions\ExceptionHandler;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 Bootstrapper::bootstrap();
 
 $app = new Application();
-$app->bind(KernelContract::class, ConsoleKernel::class);
-$app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
+$app->singleton(KernelContract::class, ConsoleKernel::class);
+$app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
-ApplicationContext::setContainer($app);
-$app->get(ApplicationInterface::class);
+Container::setInstance($app);
+$app->make(ConsoleApplicationContract::class);
 
-$config = $app->get(ConfigInterface::class);
+$config = $app->make('config');
 $config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);
 $config->set('queue', [
     'default' => 'redis',
@@ -50,7 +49,7 @@ $config->set('queue', [
 $app->register(HorizonServiceProvider::class);
 
 /** @var Worker $worker */
-$worker = $app->get(Worker::class);
+$worker = $app->make(Worker::class);
 
 // Pause the worker if needed...
 if (in_array('--paused', $_SERVER['argv'])) {

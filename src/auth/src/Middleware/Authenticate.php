@@ -4,30 +4,48 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Middleware;
 
+use Closure;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\AuthManager;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Contracts\Auth\Factory as Auth;
+use Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class Authenticate implements MiddlewareInterface
+class Authenticate implements AuthenticatesRequests
 {
+    /**
+     * The callback that should be used to generate the authentication redirect path.
+     *
+     * @var null|callable
+     */
+    protected static $redirectToCallback;
+
+    /**
+     * Create a new middleware instance.
+     */
     public function __construct(
-        protected AuthManager $auth
+        protected Auth $auth,
     ) {
     }
 
-    public static function using(string ...$guards): string
+    /**
+     * Specify the guards for the middleware.
+     */
+    public static function using(string $guard, string ...$others): string
     {
-        return static::class . ':' . implode(',', $guards);
+        return static::class . ':' . implode(',', [$guard, ...$others]);
     }
 
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler, string ...$guards): ResponseInterface
+    /**
+     * Handle an incoming request.
+     *
+     * @throws AuthenticationException
+     */
+    public function handle(Request $request, Closure $next, string ...$guards): Response
     {
         $this->authenticate($request, $guards);
 
-        return $handler->handle($request);
+        return $next($request);
     }
 
     /**
@@ -35,7 +53,7 @@ class Authenticate implements MiddlewareInterface
      *
      * @throws AuthenticationException
      */
-    protected function authenticate(ServerRequestInterface $request, array $guards): void
+    protected function authenticate(Request $request, array $guards): void
     {
         if (empty($guards)) {
             $guards = [null];
@@ -44,6 +62,7 @@ class Authenticate implements MiddlewareInterface
         foreach ($guards as $guard) {
             if ($this->auth->guard($guard)->check()) {
                 $this->auth->shouldUse($guard);
+
                 return;
             }
         }
@@ -56,11 +75,40 @@ class Authenticate implements MiddlewareInterface
      *
      * @throws AuthenticationException
      */
-    protected function unauthenticated(ServerRequestInterface $request, array $guards): void
+    protected function unauthenticated(Request $request, array $guards): never
     {
         throw new AuthenticationException(
             'Unauthenticated.',
-            $guards
+            $guards,
+            $request->expectsJson() ? null : $this->redirectTo($request),
         );
+    }
+
+    /**
+     * Get the path the user should be redirected to when they are not authenticated.
+     */
+    protected function redirectTo(Request $request): ?string
+    {
+        if (static::$redirectToCallback) {
+            return call_user_func(static::$redirectToCallback, $request);
+        }
+
+        return null;
+    }
+
+    /**
+     * Specify the callback that should be used to generate the redirect path.
+     */
+    public static function redirectUsing(callable $redirectToCallback): void
+    {
+        static::$redirectToCallback = $redirectToCallback;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$redirectToCallback = null;
     }
 }

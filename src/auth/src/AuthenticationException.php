@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Exception;
-use Psr\Http\Message\RequestInterface;
+use Hypervel\Http\Request;
 
 class AuthenticationException extends Exception
 {
@@ -52,7 +52,7 @@ class AuthenticationException extends Exception
     /**
      * Get the path the user should be redirected to.
      */
-    public function redirectTo(RequestInterface $request): ?string
+    public function redirectTo(Request $request): ?string
     {
         if ($this->redirectTo) {
             return $this->redirectTo;
@@ -71,5 +71,13 @@ class AuthenticationException extends Exception
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$redirectToCallback = null;
     }
 }

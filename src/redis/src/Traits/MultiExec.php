@@ -9,11 +9,8 @@ use Hypervel\Redis\Redis as HypervelRedis;
 use Redis;
 use RedisCluster;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * Coroutine multi-exec trait.
- * @see Hyperf\Redis\Traits\MultiExec
  */
 trait MultiExec
 {

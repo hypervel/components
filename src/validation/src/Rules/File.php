@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use InvalidArgumentException;
 use Stringable;
 
@@ -41,6 +40,11 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      * The maximum size in kilobytes that the file can be.
      */
     protected ?int $maximumFileSize = null;
+
+    /**
+     * The required file encoding.
+     */
+    protected ?string $encoding = null;
 
     /**
      * An array of custom rules that will be merged into the validation rules.
@@ -174,6 +178,16 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
+     * Indicate that the uploaded file should be in the given encoding.
+     */
+    public function encoding(string $encoding): static
+    {
+        $this->encoding = $encoding;
+
+        return $this;
+    }
+
+    /**
      * Convert a potentially human-friendly file size to kilobytes.
      */
     protected function toKilobytes(int|string $size): mixed
@@ -247,6 +261,10 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
             default => "size:{$this->minimumFileSize}",
         };
 
+        if ($this->encoding) {
+            $rules[] = 'encoding:' . $this->encoding;
+        }
+
         return array_merge(array_filter($rules), $this->customRules);
     }
 
@@ -284,11 +302,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      */
     protected function fail(array|string $messages): bool
     {
-        $messages = Collection::wrap($messages)
-            ->map(fn ($message) => $this->validator->getTranslator()->get($message))
-            ->all();
-
-        $this->messages = array_merge($this->messages, $messages);
+        $this->messages = array_merge($this->messages, Arr::wrap($messages));
 
         return false;
     }

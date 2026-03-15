@@ -7,14 +7,13 @@ namespace Hypervel\Tests\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\Job as QueueJobContract;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\Job as QueueJobContract;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -25,10 +24,8 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use Throwable;
 
@@ -38,33 +35,21 @@ use Throwable;
  */
 class QueueWorkerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
-    protected EventDispatcherInterface $events;
+    protected EventDispatcher $events;
 
     protected ExceptionHandlerContract $exceptionHandler;
 
-    protected ContainerInterface $container;
+    protected ContainerContract $container;
 
     protected function setUp(): void
     {
-        $this->events = m::spy(EventDispatcherInterface::class);
+        $this->events = m::spy(EventDispatcher::class);
         $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
-        $this->container = new Container(
-            new DefinitionSource([
-                EventDispatcherInterface::class => fn () => $this->events,
-                ExceptionHandlerContract::class => fn () => $this->exceptionHandler,
-            ])
-        );
+        $this->container = new Container();
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $this->container->instance(ExceptionHandlerContract::class, $this->exceptionHandler);
 
-        ApplicationContext::setContainer($this->container);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow();
+        Container::setInstance($this->container);
     }
 
     public function testJobCanBeFired()

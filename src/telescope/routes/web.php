@@ -89,5 +89,5 @@ Route::post('/telescope-api/toggle-recording', 'RecordingController@toggle');
 // Clear Entries...
 Route::delete('/telescope-api/entries', 'EntriesController@destroy');
 
-Route::get('/', 'HomeController@index', ['name' => 'telescope.index']);
-Route::get('/{path:.*}', 'HomeController@index');
+Route::get('/', 'HomeController@index')->name('telescope.index');
+Route::get('/{path}', 'HomeController@index')->where('path', '.*');

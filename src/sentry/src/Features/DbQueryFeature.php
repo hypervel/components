@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hyperf\Database\Events\ConnectionEvent;
-use Hyperf\Database\Events\QueryExecuted;
-use Hyperf\Database\Events\TransactionBeginning;
-use Hyperf\Database\Events\TransactionCommitted;
-use Hyperf\Database\Events\TransactionRolledBack;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Events\ConnectionEvent;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Sentry\Integrations\Integration;
 use Sentry\Breadcrumb;
 
@@ -23,13 +23,13 @@ class DbQueryFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isBreadcrumbEnable(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)
-            || $this->switcher->isBreadcrumbEnable(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY);
+        return $this->isBreadcrumbFeatureEnabled(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->get(Dispatcher::class);
+        $dispatcher = $this->container->make(Dispatcher::class);
 
         $dispatcher->listen(QueryExecuted::class, [$this, 'handleQueryExecutedEvent']);
         $dispatcher->listen(TransactionBeginning::class, [$this, 'handleTransactionEvent']);
@@ -39,7 +39,7 @@ class DbQueryFeature extends Feature
 
     public function handleQueryExecutedEvent(QueryExecuted $event): void
     {
-        if (! $this->switcher->isBreadcrumbEnable(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)) {
+        if (! $this->isBreadcrumbFeatureEnabled(static::SQL_QUERIES_BREADCRUMB_FEATURE_KEY)) {
             return;
         }
 
@@ -49,7 +49,7 @@ class DbQueryFeature extends Feature
             $data['executionTimeMs'] = $event->time;
         }
 
-        if ($this->switcher->isBreadcrumbEnable(static::SQL_BINDINGS_BREADCRUMB_FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(static::SQL_BINDINGS_BREADCRUMB_FEATURE_KEY)) {
             $data['bindings'] = $event->bindings;
         }
 
@@ -67,7 +67,7 @@ class DbQueryFeature extends Feature
     public function handleTransactionEvent(
         TransactionBeginning|TransactionCommitted|TransactionRolledBack|ConnectionEvent $event
     ): void {
-        if (! $this->switcher->isBreadcrumbEnable(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY)) {
+        if (! $this->isBreadcrumbFeatureEnabled(static::SQL_TRANSACTION_BREADCRUMB_FEATURE_KEY)) {
             return;
         }
 

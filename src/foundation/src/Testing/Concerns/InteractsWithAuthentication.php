@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 
 trait InteractsWithAuthentication
 {
@@ -26,11 +26,11 @@ trait InteractsWithAuthentication
             $user->wasRecentlyCreated = false;
         }
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->guard($guard)
             ->setUser($user);
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->shouldUse($guard);
 
         return $this;

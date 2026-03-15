@@ -3,18 +3,19 @@
 declare(strict_types=1);
 
 use Hypervel\Sentry\Features\CacheFeature;
+use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Sentry\Features\DbQueryFeature;
+use Hypervel\Sentry\Features\HttpClientIntegration;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Sentry\Features\QueueFeature;
+use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Integrations\RequestIntegration;
 use Hypervel\Validation\ValidationException;
 use Sentry\Integration\EnvironmentIntegration;
 use Sentry\Integration\FrameContextifierIntegration;
 use Sentry\Integration\TransactionIntegration;
-
-use function Hyperf\Support\env;
 
 return [
     'dsn' => env('SENTRY_DSN', ''),
@@ -54,10 +55,6 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#send_default_pii
     'send_default_pii' => env('SENTRY_SEND_DEFAULT_PII', false),
 
-    'enable' => [
-        'coroutine' => env('SENTRY_ENABLE_COROUTINE', true),
-    ],
-
     'breadcrumbs' => [
         // Capture Hypervel cache events (hits, writes etc.) as breadcrumbs
         'cache' => env('SENTRY_BREADCRUMBS_CACHE', true),
@@ -71,8 +68,10 @@ return [
         'queue_info' => env('SENTRY_BREADCRUMBS_QUEUE_INFO_ENABLED', true),
         // Capture send notifications as breadcrumbs
         'notifications' => env('SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED', true),
-        // Capture Guzzle HTTP client requests as breadcrumbs
-        'guzzle' => env('SENTRY_BREADCRUMBS_GUZZLE', true),
+        // Capture log messages as breadcrumbs
+        'logs' => env('SENTRY_BREADCRUMBS_LOGS', true),
+        // Capture artisan command information as breadcrumbs
+        'command_info' => env('SENTRY_BREADCRUMBS_COMMAND_INFO', true),
     ],
 
     'integrations' => [
@@ -87,8 +86,11 @@ return [
         QueueFeature::class,
         NotificationsFeature::class,
         LogFeature::class,
+        ConsoleIntegration::class,
         ConsoleSchedulingFeature::class,
         DbQueryFeature::class,
+        HttpClientIntegration::class,
+        RedisFeature::class,
     ],
 
     'ignore_exceptions' => [
@@ -101,7 +103,6 @@ return [
     'ignore_commands' => [
         'crontab:run',
         'make:*',
-        'gen:*',
         'migrate*',
         'tinker',
         'vendor:publish',
@@ -109,6 +110,20 @@ return [
 
     // Performance monitoring specific configuration
     'tracing' => [
+        // Enable default tracing integrations
+        'default_integrations' => env('SENTRY_TRACE_DEFAULT_INTEGRATIONS', true),
+        // Capture view rendering as spans
+        'views' => env('SENTRY_TRACE_VIEWS', true),
+        // Capture HTTP client requests as spans
+        'http_client_requests' => env('SENTRY_TRACE_HTTP_CLIENT_REQUESTS', true),
+        // Capture SQL queries as spans
+        'sql_queries' => env('SENTRY_TRACE_SQL_QUERIES_ENABLED', true),
+        // Capture SQL query bindings (parameter values) in query spans
+        'sql_bindings' => env('SENTRY_TRACE_SQL_BINDINGS_ENABLED', false),
+        // Capture where a SQL query originated from on the query span
+        'sql_origin' => env('SENTRY_TRACE_SQL_ORIGIN_ENABLED', true),
+        // Minimum query duration (in ms) before the origin is captured on the query span
+        'sql_origin_threshold_ms' => env('SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS', 100),
         // Capture queue jobs as spans when executed on the sync driver
         'queue_jobs' => env('SENTRY_TRACE_QUEUE_JOBS_ENABLED', true),
         // Trace queue jobs as their own transactions (this enables tracing for queue jobs)
@@ -121,15 +136,19 @@ return [
         'redis_commands' => env('SENTRY_TRACE_REDIS_COMMANDS', true),
         // Capture where the Redis command originated from on the Redis command spans
         'redis_origin' => env('SENTRY_TRACE_REDIS_ORIGIN_ENABLED', true),
+        // Discard transactions for routes that were not matched (404s, etc.)
+        'missing_routes' => env('SENTRY_TRACE_MISSING_ROUTES', false),
     ],
 
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2.0),
 
-    // HTTP connection pool configuration for Sentry SDK's underlying Guzzle transport client
+    // HTTP transport pool configuration for async Sentry event sending via Swoole coroutines.
+    // wait_timeout is set low (10ms) so pool exhaustion fails fast (backpressure)
+    // rather than blocking request coroutines for seconds during exception storms.
     'pool' => [
         'min_objects' => 1,
         'max_objects' => 10,
-        'wait_timeout' => 3.0,
+        'wait_timeout' => 0.01,
         'max_lifetime' => 60.0,
     ],
 ];

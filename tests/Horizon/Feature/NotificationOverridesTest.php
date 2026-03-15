@@ -25,7 +25,7 @@ class NotificationOverridesTest extends IntegrationTestCase
 
         Horizon::routeMailNotificationsTo('taylor@laravel.com');
 
-        Container::getInstance()->bind(LongWaitDetectedNotificationContract::class, CustomLongWaitDetectedNotification::class);
+        Container::getInstance()->singleton(LongWaitDetectedNotificationContract::class, CustomLongWaitDetectedNotification::class);
 
         event(new LongWaitDetected('redis', 'test-queue-2', 60));
 

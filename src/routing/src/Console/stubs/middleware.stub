@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Closure;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class {{ class }}
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        return $next($request);
+    }
+}

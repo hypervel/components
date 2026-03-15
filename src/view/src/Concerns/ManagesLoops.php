@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
+use Countable;
 use Generator;
 use Hypervel\Context\Context;
-use Hypervel\Support\Arr;
 use Hypervel\Support\LazyCollection;
 use stdClass;
 
@@ -16,19 +16,19 @@ trait ManagesLoops
     /**
      * The context key for loops stack.
      */
-    protected const LOOPS_STACK_CONTEXT_KEY = 'loops_stack';
+    protected const LOOPS_STACK_CONTEXT_KEY = '__view.loops_stack';
 
     /**
      * Add new loop to the stack.
      */
-    public function addLoop(Closure|array|Generator|LazyCollection $data): void
+    public function addLoop(Closure|Countable|array|Generator $data): void
     {
         $length = is_countable($data) && ! $data instanceof LazyCollection
                             ? count($data)
                             : null;
 
         $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
-        $parent = Arr::last($loopsStack);
+        $parent = array_last($loopsStack);
 
         $loopsStack[] = [
             'iteration' => 0,

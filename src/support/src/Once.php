@@ -81,6 +81,15 @@ class Once
      */
     public static function flush(): void
     {
-        Context::destroy(self::INSTANCE_CONTEXT_KEY);
+        Context::forget(self::INSTANCE_CONTEXT_KEY);
+    }
+
+    /**
+     * Reset all static state on the class.
+     */
+    public static function flushState(): void
+    {
+        static::flush();
+        static::enable();
     }
 }

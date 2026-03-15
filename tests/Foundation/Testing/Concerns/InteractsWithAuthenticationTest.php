@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Testbench\TestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -21,29 +21,22 @@ class InteractsWithAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;
 
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroy('__auth.defaults.guard');
-    }
-
     public function testAssertAsGuest()
     {
-        $guard = Mockery::mock(Guard::class);
+        $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
             ->twice()
             ->andReturn(false);
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
             ]);
 
-        Context::set('__auth.defaults.guard', 'foo');
+        Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
 
         $this->assertGuest();
         $this->assertFalse($this->isAuthenticated());
@@ -51,13 +44,13 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertActingAs()
     {
-        $guard = Mockery::mock(Guard::class);
+        $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
             ->once()
             ->andReturn(true);
         $guard->shouldReceive('setUser')
             ->once()
-            ->andReturn($user = Mockery::mock(UserContract::class));
+            ->andReturn($user = m::mock(UserContract::class));
         $guard->shouldReceive('user')
             ->once()
             ->andReturn($user);
@@ -65,15 +58,15 @@ class InteractsWithAuthenticationTest extends TestCase
             ->twice()
             ->andReturn('id');
 
-        $this->app->get(AuthFactoryContract::class)
+        $this->app->make(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
             ]);
 
-        Context::set('__auth.defaults.guard', 'foo');
+        Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
 
         $this->actingAs($user);
 

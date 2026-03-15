@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\Http\Request;
 use Psr\Log\LoggerInterface;
 
 class LogBroadcaster extends Broadcaster
@@ -17,12 +17,12 @@ class LogBroadcaster extends Broadcaster
     ) {
     }
 
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         return null;
     }
 
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         return null;
     }

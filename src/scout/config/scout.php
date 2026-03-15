@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -57,7 +55,7 @@ return [
         'enabled' => env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
-        'after_commit' => env('SCOUT_AFTER_COMMIT', false),
+        'after_commit' => env('SCOUT_QUEUE_AFTER_COMMIT', false),
     ],
 
     /*
@@ -142,18 +140,27 @@ return [
 
     'typesense' => [
         'client-settings' => [
-            'api_key' => env('TYPESENSE_API_KEY', ''),
+            'api_key' => env('TYPESENSE_API_KEY', 'xyz'),
             'nodes' => [
                 [
                     'host' => env('TYPESENSE_HOST', 'localhost'),
                     'port' => env('TYPESENSE_PORT', '8108'),
+                    'path' => env('TYPESENSE_PATH', ''),
                     'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
                 ],
             ],
-            'connection_timeout_seconds' => 2,
+            'nearest_node' => [
+                'host' => env('TYPESENSE_HOST', 'localhost'),
+                'port' => env('TYPESENSE_PORT', '8108'),
+                'path' => env('TYPESENSE_PATH', ''),
+                'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+            ],
+            'connection_timeout_seconds' => env('TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 2),
+            'healthcheck_interval_seconds' => env('TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 30),
+            'num_retries' => env('TYPESENSE_NUM_RETRIES', 3),
+            'retry_interval_seconds' => env('TYPESENSE_RETRY_INTERVAL_SECONDS', 1),
         ],
-        'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
-        'import_action' => 'upsert',
+        // 'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
         'model-settings' => [
             // Per-model settings can be defined here:
             // App\Models\User::class => [
@@ -170,5 +177,6 @@ return [
             //     ],
             // ],
         ],
+        'import_action' => env('TYPESENSE_IMPORT_ACTION', 'upsert'),
     ],
 ];

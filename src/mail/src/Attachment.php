@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 
-use function Hyperf\Support\with;
+use function with;
 
 class Attachment
 {
@@ -80,7 +80,7 @@ class Attachment
 
     protected static function getStorageDisk(?string $disk): Filesystem
     {
-        return ApplicationContext::getContainer()->get(
+        return Container::getInstance()->make(
             FilesystemFactory::class
         )->disk($disk);
     }

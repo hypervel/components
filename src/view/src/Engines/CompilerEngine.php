@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
-use Hyperf\Database\Exception\MultipleRecordsFoundException;
-use Hyperf\Database\Exception\RecordsNotFoundException;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\HttpMessage\Exception\HttpException;
 use Hypervel\Context\Context;
+use Hypervel\Database\RecordNotFoundException;
+use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Str;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class CompilerEngine extends PhpEngine
@@ -21,7 +20,7 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    protected const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
+    public const COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
 
     /**
      * Create a new compiler engine instance.
@@ -93,9 +92,8 @@ class CompilerEngine extends PhpEngine
     {
         if ($e instanceof HttpException
             || $e instanceof HttpResponseException
-            || $e instanceof MultipleRecordsFoundException
+            || $e instanceof RecordNotFoundException
             || $e instanceof RecordsNotFoundException
-            || $e instanceof ModelNotFoundException
         ) {
             parent::handleViewException($e, $obLevel);
         }

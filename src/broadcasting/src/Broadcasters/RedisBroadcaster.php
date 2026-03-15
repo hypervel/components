@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Collection\Arr;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Pool\Exception\ConnectionException;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Http\Request;
+use Hypervel\Pool\Exceptions\ConnectionException;
+use Hypervel\Support\Arr;
 use RedisException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class RedisBroadcaster extends Broadcaster
 {
@@ -21,8 +21,8 @@ class RedisBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
-        protected RedisFactory $factory,
+        protected Container $container,
+        protected Redis $factory,
         protected string $connection = 'default',
         protected string $prefix = ''
     ) {
@@ -33,7 +33,7 @@ class RedisBroadcaster extends Broadcaster
      *
      * @throws AccessDeniedHttpException
      */
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         $channelName = $request->input('channel_name');
         $normalizeChannelName = $this->normalizeChannelName(
@@ -55,7 +55,7 @@ class RedisBroadcaster extends Broadcaster
     /**
      * Return the valid authentication response.
      */
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         if (is_bool($result)) {
             return json_encode($result);
@@ -86,7 +86,7 @@ class RedisBroadcaster extends Broadcaster
             return;
         }
 
-        $connection = $this->factory->get($this->connection);
+        $connection = $this->factory->connection($this->connection);
 
         $payload = json_encode([
             'event' => $event,
@@ -97,8 +97,9 @@ class RedisBroadcaster extends Broadcaster
         try {
             $connection->eval(
                 $this->broadcastMultipleChannelsScript(),
-                [$payload, ...$this->formatChannels($channels)],
                 0,
+                $payload,
+                ...$this->formatChannels($channels),
             );
         } catch (ConnectionException|RedisException $e) {
             throw new BroadcastException(

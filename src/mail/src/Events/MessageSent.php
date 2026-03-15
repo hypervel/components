@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Mail\Events;
 
 use Exception;
-use Hyperf\Collection\Collection;
 use Hypervel\Mail\SentMessage;
+use Hypervel\Support\Collection;
 
 class MessageSent
 {

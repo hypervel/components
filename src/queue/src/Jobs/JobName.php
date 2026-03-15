@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Stringable\Str;
 use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Support\Str;
 
 class JobName
 {

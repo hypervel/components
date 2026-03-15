@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
 use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\Str;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -19,15 +18,6 @@ use SessionHandlerInterface;
  */
 class SessionStoreTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::destroy('_session.store.started');
-        Context::destroy('_session.store.id');
-        Context::destroy('_session.store.attributes');
-
-        parent::tearDown();
-    }
-
     public function testSessionIsLoadedFromHandler()
     {
         $session = $this->getSession();

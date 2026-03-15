@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Carbon\Carbon;
 use Closure;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 
 class StackStore implements Store
 {

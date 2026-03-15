@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'telescope:publish')]
 class PublishCommand extends Command
 {
     /**

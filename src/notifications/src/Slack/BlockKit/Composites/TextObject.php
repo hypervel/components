@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack\BlockKit\Composites;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 
 class TextObject extends PlainTextOnlyTextObject
 {

@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Horizon;
@@ -18,13 +15,12 @@ use Hypervel\Horizon\SupervisorCommandString;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
+use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 
 abstract class IntegrationTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public const HORIZON_PREFIX = 'hypervel_test_horizon:';
 
     protected array $originalQueueConfig = [];
@@ -39,18 +35,18 @@ abstract class IntegrationTestCase extends TestCase
 
         $this->beforeApplicationDestroyed(function () {
             /* $this->flushRedis(); */
-            WorkerCommandString::reset();
-            SupervisorCommandString::reset();
+            WorkerCommandString::flushState();
+            SupervisorCommandString::flushState();
             Horizon::$authUsing = null;
         });
     }
 
     protected function tearDown(): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $config->set('queue', $this->originalQueueConfig);
 
-        $poolFactory = $this->app->get(PoolFactory::class);
+        $poolFactory = $this->app->make(PoolFactory::class);
         $pool = $poolFactory->getPool('default');
         $pool->flushOne(true);
 
@@ -59,7 +55,7 @@ abstract class IntegrationTestCase extends TestCase
 
     public function setUpInCoroutine()
     {
-        $poolFactory = $this->app->get(PoolFactory::class);
+        $poolFactory = $this->app->make(PoolFactory::class);
 
         defer(function () use ($poolFactory) {
             $pool = $poolFactory->getPool('default');
@@ -72,7 +68,7 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function loadServiceProviders(): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $config->set('horizon.middleware', [Authenticate::class]);
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
 
@@ -113,7 +109,7 @@ abstract class IntegrationTestCase extends TestCase
      */
     public function wait(Closure $callback): void
     {
-        retry(10, $callback, 1000);
+        retry(200, $callback, 50);
     }
 
     /**
@@ -174,17 +170,9 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Get the service providers for the package.
-     */
-    protected function getPackageProviders(Application $app): array
-    {
-        return ['Hypervel\Horizon\HorizonServiceProvider'];
-    }
-
-    /**
      * Configure the environment.
      */
-    protected function getEnvironmentSetUp(Application $app): void
+    protected function getEnvironmentSetUp(ApplicationContract $app): void
     {
         $app['config']->set('queue.default', 'redis');
     }

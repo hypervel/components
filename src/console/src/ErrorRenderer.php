@@ -57,7 +57,7 @@ class ErrorRenderer
 
     protected function renderCollision(Throwable $throwable): void
     {
-        $handler = (new Provider())->register()
+        $handler = (new Provider())
             ->getHandler()
             ->setOutput($this->output);
         $handler->setInspector(new Inspector($throwable));

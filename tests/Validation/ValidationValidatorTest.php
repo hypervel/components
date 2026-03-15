@@ -10,25 +10,24 @@ use Countable;
 use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
-use Hyperf\Database\Model\Model;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Stringable;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\ImplicitRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use Hypervel\Validation\DatabasePresenceVerifierInterface;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
@@ -43,10 +42,10 @@ use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use UnitEnum;
 
 /**
  * @internal
@@ -54,14 +53,6 @@ use stdClass;
  */
 class ValidationValidatorTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow(null);
-        m::close();
-    }
-
     public function testNestedErrorMessagesAreRetrievedFromLocalArray()
     {
         $trans = $this->getArrayTranslator();
@@ -134,7 +125,7 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
-        $v->setContainer(m::mock(ContainerInterface::class));
+        $v->setContainer(m::mock(ContainerContract::class));
         $v->after(function ($validator) {
             $_SERVER['__validator.after.test'] = true;
 
@@ -437,7 +428,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, [], ['name' => 'required']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addReplacer('required', 'Foo@bar');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('bar')->once()->andReturn('replaced!');
@@ -450,7 +441,7 @@ class ValidationValidatorTest extends TestCase
     {
         $this->mockContainer();
         // Knowing that demo image.png has width = 3 and height = 2
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image.png', '', null, null, true);
 
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.dimensions' => ':min_width :max_height :ratio'], 'en');
@@ -745,6 +736,157 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('type must be included in Short, Long.', $v->messages()->first('type'));
     }
 
+    public function testCapitalizedDisplayableValuesAreReplaced()
+    {
+        // accepted_if
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :Other is :Value.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aaa'], ['foo' => 'accepted_if:bar,aaa']);
+        $this->assertFalse($v->passes());
+        $v->messages()->setFormat(':message');
+        $this->assertSame('The foo field must be accepted when Bar is Aaa.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :OTHER is :VALUE.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aaa'], ['foo' => 'accepted_if:bar,aaa']);
+        $this->assertFalse($v->passes());
+        $v->messages()->setFormat(':message');
+        $this->assertSame('The foo field must be accepted when BAR is AAA.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.accepted_if' => 'The :attribute field must be accepted when :other is :value.'], 'en');
+        $v = new Validator($trans, ['foo' => 'no', 'bar' => 'aAa'], ['foo' => 'accepted_if:bar,aAa']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be accepted when bar is aAa.', $v->messages()->first('foo'));
+
+        // in_array
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.in_array' => 'The value of :attribute does not exist in :Other.'], 'en');
+        $v = new Validator($trans, ['foo' => [1, 2, 3], 'bar' => [1, 2]], ['foo.*' => 'in_array:bar.*']);
+        $this->assertSame('The value of foo.2 does not exist in Bar.*.', $v->messages()->first('foo.2'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.in_array' => 'The value of :attribute does not exist in :OTHER.'], 'en');
+        $v = new Validator($trans, ['foo' => [1, 2, 3], 'bar' => [1, 2]], ['foo.*' => 'in_array:bar.*']);
+        $this->assertSame('The value of foo.2 does not exist in BAR.*.', $v->messages()->first('foo.2'));
+
+        // missing_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.missing_with' => 'The :attribute field must be missing when :Values is present.'], 'en');
+        $v = new Validator($trans, ['foo' => [], 'bar' => '2'], ['foo' => 'missing_with:baz,bar']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be missing when Baz / Bar is present.', $v->errors()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.missing_with' => 'The :attribute field must be missing when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['foo' => [], 'bar' => '2'], ['foo' => 'missing_with:baz,bar']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be missing when BAZ / BAR is present.', $v->errors()->first('foo'));
+
+        // present_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.present_with' => 'The :attribute field must be present when :Values is present.'], 'en');
+        $v = new Validator($trans, ['bar' => 2, 'baz' => 2], ['foo' => 'present_with:bar,baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be present when Bar / Baz is present.', $v->errors()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.present_with' => 'The :attribute field must be present when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['bar' => 2, 'baz' => 2], ['foo' => 'present_with:bar,baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must be present when BAR / BAZ is present.', $v->errors()->first('foo'));
+
+        // prohibits
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.prohibits' => 'The :attribute field prohibits :Other being present.'], 'en');
+        $v = new Validator($trans, ['email' => 'foo', 'emails' => 'bar', 'email_address' => 'baz'], ['email' => 'prohibits:emails,email_address']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The email field prohibits Emails / Email address being present.', $v->messages()->first('email'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.prohibits' => 'The :attribute field prohibits :OTHER being present.'], 'en');
+        $v = new Validator($trans, ['email' => 'foo', 'emails' => 'bar', 'email_address' => 'baz'], ['email' => 'prohibits:emails,email_address']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The email field prohibits EMAILS / EMAIL ADDRESS being present.', $v->messages()->first('email'));
+
+        // required_if_accepted
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_if_accepted' => 'The :attribute field is required when :Other is accepted.'], 'en');
+        $v = new Validator($trans, ['foo' => 'yes', 'bar' => ''], ['bar' => 'required_if_accepted:foo']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The bar field is required when Foo is accepted.', $v->messages()->first('bar'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_if_accepted' => 'The :attribute field is required when :OTHER is accepted.'], 'en');
+        $v = new Validator($trans, ['foo' => 'yes', 'bar' => ''], ['bar' => 'required_if_accepted:foo']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The bar field is required when FOO is accepted.', $v->messages()->first('bar'));
+
+        // required_unless
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :Other is in :Values.'], 'en');
+        $v = new Validator($trans, ['first' => 'dayle', 'last' => ''], ['last' => 'RequiredUnless:first,taylor,sven']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required unless First is in Taylor, Sven.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :OTHER is in :VALUES.'], 'en');
+        $v = new Validator($trans, ['first' => 'dayle', 'last' => ''], ['last' => 'RequiredUnless:first,taylor,sven']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required unless FIRST is in TAYLOR, SVEN.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_unless' => 'The :attribute field is required unless :other is in :values.'], 'en');
+        $v = new Validator($trans, ['firstName' => 'dAyle', 'lastName' => ''], ['lastName' => 'RequiredUnless:firstName,tAylor,sVen']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last name field is required unless first name is in tAylor, sVen.', $v->messages()->first('lastName'));
+
+        // required_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_with' => 'The :attribute field is required when :Values is present.'], 'en');
+        $v = new Validator($trans, ['first' => 'Taylor', 'last' => ''], ['last' => 'required_with:first']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required when First is present.', $v->messages()->first('last'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.required_with' => 'The :attribute field is required when :VALUES is present.'], 'en');
+        $v = new Validator($trans, ['first' => 'Taylor', 'last' => ''], ['last' => 'required_with:first']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The last field is required when FIRST is present.', $v->messages()->first('last'));
+
+        // same
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.same' => 'The :attribute field must match :Other.'], 'en');
+        $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must match Baz.', $v->messages()->first('foo'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.same' => 'The :attribute field must match :OTHER.'], 'en');
+        $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The foo field must match BAZ.', $v->messages()->first('foo'));
+
+        // starts_with
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :Values'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:http,https']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values Http, Https', $v->messages()->first('url'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :VALUES'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:http,https']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values HTTP, HTTPS', $v->messages()->first('url'));
+
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.starts_with' => 'The :attribute must start with one of the following values :values'], 'en');
+        $v = new Validator($trans, ['url' => 'hypervel.org'], ['url' => 'starts_with:hTtp,hTtps']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The url must start with one of the following values hTtp, hTtps', $v->messages()->first('url'));
+    }
+
     public function testDisplayableAttributesAreReplacedInCustomReplacers()
     {
         $trans = $this->getArrayTranslator();
@@ -861,6 +1003,34 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('Name 2 is required.', $v->messages()->first('input.*.name'));
 
         $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'Name :position is required.']);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testOrdinalPositionValuesAreReplaced()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['input' => [['name' => '']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'The :ordinal-position Name is required.']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The 1st Name is required.', $v->messages()->first('input.*.name'));
+        $v = new Validator($trans, ['input' => [['name' => '']]], ['input.*.name' => 'required'], ['input.*.name.required' => ':ordinal-position :Attribute is required.']);
+        $v->setAttributeNames([
+            'input.*.name' => 'name',
+        ]);
+        $this->assertFalse($v->passes());
+        $this->assertSame('1st Name is required.', $v->messages()->first('input.*.name'));
+
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => ''], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'The :ordinal-position Name is required.']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('The 2nd Name is required.', $v->messages()->first('input.*.name'));
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => ''], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => ':ordinal-position :Attribute is required.']);
+        $v->setAttributeNames([
+            'input.*.name' => 'name',
+        ]);
+        $this->assertFalse($v->passes());
+        $this->assertSame('2nd Name is required.', $v->messages()->first('input.*.name'));
+
+        $v = new Validator($trans, ['input' => [['name' => 'Bob'], ['name' => 'Jane']]], ['input.*.name' => 'required'], ['input.*.name.required' => 'Name :ordinal-position is required.']);
         $this->assertTrue($v->passes());
     }
 
@@ -1137,9 +1307,9 @@ class ValidationValidatorTest extends TestCase
 
         $hasher = m::mock(Hasher::class);
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1161,9 +1331,9 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(false);
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1185,9 +1355,9 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(true);
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1209,9 +1379,9 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(true);
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -2303,10 +2473,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'gt:rhs']);
         $this->assertTrue($v->fails());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(3151);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(3151);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'gt:rhs']);
         $this->assertTrue($v->passes());
 
@@ -2398,10 +2566,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'lt:rhs']);
         $this->assertTrue($v->passes());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(3151);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(3151);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'lt:rhs']);
         $this->assertTrue($v->fails());
 
@@ -2439,10 +2605,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'gte:rhs']);
         $this->assertTrue($v->fails());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(5472);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(5472);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'gte:rhs']);
         $this->assertTrue($v->passes());
 
@@ -2480,10 +2644,8 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['lhs' => ['string'], 'rhs' => [1, 'string']], ['lhs' => 'lte:rhs']);
         $this->assertTrue($v->passes());
 
-        $fileOne = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileOne->expects($this->any())->method('getSize')->willReturn(5472);
-        $fileTwo = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $fileTwo->expects($this->any())->method('getSize')->willReturn(5472);
+        $fileOne = $this->fileInfoWithSize(5472);
+        $fileTwo = $this->fileInfoWithSize(5472);
         $v = new Validator($trans, ['lhs' => $fileOne, 'rhs' => $fileTwo], ['lhs' => 'lte:rhs']);
         $this->assertTrue($v->passes());
 
@@ -3126,6 +3288,44 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateBooleanStrict()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['foo' => false], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => true], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'no'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'yes'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'false'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'true'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, [], ['foo' => 'Boolean:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '0'], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0], ['foo' => 'Boolean:strict']);
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateBool()
     {
         $trans = $this->getArrayTranslator();
@@ -3163,6 +3363,44 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateBoolStrict()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['foo' => false], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => true], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'no'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'yes'], ['foo' => 'Bool']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'false'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 'true'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, [], ['foo' => 'Bool:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '0'], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0], ['foo' => 'Bool:strict']);
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateNumeric()
     {
         $trans = $this->getArrayTranslator();
@@ -3179,6 +3417,28 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testValidateNumericStrict()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => 'asdad'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1.23'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '-1'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Numeric:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Numeric:strict']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0.1], ['foo' => 'Numeric:strict']);
+        $this->assertTrue($v->passes());
+    }
+
     public function testValidateInteger()
     {
         $trans = $this->getArrayTranslator();
@@ -3192,6 +3452,28 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Integer']);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testValidateIntegerStrict()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => 'asdad'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1.23'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '-1'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 0.1], ['foo' => 'Integer:strict']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => 1], ['foo' => 'Integer:strict']);
         $this->assertTrue($v->passes());
     }
 
@@ -3479,13 +3761,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Size:4']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Size:3']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Size:3']);
         $this->assertFalse($v->passes());
     }
@@ -3535,13 +3815,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Between:1,2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Between:1,5']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Between:1,2']);
         $this->assertFalse($v->passes());
     }
@@ -3594,13 +3872,11 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2]], ['foo' => 'Array|Min:3']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(3072);
+        $file = $this->fileInfoWithSize(3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Min:2']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(SplFileInfo::class)->onlyMethods(['getSize'])->setConstructorArgs([__FILE__])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
+        $file = $this->fileInfoWithSize(4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Min:10']);
         $this->assertFalse($v->passes());
     }
@@ -3649,20 +3925,15 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array|Max:2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getSize'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->method('isValid')->willReturn(true);
-        $file->method('getSize')->willReturn(3072);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: true, size: 3072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getSize'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->method('isValid')->willReturn(true);
-        $file->method('getSize')->willReturn(4072);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: true, size: 4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:2']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid'])->setConstructorArgs([__FILE__, basename(__FILE__)])->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(false);
+        $file = $this->uploadedFile(__FILE__, basename(__FILE__), isValid: false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
         $this->assertFalse($v->passes());
     }
@@ -3768,9 +4039,7 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('string', $v->messages()->first('name'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:3']);
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
@@ -3804,12 +4073,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('minimum value', $v->messages()->first('max'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $biggerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $biggerFile->expects($this->any())->method('getSize')->willReturn(5120);
-        $biggerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $biggerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 5120);
         $v = new Validator($trans, ['photo' => $file, 'bigger' => $biggerFile], ['photo' => 'file|gt:bigger']);
         $this->assertFalse($v->passes());
         $this->assertEquals(5, $v->messages()->first('photo'));
@@ -3846,12 +4111,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('maximum value', $v->messages()->first('min'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $smallerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $smallerFile->expects($this->any())->method('getSize')->willReturn(2048);
-        $smallerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $smallerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 2048);
         $v = new Validator($trans, ['photo' => $file, 'smaller' => $smallerFile], ['photo' => 'file|lt:smaller']);
         $this->assertFalse($v->passes());
         $this->assertEquals(2, $v->messages()->first('photo'));
@@ -3888,12 +4149,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('minimum value', $v->messages()->first('max'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $biggerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $biggerFile->expects($this->any())->method('getSize')->willReturn(5120);
-        $biggerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $biggerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 5120);
         $v = new Validator($trans, ['photo' => $file, 'bigger' => $biggerFile], ['photo' => 'file|gte:bigger']);
         $this->assertFalse($v->passes());
         $this->assertEquals(5, $v->messages()->first('photo'));
@@ -3930,12 +4187,8 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('maximum value', $v->messages()->first('min'));
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(4072);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $smallerFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $smallerFile->expects($this->any())->method('getSize')->willReturn(2048);
-        $smallerFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
+        $smallerFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 2048);
         $v = new Validator($trans, ['photo' => $file, 'smaller' => $smallerFile], ['photo' => 'file|lte:smaller']);
         $this->assertFalse($v->passes());
         $this->assertEquals(2, $v->messages()->first('photo'));
@@ -4272,12 +4525,8 @@ class ValidationValidatorTest extends TestCase
             'validation.gt.array' => 'The :attribute field must have more than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(9216);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 9216);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4312,12 +4561,8 @@ class ValidationValidatorTest extends TestCase
             'validation.gte.array' => 'The :attribute field must have :value items or more.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(9216);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 9216);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4352,12 +4597,8 @@ class ValidationValidatorTest extends TestCase
             'validation.lt.array' => 'The :attribute field must have less than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(8192);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 8192);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4392,12 +4633,8 @@ class ValidationValidatorTest extends TestCase
             'validation.lte.array' => 'The :attribute field must not have more than :value items.',
         ], 'en');
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $file->expects($this->any())->method('getSize')->willReturn(8919);
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $otherFile = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getSize', 'isValid'])->setConstructorArgs([__FILE__, false])->getMock();
-        $otherFile->expects($this->any())->method('getSize')->willReturn(8192);
-        $otherFile->expects($this->any())->method('isValid')->willReturn(true);
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 8919);
+        $otherFile = $this->uploadedFile(__FILE__, '', isValid: true, size: 8192);
 
         $v = new Validator($trans, [
             'numeric' => 7,
@@ -4566,7 +4803,7 @@ class ValidationValidatorTest extends TestCase
 
     public function testValidateEmailWithCustomClassCheck()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(NoRFCWarningsValidation::class)->andReturn(new NoRFCWarningsValidation());
 
         $v = new Validator($this->getArrayTranslator(), ['x' => 'foo@bar '], ['x' => 'email:' . NoRFCWarningsValidation::class]);
@@ -4918,72 +5155,47 @@ class ValidationValidatorTest extends TestCase
     public function testValidateImage()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'image']);
         $this->assertFalse($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(true);
-        $file2->expects($this->any())->method('getExtension')->willReturn('jpeg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(true);
-        $file2->expects($this->any())->method('getExtension')->willReturn('jpeg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(true);
-        $file2->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file3 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file3->expects($this->any())->method('isValid')->willReturn(true);
-        $file3->expects($this->any())->method('getExtension')->willReturn('gif');
+        $file3 = $this->uploadedFile(__FILE__, '', guessedExtension: 'gif', clientOriginalExtension: 'gif');
         $v = new Validator($trans, ['x' => $file3], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file4 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file4->expects($this->any())->method('isValid')->willReturn(true);
-        $file4->expects($this->any())->method('getExtension')->willReturn('bmp');
+        $file4 = $this->uploadedFile(__FILE__, '', guessedExtension: 'bmp', clientOriginalExtension: 'bmp');
         $v = new Validator($trans, ['x' => $file4], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file5 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file5->expects($this->any())->method('isValid')->willReturn(true);
-        $file5->expects($this->any())->method('getExtension')->willReturn('png');
+        $file5 = $this->uploadedFile(__FILE__, '', guessedExtension: 'png', clientOriginalExtension: 'png');
         $v = new Validator($trans, ['x' => $file5], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
-        $file6 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file6->expects($this->any())->method('isValid')->willReturn(true);
-        $file6->expects($this->any())->method('getExtension')->willReturn('svg');
+        $file6 = $this->uploadedFile(__FILE__, '', guessedExtension: 'svg', clientOriginalExtension: 'svg');
         $v = new Validator($trans, ['x' => $file6], ['x' => 'image']);
         $this->assertFalse($v->passes());
 
-        $file6 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file6->expects($this->any())->method('isValid')->willReturn(true);
-        $file6->expects($this->any())->method('getExtension')->willReturn('svg');
+        $file6 = $this->uploadedFile(__FILE__, '', guessedExtension: 'svg', clientOriginalExtension: 'svg');
         $v = new Validator($trans, ['x' => $file6], ['x' => 'image:allow_svg']);
         $this->assertTrue($v->passes());
 
-        $file7 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file7->expects($this->any())->method('isValid')->willReturn(true);
-        $file7->expects($this->any())->method('getExtension')->willReturn('webp');
-
+        $file7 = $this->uploadedFile(__FILE__, '', guessedExtension: 'webp', clientOriginalExtension: 'webp');
         $v = new Validator($trans, ['x' => $file7], ['x' => 'Image']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(true);
-        $file2->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'Image']);
         $this->assertTrue($v->passes());
     }
@@ -4991,11 +5203,7 @@ class ValidationValidatorTest extends TestCase
     public function testValidateImageDoesNotAllowPhpExtensionsOnImageMime()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', isValid: true, extension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'image']);
         $this->assertFalse($v->passes());
     }
@@ -5004,7 +5212,7 @@ class ValidationValidatorTest extends TestCase
     {
         $this->mockContainer();
         // Knowing that demo image.png has width = 3 and height = 2
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => 'file'], ['x' => 'dimensions']);
@@ -5061,7 +5269,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         // Knowing that demo image2.png has width = 4 and height = 2
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image2.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image2.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         // Ensure validation doesn't erroneously fail when ratio has no fractional part
@@ -5069,14 +5277,14 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         // This test fails without suppressing warnings on getimagesize() due to a read error.
-        $emptyUploadedFile = new UploadedFile(__DIR__ . '/fixtures/empty.png', '', null, null, null, true);
+        $emptyUploadedFile = new UploadedFile(__DIR__ . '/Fixtures/empty.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $emptyUploadedFile], ['x' => 'dimensions:min_width=1']);
         $this->assertTrue($v->fails());
 
         // Knowing that demo image3.png has width = 7 and height = 10
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image3.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image3.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         // Ensure validation doesn't erroneously fail when ratio has no fractional part
@@ -5084,33 +5292,33 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         // Ensure svg images always pass as size is irrelevant (image/svg+xml)
-        $svgXmlUploadedFile = new UploadedFile(__DIR__ . '/fixtures/image.svg', '', 'image/svg+xml', null, null, true);
+        $svgXmlUploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image.svg', '', 'image/svg+xml', null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgXmlUploadedFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
-        $svgXmlFile = new UploadedFile(__DIR__ . '/fixtures/image.svg', '', 'image/svg+xml', null, null, true);
+        $svgXmlFile = new UploadedFile(__DIR__ . '/Fixtures/image.svg', '', 'image/svg+xml', null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgXmlFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
         // Ensure svg images always pass as size is irrelevant (image/svg)
-        $svgUploadedFile = new UploadedFile(__DIR__ . '/fixtures/image2.svg', '', 'image/svg', null, null, true);
+        $svgUploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image2.svg', '', 'image/svg', null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgUploadedFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
-        $svgFile = new UploadedFile(__DIR__ . '/fixtures/image2.svg', '', 'image/svg', null, null, true);
+        $svgFile = new UploadedFile(__DIR__ . '/Fixtures/image2.svg', '', 'image/svg', null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
         // Knowing that demo image4.png has width = 64 and height = 65
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image4.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image4.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         // Ensure validation doesn't erroneously fail when ratio doesn't matches
@@ -5126,7 +5334,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         // Knowing that demo image5.png has width = 1366 and height = 768
-        $uploadedFile = new UploadedFile(__DIR__ . '/fixtures/image5.png', '', null, null, null, true);
+        $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image5.png', '', null, null, true);
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:ratio=16/9']);
@@ -5137,24 +5345,15 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
 
-        $uploadedFile = [__DIR__ . '/ValidationMacroTest.php', '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('rtf');
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('text/rtf');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'text/rtf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:text/*']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('application/pdf');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'application/pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:text/rtf']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['getMimeType'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('getMimeType')->willReturn('image/jpeg');
+        $file = $this->uploadedFile(__DIR__ . '/ValidationMacroTest.php', '', mimeType: 'image/jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:image/jpeg']);
         $this->assertTrue($v->passes());
     }
@@ -5162,29 +5361,19 @@ class ValidationValidatorTest extends TestCase
     public function testValidateMime()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('pdf');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'pdf', clientOriginalExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:pdf']);
         $this->assertTrue($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(false);
-        $file2->expects($this->any())->method('getExtension')->willReturn('pdf');
+        $file2 = $this->uploadedFile(__FILE__, '', isValid: false, guessedExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'mimes:pdf']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpeg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpeg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpg']);
         $this->assertTrue($v->passes());
     }
@@ -5192,35 +5381,23 @@ class ValidationValidatorTest extends TestCase
     public function testValidateExtension()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('pdf');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'pdf');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:pdf']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpeg,jpg']);
         $this->assertTrue($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpg');
+        $file = $this->uploadedFile(__FILE__, '', clientOriginalExtension: 'jpg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'extensions:jpeg']);
         $this->assertFalse($v->passes());
 
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('jpeg');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:jpg|extensions:jpg']);
         $this->assertFalse($v->passes());
     }
@@ -5228,17 +5405,11 @@ class ValidationValidatorTest extends TestCase
     public function testValidateMimeEnforcesPhpCheck()
     {
         $trans = $this->getArrayTranslator();
-        $uploadedFile = [__FILE__, '', null, null, null, true];
-
-        $file = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file->expects($this->any())->method('isValid')->willReturn(true);
-        $file->expects($this->any())->method('getExtension')->willReturn('php');
+        $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'pdf', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:pdf']);
         $this->assertFalse($v->passes());
 
-        $file2 = $this->getMockBuilder(UploadedFile::class)->onlyMethods(['isValid', 'getExtension'])->setConstructorArgs($uploadedFile)->getMock();
-        $file2->expects($this->any())->method('isValid')->willReturn(true);
-        $file2->expects($this->any())->method('getExtension')->willReturn('php');
+        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'mimes:pdf,php']);
         $this->assertTrue($v->passes());
     }
@@ -5247,7 +5418,7 @@ class ValidationValidatorTest extends TestCase
     public function testValidateFile()
     {
         $trans = $this->getArrayTranslator();
-        $file = new UploadedFile(__FILE__, '', null, null, null, true);
+        $file = new UploadedFile(__FILE__, '', null, null, true);
 
         $v = new Validator($trans, ['x' => '1'], ['x' => 'file']);
         $this->assertTrue($v->fails());
@@ -6871,7 +7042,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addExtension('foo', 'Foo@bar');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('bar')->once()->andReturn(false);
@@ -6885,7 +7056,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addExtension('foo', 'Foo');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('validate')->once()->andReturn(false);
@@ -7860,15 +8031,15 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, [], []);
 
         $implicit_no_connection = $v->parseTable(ImplicitTableModel::class);
-        $this->assertSame('default', $implicit_no_connection[0]);
+        $this->assertNull($implicit_no_connection[0]);
         $this->assertSame('implicit_table_models', $implicit_no_connection[1]);
 
         $explicit_no_connection = $v->parseTable(ExplicitTableModel::class);
-        $this->assertSame('default', $explicit_no_connection[0]);
+        $this->assertNull($explicit_no_connection[0]);
         $this->assertSame('explicits', $explicit_no_connection[1]);
 
         $explicit_model_with_prefix = $v->parseTable(ExplicitPrefixedTableModel::class);
-        $this->assertSame('default', $explicit_model_with_prefix[0]);
+        $this->assertNull($explicit_model_with_prefix[0]);
         $this->assertSame('prefix.explicits', $explicit_model_with_prefix[1]);
 
         $explicit_table_with_connection_prefix = $v->parseTable('connection.table');
@@ -9720,6 +9891,130 @@ class ValidationValidatorTest extends TestCase
         $validator->passes();
     }
 
+    public function testMessagesDefaultWhenUsingSizeSpecificCustomMessages()
+    {
+        $trans = $this->getArrayTranslator();
+
+        $data = [
+            'array_data' => [0, 0, 0],
+            'some_more_array_data' => [0, 0, 0, 0],
+            'numeric_data' => 5,
+        ];
+
+        $rules = [
+            'array_data' => 'array|max:1',
+            'some_more_array_data' => 'array|max:3',
+            'numeric_data' => 'integer|max:2',
+        ];
+
+        $messages = [
+            'max' => [
+                'array' => ':attribute must be up to :max',
+            ],
+        ];
+
+        $validator = new Validator($trans, $data, $rules, $messages, []);
+
+        $this->assertSame([
+            'array_data' => [
+                'array data must be up to 1',
+            ],
+            'some_more_array_data' => [
+                'some more array data must be up to 3',
+            ],
+            'numeric_data' => [
+                'validation.max.numeric',
+            ],
+        ], $validator->messages()->messages());
+    }
+
+    public function testWhenFails()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        });
+
+        $this->assertSame('whenFails', $result);
+
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        });
+
+        $this->assertSame($v, $result);
+
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenFails(function () {
+            return 'whenFails';
+        }, function () {
+            return 'whenNotFails';
+        });
+
+        $this->assertSame('whenNotFails', $result);
+    }
+
+    public function testWhenPasses()
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['text' => 'abc'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        });
+
+        $this->assertSame('whenPasses', $result);
+
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        });
+
+        $this->assertSame($v, $result);
+
+        $v = new Validator($trans, ['text' => 'abcdef'], ['text' => 'string|max:5']);
+
+        $result = $v->whenPasses(function () {
+            return 'whenPasses';
+        }, function () {
+            return 'whenNotPasses';
+        });
+
+        $this->assertSame('whenNotPasses', $result);
+    }
+
+    protected function fileInfoWithSize(int $size): SplFileInfo
+    {
+        return new SizedSplFileInfo(__FILE__, $size);
+    }
+
+    protected function uploadedFile(
+        string $path = __FILE__,
+        string $originalName = '',
+        ?bool $isValid = null,
+        ?int $size = null,
+        ?string $guessedExtension = null,
+        ?string $clientOriginalExtension = null,
+        ?string $mimeType = null,
+        ?string $extension = null,
+    ): UploadedFile {
+        return new TestUploadedFile(
+            path: $path,
+            originalName: $originalName,
+            isValid: $isValid,
+            size: $size,
+            guessedExtension: $guessedExtension,
+            clientOriginalExtension: $clientOriginalExtension,
+            mimeType: $mimeType,
+            extension: $extension,
+        );
+    }
+
     protected function getTranslator()
     {
         return m::mock(TranslatorContract::class);
@@ -9733,13 +10028,11 @@ class ValidationValidatorTest extends TestCase
         );
     }
 
-    protected function mockContainer(array $definitions = [])
+    protected function mockContainer()
     {
-        $container = new Container(
-            new DefinitionSource($definitions)
-        );
+        $container = new Container();
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }
@@ -9774,7 +10067,7 @@ class ExplicitTableAndConnectionModel extends Model
 {
     protected ?string $table = 'explicits';
 
-    protected ?string $connection = 'connection';
+    protected UnitEnum|string|null $connection = 'connection';
 
     protected array $guarded = [];
 
@@ -9783,4 +10076,63 @@ class ExplicitTableAndConnectionModel extends Model
 
 class NonEloquentModel
 {
+}
+
+class SizedSplFileInfo extends SplFileInfo
+{
+    public function __construct(string $filename, private readonly int $size)
+    {
+        parent::__construct($filename);
+    }
+
+    public function getSize(): int
+    {
+        return $this->size;
+    }
+}
+
+class TestUploadedFile extends UploadedFile
+{
+    public function __construct(
+        string $path,
+        string $originalName = '',
+        private readonly ?bool $isValid = null,
+        private readonly ?int $size = null,
+        private readonly ?string $guessedExtension = null,
+        private readonly ?string $clientOriginalExtension = null,
+        private readonly ?string $mimeType = null,
+        private readonly ?string $extension = null,
+    ) {
+        parent::__construct($path, $originalName, null, null, true);
+    }
+
+    public function isValid(): bool
+    {
+        return $this->isValid ?? parent::isValid();
+    }
+
+    public function getSize(): int|false
+    {
+        return $this->size ?? parent::getSize();
+    }
+
+    public function guessExtension(): ?string
+    {
+        return $this->guessedExtension ?? parent::guessExtension();
+    }
+
+    public function getClientOriginalExtension(): string
+    {
+        return $this->clientOriginalExtension ?? parent::getClientOriginalExtension();
+    }
+
+    public function getMimeType(): ?string
+    {
+        return $this->mimeType ?? parent::getMimeType();
+    }
+
+    public function getExtension(): string
+    {
+        return $this->extension ?? parent::getExtension();
+    }
 }

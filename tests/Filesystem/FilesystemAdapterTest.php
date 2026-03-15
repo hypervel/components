@@ -6,15 +6,14 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Engine\Http\Writable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Http\UploadedFile;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
@@ -25,8 +24,6 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\Http\Message\ResponseInterface;
 use Swoole\Runtime;
 
 /**
@@ -59,31 +56,29 @@ class FilesystemAdapterTest extends TestCase
             $this->adapter = new LocalFilesystemAdapter(dirname($this->tempDir))
         );
         $filesystem->deleteDirectory(basename($this->tempDir));
-        m::close();
 
         unset($this->tempDir, $this->filesystem, $this->adapter);
     }
 
     public function testResponse()
     {
-        $this->mockResponse($content = 'Hello World');
+        $writable = $this->mockResponse();
 
-        $this->filesystem->write('file.txt', $content);
+        $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->response('file.txt');
 
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertEquals([
-            'Content-Type' => ['text/plain'],
-            'Content-Disposition' => ['inline; filename=file.txt'],
-        ], $response->getHeaders());
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('text/plain', $response->headers->get('Content-Type'));
+        $this->assertSame('inline; filename=file.txt', $response->headers->get('Content-Disposition'));
+        $this->assertSame('Hello World', $writable->written);
     }
 
     public function testMimeTypeIsNotCalledAlreadyProvidedToResponse()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('file.txt', $content);
+        $this->filesystem->write('file.txt', 'Hello World');
 
         $files = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
         $files->shouldReceive('mimeType')->never();
@@ -95,9 +90,9 @@ class FilesystemAdapterTest extends TestCase
 
     public function testFallbackNameCalledAlreadyProvidedToResponse()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('file.txt', $content);
+        $this->filesystem->write('file.txt', 'Hello World');
 
         $files = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])
             ->shouldAllowMockingProtectedMethods()
@@ -111,46 +106,46 @@ class FilesystemAdapterTest extends TestCase
 
     public function testDownload()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('file.txt', $content);
+        $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('file.txt', 'hello.txt');
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertSame('attachment; filename=hello.txt', $response->getHeader('content-disposition')[0]);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('attachment; filename=hello.txt', $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadNonAsciiFilename()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('file.txt', $content);
+        $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('file.txt', 'привет.txt');
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertSame("attachment; filename=privet.txt; filename*=utf-8''%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt", $response->getHeader('content-disposition')[0]);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame("attachment; filename=privet.txt; filename*=utf-8''%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt", $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadNonAsciiEmptyFilename()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('привет.txt', $content);
+        $this->filesystem->write('привет.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('привет.txt');
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertSame('attachment; filename=privet.txt; filename*=utf-8\'\'%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt', $response->getHeader('content-disposition')[0]);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('attachment; filename=privet.txt; filename*=utf-8\'\'%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt', $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadPercentInFilename()
     {
-        $this->mockResponse($content = 'Hello World');
+        $this->mockResponse();
 
-        $this->filesystem->write('Hello%World.txt', $content);
+        $this->filesystem->write('Hello%World.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('Hello%World.txt', 'Hello%World.txt');
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertSame('attachment; filename=HelloWorld.txt; filename*=utf-8\'\'Hello%25World.txt', $response->getHeader('content-disposition')[0]);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('attachment; filename=HelloWorld.txt; filename*=utf-8\'\'Hello%25World.txt', $response->headers->get('Content-Disposition'));
     }
 
     public function testExists()
@@ -354,7 +349,7 @@ class FilesystemAdapterTest extends TestCase
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $uploadedFile = new UploadedFile($filePath, 10, UPLOAD_ERR_OK);
+        $uploadedFile = new UploadedFile($filePath, basename($filePath), null, UPLOAD_ERR_OK, true);
 
         $storagePath = $filesystemAdapter->putFileAs('/', $uploadedFile, 'new.txt');
 
@@ -400,7 +395,7 @@ class FilesystemAdapterTest extends TestCase
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $uploadedFile = new UploadedFile($filePath, 10, UPLOAD_ERR_OK);
+        $uploadedFile = new UploadedFile($filePath, basename($filePath), null, UPLOAD_ERR_OK, true);
 
         $storagePath = $filesystemAdapter->putFile('/', $uploadedFile);
 
@@ -452,7 +447,7 @@ class FilesystemAdapterTest extends TestCase
             $this->markTestSkipped('league/flysystem-ftp is not installed.');
         }
 
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
 
         $driver = $filesystem->createFtpDriver([
             'host' => 'ftp.example.com',
@@ -610,7 +605,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testProvidesTemporaryUrlsForS3Adapter()
     {
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
             'bucket' => 'laravel',
@@ -642,25 +637,76 @@ class FilesystemAdapterTest extends TestCase
         $this->assertEquals('a5c3556d', $filesystemAdapter->checksum('path.txt', ['checksum_algo' => 'crc32']));
     }
 
-    protected function mockResponse(string $content): void
+    protected function mockResponse(): FakeWritable
     {
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(ResponseContract::class)
-            ->andReturn(new Response());
-        $request = m::mock(RequestContract::class);
-        $request->shouldReceive('isRange')
-            ->andReturn(false);
-        $container->shouldReceive('get')
-            ->with(RequestContract::class)
-            ->andReturn($request);
-        ApplicationContext::setContainer($container);
+        $container = new Container();
 
-        $psrResponse = m::mock(\Hyperf\HttpMessage\Server\Response::class)->makePartial();
-        $psrResponse->shouldReceive('write')
-            ->with($content)
-            ->once()
-            ->andReturnTrue();
-        Context::set(ResponseInterface::class, $psrResponse);
+        $request = Request::create('/test', 'GET');
+        $container->instance(Request::class, $request);
+
+        $writable = new FakeWritable(new FakeSwooleResponse());
+        $response = new Response();
+        $response->setConnection($writable);
+        $container->instance(Response::class, $response);
+
+        Container::setInstance($container);
+
+        return $writable;
+    }
+}
+
+class FakeSwooleResponse
+{
+    public array $headers = [];
+
+    public int $statusCode = 200;
+
+    public function header(string $name, string $value): void
+    {
+        $this->headers[$name] = $value;
+    }
+
+    public function cookie(
+        string $name,
+        string $value = '',
+        int $expires = 0,
+        string $path = '/',
+        string $domain = '',
+        bool $secure = false,
+        bool $httponly = false,
+        string $samesite = '',
+    ): void {
+    }
+
+    public function status(int $code): void
+    {
+        $this->statusCode = $code;
+    }
+}
+
+class FakeWritable implements Writable
+{
+    public string $written = '';
+
+    public function __construct(
+        private readonly FakeSwooleResponse $socket,
+    ) {
+    }
+
+    public function getSocket(): mixed
+    {
+        return $this->socket;
+    }
+
+    public function write(string $data): bool
+    {
+        $this->written .= $data;
+
+        return true;
+    }
+
+    public function end(): ?bool
+    {
+        return true;
     }
 }

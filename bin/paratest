@@ -1,0 +1,104 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * ParaTest wrapper for parallel-safe test execution.
+ *
+ * Handles pre-flight setup before spawning ParaTest workers:
+ * - Caps worker count to available Redis databases (REDIS_DB + TEST_TOKEN)
+ * - Flushes the shared secondary Redis DB for select() tests
+ *
+ * Per-worker databases are created on demand by InteractsWithParallelDatabase.
+ *
+ * Usage:
+ *   composer test:parallel              # auto-capped, safe default
+ *   composer test:parallel -- --filter=Cache  # extra args forwarded
+ *   php bin/paratest --filter=Cache     # direct invocation
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// Load .env file if it exists (same as tests/bootstrap.php)
+$dotenvPath = dirname(__DIR__);
+if (file_exists($dotenvPath . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createUnsafeImmutable($dotenvPath);
+    $dotenv->load();
+}
+
+/**
+ * Read an env var from $_SERVER, getenv(), or fall back to default.
+ */
+function envVar(string $key, string $default): string
+{
+    return $_SERVER[$key] ?? (getenv($key) ?: $default);
+}
+
+$baseDb = (int) envVar('REDIS_DB', '1');
+$maxProcesses = null;
+
+try {
+    $redis = new Redis();
+    $redis->connect(
+        envVar('REDIS_HOST', '127.0.0.1'),
+        (int) envVar('REDIS_PORT', '6379')
+    );
+
+    $auth = envVar('REDIS_AUTH', '');
+    if ($auth !== '') {
+        $redis->auth($auth);
+    }
+
+    $config = $redis->config('GET', 'databases');
+    $totalDbs = (int) ($config['databases'] ?? 16);
+
+    // Workers use DBs base+1 through base+N, so available slots = totalDbs - base - 1
+    $maxProcesses = $totalDbs - $baseDb - 1;
+
+    if ($maxProcesses < 1) {
+        fwrite(STDERR, "Warning: Only {$totalDbs} Redis databases configured with base DB {$baseDb}. "
+            . "Running with 1 process. Increase 'databases' in redis.conf for more parallelism.\n");
+        $maxProcesses = 1;
+    }
+
+    // Flush the base DB (shared secondary for select() tests) before spawning workers
+    $redis->select($baseDb);
+    $redis->flushdb();
+
+    $redis->close();
+} catch (Throwable $e) {
+    // Redis unavailable — fall back to CPU count (non-Redis tests still benefit from parallelism)
+    fwrite(STDERR, "Note: Could not connect to Redis ({$e->getMessage()}). Using CPU count for process limit.\n");
+}
+
+// Determine process count: min(cpu_count, available_redis_dbs)
+$cpuCount = (int) (shell_exec('nproc 2>/dev/null') ?: shell_exec('sysctl -n hw.ncpu 2>/dev/null') ?: '4');
+$processes = $maxProcesses !== null ? min($cpuCount, $maxProcesses) : $cpuCount;
+
+// Collect extra arguments (skip argv[0] which is this script)
+$extraArgs = array_slice($argv, 1);
+
+// Check if --processes or -p was already specified
+$hasProcessFlag = false;
+foreach ($extraArgs as $arg) {
+    if ($arg === '--processes' || $arg === '-p' || str_starts_with($arg, '--processes=') || str_starts_with($arg, '-p=')) {
+        $hasProcessFlag = true;
+        break;
+    }
+}
+
+$args = [];
+if (! $hasProcessFlag) {
+    $args[] = '--processes';
+    $args[] = (string) $processes;
+}
+$args = array_merge($args, $extraArgs);
+
+$paratest = __DIR__ . '/../vendor/bin/paratest';
+$command = escapeshellarg($paratest) . ' ' . implode(' ', array_map('escapeshellarg', $args));
+
+fwrite(STDERR, "Running: paratest --processes {$processes}" . ($extraArgs ? ' ' . implode(' ', $extraArgs) : '') . "\n");
+
+passthru($command, $exitCode);
+exit($exitCode);

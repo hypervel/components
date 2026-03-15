@@ -6,7 +6,7 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use RuntimeException;
 
 class LocalFilesystemAdapter extends FilesystemAdapter

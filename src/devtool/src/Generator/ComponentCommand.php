@@ -4,29 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class ComponentCommand extends GeneratorCommand
+#[AsCommand(name: 'make:component')]
+class ComponentCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:component');
-    }
+    protected ?string $name = 'make:component';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new view component class');
+    protected string $description = 'Create a new view component class';
 
-        parent::configure();
-    }
+    protected string $type = 'Component';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/view-component.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\View\Components';
     }
@@ -38,7 +33,7 @@ class ComponentCommand extends GeneratorCommand
 
     protected function replaceView(string $stub, string $name): string
     {
-        $view = str_replace($this->getDefaultNamespace() . '\\', '', $name);
+        $view = str_replace($this->getDefaultNamespace($this->rootNamespace()) . '\\', '', $name);
         $view = array_map(
             fn ($part) => Str::snake($part),
             explode('\\', $view)

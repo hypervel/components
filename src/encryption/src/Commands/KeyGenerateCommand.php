@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption\Commands;
 
-use Hyperf\Command\Command as HyperfCommand;
-use Hyperf\Command\Concerns\Confirmable as ConfirmableTrait;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
+use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Encryption\Encrypter;
-use Psr\Container\ContainerInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
-class KeyGenerateCommand extends HyperfCommand
+#[AsCommand(name: 'key:generate')]
+class KeyGenerateCommand extends Command
 {
     use ConfirmableTrait;
 
     public function __construct(
-        protected ContainerInterface $container,
-        protected ConfigInterface $config
+        protected Container $container,
+        protected Repository $config
     ) {
         parent::__construct('key:generate');
     }
@@ -42,7 +44,7 @@ class KeyGenerateCommand extends HyperfCommand
         $this->info('Application key set successfully.');
     }
 
-    protected function configure()
+    protected function configure(): void
     {
         $this->setDescription('Set the application key')
             ->addOption('show', null, InputOption::VALUE_OPTIONAL, 'Display the key instead of modifying files')
@@ -54,8 +56,7 @@ class KeyGenerateCommand extends HyperfCommand
      */
     protected function generateRandomKey(): string
     {
-        $cipher = $this->config->get('app.cipher')
-            ?: $this->config->get('encryption.cipher');
+        $cipher = $this->config->get('app.cipher');
 
         return 'base64:' . base64_encode(
             Encrypter::generateKey($cipher)
@@ -67,8 +68,7 @@ class KeyGenerateCommand extends HyperfCommand
      */
     protected function setKeyInEnvironmentFile(string $key): bool
     {
-        $currentKey = $this->config->get('app.key')
-            ?: $this->config->get('encryption.key');
+        $currentKey = $this->config->get('app.key');
 
         if (strlen($currentKey ?: '') !== 0 && (! $this->confirmToProceed())) {
             return false;
@@ -86,10 +86,12 @@ class KeyGenerateCommand extends HyperfCommand
      */
     protected function writeNewEnvironmentFileWith(string $key): bool
     {
+        $envPath = $this->hypervel->environmentFilePath();
+
         $replaced = preg_replace(
             $this->keyReplacementPattern(),
             'APP_KEY=' . $key,
-            $input = file_get_contents($envPath = BASE_PATH . DIRECTORY_SEPARATOR . '.env')
+            $input = file_get_contents($envPath)
         );
 
         if ($replaced === $input || $replaced === null) {
@@ -108,8 +110,7 @@ class KeyGenerateCommand extends HyperfCommand
      */
     protected function keyReplacementPattern(): string
     {
-        $key = $this->config->get('app.key')
-            ?: $this->config->get('encryption.key');
+        $key = $this->config->get('app.key');
 
         $escaped = preg_quote('=' . $key, '/');
 

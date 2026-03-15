@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Jobs;
 
 use Aws\Sqs\SqsClient;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class SqsJob extends Job
 {
@@ -13,7 +13,7 @@ class SqsJob extends Job
      * Create a new job instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected SqsClient $sqs,
         protected array $job,
         protected string $connectionName,

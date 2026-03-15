@@ -5,17 +5,30 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\TranslatorLoaderInterface;
-use Hyperf\Database\Migrations\Migrator;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Router\RouteFileCollector;
-use Hypervel\Support\Facades\Artisan;
+use Hypervel\Console\Application as Artisan;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Translation\Loader as TranslationLoader;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
+use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
+use ReflectionClass;
+use ReflectionProperty;
 
 abstract class ServiceProvider
 {
+    /**
+     * The registration priority for this provider.
+     *
+     * Higher values are registered first among discovered/merged providers.
+     * Core framework providers (DefaultProviders) always load first regardless
+     * of priority. Use gaps between values (10, 20, 30) to allow future
+     * insertion without renumbering.
+     */
+    public int $priority = 0;
+
     /**
      * All of the registered booting callbacks.
      */
@@ -96,7 +109,7 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->make('config');
         $config->set($key, array_merge(
             require $path,
             $config->get($key, [])
@@ -108,8 +121,9 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile($path);
+        if (! ($this->app instanceof CachesRoutes && $this->app->routesAreCached())) {
+            require $path;
+        }
     }
 
     /**
@@ -118,6 +132,15 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
+            if (isset($this->app->config['view']['paths'])
+                && is_array($this->app->config['view']['paths'])) {
+                foreach ($this->app->config['view']['paths'] as $viewPath) {
+                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                        $view->addNamespace($namespace, $appPath);
+                    }
+                }
+            }
+
             $view->addNamespace($namespace, $path);
         });
     }
@@ -139,7 +162,7 @@ abstract class ServiceProvider
      */
     protected function loadTranslationsFrom(string $path, string $namespace): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path, $namespace) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path, $namespace) {
             $translator->addNamespace($namespace, $path);
         });
     }
@@ -149,7 +172,7 @@ abstract class ServiceProvider
      */
     protected function loadJsonTranslationsFrom(string $path): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path) {
+        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path) {
             $translator->addJsonPath($path);
         });
     }
@@ -174,7 +197,7 @@ abstract class ServiceProvider
         $this->app->afterResolving($name, $callback);
 
         if ($this->app->resolved($name)) {
-            $callback($this->app->get($name), $this->app);
+            $callback($this->app->make($name), $this->app);
         }
     }
 
@@ -307,26 +330,76 @@ abstract class ServiceProvider
     }
 
     /**
+     * Flush all static publish state.
+     */
+    public static function flushState(): void
+    {
+        static::$publishes = [];
+        static::$publishGroups = [];
+        static::$publishableMigrationPaths = [];
+    }
+
+    /**
      * Register the package's custom Artisan commands.
      */
     public function commands(array $commands): void
     {
-        Artisan::addCommands($commands);
+        Artisan::starting(function ($artisan) use ($commands) {
+            $artisan->resolveCommands($commands);
+        });
     }
 
     /**
-     * Get the default providers for a Laravel application.
+     * Register AOP aspects.
+     *
+     * Reads `$classes` and `$priority` from each aspect class's default
+     * property values via reflection (without instantiating the aspect).
+     * Must be called during register(), before boot().
+     *
+     * @param array<int, string>|string $aspects
+     */
+    protected function aspects(string|array $aspects): void
+    {
+        $aspects = is_array($aspects) ? $aspects : func_get_args();
+
+        foreach ($aspects as $aspect) {
+            $reflectionClass = new ReflectionClass($aspect);
+            $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
+
+            $classes = [];
+            $priority = null;
+
+            foreach ($properties as $property) {
+                if ($property->getName() === 'classes') {
+                    $classes = $property->getDefaultValue();
+                } elseif ($property->getName() === 'priority') {
+                    $priority = $property->getDefaultValue();
+                }
+            }
+
+            AspectCollector::setAround($aspect, $classes, $priority);
+        }
+    }
+
+    /**
+     * Register class map overrides.
+     *
+     * Applies entries to the Composer autoloader immediately.
+     * Fails hard if any target class is already loaded.
+     * Must be called during register(), before the target class is autoloaded.
+     *
+     * @param array<class-string, string> $map originalClass => replacementFilePath
+     */
+    protected function classMap(array $map): void
+    {
+        ClassMapManager::add($map);
+    }
+
+    /**
+     * Get the default providers for a Hypervel application.
      */
     public static function defaultProviders(): DefaultProviders
     {
         return new DefaultProviders();
-    }
-
-    /**
-     * Get the provider config for Hyperf framework.
-     */
-    public static function getProviderConfig(): array
-    {
-        return [];
     }
 }

@@ -6,10 +6,10 @@ namespace Hypervel\ObjectPool\Strategies;
 
 use Carbon\Carbon;
 use DateTime;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Contracts\TimeStrategy as TimeStrategyContract;
-use Psr\Container\ContainerInterface;
 
 class TimeStrategy implements TimeStrategyContract
 {
@@ -19,12 +19,12 @@ class TimeStrategy implements TimeStrategyContract
     protected float $recycleInterval;
 
     /**
-     * @param ContainerInterface $container The container instance
+     * @param Container $container The container instance
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
-        $this->recycleInterval = $container->get(Recycler::class)->getInterval();
+        $this->recycleInterval = $container->make(Recycler::class)->getInterval();
     }
 
     /**

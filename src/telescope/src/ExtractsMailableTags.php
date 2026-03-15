@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Mailable;
-use Hypervel\Queue\Contracts\ShouldQueue;
 
 trait ExtractsMailableTags
 {

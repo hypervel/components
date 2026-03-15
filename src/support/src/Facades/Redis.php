@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Redis\Redis as RedisClient;
-
 /**
- * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string $name = 'default')
- * @method static mixed withConnection(callable $callback)
+ * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string|null $name = null)
+ * @method static void subscribe(array|string $channels, \Closure $callback)
+ * @method static void psubscribe(array|string $channels, \Closure $callback)
+ * @method static mixed command(string $method, array $parameters = [])
+ * @method static \Hypervel\Redis\Limiters\DurationLimiterBuilder throttle(string $name)
+ * @method static \Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder funnel(string $name)
+ * @method static mixed withConnection(callable $callback, bool $transform = true)
  * @method static void release()
  * @method static \Hypervel\Redis\RedisConnection shouldTransform(bool $shouldTransform = true)
  * @method static bool getShouldTransform()
@@ -17,7 +20,7 @@ use Hypervel\Redis\Redis as RedisClient;
  * @method static mixed hscan(string $key, mixed $cursor, array ...$arguments)
  * @method static mixed sscan(string $key, mixed $cursor, array ...$arguments)
  * @method static void getActiveConnection()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface|null getEventDispatcher()
+ * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
  * @method static bool reconnect()
  * @method static bool close()
  * @method static void setDatabase(int|null $database)
@@ -312,8 +315,8 @@ use Hypervel\Redis\Redis as RedisClient;
  */
 class Redis extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return RedisClient::class;
+        return 'redis';
     }
 }

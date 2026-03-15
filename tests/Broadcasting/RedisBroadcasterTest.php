@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Request;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Support\Facades\Facade;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Http\Request;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * @internal
@@ -25,24 +24,15 @@ class RedisBroadcasterTest extends TestCase
 
     protected RedisBroadcaster $broadcaster;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
-        $factory = m::mock(RedisFactory::class);
+        $this->container = m::mock(Container::class);
+        $factory = m::mock(Redis::class);
         $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $factory])->makePartial();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        m::close();
-
-        Facade::clearResolvedInstances();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -166,7 +156,7 @@ class RedisBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn($user);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 
@@ -181,7 +171,7 @@ class RedisBroadcasterTest extends TestCase
         $authManager = m::mock(AuthManager::class);
         $authManager->shouldReceive('user')->andReturn(null);
 
-        $this->container->shouldReceive('get')
+        $this->container->shouldReceive('make')
             ->with(AuthManager::class)
             ->andReturn($authManager);
 

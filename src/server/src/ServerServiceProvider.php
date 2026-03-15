@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Server;
+
+use Hypervel\Framework\Events\AfterWorkerStart;
+use Hypervel\Framework\Events\OnManagerStart;
+use Hypervel\Framework\Events\OnStart;
+use Hypervel\Server\Commands\ServerReloadCommand;
+use Hypervel\Server\Commands\ServerStartCommand;
+use Hypervel\Server\Listeners\AfterWorkerStartListener;
+use Hypervel\Server\Listeners\InitProcessTitleListener;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
+use Hypervel\Support\ServiceProvider;
+use Swoole\Server as SwooleServer;
+
+class ServerServiceProvider extends ServiceProvider
+{
+    /**
+     * Register the service provider.
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/../config/server.php', 'server');
+
+        $this->app->singleton(SwooleServer::class, fn ($app) => $app->make(SwooleServerFactory::class)($app));
+
+        $this->commands([
+            ServerReloadCommand::class,
+            ServerStartCommand::class,
+        ]);
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $events = $this->app->make('events');
+
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+            $this->app->make(AfterWorkerStartListener::class)->handle($event);
+        });
+
+        $events->listen(OnStart::class, function (OnStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $this->publishes([
+            __DIR__ . '/../config/server.php' => config_path('server.php'),
+        ], 'server-config');
+    }
+}

@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Process;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Process\Contracts\ProcessResult;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Process\Factory;
+use Hypervel\Tests\TestCase;
 use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
@@ -20,8 +19,6 @@ use RuntimeException;
  */
 class ProcessTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     public function testSuccessfulProcess()
     {
         $factory = new Factory();

@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Bus;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Collection\Collection;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\DatabaseBatchRepository;
-use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\Factory;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\CallQueuedClosure;
-use Hypervel\Queue\Contracts\Factory;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -64,8 +64,6 @@ class BusBatchTest extends TestCase
         parent::tearDown();
 
         unset($_SERVER['__finally.batch'], $_SERVER['__progress.batch'], $_SERVER['__then.batch'], $_SERVER['__catch.batch'], $_SERVER['__catch.exception']);
-
-        m::close();
     }
 
     public function testJobsCanBeAddedToTheBatch()
@@ -456,7 +454,7 @@ class BusBatchTest extends TestCase
     {
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
-            $this->app->get(ConnectionResolverInterface::class),
+            $this->app->make(ConnectionResolverInterface::class),
             'job_batches'
         );
 

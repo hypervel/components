@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 
 class BatchFactory
 {

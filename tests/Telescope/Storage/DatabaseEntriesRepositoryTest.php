@@ -35,7 +35,7 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
     {
         $entry = $this->createEntry();
 
-        $repository = $this->app->get(DatabaseEntriesRepository::class);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
 
         $result = $repository
             ->find($entry->uuid)

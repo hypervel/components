@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
-use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
-use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\CreatesApplication;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
 use Hypervel\Testbench\Concerns\HandlesDatabases;
 use Hypervel\Testbench\Concerns\HandlesRoutes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -27,7 +27,7 @@ class TestCaseTest extends TestCase
         parent::defineEnvironment($app);
 
         $this->defineEnvironmentCalled = true;
-        $app->get('config')->set('testing.define_environment', 'called');
+        $app->make('config')->set('testing.define_environment', 'called');
     }
 
     public function testTestCaseUsesCreatesApplicationTrait(): void
@@ -68,20 +68,20 @@ class TestCaseTest extends TestCase
     public function testDefineEnvironmentIsCalled(): void
     {
         $this->assertTrue($this->defineEnvironmentCalled);
-        $this->assertSame('called', $this->app->get('config')->get('testing.define_environment'));
+        $this->assertSame('called', $this->app->make('config')->get('testing.define_environment'));
     }
 
     public function testClassLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at class level should be applied
-        $this->assertSame('class_level', $this->app->get('config')->get('testing.testcase_class'));
+        $this->assertSame('class_level', $this->app->make('config')->get('testing.testcase_class'));
     }
 
     #[WithConfig('testing.method_attribute', 'method_level')]
     public function testMethodLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at method level should be applied
-        $this->assertSame('method_level', $this->app->get('config')->get('testing.method_attribute'));
+        $this->assertSame('method_level', $this->app->make('config')->get('testing.method_attribute'));
     }
 
     public function testReloadApplicationMethodExists(): void

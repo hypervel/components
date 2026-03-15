@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Context\Context;
 use Hypervel\Foundation\Vite;
 use Hypervel\Foundation\ViteException;
 use Hypervel\Support\Facades\Vite as ViteFacade;
@@ -29,9 +28,6 @@ class FoundationViteTest extends TestCase
     {
         $this->cleanViteManifest();
         $this->cleanViteHotFile();
-        Context::set('hypervel.vite.nonce', null);
-        Context::set('hypervel.vite.preloaded_assets', []);
-        Context::destroy('__request.root.uri');
 
         parent::tearDown();
     }
@@ -726,7 +722,7 @@ class FoundationViteTest extends TestCase
 
     public function testItGeneratesPreloadDirectivesForJsAndCssImports()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/jetstream-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/jetstream-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1266,7 +1262,7 @@ class FoundationViteTest extends TestCase
 
     public function testItCanPrefetchEntrypoint()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1341,7 +1337,7 @@ class FoundationViteTest extends TestCase
 
     public function testItHandlesSpecifyingPageWithAppJs()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1370,7 +1366,7 @@ class FoundationViteTest extends TestCase
 
     public function testItCanSpecifyWaterfallChunks()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1405,7 +1401,7 @@ class FoundationViteTest extends TestCase
 
     public function testItCanPrefetchAggressively()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1458,7 +1454,7 @@ class FoundationViteTest extends TestCase
 
     public function testAddsAttributesToPrefetchTags()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1493,7 +1489,7 @@ class FoundationViteTest extends TestCase
 
     public function testItNormalisesAttributes()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1535,7 +1531,7 @@ class FoundationViteTest extends TestCase
 
     public function testItPrefetchesCss()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1613,7 +1609,7 @@ class FoundationViteTest extends TestCase
 
     public function testSupportCspNonceInPrefetchScript()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 
@@ -1636,7 +1632,7 @@ class FoundationViteTest extends TestCase
 
     public function testItCanConfigureThePrefetchTriggerEvent()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 

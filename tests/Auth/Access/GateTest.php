@@ -4,39 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
-use Hypervel\Tests\Auth\Stub\AccessGateTestBeforeCallback;
-use Hypervel\Tests\Auth\Stub\AccessGateTestClass;
-use Hypervel\Tests\Auth\Stub\AccessGateTestClassForGuest;
-use Hypervel\Tests\Auth\Stub\AccessGateTestCustomResource;
-use Hypervel\Tests\Auth\Stub\AccessGateTestDummy;
-use Hypervel\Tests\Auth\Stub\AccessGateTestDummyInterface;
-use Hypervel\Tests\Auth\Stub\AccessGateTestGuestInvokableClass;
-use Hypervel\Tests\Auth\Stub\AccessGateTestGuestNullableInvokable;
-use Hypervel\Tests\Auth\Stub\AccessGateTestInvokableClass;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicy;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyThatAllowsGuests;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyThrowingAuthorizationException;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithAllPermissions;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithBefore;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithCode;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithDeniedResponseObject;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithMixedPermissions;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNonGuestBefore;
-use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNoPermissions;
-use Hypervel\Tests\Auth\Stub\AccessGateTestResource;
-use Hypervel\Tests\Auth\Stub\AccessGateTestStaticClass;
-use Hypervel\Tests\Auth\Stub\AccessGateTestSubDummy;
-use Hypervel\Tests\Auth\Stub\DummyWithoutUsePolicy;
-use Hypervel\Tests\Auth\Stub\DummyWithUsePolicy;
-use Hypervel\Tests\Auth\Stub\DummyWithUsePolicyPolicy;
-use Hypervel\Tests\Auth\Stub\SubDummyWithUsePolicy;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestAuthenticatable;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestBeforeCallback;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestClass;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestClassForGuest;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestCustomResource;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestDummy;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestDummyInterface;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestGuestInvokableClass;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestGuestNullableInvokable;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestInvokableClass;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicy;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyThatAllowsGuests;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyThrowingAuthorizationException;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithAllPermissions;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithBefore;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithCode;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithDeniedResponseObject;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithMixedPermissions;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithNonGuestBefore;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestPolicyWithNoPermissions;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestResource;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestStaticClass;
+use Hypervel\Tests\Auth\Fixtures\AccessGateTestSubDummy;
+use Hypervel\Tests\Auth\Fixtures\DummyWithoutUsePolicy;
+use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicy;
+use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicyPolicy;
+use Hypervel\Tests\Auth\Fixtures\SubDummyWithUsePolicy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -116,7 +115,7 @@ class GateTest extends TestCase
 
     public function testPoliciesCanAllowGuests()
     {
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
 
         $gate = $this->getGuestGate();
 
@@ -124,7 +123,7 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertFalse($gate->check('update', new AccessGateTestDummy()));
-        $this->assertTrue($_SERVER['__hyperf.testBefore']);
+        $this->assertTrue($_SERVER['__hypervel.testBefore']);
 
         $gate = $this->getBasicGate();
 
@@ -133,12 +132,12 @@ class GateTest extends TestCase
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertTrue($gate->check('update', new AccessGateTestDummy()));
 
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
     }
 
     public function testPolicyBeforeNotCalledWithGuestsIfItDoesntAllowThem()
     {
-        $_SERVER['__hyperf.testBefore'] = false;
+        $_SERVER['__hypervel.testBefore'] = false;
 
         $gate = $this->getGuestGate();
 
@@ -146,34 +145,34 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
         $this->assertFalse($gate->check('update', new AccessGateTestDummy()));
-        $this->assertFalse($_SERVER['__hyperf.testBefore']);
+        $this->assertFalse($_SERVER['__hypervel.testBefore']);
 
-        unset($_SERVER['__hyperf.testBefore']);
+        unset($_SERVER['__hypervel.testBefore']);
     }
 
     public function testBeforeAndAfterCallbacksCanAllowGuests()
     {
-        $_SERVER['__hyperf.gateBefore'] = false;
-        $_SERVER['__hyperf.gateBefore2'] = false;
-        $_SERVER['__hyperf.gateAfter'] = false;
-        $_SERVER['__hyperf.gateAfter2'] = false;
+        $_SERVER['__hypervel.gateBefore'] = false;
+        $_SERVER['__hypervel.gateBefore2'] = false;
+        $_SERVER['__hypervel.gateAfter'] = false;
+        $_SERVER['__hypervel.gateAfter2'] = false;
 
         $gate = $this->getGuestGate();
 
         $gate->before(function (?Authenticatable $user) {
-            $_SERVER['__hyperf.gateBefore'] = true;
+            $_SERVER['__hypervel.gateBefore'] = true;
         });
 
         $gate->after(function (?Authenticatable $user) {
-            $_SERVER['__hyperf.gateAfter'] = true;
+            $_SERVER['__hypervel.gateAfter'] = true;
         });
 
         $gate->before(function (Authenticatable $user) {
-            $_SERVER['__hyperf.gateBefore2'] = true;
+            $_SERVER['__hypervel.gateBefore2'] = true;
         });
 
         $gate->after(function (Authenticatable $user) {
-            $_SERVER['__hyperf.gateAfter2'] = true;
+            $_SERVER['__hypervel.gateAfter2'] = true;
         });
 
         $gate->define('foo', function ($user = null) {
@@ -182,16 +181,16 @@ class GateTest extends TestCase
 
         $this->assertTrue($gate->check('foo'));
 
-        $this->assertTrue($_SERVER['__hyperf.gateBefore']);
-        $this->assertFalse($_SERVER['__hyperf.gateBefore2']);
-        $this->assertTrue($_SERVER['__hyperf.gateAfter']);
-        $this->assertFalse($_SERVER['__hyperf.gateAfter2']);
+        $this->assertTrue($_SERVER['__hypervel.gateBefore']);
+        $this->assertFalse($_SERVER['__hypervel.gateBefore2']);
+        $this->assertTrue($_SERVER['__hypervel.gateAfter']);
+        $this->assertFalse($_SERVER['__hypervel.gateAfter2']);
 
         unset(
-            $_SERVER['__hyperf.gateBefore'],
-            $_SERVER['__hyperf.gateBefore2'],
-            $_SERVER['__hyperf.gateAfter'],
-            $_SERVER['__hyperf.gateAfter2']
+            $_SERVER['__hypervel.gateBefore'],
+            $_SERVER['__hypervel.gateBefore2'],
+            $_SERVER['__hypervel.gateAfter'],
+            $_SERVER['__hypervel.gateAfter2']
         );
     }
 
@@ -1120,6 +1119,6 @@ class GateTest extends TestCase
 
     private function getContainer(): Container
     {
-        return new Container(new DefinitionSource([]));
+        return new Container();
     }
 }

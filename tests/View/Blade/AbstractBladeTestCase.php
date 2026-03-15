@@ -6,7 +6,6 @@ namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\BladeCompiler;
-use Hypervel\View\Component;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -22,17 +21,6 @@ abstract class AbstractBladeTestCase extends TestCase
         parent::setUp();
 
         $this->compiler = new BladeCompiler($this->getFiles(), __DIR__);
-    }
-
-    protected function tearDown(): void
-    {
-        Component::flushCache();
-        Component::forgetComponentsResolver();
-        Component::forgetFactory();
-
-        m::close();
-
-        parent::tearDown();
     }
 
     protected function getFiles()

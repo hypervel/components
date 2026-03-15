@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Exceptions;
 
-use Hypervel\Queue\Contracts\Job;
-
-use function Hyperf\Tappable\tap;
+use Hypervel\Contracts\Queue\Job;
 
 class TimeoutExceededException extends MaxAttemptsExceededException
 {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\Events\CacheEvent;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -18,12 +17,12 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Traits\WorksWithSpans;
-use Hypervel\Session\Contracts\Session;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
@@ -39,20 +38,20 @@ class CacheFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable(static::FEATURE_KEY)
-            || $this->switcher->isBreadcrumbEnable(static::FEATURE_KEY);
+        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
-        $config = $this->container->get(ConfigInterface::class);
+        $config = $this->container->make('config');
         $stores = array_keys($config->get('cache.stores', []));
         foreach ($stores as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }
         /** @var Dispatcher $dispatcher */
-        $dispatcher = $this->container->get(Dispatcher::class);
-        if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
+        $dispatcher = $this->container->make(Dispatcher::class);
+        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
                 CacheMissed::class,
@@ -61,7 +60,7 @@ class CacheFeature extends Feature
             ], [$this, 'handleCacheEventsForBreadcrumbs']);
         }
 
-        if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 RetrievingKey::class,
                 RetrievingManyKeys::class,
@@ -228,7 +227,7 @@ class CacheFeature extends Feature
     {
         try {
             /** @var Session $sessionStore */
-            $sessionStore = $this->container->get(Session::class);
+            $sessionStore = $this->container->make(Session::class);
 
             // It is safe for us to get the session ID here without checking if the session is started
             // because getting the session ID does not start the session. In addition we need the ID before

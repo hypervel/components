@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Support\HtmlString;
-use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\Support\Str;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\Table\TableExtension;

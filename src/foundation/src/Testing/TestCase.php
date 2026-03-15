@@ -4,26 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Carbon\Carbon;
-use Carbon\CarbonImmutable;
-use Hyperf\Coroutine\Coroutine;
+use Faker\Generator as FakerGenerator;
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Facade;
-use Mockery;
+use Hypervel\Support\Facades\ParallelTesting;
 use Throwable;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
     use InteractsWithContainer;
+    use InteractsWithExceptionHandling;
     use MakesHttpRequests;
     use InteractsWithAuthentication;
     use InteractsWithConsole;
@@ -31,6 +36,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithSession;
     use InteractsWithTime;
     use MocksApplicationServices;
+    use RunTestsInCoroutine;
 
     /**
      * The callbacks that should be run after the application is created.
@@ -59,11 +65,25 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         /* @phpstan-ignore-next-line */
         if (! $this->app) {
             $this->refreshApplication();
+
+            ParallelTesting::callSetUpTestCaseCallbacks($this);
         }
 
-        $this->runInCoroutine(
-            fn () => $this->setUpTraits()
-        );
+        // Reset after Application exists so container-change detection works correctly
+        // and rebinding hooks are registered on the current container.
+        DatabaseConnectionResolver::flushCachedConnections();
+
+        $this->setUpFaker();
+
+        $this->runInCoroutine(function () {
+            $this->setUpTraits();
+
+            // Preserve transaction manager context for the test coroutine.
+            // RefreshDatabase stores transaction state in Context, but setUpTraits runs
+            // in a temporary coroutine. Copy to non-coroutine context so the test
+            // coroutine (which copies from nonCoContext) can access it.
+            $this->preserveTransactionContext();
+        });
 
         foreach ($this->afterApplicationCreatedCallbacks as $callback) {
             $callback();
@@ -114,15 +134,29 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         return $uses;
     }
 
+    /**
+     * Set up Faker for factory usage.
+     */
+    protected function setUpFaker(): void
+    {
+        if (! $this->app->bound(FakerGenerator::class)) {
+            $this->app->singleton(
+                FakerGenerator::class,
+                fn ($app) => \Faker\Factory::create($app->make('config')->get('app.faker_locale', 'en_US'))
+            );
+        }
+    }
+
     protected function tearDown(): void
     {
         if ($this->app) {
             $this->runInCoroutine(
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
+
+            ParallelTesting::callTearDownTestCaseCallbacks($this);
+
             $this->flushApplication();
-            /* @phpstan-ignore-next-line */
-            Coroutine::flushAfterCreated();
         }
 
         $this->afterApplicationCreatedCallbacks = [];
@@ -132,21 +166,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             throw $this->callbackException;
         }
 
-        if (class_exists('Mockery')) {
-            if ($container = Mockery::getContainer()) { // @phpstan-ignore if.alwaysTrue (defensive check)
-                $this->addToAssertionCount($container->mockery_getExpectationCount());
-            }
-
-            Mockery::close();
-        }
-
-        if (class_exists(Carbon::class)) {
-            Carbon::setTestNow();
-        }
-
-        if (class_exists(CarbonImmutable::class)) {
-            CarbonImmutable::setTestNow();
-        }
+        HandleExceptions::flushState($this);
 
         $this->setUpHasRun = false;
     }
@@ -188,7 +208,23 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     }
 
     /**
+     * Preserve transaction manager context for the test coroutine.
+     *
+     * RefreshDatabase and DatabaseTransactions store transaction state in Context.
+     * Since setUpTraits runs in a temporary coroutine (separate from the test method's
+     * coroutine), we must copy this state to non-coroutine context. The test coroutine
+     * will then copy from non-coroutine context via copyFromNonCoroutine().
+     */
+    protected function preserveTransactionContext(): void
+    {
+        DatabaseTransactionsManager::copyToNonCoroutineState();
+    }
+
+    /**
      * Ensure callback is executed in coroutine.
+     *
+     * Exceptions are captured and re-thrown outside the coroutine context
+     * so they propagate correctly to PHPUnit (e.g., for markTestSkipped).
      */
     protected function runInCoroutine(callable $callback): void
     {

@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Devtool\Generator\GeneratorCommand;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class EventCommand extends GeneratorCommand
+#[AsCommand(name: 'make:event')]
+class EventCommand extends DevtoolGeneratorCommand
 {
-    public function __construct()
-    {
-        parent::__construct('make:event');
-    }
+    protected ?string $name = 'make:event';
 
-    public function configure()
-    {
-        $this->setDescription('Create a new event class');
+    protected string $description = 'Create a new event class';
 
-        parent::configure();
-    }
+    protected string $type = 'Event';
 
     protected function getStub(): string
     {
         return $this->getConfig()['stub'] ?? __DIR__ . '/stubs/event.stub';
     }
 
-    protected function getDefaultNamespace(): string
+    protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $this->getConfig()['namespace'] ?? 'App\Events';
     }

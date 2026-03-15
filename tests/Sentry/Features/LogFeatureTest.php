@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Sentry\SentryTestCase;
@@ -19,8 +18,6 @@ use Sentry\Severity;
  */
 class LogFeatureTest extends SentryTestCase
 {
-    use RunTestsInCoroutine;
-
     protected array $defaultSetupConfig = [
         'sentry.features' => [
             LogFeature::class,
@@ -31,7 +28,7 @@ class LogFeatureTest extends SentryTestCase
     {
         parent::defineEnvironment($app);
 
-        tap($app->get(ConfigInterface::class), static function (ConfigInterface $config) {
+        tap($app->make('config'), static function (Repository $config) {
             $config->set('logging.channels.sentry', [
                 'driver' => 'sentry',
             ]);
@@ -51,7 +48,7 @@ class LogFeatureTest extends SentryTestCase
 
     public function testLogChannelGeneratesEvents(): void
     {
-        $logger = $this->app->get(LoggerInterface::class)->channel('sentry');
+        $logger = $this->app->make(LoggerInterface::class)->channel('sentry');
 
         $logger->info('Sentry Laravel info log message');
 
@@ -65,7 +62,7 @@ class LogFeatureTest extends SentryTestCase
 
     public function testLogChannelGeneratesEventsOnlyForConfiguredLevel(): void
     {
-        $logger = $this->app->get(LoggerInterface::class)->channel('sentry_error_level');
+        $logger = $this->app->make(LoggerInterface::class)->channel('sentry_error_level');
 
         $logger->info('Sentry Laravel info log message');
         $logger->warning('Sentry Laravel warning log message');

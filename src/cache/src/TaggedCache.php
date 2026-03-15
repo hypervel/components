@@ -6,9 +6,9 @@ namespace Hypervel\Cache;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

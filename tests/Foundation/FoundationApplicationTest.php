@@ -4,20 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Event\EventDispatcher;
-use Hypervel\Event\ListenerProvider;
+use Hypervel\Config\Repository;
+use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
-use Hypervel\HttpMessage\Exceptions\HttpException;
-use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
-use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * @internal
@@ -39,8 +37,8 @@ class FoundationApplicationTest extends TestCase
             ->once();
 
         $app = $this->getApplication([
-            TranslatorContract::class => fn () => $trans,
-            EventDispatcherInterface::class => fn () => $events,
+            'translator' => fn () => $trans,
+            'events' => fn () => $events,
         ]);
 
         $app->setLocale('foo');
@@ -99,9 +97,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironment()
     {
-        $app = $this->getApplication([
-            Environment::class => fn () => new Environment('foo', true),
-        ]);
+        $app = $this->getApplication();
+        $app->instance('env', 'foo');
 
         $this->assertSame('foo', $app->environment());
 
@@ -118,25 +115,22 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironmentHelpers()
     {
-        $local = $this->getApplication([
-            Environment::class => fn () => new Environment('local', true),
-        ]);
+        $local = $this->getApplication();
+        $local->instance('env', 'local');
 
         $this->assertTrue($local->isLocal());
         $this->assertFalse($local->isProduction());
         $this->assertFalse($local->runningUnitTests());
 
-        $production = $this->getApplication([
-            Environment::class => fn () => new Environment('production', true),
-        ]);
+        $production = $this->getApplication();
+        $production->instance('env', 'production');
 
         $this->assertTrue($production->isProduction());
         $this->assertFalse($production->isLocal());
         $this->assertFalse($production->runningUnitTests());
 
-        $testing = $this->getApplication([
-            Environment::class => fn () => new Environment('testing', true),
-        ]);
+        $testing = $this->getApplication();
+        $testing->instance('env', 'testing');
 
         $this->assertTrue($testing->runningUnitTests());
         $this->assertFalse($testing->isLocal());
@@ -145,30 +139,22 @@ class FoundationApplicationTest extends TestCase
 
     public function testDebugHelper()
     {
-        $debugOff = $this->getApplication([
-            Environment::class => fn () => new Environment('production', false),
-        ]);
+        $debugOff = $this->getApplication();
+        $debugOff->instance('config', new Repository(['app' => ['debug' => false]]));
 
         $this->assertFalse($debugOff->hasDebugModeEnabled());
 
-        $debugOn = $this->getApplication([
-            Environment::class => fn () => new Environment('production', true),
-        ]);
+        $debugOn = $this->getApplication();
+        $debugOn->instance('config', new Repository(['app' => ['debug' => true]]));
 
         $this->assertTrue($debugOn->hasDebugModeEnabled());
     }
 
     public function testBeforeBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
@@ -177,15 +163,9 @@ class FoundationApplicationTest extends TestCase
 
     public function testAfterBootstrappingAddsClosure()
     {
-        $eventDispatcher = new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $app = $this->getApplication()
-        );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
@@ -194,11 +174,11 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetNamespace()
     {
-        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf1'));
-        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf2'));
+        $app1 = $this->getApplication([], realpath(__DIR__ . '/Fixtures/project1'));
+        $app2 = $this->getApplication([], realpath(__DIR__ . '/Fixtures/project2'));
 
-        $this->assertSame('Hyperf\One\\', $app1->getNamespace());
-        $this->assertSame('Hyperf\Two\\', $app2->getNamespace());
+        $this->assertSame('App\One\\', $app1->getNamespace());
+        $this->assertSame('App\Two\\', $app2->getNamespace());
     }
 
     public function testMacroable()
@@ -242,6 +222,52 @@ class FoundationApplicationTest extends TestCase
             $this->fail(sprintf('abort must throw an %s.', HttpException::class));
         } catch (HttpException $exception) {
             $this->assertSame(['X-FOO' => 'BAR'], $exception->getHeaders());
+        }
+    }
+
+    public function testAfterLoadingEnvironmentRegistersCallback()
+    {
+        $app = $this->getApplication();
+        $eventDispatcher = new EventDispatcher($app);
+        $app->instance('events', $eventDispatcher);
+
+        $closure = function () {};
+        $app->afterLoadingEnvironment($closure);
+
+        $listeners = $app['events']->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
+        $this->assertArrayHasKey(0, $listeners);
+    }
+
+    public function testGetCachedServicesPath()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app');
+
+        $this->assertStringEndsWith('cache/services.php', $app->getCachedServicesPath());
+    }
+
+    public function testConfigurationIsCachedReturnsFalseWhenNoCacheFile()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+
+        $this->assertFalse($app->configurationIsCached());
+    }
+
+    public function testConfigurationIsCachedReturnsTrueWhenCacheFileExists()
+    {
+        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
+        $cachePath = $basePath . '/bootstrap/cache/config.php';
+
+        mkdir(dirname($cachePath), 0755, true);
+        file_put_contents($cachePath, '<?php return [];');
+
+        try {
+            $app = $this->getApplication([], $basePath);
+            $this->assertTrue($app->configurationIsCached());
+        } finally {
+            unlink($cachePath);
+            rmdir(dirname($cachePath));
+            rmdir(dirname($cachePath, 2));
+            rmdir($basePath);
         }
     }
 }

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Broadcasting\Contracts\Broadcaster;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Contracts\Broadcasting\Broadcaster;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -17,11 +17,6 @@ use PHPUnit\Framework\TestCase;
  */
 class BroadcastEventTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicEventBroadcastParameterFormatting()
     {
         $broadcaster = m::mock(Broadcaster::class);

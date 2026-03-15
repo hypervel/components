@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 /**
@@ -21,14 +20,9 @@ use RuntimeException;
  */
 class BusDispatcherTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testCommandsThatShouldQueueIsQueued()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -41,7 +35,7 @@ class BusDispatcherTest extends TestCase
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomHandler()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -54,10 +48,10 @@ class BusDispatcherTest extends TestCase
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
-            $mock->shouldReceive('laterOn')->once()->with('foo', 10, m::type(BusDispatcherTestSpecificQueueAndDelayCommand::class));
+            $mock->shouldReceive('later')->once()->with(10, m::type(BusDispatcherTestSpecificQueueAndDelayCommand::class), '', 'foo');
 
             return $mock;
         });
@@ -81,7 +75,7 @@ class BusDispatcherTest extends TestCase
     public function testDispatcherCanDispatchStandAloneHandler()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')
+        $container->shouldReceive('make')
             ->with(StandAloneHandler::class)
             ->once()
             ->andReturn(new StandAloneHandler());
@@ -99,7 +93,7 @@ class BusDispatcherTest extends TestCase
 
     public function testOnConnectionOnJobWhenDispatching()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();

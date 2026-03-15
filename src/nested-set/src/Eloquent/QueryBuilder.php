@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
-use Hyperf\Collection\Collection as HyperfCollection;
-use Hyperf\Database\Model\Builder as EloquentBuilder;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\Database\Query\Builder as BaseQueryBuilder;
-use Hyperf\Database\Query\Expression;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Query\Builder as BaseQueryBuilder;
+use Hypervel\Database\Query\Expression;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 
 class QueryBuilder extends EloquentBuilder
@@ -115,13 +115,13 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get ancestors of specified node.
      */
-    public function ancestorsOf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function ancestorsOf(mixed $id, array $columns = ['*']): BaseCollection
     {
         /* @phpstan-ignore-next-line */
         return $this->whereAncestorOf($id)->get($columns);
     }
 
-    public function ancestorsAndSelf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function ancestorsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
     {
         /* @phpstan-ignore-next-line */
         return $this->whereAncestorOf($id, true)->get($columns);
@@ -197,7 +197,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get descendants of specified node.
      */
-    public function descendantsOf(mixed $id, array $columns = ['*'], bool $andSelf = false): HyperfCollection
+    public function descendantsOf(mixed $id, array $columns = ['*'], bool $andSelf = false): BaseCollection
     {
         try {
             return $this->whereDescendantOf($id, 'and', false, $andSelf)->get($columns);
@@ -206,7 +206,7 @@ class QueryBuilder extends EloquentBuilder
         }
     }
 
-    public function descendantsAndSelf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function descendantsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
     {
         return $this->descendantsOf($id, $columns, true);
     }
@@ -260,7 +260,7 @@ class QueryBuilder extends EloquentBuilder
         return $this->whereRaw("{$lft} = {$rgt} - 1");
     }
 
-    public function leaves(array $columns = ['*']): HyperfCollection
+    public function leaves(array $columns = ['*']): BaseCollection
     {
         return $this->whereIsLeaf()->get($columns);
     }
@@ -281,7 +281,6 @@ class QueryBuilder extends EloquentBuilder
         $alias = '_d';
         $wrappedAlias = $this->query->getGrammar()->wrapTable($alias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newScopedQuery('_d')
             ->toBase()
@@ -521,7 +520,6 @@ class QueryBuilder extends EloquentBuilder
 
     protected function getOdnessQuery(): BaseQueryBuilder
     {
-        /* @phpstan-ignore-next-line */
         return $this->model
             ->newNestedSetQuery()
             ->toBase()
@@ -544,7 +542,6 @@ class QueryBuilder extends EloquentBuilder
         $waFirst = $this->query->getGrammar()->wrapTable($firstAlias);
         $waSecond = $this->query->getGrammar()->wrapTable($secondAlias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newNestedSetQuery($firstAlias)
             ->toBase()
@@ -581,7 +578,6 @@ class QueryBuilder extends EloquentBuilder
         $waChild = $grammar->wrapTable($childAlias);
         $waInterm = $grammar->wrapTable($intermAlias);
 
-        /* @phpstan-ignore-next-line */
         $query = $this->model
             ->newNestedSetQuery('c')
             ->toBase()
@@ -607,7 +603,6 @@ class QueryBuilder extends EloquentBuilder
 
     protected function getMissingParentQuery(): BaseQueryBuilder
     {
-        /* @phpstan-ignore-next-line */
         return $this->model
             ->newNestedSetQuery()
             ->toBase()
@@ -666,7 +661,6 @@ class QueryBuilder extends EloquentBuilder
             $this->model->getRgtName(), /* @phpstan-ignore-line */
         ];
 
-        /* @phpstan-ignore-next-line */
         $dictionary = $this->model
             ->newNestedSetQuery()
             ->when($root, function (self $query) use ($root) {
@@ -761,12 +755,14 @@ class QueryBuilder extends EloquentBuilder
             $this->withTrashed();
         }
 
-        $existing = $this
+        /** @var \Hypervel\Database\Eloquent\Collection $result */
+        $result = $this
             ->when($root, function (self $query) use ($root) {
                 return $query->whereDescendantOf($root);
             })
-            ->get()
-            ->getDictionary();
+            ->get();
+
+        $existing = $result->getDictionary();
 
         $dictionary = [];
         $parentId = $root ? $root->getKey() : null;
@@ -776,7 +772,6 @@ class QueryBuilder extends EloquentBuilder
         if (! empty($existing)) {
             /* @phpstan-ignore-next-line */
             if ($delete && ! $this->model->usesSoftDelete()) {
-                /* @phpstan-ignore-next-line */
                 $this->model
                     ->newScopedQuery()
                     ->whereIn($this->model->getKeyName(), array_keys($existing))
@@ -833,7 +828,7 @@ class QueryBuilder extends EloquentBuilder
                 unset($existing[$key]);
             }
 
-            $model->fill(Arr::except($itemData, 'children'))->save();
+            $model->fill(Arr::except($itemData, ['children', $keyName]))->save();
 
             $dictionary[$parentId][] = $model;
 
