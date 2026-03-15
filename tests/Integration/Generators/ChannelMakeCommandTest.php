@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Generators;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class ChannelMakeCommandTest extends TestCase
+{
+    protected $files = [
+        'app/Broadcasting/FooChannel.php',
+    ];
+
+    public function testItCanGenerateChannelFile()
+    {
+        $this->artisan('make:channel', ['name' => 'FooChannel'])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Broadcasting;',
+            'use Hypervel\Foundation\Auth\User;',
+            'class FooChannel',
+        ], 'app/Broadcasting/FooChannel.php');
+    }
+}

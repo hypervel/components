@@ -101,27 +101,14 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
     public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions()
     {
-        $this->app->useBootstrapPath(__DIR__ . '/Fixtures');
-        $cachePath = $this->app->getCachedRoutesPath();
-        @unlink($cachePath);
+        $this->router->get('/foo/{bar}', ['FooController', 'show']);
+        $this->router->get('/foo/{bar}/{baz}', ['FooController', 'show']);
+        $this->router->getRoutes()->refreshActionLookups();
 
-        $app = (static function () {
-            $refresh = true;
+        $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);
 
-            return require __DIR__ . '/Fixtures/app.php';
-        })();
-        $app['router']->get('/foo/{bar}', ['FooController', 'show']);
-        $app['router']->get('/foo/{bar}/{baz}', ['FooController', 'show']);
-        $app['router']->getRoutes()->refreshActionLookups();
-
-        $this->assertSame('foo/{bar}', $app['router']->getRoutes()->getByAction('FooController@show')->uri);
-
-        $this->artisan('route:cache')->assertExitCode(0);
-        require $cachePath;
-
-        $this->assertSame('foo/{bar}', $app['router']->getRoutes()->getByAction('FooController@show')->uri);
-
-        @unlink($cachePath);
+        $this->router->setCompiledRoutes($this->router->getRoutes()->compile());
+        $this->assertSame('foo/{bar}', $this->app['router']->getRoutes()->getByAction('FooController@show')->uri);
     }
 
     public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForNames()
