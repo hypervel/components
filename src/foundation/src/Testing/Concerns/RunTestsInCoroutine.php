@@ -7,7 +7,8 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hypervel\Context\Context;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
-use Hypervel\Support\Collection;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Eloquent\Model;
 use Swoole\Coroutine;
 use Swoole\Timer;
 use Throwable;
@@ -108,17 +109,11 @@ trait RunTestsInCoroutine
      */
     protected function clearNonCoroutineTransactionContext(): void
     {
-        $pending = Context::getFromNonCoroutine('__db.transactions.pending');
-
-        if ($pending instanceof Collection && $pending->isNotEmpty()) {
+        if (DatabaseTransactionsManager::hasNonCoroutinePendingTransactions()) {
             return;
         }
 
-        Context::clearFromNonCoroutine([
-            '__db.transactions.committed',
-            '__db.transactions.pending',
-            '__db.transactions.current',
-        ]);
+        DatabaseTransactionsManager::clearNonCoroutineState();
     }
 
     /**
@@ -130,12 +125,9 @@ trait RunTestsInCoroutine
      */
     protected function cleanupTestContext(): void
     {
-        // Transaction manager state
-        Context::forget('__db.transactions.committed');
-        Context::forget('__db.transactions.pending');
-        Context::forget('__db.transactions.current');
+        DatabaseTransactionsManager::flushState();
 
         // Model guard state
-        Context::forget('__database.model.unguarded');
+        Context::forget(Model::UNGUARDED_CONTEXT_KEY);
     }
 }

@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Faker\Generator as FakerGenerator;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
@@ -216,11 +217,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function preserveTransactionContext(): void
     {
-        Context::copyToNonCoroutine([
-            '__db.transactions.committed',
-            '__db.transactions.pending',
-            '__db.transactions.current',
-        ]);
+        DatabaseTransactionsManager::copyToNonCoroutineState();
     }
 
     /**
