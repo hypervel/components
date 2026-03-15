@@ -314,9 +314,32 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function setBasePath(string $basePath): static
     {
         $this->basePath = rtrim($basePath, '\/');
-        $this->bootstrapPath = $this->basePath('bootstrap');
+
+        $this->bindPathsInContainer();
 
         return $this;
+    }
+
+    /**
+     * Bind all of the application paths in the container.
+     */
+    protected function bindPathsInContainer(): void
+    {
+        $this->instance('path', $this->path());
+        $this->instance('path.base', $this->basePath());
+        $this->instance('path.config', $this->configPath());
+        $this->instance('path.database', $this->databasePath());
+        $this->instance('path.public', $this->publicPath());
+        $this->instance('path.resources', $this->resourcePath());
+        $this->instance('path.storage', $this->storagePath());
+
+        $this->useBootstrapPath($this->basePath('bootstrap'));
+
+        $this->useLangPath(value(function () {
+            return is_dir($directory = $this->resourcePath('lang'))
+                ? $directory
+                : $this->basePath('lang');
+        }));
     }
 
     /**

@@ -275,6 +275,7 @@
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "^6.0.2",
+        "symfony/filesystem": "^8.0",
         "symfony/yaml": "^8.0",
         "typesense/typesense-php": "^5.2"
     },

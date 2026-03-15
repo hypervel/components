@@ -10,6 +10,7 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Locker;
 use Hypervel\Support\Traits\Macroable;
+use RuntimeException;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 
@@ -264,6 +265,22 @@ class Filesystem
 
         exec("mklink /{$mode} \"{$link}\" \"{$target}\"");
         return true;
+    }
+
+    /**
+     * Create a relative symbolic link to the target file or directory.
+     */
+    public function relativeLink(string $target, string $link): void
+    {
+        if (! class_exists(\Symfony\Component\Filesystem\Filesystem::class)) {
+            throw new RuntimeException(
+                'To enable support for relative links, please install the symfony/filesystem package.'
+            );
+        }
+
+        $relativeTarget = (new \Symfony\Component\Filesystem\Filesystem())->makePathRelative($target, dirname($link));
+
+        $this->link($this->isFile($target) ? rtrim($relativeTarget, '/') : $relativeTarget, $link);
     }
 
     /**

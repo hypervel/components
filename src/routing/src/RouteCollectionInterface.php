@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
+use Countable;
 use Hypervel\Http\Request;
 
-interface RouteCollectionInterface
+interface RouteCollectionInterface extends Countable
 {
     /**
      * Add a Route instance to the collection.
