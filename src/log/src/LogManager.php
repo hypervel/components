@@ -7,10 +7,9 @@ namespace Hypervel\Log;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Environment;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
@@ -61,7 +60,7 @@ class LogManager implements LoggerInterface
      * Create a new Log manager instance.
      */
     public function __construct(
-        protected Container $app
+        protected Application $app
     ) {
         $this->config = $this->app->make('config');
     }
@@ -492,7 +491,7 @@ class LogManager implements LoggerInterface
      */
     protected function getFallbackChannelName(): string
     {
-        return $this->app->make(Environment::class)->get() ?: 'production';
+        return $this->app->environment() ?: 'production';
     }
 
     /**
@@ -550,7 +549,7 @@ class LogManager implements LoggerInterface
     {
         $driver ??= $this->getDefaultDriver();
 
-        if ($this->app->make(Environment::class)->isTesting()) {
+        if ($this->app->runningUnitTests()) {
             $driver ??= 'null';
         }
 

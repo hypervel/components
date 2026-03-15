@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Listeners\MonitorMasterSupervisorMemory;
 use Hypervel\Horizon\MasterSupervisor;
-use Hypervel\Support\Environment;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery as m;
 
@@ -21,9 +20,7 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $environment = m::mock(Environment::class);
-        $environment->shouldReceive('isTesting')->andReturn(false);
-        $this->app->instance(Environment::class, $environment);
+        $this->app['env'] = 'production';
     }
 
     public function testSupervisorIsTerminatedWhenUsingTooMuchMemory()

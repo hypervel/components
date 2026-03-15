@@ -253,7 +253,6 @@ abstract class Facade
             'Crypt' => Crypt::class,
             'Date' => Date::class,
             'DB' => DB::class,
-            'Environment' => Environment::class,
             'Event' => Event::class,
             'Exceptions' => Exceptions::class,
             'File' => File::class,

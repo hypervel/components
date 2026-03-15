@@ -2,13 +2,11 @@
 
 declare(strict_types=1);
 
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
-use Hypervel\Support\Environment;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HigherOrderTapProxy;
 use Hypervel\Support\Once;
@@ -217,27 +215,6 @@ if (! function_exists('object_get')) {
         }
 
         return $object;
-    }
-}
-
-if (! function_exists('environment')) {
-    /**
-     * Get the environment instance or check if the environment matches.
-     *
-     * @throws TypeError
-     */
-    function environment(mixed ...$environments): bool|Environment
-    {
-        $container = Container::getInstance();
-        $environment = $container->has(Environment::class)
-            ? $container->make(Environment::class)
-            : new Environment();
-
-        if (count($environments) > 0) {
-            return $environment->is(...$environments);
-        }
-
-        return $environment;
     }
 }
 

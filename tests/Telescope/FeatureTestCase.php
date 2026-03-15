@@ -11,7 +11,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Support\Environment;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
@@ -64,10 +63,7 @@ class FeatureTestCase extends TestCase
             ]);
         $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
-        $this->app->make(Environment::class)
-            ->set('production');
-        $this->app->make(Environment::class)
-            ->setDebug(false);
+        $this->app['env'] = 'production';
     }
 
     protected function migrateFreshUsing(): array

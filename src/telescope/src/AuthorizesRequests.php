@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hypervel\Container\Container;
 use Hypervel\Http\Request;
-use Hypervel\Support\Environment;
 
 trait AuthorizesRequests
 {
@@ -32,9 +30,7 @@ trait AuthorizesRequests
     public static function check(Request $request): bool
     {
         return (static::$authUsing ?: function () {
-            return Container::getInstance()
-                ->make(Environment::class)
-                ->isLocal();
+            return app()->isLocal();
         })($request);
     }
 }
