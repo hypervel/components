@@ -27,6 +27,16 @@ class AuthManager implements AuthFactoryContract
     use CreatesUserProviders;
 
     /**
+     * Context key for the default guard override.
+     */
+    public const DEFAULT_GUARD_CONTEXT_KEY = '__auth.defaults.guard';
+
+    /**
+     * Context key for the user resolver callback override.
+     */
+    protected const RESOLVER_CONTEXT_KEY = '__auth.resolver';
+
+    /**
      * The array of created "drivers".
      */
     protected array $guards = [];
@@ -156,7 +166,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if ($driver = Context::get('__auth.defaults.guard')) {
+        if ($driver = Context::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
             return $driver;
         }
 
@@ -182,7 +192,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        Context::set('__auth.defaults.guard', $name);
+        Context::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
     }
 
     /**
@@ -200,7 +210,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function userResolver(): Closure
     {
-        if ($resolver = Context::get('__auth.resolver')) {
+        if ($resolver = Context::get(self::RESOLVER_CONTEXT_KEY)) {
             return $resolver;
         }
 
@@ -214,7 +224,7 @@ class AuthManager implements AuthFactoryContract
      */
     public function resolveUsersUsing(Closure $userResolver): static
     {
-        Context::set('__auth.resolver', $userResolver);
+        Context::set(self::RESOLVER_CONTEXT_KEY, $userResolver);
 
         return $this;
     }

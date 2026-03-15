@@ -21,6 +21,11 @@ class CookieJar implements JarContract
     use Macroable;
 
     /**
+     * Context key for the queued cookies.
+     */
+    protected const QUEUE_CONTEXT_KEY = '__cookie.queue';
+
+    /**
      * The default path (if specified).
      */
     protected string $path = '/';
@@ -208,7 +213,7 @@ class CookieJar implements JarContract
      */
     protected function getQueuedCookiesRaw(): array
     {
-        return Context::get('__cookie.queue', []);
+        return Context::get(self::QUEUE_CONTEXT_KEY, []);
     }
 
     /**
@@ -216,6 +221,6 @@ class CookieJar implements JarContract
      */
     protected function setQueuedCookies(array $cookies): void
     {
-        Context::set('__cookie.queue', $cookies);
+        Context::set(self::QUEUE_CONTEXT_KEY, $cookies);
     }
 }

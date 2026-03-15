@@ -22,6 +22,11 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     use InteractsWithTime;
 
     /**
+     * Context key for whether the session record exists in the database.
+     */
+    protected const DATABASE_EXISTS_CONTEXT_KEY = '__session.database.exists';
+
+    /**
      * Create a new database session handler instance.
      *
      * @param ConnectionResolverInterface $resolver the database connection resolver instance
@@ -245,7 +250,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function setExists(bool $value): static
     {
-        Context::set('__session.database.exists', $value);
+        Context::set(self::DATABASE_EXISTS_CONTEXT_KEY, $value);
 
         return $this;
     }
@@ -255,6 +260,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return Context::get('__session.database.exists', false);
+        return Context::get(self::DATABASE_EXISTS_CONTEXT_KEY, false);
     }
 }

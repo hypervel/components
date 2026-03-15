@@ -24,6 +24,16 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     use HasPoolProxy;
 
     /**
+     * Context key for the per-request default channel override.
+     */
+    protected const DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
+
+    /**
+     * Context key for the per-request default locale override.
+     */
+    protected const DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
+
+    /**
      * The default channel used to deliver messages.
      */
     protected string $defaultChannel = 'mail';
@@ -194,7 +204,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getDefaultDriver(): string
     {
-        return Context::get('__notifications.default_channel', $this->defaultChannel);
+        return Context::get(self::DEFAULT_CHANNEL_CONTEXT_KEY, $this->defaultChannel);
     }
 
     /**
@@ -210,7 +220,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function deliverVia(string $channel): void
     {
-        Context::set('__notifications.default_channel', $channel);
+        Context::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
     }
 
     /**
@@ -218,7 +228,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function locale(string $locale): static
     {
-        Context::set('__notifications.default_locale', $locale);
+        Context::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
 
         return $this;
     }
@@ -228,6 +238,6 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getLocale(): ?string
     {
-        return Context::get('__notifications.default_locale', $this->locale);
+        return Context::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
     }
 }

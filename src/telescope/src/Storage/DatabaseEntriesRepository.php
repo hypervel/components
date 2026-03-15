@@ -25,6 +25,11 @@ use function Hypervel\Config\config;
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {
     /**
+     * Context key for the per-request monitored tags cache.
+     */
+    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+
+    /**
      * Create a new database repository.
      *
      * @param ConnectionResolverInterface $resolver the database connection resolver instance
@@ -245,7 +250,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function getMonitorTags(): ?array
     {
-        return Context::get('__telescope.monitored_tags', null);
+        return Context::get(self::MONITORED_TAGS_CONTEXT_KEY, null);
     }
 
     /**
@@ -253,7 +258,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function setMonitorTags(?array $tags): void
     {
-        Context::set('__telescope.monitored_tags', $tags);
+        Context::set(self::MONITORED_TAGS_CONTEXT_KEY, $tags);
     }
 
     /**

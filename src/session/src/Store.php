@@ -29,6 +29,21 @@ class Store implements Session
     public const CONTEXT_KEY = '__session.store';
 
     /**
+     * Context key for whether the session has been started.
+     */
+    protected const STARTED_CONTEXT_KEY = '__session.store.started';
+
+    /**
+     * Context key for the session attributes.
+     */
+    protected const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
+
+    /**
+     * Context key for the session ID.
+     */
+    protected const ID_CONTEXT_KEY = '__session.store.id';
+
+    /**
      * Create a new session instance.
      *
      * @param string $name the session name
@@ -53,7 +68,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set('__session.store.started', true);
+        return Context::set(self::STARTED_CONTEXT_KEY, true);
     }
 
     /**
@@ -61,7 +76,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get('__session.store.attributes', []);
+        return Context::get(self::ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -69,7 +84,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set('__session.store.attributes', $attributes);
+        Context::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
     }
 
     /**
@@ -78,8 +93,8 @@ class Store implements Session
     protected function replaceAttributes(array $attributes): void
     {
         Context::set(
-            '__session.store.attributes',
-            array_replace(Context::get('__session.store.attributes', []), $attributes)
+            self::ATTRIBUTES_CONTEXT_KEY,
+            array_replace(Context::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
         );
     }
 
@@ -154,7 +169,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set('__session.store.started', false);
+        Context::set(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -517,7 +532,7 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get('__session.store.started', false);
+        return Context::get(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -525,9 +540,9 @@ class Store implements Session
      */
     public static function flushState(): void
     {
-        Context::forget('__session.store.started');
-        Context::forget('__session.store.id');
-        Context::forget('__session.store.attributes');
+        Context::forget(self::STARTED_CONTEXT_KEY);
+        Context::forget(self::ID_CONTEXT_KEY);
+        Context::forget(self::ATTRIBUTES_CONTEXT_KEY);
     }
 
     /**
@@ -559,7 +574,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get('__session.store.id', null);
+        return Context::get(self::ID_CONTEXT_KEY, null);
     }
 
     /**
@@ -568,7 +583,7 @@ class Store implements Session
     public function setId(?string $id): void
     {
         Context::set(
-            '__session.store.id',
+            self::ID_CONTEXT_KEY,
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }
