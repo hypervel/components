@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Scope;
+
+class {{ class }} implements Scope
+{
+    /**
+     * Apply the scope to a given Eloquent query builder.
+     */
+    public function apply(Builder $builder, Model $model): void
+    {
+        //
+    }
+}

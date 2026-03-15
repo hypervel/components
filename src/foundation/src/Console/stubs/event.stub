@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Broadcasting\Channel;
+use Hypervel\Broadcasting\InteractsWithSockets;
+use Hypervel\Broadcasting\PresenceChannel;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Foundation\Events\Dispatchable;
+use Hypervel\Queue\SerializesModels;
+
+class {{ class }}
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    /**
+     * Create a new event instance.
+     */
+    public function __construct()
+    {
+        //
+    }
+
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return array<int, \Hypervel\Broadcasting\Channel>
+     */
+    public function broadcastOn(): array
+    {
+        return [
+            new PrivateChannel('channel-name'),
+        ];
+    }
+}

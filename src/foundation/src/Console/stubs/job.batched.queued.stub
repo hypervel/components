@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Bus\Batchable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+
+class {{ class }} implements ShouldQueue
+{
+    use Batchable, Queueable;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct()
+    {
+        //
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        if ($this->batch()->cancelled()) {
+            // The batch has been cancelled...
+
+            return;
+        }
+
+        //
+    }
+}

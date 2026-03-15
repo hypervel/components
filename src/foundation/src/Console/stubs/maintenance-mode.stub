@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 // Check if the application is in maintenance mode...
 if (! file_exists($down = __DIR__.'/down')) {
     return;
