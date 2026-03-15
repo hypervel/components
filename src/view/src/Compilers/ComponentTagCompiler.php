@@ -22,7 +22,7 @@ class ComponentTagCompiler
     /**
      * The "bind:" attributes that have been compiled for the current component.
      */
-    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = 'bound_attributes';
+    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = '__view.bound_attributes';
 
     /**
      * The Blade compiler instance.

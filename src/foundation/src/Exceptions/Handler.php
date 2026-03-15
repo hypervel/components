@@ -66,6 +66,16 @@ class Handler implements ExceptionHandlerContract
     use ReflectsClosures;
 
     /**
+     * Context key for the per-request reported exception deduplication map.
+     */
+    public const REPORTED_EXCEPTION_MAP_CONTEXT_KEY = '__foundation.errors.reported_exception_map';
+
+    /**
+     * Context key for after-response callbacks.
+     */
+    public const AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
+
+    /**
      * A list of the exception types that are not reported.
      *
      * @var array<int, class-string<Throwable>>
@@ -381,11 +391,11 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportedExceptionMap(): WeakMap
     {
-        $map = Context::get('__errors.reportedExceptionMap');
+        $map = Context::get(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
 
         if (! $map instanceof WeakMap) {
             $map = new WeakMap();
-            Context::set('__errors.reportedExceptionMap', $map);
+            Context::set(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY, $map);
         }
 
         return $map;
@@ -608,7 +618,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function afterResponse(callable $callback): void
     {
-        Context::override('__errors.handler.afterResponse', function ($callbacks) use ($callback) {
+        Context::override(self::AFTER_RESPONSE_CONTEXT_KEY, function ($callbacks) use ($callback) {
             $callbacks = $callbacks ?: [];
             $callbacks[] = $callback;
 
@@ -621,7 +631,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function afterResponseCallbacks(): array
     {
-        return Context::get('__errors.handler.afterResponse', []);
+        return Context::get(self::AFTER_RESPONSE_CONTEXT_KEY, []);
     }
 
     /**

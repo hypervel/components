@@ -26,6 +26,16 @@ abstract class Prompt
     use Concerns\Themes;
 
     /**
+     * Context key for the output instance override.
+     */
+    protected const OUTPUT_CONTEXT_KEY = '__prompts.output';
+
+    /**
+     * Context key for the custom validation callback override.
+     */
+    protected const VALIDATE_USING_CONTEXT_KEY = '__prompts.validate_using';
+
+    /**
      * The current state of the prompt.
      */
     public string $state = 'initial';
@@ -220,7 +230,7 @@ abstract class Prompt
     public static function setOutput(OutputInterface $output): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set('__prompt.output', $output);
+            Context::set(self::OUTPUT_CONTEXT_KEY, $output);
         } else {
             self::$output = $output;
         }
@@ -232,7 +242,7 @@ abstract class Prompt
     protected static function output(): OutputInterface
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get('__prompt.output') ?? (self::$output ??= new ConsoleOutput());
+            return Context::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput());
         }
 
         return self::$output ??= new ConsoleOutput();
@@ -264,7 +274,7 @@ abstract class Prompt
     public static function validateUsing(Closure $callback): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set('__prompt.validate_using', $callback);
+            Context::set(self::VALIDATE_USING_CONTEXT_KEY, $callback);
         } else {
             static::$validateUsing = $callback;
         }
@@ -276,7 +286,7 @@ abstract class Prompt
     protected static function getValidateUsing(): ?Closure
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get('__prompt.validate_using') ?? static::$validateUsing;
+            return Context::get(self::VALIDATE_USING_CONTEXT_KEY) ?? static::$validateUsing;
         }
 
         return static::$validateUsing;

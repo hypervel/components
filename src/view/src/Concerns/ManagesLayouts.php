@@ -14,17 +14,17 @@ trait ManagesLayouts
     /**
      * Context key for finished, captured sections.
      */
-    protected const SECTIONS_CONTEXT_KEY = 'sections';
+    protected const SECTIONS_CONTEXT_KEY = '__view.sections';
 
     /**
      * Context key for the stack of in-progress sections.
      */
-    protected const SECTION_STACK_CONTEXT_KEY = 'section_stack';
+    protected const SECTION_STACK_CONTEXT_KEY = '__view.section_stack';
 
     /**
      * Context key for the parent placeholder.
      */
-    protected const PARENT_PLACEHOLDER_CONTEXT_KEY = 'parent_placeholder';
+    protected const PARENT_PLACEHOLDER_CONTEXT_KEY = '__view.parent_placeholder';
 
     /**
      * Start injecting content into a section.

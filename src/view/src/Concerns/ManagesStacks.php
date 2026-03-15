@@ -12,17 +12,17 @@ trait ManagesStacks
     /**
      * Context key for finished, captured push sections.
      */
-    protected const PUSHES_CONTEXT_KEY = 'pushes';
+    protected const PUSHES_CONTEXT_KEY = '__view.pushes';
 
     /**
      * Context key for finished, captured prepend sections.
      */
-    protected const PREPENDS_CONTEXT_KEY = 'prepends';
+    protected const PREPENDS_CONTEXT_KEY = '__view.prepends';
 
     /**
      * Context key for the stack of in-progress push sections.
      */
-    protected const PUSH_STACK_CONTEXT_KEY = 'push_stack';
+    protected const PUSH_STACK_CONTEXT_KEY = '__view.push_stack';
 
     /**
      * Start injecting content into a push section.

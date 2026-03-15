@@ -28,6 +28,21 @@ class UrlGenerator implements UrlGeneratorContract
     use Macroable;
 
     /**
+     * Context key for the cached URL scheme.
+     */
+    protected const CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
+
+    /**
+     * Context key for the cached root URL.
+     */
+    protected const CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
+
+    /**
+     * Context key for the forced root URL override.
+     */
+    protected const FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
+
+    /**
      * The route collection.
      */
     protected RouteCollectionInterface $routes;
@@ -269,7 +284,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $secure ? 'https://' : 'http://';
         }
 
-        return Context::getOrSet('url.cached_scheme', function () {
+        return Context::getOrSet(self::CACHED_SCHEME_CONTEXT_KEY, function () {
             return $this->forceScheme ?: $this->getRequest()->getScheme() . '://';
         });
     }
@@ -503,8 +518,8 @@ class UrlGenerator implements UrlGeneratorContract
     public function formatRoot(string $scheme, ?string $root = null): string
     {
         if (is_null($root)) {
-            $root = Context::getOrSet('url.cached_root', function () {
-                return Context::get('url.forced_root')
+            $root = Context::getOrSet(self::CACHED_ROOT_CONTEXT_KEY, function () {
+                return Context::get(self::FORCED_ROOT_CONTEXT_KEY)
                     ?? $this->forcedRoot
                     ?: $this->getRequest()->root();
             });
@@ -582,7 +597,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceScheme(?string $scheme): void
     {
-        Context::forget('url.cached_scheme');
+        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
 
         $this->forceScheme = $scheme ? $scheme . '://' : null;
     }
@@ -606,12 +621,12 @@ class UrlGenerator implements UrlGeneratorContract
     public function useOrigin(?string $root): void
     {
         if ($root !== null) {
-            Context::set('url.forced_root', rtrim($root, '/'));
+            Context::set(self::FORCED_ROOT_CONTEXT_KEY, rtrim($root, '/'));
         } else {
-            Context::forget('url.forced_root');
+            Context::forget(self::FORCED_ROOT_CONTEXT_KEY);
         }
 
-        Context::forget('url.cached_root');
+        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
     }
 
     /**
@@ -631,9 +646,9 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public static function flushRequestState(): void
     {
-        Context::forget('url.forced_root');
-        Context::forget('url.cached_root');
-        Context::forget('url.cached_scheme');
+        Context::forget(self::FORCED_ROOT_CONTEXT_KEY);
+        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
+        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
     }
 
     /**
@@ -689,8 +704,8 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $this->request = $request;
 
-        Context::forget('url.cached_root');
-        Context::forget('url.cached_scheme');
+        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
+        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
 
         tap($this->routeGenerator?->defaultParameters ?: [], function ($defaults) {
             $this->routeGenerator = null;

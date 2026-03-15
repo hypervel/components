@@ -24,6 +24,11 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     use ReflectsClosures;
 
     /**
+     * Context key for the per-request locale override.
+     */
+    protected const LOCALE_CONTEXT_KEY = '__translation.locale';
+
+    /**
      * The fallback locale used by the translator.
      */
     protected ?string $fallback = '';
@@ -433,7 +438,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function getLocale(): string
     {
-        return (string) (Context::get('__translator.locale') ?? $this->locale);
+        return (string) (Context::get(self::LOCALE_CONTEXT_KEY) ?? $this->locale);
     }
 
     /**
@@ -447,7 +452,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
 
-        Context::set('__translator.locale', $locale);
+        Context::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**

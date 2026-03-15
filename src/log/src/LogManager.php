@@ -37,6 +37,11 @@ class LogManager implements LoggerInterface
     use ParsesLogConfiguration;
 
     /**
+     * Context key for shared log context across channels.
+     */
+    protected const SHARED_CONTEXT_KEY = '__log.shared_context';
+
+    /**
      * The config for log.
      */
     protected Repository $config;
@@ -443,7 +448,7 @@ class LogManager implements LoggerInterface
             $channel->withContext($context);
         }
 
-        Context::override('__logger.shared_context', function ($currentContext) use ($context) {
+        Context::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
             return array_merge($currentContext ?: [], $context);
         });
 
@@ -455,7 +460,7 @@ class LogManager implements LoggerInterface
      */
     public function sharedContext(): array
     {
-        return (array) Context::get('__logger.shared_context', []);
+        return (array) Context::get(self::SHARED_CONTEXT_KEY, []);
     }
 
     /**
@@ -481,7 +486,7 @@ class LogManager implements LoggerInterface
      */
     public function flushSharedContext(): self
     {
-        Context::forget('__logger.shared_context');
+        Context::forget(self::SHARED_CONTEXT_KEY);
 
         return $this;
     }

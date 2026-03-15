@@ -12,6 +12,16 @@ use RuntimeException;
 trait Fallback
 {
     /**
+     * Context key for the fallback condition.
+     */
+    protected const SHOULD_FALLBACK_CONTEXT_KEY = '__prompts.should_fallback';
+
+    /**
+     * Context key for the fallback implementations.
+     */
+    protected const FALLBACKS_CONTEXT_KEY = '__prompts.fallbacks';
+
+    /**
      * Whether to fallback to a custom implementation.
      */
     protected static bool $shouldFallback = false;
@@ -29,7 +39,7 @@ trait Fallback
     public static function fallbackWhen(bool $condition): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set('__prompt.should_fallback', $condition);
+            Context::set(self::SHOULD_FALLBACK_CONTEXT_KEY, $condition);
         } else {
             static::$shouldFallback = $condition;
         }
@@ -41,8 +51,8 @@ trait Fallback
     public static function shouldFallback(): bool
     {
         if (Coroutine::inCoroutine()) {
-            $shouldFallback = Context::get('__prompt.should_fallback') ?? static::$shouldFallback;
-            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+            $shouldFallback = Context::get(self::SHOULD_FALLBACK_CONTEXT_KEY) ?? static::$shouldFallback;
+            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
 
             return $shouldFallback && isset($fallbacks[static::class]);
         }
@@ -58,9 +68,9 @@ trait Fallback
     public static function fallbackUsing(Closure $fallback): void
     {
         if (Coroutine::inCoroutine()) {
-            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
             $fallbacks[static::class] = $fallback;
-            Context::set('__prompt.fallbacks', $fallbacks);
+            Context::set(self::FALLBACKS_CONTEXT_KEY, $fallbacks);
         } else {
             static::$fallbacks[static::class] = $fallback;
         }
@@ -72,7 +82,7 @@ trait Fallback
     public function fallback(): mixed
     {
         if (Coroutine::inCoroutine()) {
-            $fallbacks = Context::get('__prompt.fallbacks') ?? static::$fallbacks;
+            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
         } else {
             $fallbacks = static::$fallbacks;
         }

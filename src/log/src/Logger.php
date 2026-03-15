@@ -17,6 +17,11 @@ use Stringable;
 class Logger implements LoggerInterface
 {
     /**
+     * Context key for per-request log context.
+     */
+    protected const LOG_CONTEXT_KEY = '__log.context';
+
+    /**
      * Create a new log writer instance.
      */
     public function __construct(
@@ -150,7 +155,7 @@ class Logger implements LoggerInterface
      */
     public function withContext(array $context = []): self
     {
-        Context::override('__logger.context', function ($currentContext) use ($context) {
+        Context::override(self::LOG_CONTEXT_KEY, function ($currentContext) use ($context) {
             return array_merge($currentContext ?: [], $context);
         });
 
@@ -164,7 +169,7 @@ class Logger implements LoggerInterface
      */
     public function withoutContext(): self
     {
-        Context::forget('__logger.context');
+        Context::forget(self::LOG_CONTEXT_KEY);
 
         return $this;
     }
@@ -176,7 +181,7 @@ class Logger implements LoggerInterface
      */
     public function getContext(): array
     {
-        return (array) Context::get('__logger.context', []);
+        return (array) Context::get(self::LOG_CONTEXT_KEY, []);
     }
 
     /**
