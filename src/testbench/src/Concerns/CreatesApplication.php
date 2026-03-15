@@ -24,6 +24,7 @@ use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Workbench\App\Exceptions\ExceptionHandler;
 
@@ -256,18 +257,26 @@ trait CreatesApplication
     {
         $app->make(HandleExceptions::class)->bootstrap($app);
         $app->make(RegisterFacades::class)->bootstrap($app);
+
+        // Process WithConfig attributes BEFORE providers register — providers
+        // read config during register() (e.g., hasDebugModeEnabled()). In Swoole,
+        // config is process-global and read once at boot. Matches Laravel's testbench
+        // which runs WithConfig during LoadConfiguration, before RegisterProviders.
+        $this->resolvePhpUnitAttributes()
+            ->flatten()
+            ->filter(static fn ($instance) => $instance instanceof WithConfig)
+            ->each(fn ($instance) => $instance($app));
+
         $app->make(RegisterProviders::class)->bootstrap($app);
         $app->make(GenerateProxies::class)->bootstrap($app);
 
         // Define environment and process DefineEnvironment attributes —
-        // modify config BEFORE providers boot. Matches Orchestral's
-        // pattern of calling defineEnvironment() alongside attributes
-        // between RegisterProviders and BootProviders.
+        // modify config between RegisterProviders and BootProviders.
+        // Matches Orchestral's pattern for database config etc.
         $this->defineEnvironment($app);
         $this->resolvePhpUnitAttributes()
-            ->filter(static fn ($attrs, string $key) => $key === DefineEnvironment::class)
             ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof Actionable)
+            ->filter(static fn ($instance) => $instance instanceof Actionable && $instance instanceof DefineEnvironment)
             ->each(fn ($instance) => $instance->handle(
                 $app,
                 fn ($method, $parameters) => $this->{$method}(...$parameters)
