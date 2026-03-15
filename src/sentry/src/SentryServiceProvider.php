@@ -512,7 +512,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/sentry.php' => config_path('sentry.php'),
         ], 'sentry-config');
     }

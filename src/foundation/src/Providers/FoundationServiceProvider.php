@@ -18,14 +18,53 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
 use Hypervel\Foundation\Console\AboutCommand;
+use Hypervel\Foundation\Console\CastMakeCommand;
+use Hypervel\Foundation\Console\ChannelMakeCommand;
+use Hypervel\Foundation\Console\ClassMakeCommand;
 use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Console\ComponentMakeCommand;
+use Hypervel\Foundation\Console\ConfigCacheCommand;
+use Hypervel\Foundation\Console\ConfigClearCommand;
+use Hypervel\Foundation\Console\ConfigMakeCommand;
+use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Foundation\Console\ConfigShowCommand;
+use Hypervel\Foundation\Console\ConsoleMakeCommand;
 use Hypervel\Foundation\Console\DownCommand;
+use Hypervel\Foundation\Console\EnumMakeCommand;
+use Hypervel\Foundation\Console\EnvironmentCommand;
+use Hypervel\Foundation\Console\EnvironmentDecryptCommand;
+use Hypervel\Foundation\Console\EnvironmentEncryptCommand;
+use Hypervel\Foundation\Console\EventListCommand;
+use Hypervel\Foundation\Console\EventMakeCommand;
+use Hypervel\Foundation\Console\ExceptionMakeCommand;
+use Hypervel\Foundation\Console\InterfaceMakeCommand;
+use Hypervel\Foundation\Console\JobMakeCommand;
+use Hypervel\Foundation\Console\JobMiddlewareMakeCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Console\ListenerMakeCommand;
+use Hypervel\Foundation\Console\MailMakeCommand;
+use Hypervel\Foundation\Console\ModelMakeCommand;
+use Hypervel\Foundation\Console\NotificationMakeCommand;
+use Hypervel\Foundation\Console\ObserverMakeCommand;
+use Hypervel\Foundation\Console\PolicyMakeCommand;
+use Hypervel\Foundation\Console\ProviderMakeCommand;
+use Hypervel\Foundation\Console\RequestMakeCommand;
+use Hypervel\Foundation\Console\ResourceMakeCommand;
 use Hypervel\Foundation\Console\RouteCacheCommand;
 use Hypervel\Foundation\Console\RouteClearCommand;
+use Hypervel\Foundation\Console\RouteListCommand;
+use Hypervel\Foundation\Console\RuleMakeCommand;
+use Hypervel\Foundation\Console\ScopeMakeCommand;
+use Hypervel\Foundation\Console\StorageLinkCommand;
+use Hypervel\Foundation\Console\StorageUnlinkCommand;
+use Hypervel\Foundation\Console\StubPublishCommand;
+use Hypervel\Foundation\Console\TestMakeCommand;
+use Hypervel\Foundation\Console\TraitMakeCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Console\VendorPublishCommand;
+use Hypervel\Foundation\Console\ViewCacheCommand;
+use Hypervel\Foundation\Console\ViewClearCommand;
+use Hypervel\Foundation\Console\ViewMakeCommand;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
@@ -80,7 +119,7 @@ class FoundationServiceProvider extends ServiceProvider
             );
         }
 
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../../config/app.php' => config_path('app.php'),
         ], 'app-config');
 
@@ -107,12 +146,51 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->commands([
             AboutCommand::class,
+            CastMakeCommand::class,
+            ChannelMakeCommand::class,
+            ClassMakeCommand::class,
+            ComponentMakeCommand::class,
+            ConfigCacheCommand::class,
+            ConfigClearCommand::class,
+            ConfigMakeCommand::class,
+            ConfigPublishCommand::class,
             ConfigShowCommand::class,
+            ConsoleMakeCommand::class,
             DownCommand::class,
+            EnvironmentCommand::class,
+            EnvironmentDecryptCommand::class,
+            EnvironmentEncryptCommand::class,
+            EnumMakeCommand::class,
+            EventListCommand::class,
+            EventMakeCommand::class,
+            ExceptionMakeCommand::class,
+            InterfaceMakeCommand::class,
+            JobMakeCommand::class,
+            JobMiddlewareMakeCommand::class,
+            ListenerMakeCommand::class,
+            MailMakeCommand::class,
+            ModelMakeCommand::class,
+            NotificationMakeCommand::class,
+            ObserverMakeCommand::class,
+            PolicyMakeCommand::class,
+            ProviderMakeCommand::class,
+            RequestMakeCommand::class,
+            ResourceMakeCommand::class,
             RouteCacheCommand::class,
             RouteClearCommand::class,
+            RouteListCommand::class,
+            RuleMakeCommand::class,
+            ScopeMakeCommand::class,
+            StorageLinkCommand::class,
+            StorageUnlinkCommand::class,
+            StubPublishCommand::class,
+            TestMakeCommand::class,
+            TraitMakeCommand::class,
             UpCommand::class,
             VendorPublishCommand::class,
+            ViewCacheCommand::class,
+            ViewClearCommand::class,
+            ViewMakeCommand::class,
         ]);
 
         $this->callAfterResolving(Request::class, function (Request $request) {

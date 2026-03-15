@@ -23,7 +23,7 @@ class LogServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/logging.php' => config_path('logging.php'),
         ], 'logging-config');
     }

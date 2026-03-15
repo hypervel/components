@@ -58,7 +58,7 @@ class CacheServiceProvider extends ServiceProvider
             $this->app->make(CreateTimer::class)->handle($event);
         });
 
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/cache.php' => config_path('cache.php'),
         ], 'cache-config');
     }

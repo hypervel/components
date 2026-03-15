@@ -56,7 +56,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/auth.php' => config_path('auth.php'),
         ], 'auth-config');
     }

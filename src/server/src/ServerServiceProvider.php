@@ -59,7 +59,7 @@ class ServerServiceProvider extends ServiceProvider
             $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
 
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/server.php' => config_path('server.php'),
         ], 'server-config');
     }

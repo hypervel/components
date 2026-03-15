@@ -24,7 +24,7 @@ class SessionServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/session.php' => config_path('session.php'),
         ], 'session-config');
     }

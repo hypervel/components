@@ -25,7 +25,7 @@ class HashingServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/hashing.php' => config_path('hashing.php'),
         ], 'hashing-config');
     }

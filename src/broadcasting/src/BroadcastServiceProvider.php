@@ -32,7 +32,7 @@ class BroadcastServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/broadcasting.php' => config_path('broadcasting.php'),
         ], 'broadcasting-config');
     }

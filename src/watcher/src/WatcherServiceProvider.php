@@ -28,9 +28,9 @@ class WatcherServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/watcher.php' => $this->app->configPath('watcher.php'),
-        ]);
+        ], 'watcher-config');
 
         $this->app->make('events')
             ->listen(BeforeServerRestart::class, ReloadDotenvListener::class);

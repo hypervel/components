@@ -201,7 +201,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/queue.php' => config_path('queue.php'),
         ], 'queue-config');
 

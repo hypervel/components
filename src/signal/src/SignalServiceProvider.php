@@ -43,7 +43,7 @@ class SignalServiceProvider extends ServiceProvider
             $this->app->make(SignalDeregisterListener::class)->handle($event);
         });
 
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/signal.php' => config_path('signal.php'),
         ], 'signal-config');
     }

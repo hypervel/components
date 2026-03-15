@@ -83,7 +83,7 @@ class SanctumServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/sanctum.php' => config_path('sanctum.php'),
         ], 'sanctum-config');
 

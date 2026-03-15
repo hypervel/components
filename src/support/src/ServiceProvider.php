@@ -217,6 +217,17 @@ abstract class ServiceProvider
     }
 
     /**
+     * Register config paths to be published by the publish command.
+     *
+     * Automatically adds the 'config' group alongside any package-specific groups,
+     * enabling ConfigPublishCommand to discover all publishable config files.
+     */
+    protected function publishesConfig(array $paths, string|array $groups = []): void
+    {
+        $this->publishes($paths, array_merge(['config'], (array) $groups));
+    }
+
+    /**
      * Register paths to be published by the publish command.
      */
     protected function publishes(array $paths, mixed $groups = null): void
@@ -337,6 +348,40 @@ abstract class ServiceProvider
         static::$publishes = [];
         static::$publishGroups = [];
         static::$publishableMigrationPaths = [];
+    }
+
+    /**
+     * Add a provider to the bootstrap provider configuration file.
+     */
+    public static function addProviderToBootstrapFile(string $provider, ?string $path = null): bool
+    {
+        $path ??= app()->getBootstrapProvidersPath();
+
+        if (! file_exists($path)) {
+            return false;
+        }
+
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($path, true);
+        }
+
+        $providers = (new Collection(require $path))
+            ->merge([$provider])
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($p) => '    ' . $p . '::class,')
+            ->implode(PHP_EOL);
+
+        $content = '<?php
+
+return [
+' . $providers . '
+];';
+
+        file_put_contents($path, $content . PHP_EOL);
+
+        return true;
     }
 
     /**

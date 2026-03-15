@@ -66,7 +66,7 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
         ], 'horizon-config');
 

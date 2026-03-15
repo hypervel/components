@@ -68,7 +68,7 @@ class FilesystemServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishes([
+        $this->publishesConfig([
             __DIR__ . '/../config/filesystems.php' => config_path('filesystems.php'),
         ], 'filesystems-config');
     }
