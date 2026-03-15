@@ -21,17 +21,17 @@ class Vite implements Htmlable
     /**
      * The Content Security Policy nonce context key.
      */
-    protected const NONCE_CONTEXT_KEY = 'hypervel.vite.nonce';
+    protected const NONCE_CONTEXT_KEY = '__foundation.vite.nonce';
 
     /**
      * The entry points context key.
      */
-    protected const ENTRY_POINTS_CONTEXT_KEY = 'hypervel.vite.entry_points';
+    protected const ENTRY_POINTS_CONTEXT_KEY = '__foundation.vite.entry_points';
 
     /**
      * The preloaded assets context key.
      */
-    protected const PRELOADED_ASSETS_CONTEXT_KEY = 'hypervel.vite.preloaded_assets';
+    protected const PRELOADED_ASSETS_CONTEXT_KEY = '__foundation.vite.preloaded_assets';
 
     /**
      * The key to check for integrity hashes within the manifest.

@@ -23,6 +23,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Exceptions\OriginMismatchException;
 use Hypervel\Http\JsonResponse;
@@ -48,6 +49,7 @@ use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer as SymfonyHtmlErrorRenderer;
 use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -811,25 +813,38 @@ class Handler implements ExceptionHandlerContract
      */
     protected function renderExceptionContent(Throwable $e): string
     {
-        $debug = config('app.debug');
         try {
-            if ($debug && $this->container->bound(ExceptionRenderer::class)) {
-                return $this->container->make(ExceptionRenderer::class)->render($e);
+            if (config('app.debug')) {
+                if ($this->container->bound(ExceptionRenderer::class)) {
+                    return $this->renderExceptionWithCustomRenderer($e);
+                }
+                if ($this->container->bound(Renderer::class)) {
+                    return $this->container->make(Renderer::class)->render(request(), $e);
+                }
             }
 
-            return $this->renderExceptionToHtml($e, $debug);
+            return $this->renderExceptionWithSymfony($e, config('app.debug'));
         } catch (Throwable $e) {
-            return $this->renderExceptionToHtml($e, $debug);
+            return $this->renderExceptionWithSymfony($e, config('app.debug'));
         }
     }
 
     /**
-     * Render an exception to a string using the HTML error renderer.
+     * Render an exception to a string using the registered ExceptionRenderer.
      */
-    protected function renderExceptionToHtml(Throwable $e, bool $debug): string
+    protected function renderExceptionWithCustomRenderer(Throwable $e): string
     {
-        return $this->container->make(HtmlErrorRenderer::class)
-            ->render($e, $debug);
+        return app(ExceptionRenderer::class)->render($e);
+    }
+
+    /**
+     * Render an exception to a string using Symfony.
+     */
+    protected function renderExceptionWithSymfony(Throwable $e, bool $debug): string
+    {
+        $renderer = new SymfonyHtmlErrorRenderer($debug);
+
+        return $renderer->render($e)->getAsString();
     }
 
     /**

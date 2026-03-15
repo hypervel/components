@@ -10,8 +10,10 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
@@ -24,6 +26,9 @@ use Hypervel\Foundation\Console\RouteCacheCommand;
 use Hypervel\Foundation\Console\RouteClearCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Console\VendorPublishCommand;
+use Hypervel\Foundation\Exceptions\Renderer\Listener;
+use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
+use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\MaintenanceModeManager;
@@ -36,6 +41,7 @@ use Hypervel\Support\Uri;
 use Hypervel\Validation\ValidationException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Throwable;
@@ -68,9 +74,19 @@ class FoundationServiceProvider extends ServiceProvider
             $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
         });
 
+        if ($this->app->hasDebugModeEnabled() && ! $this->app->has(ExceptionRenderer::class)) {
+            $this->app->make(Listener::class)->registerListeners(
+                $this->app->make(Dispatcher::class)
+            );
+        }
+
         $this->publishes([
             __DIR__ . '/../../config/app.php' => config_path('app.php'),
         ], 'app-config');
+
+        $this->publishes([
+            __DIR__ . '/../Exceptions/views' => $this->app->resourcePath('views/errors/'),
+        ], 'hypervel-errors');
     }
 
     /**
@@ -87,6 +103,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
+        $this->registerExceptionRenderer();
 
         $this->commands([
             AboutCommand::class,
@@ -208,6 +225,39 @@ class FoundationServiceProvider extends ServiceProvider
                 $this->app->make(MaintenanceModeManager::class)->driver()
             )
         );
+    }
+
+    /**
+     * Register the exception renderer.
+     */
+    protected function registerExceptionRenderer(): void
+    {
+        $this->loadViewsFrom(__DIR__ . '/../Exceptions/views', 'hypervel-exceptions');
+
+        if (! $this->app->hasDebugModeEnabled()) {
+            return;
+        }
+
+        $this->loadViewsFrom(
+            __DIR__ . '/../../resources/exceptions/renderer',
+            'hypervel-exceptions-renderer'
+        );
+
+        $this->app->singleton(Renderer::class, function () {
+            $errorRenderer = new HtmlErrorRenderer(
+                $this->config->get('app.debug'),
+            );
+
+            return new Renderer(
+                $this->app->make(ViewFactory::class),
+                $this->app->make(Listener::class),
+                $errorRenderer,
+                $this->app->make(BladeMapper::class),
+                $this->app->basePath(),
+            );
+        });
+
+        $this->app->singleton(Listener::class);
     }
 
     protected function registerUriUrlGeneration(): void
