@@ -10,8 +10,6 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
-use Hypervel\Foundation\Testing\WithoutEvents;
-use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Testbench\Concerns\HandlesAttributes;
 use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Swoole\Timer;
@@ -66,20 +64,14 @@ class TestCase extends BaseTestCase
     }
 
     /**
-     * Boot the testing helper traits.
+     * Set up database-related testing traits.
      *
-     * Overrides Foundation's setUpTraits to wrap database operations
-     * in setUpDatabaseRequirements(), ensuring WithMigration attributes
+     * Wraps migration traits in setUpDatabaseRequirements() so that
+     * testbench attributes (RequiresDatabase, WithConfig, WithMigration)
      * are processed before migrations run.
-     *
-     * @return array<class-string, class-string>
      */
-    protected function setUpTraits(): array
+    protected function setUpDatabaseTraits(array $uses): void
     {
-        $uses = array_flip(class_uses_recursive(static::class));
-
-        // Wrap database-related trait setup in setUpDatabaseRequirements
-        // so WithMigration attributes are processed BEFORE migrations run
         $this->setUpDatabaseRequirements(function () use ($uses): void {
             if (isset($uses[RefreshDatabase::class])) {
                 $this->refreshDatabase();
@@ -93,26 +85,6 @@ class TestCase extends BaseTestCase
         if (isset($uses[DatabaseTransactions::class])) {
             $this->beginDatabaseTransaction();
         }
-
-        if (isset($uses[WithoutMiddleware::class])) {
-            $this->disableMiddlewareForAllTests();
-        }
-
-        if (isset($uses[WithoutEvents::class])) {
-            $this->disableEventsForAllTests();
-        }
-
-        foreach ($uses as $trait) {
-            if (method_exists($this, $method = 'setUp' . class_basename($trait))) {
-                $this->{$method}();
-            }
-
-            if (method_exists($this, $method = 'tearDown' . class_basename($trait))) {
-                $this->beforeApplicationDestroyed(fn () => $this->{$method}());
-            }
-        }
-
-        return $uses;
     }
 
     /**

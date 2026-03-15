@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Faker\Generator as FakerGenerator;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -37,6 +36,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithTime;
     use MocksApplicationServices;
     use RunTestsInCoroutine;
+    use WithFaker;
 
     /**
      * The callbacks that should be run after the application is created.
@@ -73,8 +73,6 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         // and rebinding hooks are registered on the current container.
         DatabaseConnectionResolver::flushCachedConnections();
 
-        $this->setUpFaker();
-
         $this->runInCoroutine(function () {
             $this->setUpTraits();
 
@@ -101,17 +99,11 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     {
         $uses = array_flip(class_uses_recursive(static::class));
 
-        if (isset($uses[RefreshDatabase::class])) {
-            $this->refreshDatabase();
+        if (isset($uses[WithFaker::class])) {
+            $this->setUpFaker();
         }
 
-        if (isset($uses[DatabaseMigrations::class])) {
-            $this->runDatabaseMigrations();
-        }
-
-        if (isset($uses[DatabaseTransactions::class])) {
-            $this->beginDatabaseTransaction();
-        }
+        $this->setUpDatabaseTraits($uses);
 
         if (isset($uses[WithoutMiddleware::class])) {
             $this->disableMiddlewareForAllTests();
@@ -135,15 +127,23 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     }
 
     /**
-     * Set up Faker for factory usage.
+     * Set up database-related testing traits.
+     *
+     * Override this method to customize database trait initialization order,
+     * e.g. to process test attributes before migrations run.
      */
-    protected function setUpFaker(): void
+    protected function setUpDatabaseTraits(array $uses): void
     {
-        if (! $this->app->bound(FakerGenerator::class)) {
-            $this->app->singleton(
-                FakerGenerator::class,
-                fn ($app) => \Faker\Factory::create($app->make('config')->get('app.faker_locale', 'en_US'))
-            );
+        if (isset($uses[RefreshDatabase::class])) {
+            $this->refreshDatabase();
+        }
+
+        if (isset($uses[DatabaseMigrations::class])) {
+            $this->runDatabaseMigrations();
+        }
+
+        if (isset($uses[DatabaseTransactions::class])) {
+            $this->beginDatabaseTransaction();
         }
     }
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Faker\Factory as FakerFactory;
+use Faker\Generator as FakerGenerator;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Console\DbCommand;
 use Hypervel\Database\Console\DumpCommand;
@@ -41,6 +43,7 @@ class DatabaseServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->registerConnectionServices();
+        $this->registerFakerGenerator();
 
         $this->app->singleton(ConnectionResolverInterface::class, fn ($app) => $app->make(ConnectionResolver::class));
 
@@ -99,6 +102,34 @@ class DatabaseServiceProvider extends ServiceProvider
 
         $this->app->singleton('db.transactions', function () {
             return new DatabaseTransactionsManager();
+        });
+    }
+
+    /**
+     * Register the Faker Generator instance in the container.
+     *
+     * Scoped (not singleton) because Faker's Generator carries mutable state:
+     * the unique() tracker accumulates generated values, and seed() calls
+     * mt_srand() which is process-global. A worker-lifetime singleton would
+     * bleed this state across concurrent coroutines. Scoping gives each
+     * coroutine its own Generator instance — the unique tracker dies with
+     * the coroutine, and no cross-request interference occurs.
+     *
+     * Note: seed() calls mt_srand() which is process-global and cannot be
+     * scoped to a coroutine. Avoid calling $faker->seed() in production
+     * code running under Swoole — it will affect randomness for all
+     * concurrent requests in the worker.
+     */
+    protected function registerFakerGenerator(): void
+    {
+        if (! class_exists(FakerGenerator::class)) {
+            return;
+        }
+
+        $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
+            $locale = $parameters['locale'] ?? $app->make('config')->get('app.faker_locale', 'en_US');
+
+            return FakerFactory::create($locale);
         });
     }
 
