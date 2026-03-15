@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
+use Countable;
 use Generator;
 use Hypervel\Context\Context;
 use Hypervel\Support\LazyCollection;
@@ -20,7 +21,7 @@ trait ManagesLoops
     /**
      * Add new loop to the stack.
      */
-    public function addLoop(Closure|array|Generator|LazyCollection $data): void
+    public function addLoop(Closure|Countable|array|Generator $data): void
     {
         $length = is_countable($data) && ! $data instanceof LazyCollection
                             ? count($data)

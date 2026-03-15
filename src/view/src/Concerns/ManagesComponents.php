@@ -61,7 +61,7 @@ trait ManagesComponents
         return count($componentStack);
     }
 
-    protected function popComponentStack(): View|Htmlable|Closure|string
+    protected function popComponentStack(): View|Htmlable|Closure|string|null
     {
         $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         $view = array_pop($componentStack);
