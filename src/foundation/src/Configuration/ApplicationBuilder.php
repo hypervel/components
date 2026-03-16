@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Configuration;
 
-use BadMethodCallException;
 use Closure;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Scheduling\Schedule;
@@ -89,15 +88,11 @@ class ApplicationBuilder
     public function withEvents(iterable|bool $discover = true): static
     {
         if (is_iterable($discover)) {
-            throw new BadMethodCallException(
-                'Event discovery paths are not supported. The DiscoverEvents class has not been ported to Hypervel.'
-            );
+            AppEventServiceProvider::setEventDiscoveryPaths($discover);
         }
 
         if ($discover === false) {
-            throw new BadMethodCallException(
-                'Disabling event discovery is not supported. The DiscoverEvents class has not been ported to Hypervel.'
-            );
+            AppEventServiceProvider::disableEventDiscovery();
         }
 
         if (! isset($this->pendingProviders[AppEventServiceProvider::class])) {
