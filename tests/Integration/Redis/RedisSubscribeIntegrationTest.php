@@ -10,6 +10,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
 
 use function Hypervel\Coroutine\go;
 
@@ -41,34 +42,33 @@ class RedisSubscribeIntegrationTest extends TestCase
     public function testSubscribeExitsCleanlyWithNoMessages()
     {
         $channelName = 'test_redis_noop_' . uniqid();
-        $subscribed = new Channel(1);
+        $subscriber = Redis::connection()->subscriber();
 
-        go(function () use ($channelName, $subscribed) {
-            Redis::connection()->subscribe([$channelName], function () use ($subscribed) {
-                $subscribed->push(true);
-            });
-        });
+        $subscriber->subscribe($channelName);
 
-        // Wait for the subscriber to be established, then let the test end.
-        // The WORKER_EXIT shutdown watcher should cleanly interrupt the
-        // subscriber — without it, the orphaned socket recv coroutine
-        // would block Swoole's run() indefinitely.
         usleep(100_000);
 
-        // No message published — subscriber received nothing.
-        // If we reach this assertion, the test didn't hang.
-        $this->assertTrue(true);
+        $subscriber->close();
+
+        $this->assertTrue($subscriber->closed);
     }
 
     public function testSubscribeReceivesMessageViaCallback()
     {
         $channelName = 'test_redis_sub_' . uniqid();
         $resultChannel = new Channel(1);
+        $doneChannel = new Channel(1);
 
-        go(function () use ($channelName, $resultChannel) {
-            Redis::connection()->subscribe([$channelName], function ($message, $channel) use ($resultChannel) {
-                $resultChannel->push(['message' => $message, 'channel' => $channel]);
-            });
+        go(function () use ($channelName, $resultChannel, $doneChannel) {
+            try {
+                Redis::connection()->subscribe([$channelName], function ($message, $channel) use ($resultChannel) {
+                    $resultChannel->push(['message' => $message, 'channel' => $channel]);
+
+                    throw new StopRedisSubscription();
+                });
+            } catch (StopRedisSubscription) {
+                $doneChannel->push(true);
+            }
         });
 
         usleep(100_000);
@@ -79,6 +79,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->assertNotFalse($result, 'Subscribe timed out waiting for message');
         $this->assertSame('hello_world', $result['message']);
         $this->assertSame($channelName, $result['channel']);
+        $this->assertTrue($doneChannel->pop(5.0));
     }
 
     public function testPsubscribeReceivesMessageViaCallback()
@@ -86,11 +87,18 @@ class RedisSubscribeIntegrationTest extends TestCase
         $pattern = 'test_redis_psub_' . uniqid() . ':*';
         $publishChannel = str_replace('*', 'specific', $pattern);
         $resultChannel = new Channel(1);
+        $doneChannel = new Channel(1);
 
-        go(function () use ($pattern, $resultChannel) {
-            Redis::connection()->psubscribe([$pattern], function ($message, $channel) use ($resultChannel) {
-                $resultChannel->push(['message' => $message, 'channel' => $channel]);
-            });
+        go(function () use ($pattern, $resultChannel, $doneChannel) {
+            try {
+                Redis::connection()->psubscribe([$pattern], function ($message, $channel) use ($resultChannel) {
+                    $resultChannel->push(['message' => $message, 'channel' => $channel]);
+
+                    throw new StopRedisSubscription();
+                });
+            } catch (StopRedisSubscription) {
+                $doneChannel->push(true);
+            }
         });
 
         usleep(100_000);
@@ -101,17 +109,25 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->assertNotFalse($result, 'Psubscribe timed out waiting for message');
         $this->assertSame('pattern_data', $result['message']);
         $this->assertSame($publishChannel, $result['channel']);
+        $this->assertTrue($doneChannel->pop(5.0));
     }
 
     public function testSubscribeAcceptsStringChannel()
     {
         $channelName = 'test_redis_string_' . uniqid();
         $resultChannel = new Channel(1);
+        $doneChannel = new Channel(1);
 
-        go(function () use ($channelName, $resultChannel) {
-            Redis::connection()->subscribe($channelName, function ($message, $channel) use ($resultChannel) {
-                $resultChannel->push(['message' => $message, 'channel' => $channel]);
-            });
+        go(function () use ($channelName, $resultChannel, $doneChannel) {
+            try {
+                Redis::connection()->subscribe($channelName, function ($message, $channel) use ($resultChannel) {
+                    $resultChannel->push(['message' => $message, 'channel' => $channel]);
+
+                    throw new StopRedisSubscription();
+                });
+            } catch (StopRedisSubscription) {
+                $doneChannel->push(true);
+            }
         });
 
         usleep(100_000);
@@ -121,6 +137,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $result = $resultChannel->pop(5.0);
         $this->assertNotFalse($result, 'String channel subscribe timed out');
         $this->assertSame('string_arg', $result['message']);
+        $this->assertTrue($doneChannel->pop(5.0));
     }
 
     public function testSubscriberReturnsChannelBasedApi()
@@ -187,4 +204,8 @@ class RedisSubscribeIntegrationTest extends TestCase
         $client->publish($channel, $message);
         $client->close();
     }
+}
+
+final class StopRedisSubscription extends RuntimeException
+{
 }
