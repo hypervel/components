@@ -5,17 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Str;
 
 trait ManagesEvents
 {
-    /**
-     * Indicates if view event handling is enabled.
-     */
-    protected bool $eventEnabled;
-
     /**
      * Register a view creator event.
      */
@@ -144,18 +138,9 @@ trait ManagesEvents
      */
     public function callComposer(ViewContract $view): void
     {
-        if ($this->isEventEnabled() && $this->events->hasListeners($event = 'composing: ' . $view->name())) {
+        if ($this->events->hasListeners($event = 'composing: ' . $view->name())) {
             $this->events->dispatch($event, [$view]);
         }
-    }
-
-    protected function isEventEnabled(): bool
-    {
-        if (isset($this->eventEnabled)) {
-            return $this->eventEnabled;
-        }
-
-        return $this->eventEnabled = $this->getContainer()->make(Repository::class)->get('view.event.enable', false);
     }
 
     /**
@@ -163,9 +148,7 @@ trait ManagesEvents
      */
     public function callCreator(ViewContract $view): void
     {
-        if ($this->getContainer()->make(Repository::class)->get('view.event.enable', false)
-            && $this->events->hasListeners($event = 'creating: ' . $view->name())
-        ) {
+        if ($this->events->hasListeners($event = 'creating: ' . $view->name())) {
             $this->events->dispatch($event, [$view]);
         }
     }
