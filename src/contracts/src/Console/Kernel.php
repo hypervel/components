@@ -30,6 +30,11 @@ interface Kernel
     public function schedule(Schedule $schedule): void;
 
     /**
+     * Resolve a console schedule instance.
+     */
+    public function resolveConsoleSchedule(): Schedule;
+
+    /**
      * Register the commands for the application.
      */
     public function commands(): void;

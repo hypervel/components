@@ -14,13 +14,16 @@ use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
-use Hypervel\Framework\Events\BootApplication;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -34,33 +37,24 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Finder\Finder;
+use Throwable;
 use WeakMap;
 
 class Kernel implements KernelContract
 {
     use InteractsWithTime;
 
-    protected ApplicationContract $artisan;
-
     /**
      * The Symfony event dispatcher implementation.
      */
     protected ?EventDispatcher $symfonyDispatcher = null;
 
+    protected ApplicationContract $artisan;
+
     /**
      * The Artisan commands provided by the application.
      */
     protected array $commands = [];
-
-    /**
-     * All of the registered command duration handlers.
-     */
-    protected array $commandLifecycleDurationHandlers = [];
-
-    /**
-     * When the currently handled command started.
-     */
-    protected ?Carbon $commandStartedAt = null;
 
     /**
      * The paths where Artisan commands should be automatically discovered.
@@ -83,6 +77,16 @@ class Kernel implements KernelContract
     protected array $loadedPaths = [];
 
     /**
+     * All of the registered command duration handlers.
+     */
+    protected array $commandLifecycleDurationHandlers = [];
+
+    /**
+     * When the currently handled command started.
+     */
+    protected ?Carbon $commandStartedAt = null;
+
+    /**
      * The console application bootstrappers.
      */
     protected array $bootstrappers = [
@@ -103,14 +107,10 @@ class Kernel implements KernelContract
             define('ARTISAN_BINARY', 'artisan');
         }
 
-        $events->dispatch(new BootApplication());
-
         $this->app->booted(function () {
             if (! $this->app->runningUnitTests()) {
                 $this->rerouteSymfonyCommandEvents();
             }
-
-            $this->defineConsoleSchedule();
         });
     }
 
@@ -154,7 +154,21 @@ class Kernel implements KernelContract
     {
         $this->commandStartedAt = Date::now();
 
-        return $this->getArtisan()->run($input, $output);
+        try {
+            if (in_array($input->getFirstArgument(), ['env:encrypt', 'env:decrypt'], true)) {
+                $this->bootstrapWithoutBootingProviders();
+            }
+
+            $this->bootstrap();
+
+            return $this->getArtisan()->run($input, $output);
+        } catch (Throwable $e) {
+            $this->reportException($e);
+
+            $this->renderException($output, $e);
+
+            return 1;
+        }
     }
 
     /**
@@ -163,6 +177,8 @@ class Kernel implements KernelContract
     public function terminate(InputInterface $input, int $status): void
     {
         $this->events->dispatch(new Terminating());
+
+        $this->app->terminate();
 
         if ($this->commandStartedAt === null) {
             return;
@@ -211,112 +227,6 @@ class Kernel implements KernelContract
     }
 
     /**
-     * Bootstrap the application for artisan commands.
-     */
-    public function bootstrap(): void
-    {
-        if (! $this->app->hasBeenBootstrapped()) {
-            $this->app->bootstrapWith($this->bootstrappers());
-        }
-
-        if (! $this->commandsLoaded) {
-            $this->commands();
-
-            if ($this->shouldDiscoverCommands()) {
-                $this->discoverCommands();
-            }
-
-            $this->commandsLoaded = true;
-        }
-    }
-
-    /**
-     * Determine if the kernel should discover commands.
-     */
-    protected function shouldDiscoverCommands(): bool
-    {
-        return get_class($this) === __CLASS__;
-    }
-
-    /**
-     * Discover the commands that should be automatically loaded.
-     */
-    protected function discoverCommands(): void
-    {
-        foreach ($this->commandPaths as $path) {
-            $this->load($path);
-        }
-
-        foreach ($this->commandRoutePaths as $path) {
-            if (file_exists($path)) {
-                require $path;
-            }
-        }
-    }
-
-    /**
-     * Get the Finder instance for discovering command files.
-     */
-    protected function findCommands(array $paths): Finder
-    {
-        return Finder::create()->in($paths)->name('*.php')->files();
-    }
-
-    /**
-     * Extract the command class name from the given file path.
-     */
-    protected function commandClassFromFile(SplFileInfo $file, string $namespace): string
-    {
-        return $namespace . str_replace(
-            ['/', '.php'],
-            ['\\', ''],
-            Str::after($file->getRealPath(), realpath($this->app->path()) . DIRECTORY_SEPARATOR)
-        );
-    }
-
-    /**
-     * Register the given command with the console application.
-     */
-    public function registerCommand(SymfonyCommand $command): void
-    {
-        $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
-    }
-
-    /**
-     * Run an Artisan console command by name.
-     *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
-     */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null)
-    {
-        return $this->getArtisan()->call($command, $parameters, $outputBuffer);
-    }
-
-    /**
-     * Queue the given console command.
-     */
-    public function queue(string $command, array $parameters = []): PendingDispatch
-    {
-        return QueuedCommand::dispatch(func_get_args());
-    }
-
-    /**
-     * Get all of the commands registered with the console.
-     */
-    public function all(): array
-    {
-        return $this->getArtisan()->all();
-    }
-
-    /**
-     * Get the output for the last run command.
-     */
-    public function output(): string
-    {
-        return $this->getArtisan()->output();
-    }
-
-    /**
      * Define the application's command schedule.
      */
     public function schedule(Schedule $schedule): void
@@ -330,18 +240,6 @@ class Kernel implements KernelContract
     {
         return tap(new Schedule($this->scheduleTimezone()), function ($schedule) {
             $this->schedule($schedule->useCache($this->scheduleCache()));
-        });
-    }
-
-    /**
-     * Define the application's command schedule.
-     */
-    protected function defineConsoleSchedule(): void
-    {
-        $this->app->singleton(Schedule::class, function ($app) {
-            return tap(new Schedule($this->scheduleTimezone()), function ($schedule) {
-                $this->schedule($schedule->useCache($this->scheduleCache()));
-            });
         });
     }
 
@@ -360,7 +258,9 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app['config']->get('cache.schedule_store', env('SCHEDULE_CACHE_DRIVER'));
+        return $this->app['config']->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
+            return Env::get('SCHEDULE_CACHE_STORE');
+        }));
     }
 
     /**
@@ -429,6 +329,167 @@ class Kernel implements KernelContract
     }
 
     /**
+     * Get the Finder instance for discovering command files.
+     */
+    protected function findCommands(array $paths): Finder
+    {
+        return Finder::create()->in($paths)->name('*.php')->files();
+    }
+
+    /**
+     * Extract the command class name from the given file path.
+     */
+    protected function commandClassFromFile(SplFileInfo $file, string $namespace): string
+    {
+        return $namespace . str_replace(
+            ['/', '.php'],
+            ['\\', ''],
+            Str::after($file->getRealPath(), realpath($this->app->path()) . DIRECTORY_SEPARATOR)
+        );
+    }
+
+    /**
+     * Register the given command with the console application.
+     */
+    public function registerCommand(SymfonyCommand $command): void
+    {
+        $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
+    }
+
+    /**
+     * Run an Artisan console command by name.
+     *
+     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     */
+    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null)
+    {
+        if (in_array($command, ['env:encrypt', 'env:decrypt'], true)) {
+            $this->bootstrapWithoutBootingProviders();
+        }
+
+        $this->bootstrap();
+
+        return $this->getArtisan()->call($command, $parameters, $outputBuffer);
+    }
+
+    /**
+     * Queue the given console command.
+     */
+    public function queue(string $command, array $parameters = []): PendingDispatch
+    {
+        return QueuedCommand::dispatch(func_get_args());
+    }
+
+    /**
+     * Get all of the commands registered with the console.
+     */
+    public function all(): array
+    {
+        $this->bootstrap();
+
+        return $this->getArtisan()->all();
+    }
+
+    /**
+     * Get the output for the last run command.
+     */
+    public function output(): string
+    {
+        $this->bootstrap();
+
+        return $this->getArtisan()->output();
+    }
+
+    /**
+     * Bootstrap the application for artisan commands.
+     */
+    public function bootstrap(): void
+    {
+        if (! $this->app->hasBeenBootstrapped()) {
+            $this->app->bootstrapWith($this->bootstrappers());
+        }
+
+        if (! $this->commandsLoaded) {
+            $this->commands();
+
+            if ($this->shouldDiscoverCommands()) {
+                $this->discoverCommands();
+            }
+
+            $this->commandsLoaded = true;
+        }
+    }
+
+    /**
+     * Discover the commands that should be automatically loaded.
+     */
+    protected function discoverCommands(): void
+    {
+        foreach ($this->commandPaths as $path) {
+            $this->load($path);
+        }
+
+        foreach ($this->commandRoutePaths as $path) {
+            if (file_exists($path)) {
+                require $path;
+            }
+        }
+    }
+
+    /**
+     * Bootstrap the application without booting service providers.
+     */
+    public function bootstrapWithoutBootingProviders(): void
+    {
+        $this->app->bootstrapWith(
+            (new Collection($this->bootstrappers()))
+                ->reject(fn (string $bootstrapper) => $bootstrapper === BootProviders::class)
+                ->all()
+        );
+    }
+
+    /**
+     * Determine if the kernel should discover commands.
+     */
+    protected function shouldDiscoverCommands(): bool
+    {
+        return get_class($this) === __CLASS__;
+    }
+
+    /**
+     * Get the Artisan application instance.
+     */
+    public function getArtisan(): ApplicationContract
+    {
+        if (isset($this->artisan)) {
+            return $this->artisan;
+        }
+
+        $this->bootstrap();
+
+        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
+            ->resolveCommands($this->commands)
+            ->setContainerCommandLoader();
+
+        $this->app->instance(ApplicationContract::class, $this->artisan);
+
+        if ($this->symfonyDispatcher instanceof EventDispatcher) {
+            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
+            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
+        }
+
+        return $this->artisan;
+    }
+
+    /**
+     * Set the Artisan application instance.
+     */
+    public function setArtisan(ApplicationContract $artisan): void
+    {
+        $this->artisan = $artisan;
+    }
+
+    /**
      * Set the Artisan commands provided by the application.
      */
     public function addCommands(array $commands): static
@@ -471,39 +532,19 @@ class Kernel implements KernelContract
     }
 
     /**
-     * Get the Artisan application instance.
+     * Report the exception to the exception handler.
      */
-    public function getArtisan(): ApplicationContract
+    protected function reportException(Throwable $e): void
     {
-        if (isset($this->artisan)) {
-            return $this->artisan;
-        }
-
-        // Bootstrap first so that commands(), discoverCommands(), and load()
-        // can register Artisan::starting() callbacks before the Application
-        // constructor fires them.
-        $this->bootstrap();
-
-        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
-            ->resolveCommands($this->commands)
-            ->setContainerCommandLoader();
-
-        $this->app->instance(ApplicationContract::class, $this->artisan);
-
-        if ($this->symfonyDispatcher instanceof EventDispatcher) {
-            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
-            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
-        }
-
-        return $this->artisan;
+        $this->app[ExceptionHandler::class]->report($e);
     }
 
     /**
-     * Set the Artisan application instance.
+     * Render the given exception.
      */
-    public function setArtisan(ApplicationContract $artisan): void
+    protected function renderException(OutputInterface $output, Throwable $e): void
     {
-        $this->artisan = $artisan;
+        $this->app[ExceptionHandler::class]->renderForConsole($output, $e);
     }
 
     /**

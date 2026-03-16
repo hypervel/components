@@ -19,18 +19,24 @@ use Symfony\Component\Console\Output\ConsoleOutput;
  */
 class KernelTerminateTest extends TestCase
 {
-    public function testTerminateDispatchesTerminatingEvent()
+    public function testTerminateDispatchesTerminatingEventAndAppTerminateInOrder()
     {
-        $dispatched = false;
+        $called = [];
 
-        $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$dispatched) {
-            $dispatched = true;
+        $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$called) {
+            $called[] = 'terminating event';
+        });
+        $this->app->terminating(function () use (&$called) {
+            $called[] = 'terminating callback';
         });
 
         $kernel = $this->app->make(KernelContract::class);
         $kernel->terminate(new StringInput(''), 0);
 
-        $this->assertTrue($dispatched);
+        $this->assertSame([
+            'terminating event',
+            'terminating callback',
+        ], $called);
     }
 
     public function testTerminateDispatchesTerminatingEventEvenWithoutHandle()
