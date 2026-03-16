@@ -36,6 +36,9 @@ use Hypervel\Foundation\Console\EnumMakeCommand;
 use Hypervel\Foundation\Console\EnvironmentCommand;
 use Hypervel\Foundation\Console\EnvironmentDecryptCommand;
 use Hypervel\Foundation\Console\EnvironmentEncryptCommand;
+use Hypervel\Foundation\Console\EventCacheCommand;
+use Hypervel\Foundation\Console\EventClearCommand;
+use Hypervel\Foundation\Console\EventGenerateCommand;
 use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Foundation\Console\EventMakeCommand;
 use Hypervel\Foundation\Console\ExceptionMakeCommand;
@@ -158,6 +161,9 @@ class FoundationServiceProvider extends ServiceProvider
             EnvironmentDecryptCommand::class,
             EnvironmentEncryptCommand::class,
             EnumMakeCommand::class,
+            EventCacheCommand::class,
+            EventClearCommand::class,
+            EventGenerateCommand::class,
             EventListCommand::class,
             EventMakeCommand::class,
             ExceptionMakeCommand::class,
