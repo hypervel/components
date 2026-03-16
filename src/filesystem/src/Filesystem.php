@@ -394,7 +394,7 @@ class Filesystem
      *
      * @return SplFileInfo[]
      */
-    public function files(string $directory, bool $hidden = false): array
+    public function files(array|string $directory, bool $hidden = false): array
     {
         return iterator_to_array(
             Finder::create()->files()->ignoreDotFiles(! $hidden)->in($directory)->depth(0)->sortByName(),
@@ -406,7 +406,7 @@ class Filesystem
      * Get all of the files from the given directory (recursive).
      * @return SplFileInfo[]
      */
-    public function allFiles(string $directory, bool $hidden = false): array
+    public function allFiles(array|string $directory, bool $hidden = false): array
     {
         return iterator_to_array(
             Finder::create()->files()->ignoreDotFiles(! $hidden)->in($directory)->sortByName(),
