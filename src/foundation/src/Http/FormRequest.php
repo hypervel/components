@@ -10,6 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Foundation\Http\Attributes\ErrorBag;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
@@ -25,6 +26,13 @@ class FormRequest extends Request implements ValidatesWhenResolved
 {
     use HasCasts;
     use ValidatesWhenResolvedTrait;
+
+    /**
+     * The cached attribute configuration for each form request class.
+     *
+     * @var array<class-string, array<string, mixed>>
+     */
+    protected static array $attributeConfiguration = [];
 
     /**
      * The container instance.
@@ -116,22 +124,54 @@ class FormRequest extends Request implements ValidatesWhenResolved
      */
     protected function configureFromAttributes(): void
     {
-        $reflection = new ReflectionClass($this);
+        $class = static::class;
 
-        if (count($reflection->getAttributes(StopOnFirstFailure::class)) > 0) {
+        if (! isset(static::$attributeConfiguration[$class])) {
+            $reflection = new ReflectionClass($this);
+
+            $config = [];
+
+            if (count($reflection->getAttributes(StopOnFirstFailure::class)) > 0) {
+                $config['stopOnFirstFailure'] = true;
+            }
+
+            $errorBag = $reflection->getAttributes(ErrorBag::class);
+
+            if (count($errorBag) > 0) {
+                $config['errorBag'] = $errorBag[0]->newInstance()->name;
+            }
+
+            $redirectTo = $reflection->getAttributes(RedirectTo::class);
+
+            if (count($redirectTo) > 0) {
+                $config['redirect'] = $redirectTo[0]->newInstance()->url;
+            }
+
+            $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+
+            if (count($redirectToRoute) > 0) {
+                $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
+            }
+
+            static::$attributeConfiguration[$class] = $config;
+        }
+
+        $config = static::$attributeConfiguration[$class];
+
+        if (isset($config['stopOnFirstFailure'])) {
             $this->stopOnFirstFailure = true;
         }
 
-        $redirectTo = $reflection->getAttributes(RedirectTo::class);
-
-        if (count($redirectTo) > 0) {
-            $this->redirect = $redirectTo[0]->newInstance()->url;
+        if (isset($config['errorBag'])) {
+            $this->errorBag = $config['errorBag'];
         }
 
-        $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+        if (isset($config['redirect'])) {
+            $this->redirect = $config['redirect'];
+        }
 
-        if (count($redirectToRoute) > 0) {
-            $this->redirectRoute = $redirectToRoute[0]->newInstance()->route;
+        if (isset($config['redirectRoute'])) {
+            $this->redirectRoute = $config['redirectRoute'];
         }
     }
 
@@ -225,7 +265,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
      *
      * @throws AuthorizationException
      */
-    protected function passesAuthorization(): bool
+    protected function passesAuthorization(): bool|Response
     {
         if (method_exists($this, 'authorize')) {
             $result = $this->container->call([$this, 'authorize']);
@@ -312,6 +352,14 @@ class FormRequest extends Request implements ValidatesWhenResolved
         $this->container = $container;
 
         return $this;
+    }
+
+    /**
+     * Flush the cached attribute configuration.
+     */
+    public static function flushState(): void
+    {
+        static::$attributeConfiguration = [];
     }
 
     /**

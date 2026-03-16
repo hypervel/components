@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Auth\Access\Response;
 use Hypervel\Foundation\Precognition;
 
 /**
@@ -72,7 +73,7 @@ trait ValidatesWhenResolvedTrait
     /**
      * Determine if the request passes the authorization check.
      */
-    protected function passesAuthorization(): bool
+    protected function passesAuthorization(): bool|Response
     {
         if (method_exists($this, 'authorize')) {
             return $this->authorize();

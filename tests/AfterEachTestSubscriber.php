@@ -36,6 +36,7 @@ use Hypervel\Di\ReflectionManager;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
@@ -141,6 +142,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         EncryptCookies::flushState();
         Facade::clearResolvedInstances();
         Factory::flushState();
+        FormRequest::flushState();
         FreshCommand::prohibit(false);
         HandleCors::flushState();
         HtmlDumper::resolveDumpSourceUsing(null);
