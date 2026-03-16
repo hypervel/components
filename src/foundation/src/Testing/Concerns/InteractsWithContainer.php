@@ -76,6 +76,8 @@ trait InteractsWithContainer
 
     protected function flushApplication(): void
     {
+        $this->app->flush();
+
         $this->app = null;
     }
 
