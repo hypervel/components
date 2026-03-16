@@ -106,6 +106,11 @@ interface Job
     public function resolveName(): string;
 
     /**
+     * Get the class of the queued job.
+     */
+    public function resolveQueuedJobClass(): string;
+
+    /**
      * Get the name of the connection the job belongs to.
      */
     public function getConnectionName(): string;

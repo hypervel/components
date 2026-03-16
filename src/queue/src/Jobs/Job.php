@@ -293,6 +293,16 @@ abstract class Job implements JobContract
     }
 
     /**
+     * Get the class of the queued job.
+     *
+     * Resolves the class of "wrapped" jobs such as class-based handlers.
+     */
+    public function resolveQueuedJobClass(): string
+    {
+        return JobName::resolveClassName($this->getName(), $this->payload());
+    }
+
+    /**
      * Get the name of the connection the job belongs to.
      */
     public function getConnectionName(): string
