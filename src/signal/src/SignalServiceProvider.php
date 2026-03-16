@@ -13,14 +13,6 @@ use Hypervel\Support\ServiceProvider;
 class SignalServiceProvider extends ServiceProvider
 {
     /**
-     * Register the service provider.
-     */
-    public function register(): void
-    {
-        $this->mergeConfigFrom(__DIR__ . '/../config/signal.php', 'signal');
-    }
-
-    /**
      * Bootstrap the service provider.
      */
     public function boot(): void
@@ -42,9 +34,5 @@ class SignalServiceProvider extends ServiceProvider
         $events->listen(AfterProcessHandle::class, function (AfterProcessHandle $event) {
             $this->app->make(SignalDeregisterListener::class)->handle($event);
         });
-
-        $this->publishesConfig([
-            __DIR__ . '/../config/signal.php' => config_path('signal.php'),
-        ], 'signal-config');
     }
 }

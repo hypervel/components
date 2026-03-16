@@ -13,8 +13,6 @@ class SessionServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/session.php', 'session');
-
         $this->registerSessionManager();
         $this->registerSessionDriver();
     }
@@ -24,9 +22,6 @@ class SessionServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishesConfig([
-            __DIR__ . '/../config/session.php' => config_path('session.php'),
-        ], 'session-config');
     }
 
     /**

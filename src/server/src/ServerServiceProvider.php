@@ -22,8 +22,6 @@ class ServerServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/server.php', 'server');
-
         $this->app->singleton(SwooleServer::class, fn ($app) => $app->make(SwooleServerFactory::class)($app));
 
         $this->commands([
@@ -58,9 +56,5 @@ class ServerServiceProvider extends ServiceProvider
         $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
             $this->app->make(InitProcessTitleListener::class)->handle($event);
         });
-
-        $this->publishesConfig([
-            __DIR__ . '/../config/server.php' => config_path('server.php'),
-        ], 'server-config');
     }
 }

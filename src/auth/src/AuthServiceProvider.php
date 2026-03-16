@@ -16,8 +16,6 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/auth.php', 'auth');
-
         $this->registerAuthenticator();
         $this->registerUserResolver();
         $this->registerAccessGate();
@@ -49,15 +47,5 @@ class AuthServiceProvider extends ServiceProvider
         $this->app->singleton(GateContract::class, function ($app) {
             return new Gate($app, fn () => call_user_func($app['auth']->userResolver()));
         });
-    }
-
-    /**
-     * Bootstrap the service provider.
-     */
-    public function boot(): void
-    {
-        $this->publishesConfig([
-            __DIR__ . '/../config/auth.php' => config_path('auth.php'),
-        ], 'auth-config');
     }
 }

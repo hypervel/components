@@ -119,10 +119,6 @@ class FoundationServiceProvider extends ServiceProvider
             );
         }
 
-        $this->publishesConfig([
-            __DIR__ . '/../../config/app.php' => config_path('app.php'),
-        ], 'app-config');
-
         $this->publishes([
             __DIR__ . '/../Exceptions/views' => $this->app->resourcePath('views/errors/'),
         ], 'hypervel-errors');
@@ -133,8 +129,6 @@ class FoundationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../../config/app.php', 'app');
-
         $this->listenCommandException();
         $this->registerMaintenanceModeManager();
         $this->registerRequestValidation();

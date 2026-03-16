@@ -22,8 +22,6 @@ class CacheServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/cache.php', 'cache');
-
         $this->app->singleton('cache', fn ($app) => new CacheManager($app));
 
         $this->app->singleton('cache.store', fn ($app) => $app->make('cache')->driver());
@@ -57,9 +55,5 @@ class CacheServiceProvider extends ServiceProvider
         $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
             $this->app->make(CreateTimer::class)->handle($event);
         });
-
-        $this->publishesConfig([
-            __DIR__ . '/../config/cache.php' => config_path('cache.php'),
-        ], 'cache-config');
     }
 }

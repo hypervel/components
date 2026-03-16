@@ -15,8 +15,6 @@ class BroadcastServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/broadcasting.php', 'broadcasting');
-
         $this->app->singleton(BroadcasterContract::class, function ($app) {
             return $app->make(BroadcastManager::class)->connection();
         });
@@ -25,15 +23,5 @@ class BroadcastServiceProvider extends ServiceProvider
             BroadcastManager::class,
             BroadcastingFactory::class
         );
-    }
-
-    /**
-     * Bootstrap the service provider.
-     */
-    public function boot(): void
-    {
-        $this->publishesConfig([
-            __DIR__ . '/../config/broadcasting.php' => config_path('broadcasting.php'),
-        ], 'broadcasting-config');
     }
 }
