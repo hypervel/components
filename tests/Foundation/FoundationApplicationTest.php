@@ -28,13 +28,12 @@ class FoundationApplicationTest extends TestCase
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent()
     {
         $trans = m::mock(stdClass::class);
-        $trans->shouldReceive('setLocale')
-            ->with('foo')
-            ->once();
+        $trans->shouldReceive('getLocale')->once()->andReturn('bar');
+        $trans->shouldReceive('setLocale')->once()->with('foo');
         $events = m::mock(stdClass::class);
-        $events->shouldReceive('dispatch')
-            ->with(m::type(LocaleUpdated::class))
-            ->once();
+        $events->shouldReceive('dispatch')->once()->with(m::on(function (LocaleUpdated $event) {
+            return $event->locale === 'foo' && $event->previousLocale === 'bar';
+        }));
 
         $app = $this->getApplication([
             'translator' => fn () => $trans,
@@ -42,6 +41,30 @@ class FoundationApplicationTest extends TestCase
         ]);
 
         $app->setLocale('foo');
+    }
+
+    public function testSetFallbackLocaleSetsTranslatorFallback()
+    {
+        $trans = m::mock(stdClass::class);
+        $trans->shouldReceive('setFallback')->once()->with('fr');
+
+        $app = $this->getApplication([
+            'translator' => fn () => $trans,
+        ]);
+
+        $app->setFallbackLocale('fr');
+    }
+
+    public function testGetFallbackLocaleReadsFromTranslator()
+    {
+        $trans = m::mock(stdClass::class);
+        $trans->shouldReceive('getFallback')->once()->andReturn('en');
+
+        $app = $this->getApplication([
+            'translator' => fn () => $trans,
+        ]);
+
+        $this->assertSame('en', $app->getFallbackLocale());
     }
 
     public function testServiceProvidersAreCorrectlyRegistered()
