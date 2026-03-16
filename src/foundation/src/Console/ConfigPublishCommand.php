@@ -6,56 +6,56 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
-use Hypervel\Support\ServiceProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Finder\Finder;
 
 use function Hypervel\Prompts\select;
 
 #[AsCommand(name: 'config:publish')]
 class ConfigPublishCommand extends Command
 {
+    /**
+     * The console command signature.
+     */
     protected ?string $signature = 'config:publish
                     {name? : The name of the configuration file to publish}
                     {--all : Publish all configuration files}
                     {--force : Overwrite any existing configuration files}';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Publish configuration files to your application';
 
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): ?int
     {
-        $config = $this->getPublishableConfigFiles();
-
-        if (count($config) === 0) {
-            $this->components->info('No publishable configuration files found.');
-
-            return 0;
-        }
+        $config = $this->getBaseConfigurationFiles();
 
         if (is_null($this->argument('name')) && $this->option('all')) {
-            foreach ($config as $name => $file) {
-                $this->publish($name, $file, $this->hypervel->configPath() . '/' . $name . '.php');
+            foreach ($config as $key => $file) {
+                $this->publish($key, $file, $this->hypervel->configPath() . '/' . $key . '.php');
             }
 
-            return 0;
+            return self::SUCCESS;
         }
 
         $name = (string) (is_null($this->argument('name')) ? select(
             label: 'Which configuration file would you like to publish?',
-            options: array_keys($config),
+            options: (new Collection($config))->map(fn (string $path) => basename($path, '.php')),
         ) : $this->argument('name'));
 
         if (! isset($config[$name])) {
             $this->components->error('Unrecognized configuration file.');
 
-            return 1;
+            return self::FAILURE;
         }
 
         $this->publish($name, $config[$name], $this->hypervel->configPath() . '/' . $name . '.php');
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
@@ -75,19 +75,24 @@ class ConfigPublishCommand extends Command
     }
 
     /**
-     * Get the publishable configuration files from registered service providers.
+     * Get an array containing the base configuration files.
      *
      * @return array<string, string>
      */
-    protected function getPublishableConfigFiles(): array
+    protected function getBaseConfigurationFiles(): array
     {
-        $paths = ServiceProvider::pathsToPublish(null, 'config');
-
         $config = [];
 
-        foreach ($paths as $source => $destination) {
-            $name = basename($source, '.php');
-            $config[$name] = $source;
+        $shouldMergeConfiguration = method_exists($this->hypervel, 'shouldMergeFrameworkConfiguration')
+            ? $this->hypervel->shouldMergeFrameworkConfiguration()
+            : true;
+
+        foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
+            $name = basename($file->getRealPath(), '.php');
+
+            $config[$name] = ($shouldMergeConfiguration === true && file_exists($stubPath = (__DIR__ . '/../../config-stubs/' . $name . '.php')))
+                ? $stubPath
+                : $file->getRealPath();
         }
 
         return (new Collection($config))->sortKeys()->all();
