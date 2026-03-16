@@ -70,10 +70,10 @@ class NodeTest extends TestCase
 
     public function tearDown(): void
     {
-        parent::tearDown();
-
         DB::flushQueryLog();
         DB::disableQueryLog();
+
+        parent::tearDown();
     }
 
     protected function assertTreeNotBroken(string $table = 'categories'): void
