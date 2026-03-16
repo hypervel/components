@@ -60,7 +60,7 @@ class ScoutServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishesConfig([
+        $this->publishes([
             dirname(__DIR__) . '/config/scout.php' => config_path('scout.php'),
         ], 'scout-config');
     }

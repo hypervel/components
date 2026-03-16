@@ -257,17 +257,6 @@ abstract class ServiceProvider
     }
 
     /**
-     * Register config paths to be published by the publish command.
-     *
-     * Automatically adds the 'config' group alongside any package-specific groups,
-     * enabling ConfigPublishCommand to discover all publishable config files.
-     */
-    protected function publishesConfig(array $paths, string|array $groups = []): void
-    {
-        $this->publishes($paths, array_merge(['config'], (array) $groups));
-    }
-
-    /**
      * Register paths to be published by the publish command.
      */
     protected function publishes(array $paths, mixed $groups = null): void

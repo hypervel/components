@@ -79,7 +79,7 @@ class TelescopeServiceProvider extends ServiceProvider
             __DIR__ . '/../public' => public_path('vendor/telescope'),
         ], ['telescope-assets']);
 
-        $this->publishesConfig([
+        $this->publishes([
             __DIR__ . '/../config/telescope.php' => config_path('telescope.php'),
         ], 'telescope-config');
 

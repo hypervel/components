@@ -42,7 +42,7 @@ class JWTServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishesConfig([
+        $this->publishes([
             __DIR__ . '/../config/jwt.php' => config_path('jwt.php'),
         ], 'jwt-config');
     }

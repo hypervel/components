@@ -28,7 +28,7 @@ class WatcherServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->publishesConfig([
+        $this->publishes([
             __DIR__ . '/../config/watcher.php' => $this->app->configPath('watcher.php'),
         ], 'watcher-config');
 

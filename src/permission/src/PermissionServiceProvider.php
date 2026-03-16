@@ -37,7 +37,7 @@ class PermissionServiceProvider extends ServiceProvider
 
     public function registerPublishing(): void
     {
-        $this->publishesConfig([
+        $this->publishes([
             __DIR__ . '/../config/permission.php' => config_path('permission.php'),
         ], 'permission-config');
 
