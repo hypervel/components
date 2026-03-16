@@ -61,7 +61,7 @@ class RedisConnectionTest extends TestCase
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 1], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1], $redis) extends RedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -115,7 +115,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(2)->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 0], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0], $redis) extends RedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -143,8 +143,8 @@ class RedisConnectionTest extends TestCase
             [
                 'host' => 'redis',
                 'port' => 16379,
-                'auth' => 'redis',
-                'db' => 0,
+                'password' => 'redis',
+                'database' => 0,
                 'retry_interval' => 5,
                 'read_timeout' => 3.0,
                 'context' => [
@@ -201,8 +201,8 @@ class RedisConnectionTest extends TestCase
                 ],
                 'host' => 'redis',
                 'port' => 16379,
-                'auth' => 'redis',
-                'db' => 0,
+                'password' => 'redis',
+                'database' => 0,
                 'pool' => [
                     'min_connections' => 1,
                     'max_connections' => 30,
@@ -1862,7 +1862,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with('secret');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'auth' => 'secret'], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => 'secret'], $redis) extends RedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1885,7 +1885,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldNotReceive('auth');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'auth' => ''], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => ''], $redis) extends RedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,

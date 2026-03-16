@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Hypervel\Config\Repository;
+use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
 
 class RedisConfig
@@ -26,12 +27,18 @@ class RedisConfig
         $redisConfig = $this->all();
         $names = [];
 
+        $parser = new ConfigurationUrlParser();
+
         foreach ($redisConfig as $name => $connectionConfig) {
             if (in_array($name, ['client', 'options', 'clusters'], true)) {
                 continue;
             }
 
-            $this->validateConnectionConfig($name, $connectionConfig);
+            if (! is_array($connectionConfig)) {
+                throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
+            }
+
+            $this->validateConnectionConfig($name, $parser->parseConfiguration($connectionConfig));
 
             $names[] = $name;
         }
@@ -48,6 +55,12 @@ class RedisConfig
     {
         $redisConfig = $this->all();
         $connectionConfig = $redisConfig[$name] ?? null;
+
+        if (! is_array($connectionConfig)) {
+            throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
+        }
+
+        $connectionConfig = (new ConfigurationUrlParser())->parseConfiguration($connectionConfig);
         $this->validateConnectionConfig($name, $connectionConfig);
 
         $sharedOptions = $redisConfig['options'] ?? [];

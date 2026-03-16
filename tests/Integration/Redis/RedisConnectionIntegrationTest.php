@@ -56,7 +56,7 @@ class RedisConnectionIntegrationTest extends TestCase
 
         $this->assertTrue($connected);
 
-        $auth = env('REDIS_AUTH', null);
+        $auth = env('REDIS_PASSWORD', null);
         if (is_string($auth) && $auth !== '') {
             $this->assertTrue($redis->auth($auth));
         }

@@ -304,7 +304,7 @@ class Redis implements FactoryContract, ConnectionContract
         return new Subscriber(
             host: $config['host'],
             port: (int) $config['port'],
-            password: (string) ($config['auth'] ?? ''),
+            password: (string) ($config['password'] ?? ''),
             timeout: (float) ($config['timeout'] ?? 5.0),
             prefix: (string) ($options['prefix'] ?? ''),
         );

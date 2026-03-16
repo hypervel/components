@@ -246,12 +246,14 @@ abstract class ServiceProvider
     {
         $this->publishes($paths, $groups);
 
-        static::$publishableMigrationPaths = array_unique(
-            array_merge(
-                static::$publishableMigrationPaths,
-                array_keys($paths)
-            )
-        );
+        if ($this->app->make('config')->get('database.migrations.update_date_on_publish', false)) {
+            static::$publishableMigrationPaths = array_unique(
+                array_merge(
+                    static::$publishableMigrationPaths,
+                    array_keys($paths)
+                )
+            );
+        }
     }
 
     /**

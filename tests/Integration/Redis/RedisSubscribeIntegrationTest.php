@@ -179,7 +179,7 @@ class RedisSubscribeIntegrationTest extends TestCase
             (int) env('REDIS_PORT', 6379)
         );
 
-        $auth = env('REDIS_AUTH');
+        $auth = env('REDIS_PASSWORD');
         if ($auth) {
             $client->auth($auth);
         }

@@ -440,8 +440,8 @@ class RedisConnection extends BaseConnection
      */
     public function reconnect(): bool
     {
-        $auth = $this->config['auth'] ?? null;
-        $db = (int) ($this->config['db'] ?? 0);
+        $auth = $this->config['password'] ?? null;
+        $db = (int) ($this->config['database'] ?? 0);
         $cluster = $this->config['cluster']['enable'] ?? false;
         $sentinel = $this->config['sentinel']['enable'] ?? false;
 
@@ -473,7 +473,8 @@ class RedisConnection extends BaseConnection
         }
 
         if ($redis instanceof Redis && isset($auth) && $auth !== '') {
-            $redis->auth($auth);
+            $username = $this->config['username'] ?? null;
+            $redis->auth($username ? [$username, $auth] : $auth);
         }
 
         $database = $this->database ?? $db;
@@ -509,7 +510,7 @@ class RedisConnection extends BaseConnection
         $this->shouldTransform = false;
 
         try {
-            $defaultDb = (int) ($this->config['db'] ?? 0);
+            $defaultDb = (int) ($this->config['database'] ?? 0);
             if ($this->database !== null && $this->database !== $defaultDb) {
                 $this->select($defaultDb);
                 $this->database = null;
@@ -541,7 +542,7 @@ class RedisConnection extends BaseConnection
             $parameters[] = $this->config['timeout'] ?? 0.0;
             $parameters[] = $this->config['cluster']['read_timeout'] ?? 0.0;
             $parameters[] = $this->config['cluster']['persistent'] ?? false;
-            $parameters[] = $this->config['auth'] ?? null;
+            $parameters[] = $this->config['password'] ?? null;
             if (! empty($this->config['cluster']['context'])) {
                 $parameters[] = $this->config['cluster']['context'];
             }

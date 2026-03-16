@@ -45,7 +45,7 @@ try {
         (int) envVar('REDIS_PORT', '6379')
     );
 
-    $auth = envVar('REDIS_AUTH', '');
+    $auth = envVar('REDIS_PASSWORD', '');
     if ($auth !== '') {
         $redis->auth($auth);
     }

@@ -25,7 +25,7 @@ class RedisPoolTest extends TestCase
         $connectionConfig = [
             'host' => 'redis',
             'port' => 16379,
-            'db' => 0,
+            'database' => 0,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
@@ -49,7 +49,7 @@ class RedisPoolTest extends TestCase
         $connectionConfig = [
             'host' => 'redis',
             'port' => 16379,
-            'db' => 0,
+            'database' => 0,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,

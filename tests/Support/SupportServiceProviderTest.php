@@ -23,6 +23,11 @@ class SupportServiceProviderTest extends TestCase
     {
         $this->app = $app = m::mock(Application::class)->makePartial();
 
+        $config = new ConfigRepository([
+            'database' => ['migrations' => ['update_date_on_publish' => true]],
+        ]);
+        $app->shouldReceive('make')->with('config')->andReturn($config)->byDefault();
+
         $one = new ServiceProviderForTestingOne($app);
         $one->boot();
         $two = new ServiceProviderForTestingTwo($app);

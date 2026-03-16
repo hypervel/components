@@ -35,7 +35,7 @@ use Throwable;
  * - REDIS_HOST: Redis host (default: 127.0.0.1)
  * - REDIS_PORT: Redis port (default: 6379)
  * - REDIS_DB: Base Redis database number (default: 1)
- * - REDIS_AUTH: Redis password (optional)
+ * - REDIS_PASSWORD: Redis password (optional)
  */
 trait InteractsWithRedis
 {
@@ -177,7 +177,7 @@ trait InteractsWithRedis
     /**
      * Configure the Redis DB number for parallel test isolation.
      *
-     * Sets the database.redis.default.db config to the per-worker DB number.
+     * Sets the database.redis.default.database config to the per-worker DB number.
      * On the first call per process, also checks whether the DB number is
      * within Redis's configured database limit.
      */
@@ -198,7 +198,7 @@ trait InteractsWithRedis
             );
         }
 
-        $this->app->make('config')->set('database.redis.default.db', $db);
+        $this->app->make('config')->set('database.redis.default.database', $db);
     }
 
     /**
@@ -213,7 +213,7 @@ trait InteractsWithRedis
                 (int) env('REDIS_PORT', 6379)
             );
 
-            $auth = env('REDIS_AUTH');
+            $auth = env('REDIS_PASSWORD');
             if ($auth) {
                 $client->auth($auth);
             }
@@ -255,7 +255,7 @@ trait InteractsWithRedis
             (int) env('REDIS_PORT', 6379)
         );
 
-        $auth = env('REDIS_AUTH');
+        $auth = env('REDIS_PASSWORD');
         if ($auth) {
             $client->auth($auth);
         }
@@ -333,9 +333,9 @@ trait InteractsWithRedis
 
         $connectionConfig = [
             'host' => env('REDIS_HOST', '127.0.0.1'),
-            'auth' => env('REDIS_AUTH', null) ?: null,
+            'password' => env('REDIS_PASSWORD', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => $this->getParallelRedisDb(),
+            'database' => $this->getParallelRedisDb(),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,

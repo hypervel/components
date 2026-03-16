@@ -74,7 +74,7 @@ class PoolFactoryTest extends TestCase
         $connectionConfig = [
             'host' => 'localhost',
             'port' => 6379,
-            'db' => 0,
+            'database' => 0,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,
