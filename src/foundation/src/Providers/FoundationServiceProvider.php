@@ -6,7 +6,9 @@ namespace Hypervel\Foundation\Providers;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\FailToHandle;
+use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -129,6 +131,7 @@ class FoundationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->registerConsoleSchedule();
         $this->listenCommandException();
         $this->registerMaintenanceModeManager();
         $this->registerRequestValidation();
@@ -194,6 +197,16 @@ class FoundationServiceProvider extends ServiceProvider
                     ->guard($guard)
                     ->user();
             });
+        });
+    }
+
+    /**
+     * Register the console schedule implementation.
+     */
+    protected function registerConsoleSchedule(): void
+    {
+        $this->app->singleton(Schedule::class, function ($app) {
+            return $app->make(ConsoleKernelContract::class)->resolveConsoleSchedule();
         });
     }
 

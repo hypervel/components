@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Providers;
 
+use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 
@@ -41,5 +42,13 @@ class FoundationServiceProviderTest extends TestCase
     public function testRequestValidateWithBagMacroIsRegistered()
     {
         $this->assertTrue(Request::hasMacro('validateWithBag'));
+    }
+
+    public function testConsoleScheduleSingletonIsRegistered()
+    {
+        $schedule = $this->app->make(Schedule::class);
+
+        $this->assertInstanceOf(Schedule::class, $schedule);
+        $this->assertSame($schedule, $this->app->make(Schedule::class));
     }
 }
