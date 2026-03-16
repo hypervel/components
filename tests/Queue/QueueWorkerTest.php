@@ -748,6 +748,11 @@ class WorkerFakeJob implements QueueJobContract
         return $this->getName();
     }
 
+    public function resolveQueuedJobClass(): string
+    {
+        return $this->getName();
+    }
+
     public function getConnectionName(): string
     {
         return $this->connectionName;
