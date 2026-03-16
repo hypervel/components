@@ -96,6 +96,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected array $absoluteCachePathPrefixes = ['/', '\\'];
 
     /**
+     * Indicates if the framework's base configuration should be merged.
+     */
+    protected bool $mergeFrameworkConfiguration = true;
+
+    /**
      * Indicates if the application has been bootstrapped before.
      */
     protected bool $hasBeenBootstrapped = false;
@@ -755,6 +760,26 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Determine if the framework's base configuration should be merged.
+     */
+    public function shouldMergeFrameworkConfiguration(): bool
+    {
+        return $this->mergeFrameworkConfiguration;
+    }
+
+    /**
+     * Indicate that the framework's base configuration should not be merged.
+     *
+     * @return $this
+     */
+    public function dontMergeFrameworkConfiguration(): static
+    {
+        $this->mergeFrameworkConfiguration = false;
+
+        return $this;
+    }
+
+    /**
      * Determine if middleware has been disabled for the application.
      */
     public function shouldSkipMiddleware(): bool
@@ -1096,9 +1121,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setLocale(string $locale): void
     {
+        $previous = $this['translator']->getLocale();
+
         $this['translator']->setLocale($locale);
 
-        $this['events']->dispatch(new LocaleUpdated($locale));
+        $this['events']->dispatch(new LocaleUpdated($locale, $previous));
+    }
+
+    /**
+     * Set the current application fallback locale.
+     */
+    public function setFallbackLocale(string $fallbackLocale): void
+    {
+        $this['translator']->setFallback($fallbackLocale);
     }
 
     /**

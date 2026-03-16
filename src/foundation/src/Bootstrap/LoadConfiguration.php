@@ -73,9 +73,7 @@ class LoadConfiguration
     {
         $files = $this->getConfigurationFiles($app);
 
-        $shouldMerge = method_exists($app, 'shouldMergeFrameworkConfiguration')
-            ? $app->shouldMergeFrameworkConfiguration()
-            : true;
+        $shouldMerge = $app->shouldMergeFrameworkConfiguration();
 
         $base = $shouldMerge
             ? $this->getBaseConfiguration()

@@ -83,9 +83,7 @@ class ConfigPublishCommand extends Command
     {
         $config = [];
 
-        $shouldMergeConfiguration = method_exists($this->hypervel, 'shouldMergeFrameworkConfiguration')
-            ? $this->hypervel->shouldMergeFrameworkConfiguration()
-            : true;
+        $shouldMergeConfiguration = $this->hypervel->shouldMergeFrameworkConfiguration();
 
         foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
             $name = basename($file->getRealPath(), '.php');
