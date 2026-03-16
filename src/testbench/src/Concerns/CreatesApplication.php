@@ -149,7 +149,7 @@ trait CreatesApplication
      */
     protected function resolveApplication(): ApplicationContract
     {
-        $app = new Application();
+        $app = new Application(BASE_PATH);
 
         // Use testbench Console Kernel with empty bootstrappers() so that
         // ConsoleKernel::bootstrap() at the end of the lifecycle only sets

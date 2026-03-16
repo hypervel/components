@@ -52,7 +52,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Workbench\App\Exceptions\ExceptionHandler;
 
 // Create application
-$app = new Application();
+$app = new Application(BASE_PATH);
 $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 

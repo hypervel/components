@@ -23,7 +23,7 @@ use function Hypervel\Coroutine\run;
 
 Bootstrapper::bootstrap();
 
-$app = new Application();
+$app = new Application(BASE_PATH);
 $app->singleton(KernelContract::class, ConsoleKernel::class);
 $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
