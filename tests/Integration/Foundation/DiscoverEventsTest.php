@@ -31,7 +31,7 @@ class DiscoverEventsTest extends TestCase
             class_alias(AbstractListener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\AbstractListener');
         }
 
-        if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\ListenerInterface', false)) {
+        if (! interface_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\ListenerInterface', false)) {
             class_alias(ListenerInterface::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\ListenerInterface');
         }
 
