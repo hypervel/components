@@ -147,9 +147,8 @@ class AboutCommand extends Command
         ]);
 
         static::addToSection('Cache', fn () => [
-            'Config' => static::format($this->hypervel->configurationIsCached(), console: $formatCachedStatus), /* @phpstan-ignore-line */
-            // @TODO Uncomment once eventsAreCached() is added to Application (Phase 1.7)
-            // 'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
+            'Config' => static::format($this->hypervel->configurationIsCached(), console: $formatCachedStatus),
+            'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
             'Routes' => static::format($this->hypervel->routesAreCached(), console: $formatCachedStatus),
             'Runtime Proxy' => static::format($this->hasPhpFiles($this->hypervel->basePath('runtime/container'), 'cache'), console: $formatCachedStatus),
             'Views' => static::format($this->hasPhpFiles(config('view.compiled')), console: $formatCachedStatus),

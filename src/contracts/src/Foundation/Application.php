@@ -88,6 +88,11 @@ interface Application extends Container
     public function storagePath(string $path = ''): string;
 
     /**
+     * Determine if the application configuration is cached.
+     */
+    public function configurationIsCached(): bool;
+
+    /**
      * Get the path to the configuration cache file.
      */
     public function getCachedConfigPath(): string;
@@ -280,6 +285,16 @@ interface Application extends Container
      * Get the path to the routes cache file.
      */
     public function getCachedRoutesPath(): string;
+
+    /**
+     * Determine if the application events are cached.
+     */
+    public function eventsAreCached(): bool;
+
+    /**
+     * Get the path to the events cache file.
+     */
+    public function getCachedEventsPath(): string;
 
     /**
      * Determine if the framework's base configuration should be merged.

@@ -623,6 +623,22 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Determine if the application events are cached.
+     */
+    public function eventsAreCached(): bool
+    {
+        return is_file($this->getCachedEventsPath());
+    }
+
+    /**
+     * Get the path to the events cache file.
+     */
+    public function getCachedEventsPath(): string
+    {
+        return $this->normalizeCachePath('APP_EVENTS_CACHE', 'cache/events.php');
+    }
+
+    /**
      * Normalize a relative or absolute path to a cache file.
      */
     protected function normalizeCachePath(string $key, string $default): string
@@ -634,6 +650,18 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return Str::startsWith($env, $this->absoluteCachePathPrefixes)
             ? $env
             : $this->basePath($env);
+    }
+
+    /**
+     * Add new prefix to list of absolute path prefixes.
+     *
+     * @return $this
+     */
+    public function addAbsoluteCachePathPrefix(string $prefix): static
+    {
+        $this->absoluteCachePathPrefixes[] = $prefix;
+
+        return $this;
     }
 
     /**

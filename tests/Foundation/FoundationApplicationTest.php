@@ -204,6 +204,128 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame('App\Two\\', $app2->getNamespace());
     }
 
+    public function testCachePathsResolveToBootstrapCacheDirectory()
+    {
+        $envKeys = ['APP_SERVICES_CACHE', 'APP_CONFIG_CACHE', 'APP_ROUTES_CACHE', 'APP_EVENTS_CACHE'];
+        $saved = [];
+
+        foreach ($envKeys as $key) {
+            if (isset($_SERVER[$key])) {
+                $saved[$key] = $_SERVER[$key];
+                unset($_SERVER[$key]);
+            }
+        }
+
+        try {
+            $app = $this->getApplication([], '/base/path');
+
+            $ds = DIRECTORY_SEPARATOR;
+            $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/services.php', $app->getCachedServicesPath());
+            $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/routes-v7.php', $app->getCachedRoutesPath());
+            $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/events.php', $app->getCachedEventsPath());
+        } finally {
+            foreach ($saved as $key => $value) {
+                $_SERVER[$key] = $value;
+            }
+        }
+    }
+
+    public function testEnvPathsAreUsedForCachePathsWhenSpecified()
+    {
+        $app = $this->getApplication([], '/base/path');
+        $_SERVER['APP_SERVICES_CACHE'] = '/absolute/path/services.php';
+        $_SERVER['APP_CONFIG_CACHE'] = '/absolute/path/config.php';
+        $_SERVER['APP_ROUTES_CACHE'] = '/absolute/path/routes.php';
+        $_SERVER['APP_EVENTS_CACHE'] = '/absolute/path/events.php';
+
+        try {
+            $this->assertSame('/absolute/path/services.php', $app->getCachedServicesPath());
+            $this->assertSame('/absolute/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/absolute/path/routes.php', $app->getCachedRoutesPath());
+            $this->assertSame('/absolute/path/events.php', $app->getCachedEventsPath());
+        } finally {
+            unset(
+                $_SERVER['APP_SERVICES_CACHE'],
+                $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_ROUTES_CACHE'],
+                $_SERVER['APP_EVENTS_CACHE'],
+            );
+        }
+    }
+
+    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelative()
+    {
+        $app = $this->getApplication([], '/base/path');
+        $_SERVER['APP_SERVICES_CACHE'] = 'relative/path/services.php';
+        $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
+        $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
+        $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
+
+        try {
+            $ds = DIRECTORY_SEPARATOR;
+            $this->assertSame('/base/path' . $ds . 'relative/path/services.php', $app->getCachedServicesPath());
+            $this->assertSame('/base/path' . $ds . 'relative/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/base/path' . $ds . 'relative/path/routes.php', $app->getCachedRoutesPath());
+            $this->assertSame('/base/path' . $ds . 'relative/path/events.php', $app->getCachedEventsPath());
+        } finally {
+            unset(
+                $_SERVER['APP_SERVICES_CACHE'],
+                $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_ROUTES_CACHE'],
+                $_SERVER['APP_EVENTS_CACHE'],
+            );
+        }
+    }
+
+    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithEmptyBasePath()
+    {
+        $app = $this->getApplication([], '');
+        $_SERVER['APP_SERVICES_CACHE'] = 'relative/path/services.php';
+        $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
+        $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
+        $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
+
+        try {
+            $ds = DIRECTORY_SEPARATOR;
+            $this->assertSame($ds . 'relative/path/services.php', $app->getCachedServicesPath());
+            $this->assertSame($ds . 'relative/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame($ds . 'relative/path/routes.php', $app->getCachedRoutesPath());
+            $this->assertSame($ds . 'relative/path/events.php', $app->getCachedEventsPath());
+        } finally {
+            unset(
+                $_SERVER['APP_SERVICES_CACHE'],
+                $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_ROUTES_CACHE'],
+                $_SERVER['APP_EVENTS_CACHE'],
+            );
+        }
+    }
+
+    public function testEnvPathsAreAbsoluteInWindows()
+    {
+        $app = $this->getApplication([], __DIR__);
+        $app->addAbsoluteCachePathPrefix('C:');
+        $_SERVER['APP_SERVICES_CACHE'] = 'C:\framework\services.php';
+        $_SERVER['APP_CONFIG_CACHE'] = 'C:\framework\config.php';
+        $_SERVER['APP_ROUTES_CACHE'] = 'C:\framework\routes.php';
+        $_SERVER['APP_EVENTS_CACHE'] = 'C:\framework\events.php';
+
+        try {
+            $this->assertSame('C:\framework\services.php', $app->getCachedServicesPath());
+            $this->assertSame('C:\framework\config.php', $app->getCachedConfigPath());
+            $this->assertSame('C:\framework\routes.php', $app->getCachedRoutesPath());
+            $this->assertSame('C:\framework\events.php', $app->getCachedEventsPath());
+        } finally {
+            unset(
+                $_SERVER['APP_SERVICES_CACHE'],
+                $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_ROUTES_CACHE'],
+                $_SERVER['APP_EVENTS_CACHE'],
+            );
+        }
+    }
+
     public function testMacroable()
     {
         $app = $this->getApplication();
@@ -261,13 +383,6 @@ class FoundationApplicationTest extends TestCase
         $this->assertArrayHasKey(0, $listeners);
     }
 
-    public function testGetCachedServicesPath()
-    {
-        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app');
-
-        $this->assertStringEndsWith('cache/services.php', $app->getCachedServicesPath());
-    }
-
     public function testConfigurationIsCachedReturnsFalseWhenNoCacheFile()
     {
         $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
@@ -292,6 +407,65 @@ class FoundationApplicationTest extends TestCase
             rmdir(dirname($cachePath, 2));
             rmdir($basePath);
         }
+    }
+
+    public function testRoutesAreCachedReturnsFalseWhenNoCacheFile()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+
+        $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists()
+    {
+        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
+        $cachePath = $basePath . '/bootstrap/cache/routes-v7.php';
+
+        mkdir(dirname($cachePath), 0755, true);
+        file_put_contents($cachePath, '<?php return [];');
+
+        try {
+            $app = $this->getApplication([], $basePath);
+            $this->assertTrue($app->routesAreCached());
+        } finally {
+            unlink($cachePath);
+            rmdir(dirname($cachePath));
+            rmdir(dirname($cachePath, 2));
+            rmdir($basePath);
+        }
+    }
+
+    public function testEventsAreCachedReturnsFalseWhenNoCacheFile()
+    {
+        $app = $this->getApplication([], sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+
+        $this->assertFalse($app->eventsAreCached());
+    }
+
+    public function testEventsAreCachedReturnsTrueWhenCacheFileExists()
+    {
+        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
+        $cachePath = $basePath . '/bootstrap/cache/events.php';
+
+        mkdir(dirname($cachePath), 0755, true);
+        file_put_contents($cachePath, '<?php return [];');
+
+        try {
+            $app = $this->getApplication([], $basePath);
+            $this->assertTrue($app->eventsAreCached());
+        } finally {
+            unlink($cachePath);
+            rmdir(dirname($cachePath));
+            rmdir(dirname($cachePath, 2));
+            rmdir($basePath);
+        }
+    }
+
+    public function testAddAbsoluteCachePathPrefixReturnsSelf()
+    {
+        $app = $this->getApplication();
+
+        $this->assertSame($app, $app->addAbsoluteCachePathPrefix('s3:'));
     }
 }
 
