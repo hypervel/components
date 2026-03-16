@@ -24,7 +24,7 @@ class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
             return;
         }
 
-        echo "\n\n\033[33m Warning：Slow tests detected! \033[0m\n";
+        echo "\n\n\033[33m Warning: Slow tests detected! \033[0m\n";
         foreach ($slowTests as $test) {
             printf(" ⚠️  %s Consumed \033[33m%.3f seconds\033[0m\n", $test['name'], $test['duration']);
         }
