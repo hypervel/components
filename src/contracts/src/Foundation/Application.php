@@ -282,6 +282,11 @@ interface Application extends Container
     public function getCachedRoutesPath(): string;
 
     /**
+     * Determine if the framework's base configuration should be merged.
+     */
+    public function shouldMergeFrameworkConfiguration(): bool;
+
+    /**
      * Determine if middleware has been disabled for the application.
      */
     public function shouldSkipMiddleware(): bool;

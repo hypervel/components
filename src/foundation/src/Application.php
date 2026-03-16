@@ -162,7 +162,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     public function __construct(?string $basePath = null)
     {
-        $this->setBasePath($basePath ?: (defined('BASE_PATH') ? BASE_PATH : ''));
+        $this->setBasePath($basePath ?: '');
 
         $this->registerBaseBindings();
         $this->registerBaseServiceProviders();
@@ -1272,6 +1272,29 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 $this->alias($key, $alias);
             }
         }
+    }
+
+    /**
+     * Flush the container of all bindings and resolved instances.
+     */
+    public function flush(): void
+    {
+        parent::flush();
+
+        $this->loadedProviders = [];
+        $this->bootedCallbacks = [];
+        $this->bootingCallbacks = [];
+        $this->reboundCallbacks = [];
+        $this->registeredCallbacks = [];
+        $this->serviceProviders = [];
+        $this->resolvingCallbacks = [];
+        $this->terminatingCallbacks = [];
+        $this->beforeResolvingCallbacks = [];
+        $this->afterResolvingCallbacks = [];
+        $this->afterResolvingAttributeCallbacks = [];
+        $this->globalBeforeResolvingCallbacks = [];
+        $this->globalResolvingCallbacks = [];
+        $this->globalAfterResolvingCallbacks = [];
     }
 
     /**
