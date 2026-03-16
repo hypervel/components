@@ -61,6 +61,6 @@ class UniqueLock
             ? $job->displayName()
             : get_class($job);
 
-        return 'laravel_unique_job:' . $jobName . ':' . $uniqueId;
+        return 'hypervel_unique_job:' . $jobName . ':' . $uniqueId;
     }
 }

@@ -55,7 +55,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        $lockKey = 'laravel_unique_job:' . UniqueBroadcastEvent::class . ':' . TestEventUnique::class;
+        $lockKey = 'hypervel_unique_job:' . UniqueBroadcastEvent::class . ':' . TestEventUnique::class;
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturnSelf();
         $cache->shouldReceive('get')->andReturn(true);
