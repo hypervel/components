@@ -12,10 +12,13 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Foundation\Queue\InteractsWithUniqueJobs;
 use UnitEnum;
 
 class PendingDispatch
 {
+    use InteractsWithUniqueJobs;
+
     /**
      * Indicates if the job should be dispatched immediately after sending the response.
      */
@@ -194,7 +197,11 @@ class PendingDispatch
      */
     public function __destruct()
     {
+        $this->addUniqueJobInformationToContext($this->job);
+
         if (! $this->shouldDispatch()) {
+            $this->removeUniqueJobInformationFromContext($this->job);
+
             return;
         }
         if ($this->afterResponse) {
@@ -206,5 +213,7 @@ class PendingDispatch
                 ->make(Dispatcher::class)
                 ->dispatch($this->job);
         }
+
+        $this->removeUniqueJobInformationFromContext($this->job);
     }
 }
