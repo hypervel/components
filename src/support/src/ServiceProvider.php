@@ -106,14 +106,52 @@ abstract class ServiceProvider
 
     /**
      * Merge the given configuration with the existing configuration.
+     *
+     * Top-level keys use shallow merge (app values override package defaults).
+     * Keys declared in mergeableOptions() get an additional one-level-deeper
+     * merge so the app can add entries to collection arrays (stores, connections,
+     * guards, etc.) without losing the package's default entries.
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
         $config = $this->app->make('config');
-        $config->set($key, array_merge(
-            require $path,
-            $config->get($key, [])
-        ));
+
+        $packageDefaults = require $path;
+        $appConfig = $config->get($key, []);
+
+        $merged = array_merge($packageDefaults, $appConfig);
+
+        foreach ($this->mergeableOptions($key) as $option) {
+            if (isset($packageDefaults[$option], $appConfig[$option])) {
+                $merged[$option] = array_merge($packageDefaults[$option], $appConfig[$option]);
+            }
+        }
+
+        $config->set($key, $merged);
+    }
+
+    /**
+     * Get the options within the configuration that should be merged.
+     *
+     * Override this in package service providers to declare which config keys
+     * contain collection arrays that should be merged rather than replaced.
+     * This uses the same two-level merge logic as LoadConfiguration::mergeableOptions().
+     *
+     * With mergeableOptions() returning ['stores']:
+     *   - Package defines stores: array, file, redis, swoole
+     *   - App defines stores: redis (custom config), s3 (new)
+     *   - Result: array, file, redis (app's version — fully replaced, no package keys leak in), swoole, s3
+     *
+     * Without 'stores' in mergeableOptions():
+     *   - Package defines stores: array, file, redis, swoole
+     *   - App defines stores: redis (custom config), s3 (new)
+     *   - Result: redis (app's version), s3 — everything else gone
+     *
+     * @return array<int, string>
+     */
+    protected function mergeableOptions(string $name): array
+    {
+        return [];
     }
 
     /**

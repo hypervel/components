@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\ServiceProvider;
 use Mockery as m;
@@ -161,6 +162,145 @@ class SupportServiceProviderTest extends TestCase
         $this->assertIsArray($paths);
         $this->assertEmpty($paths);
     }
+
+    public function testMergeConfigFromWithFlatConfig()
+    {
+        $config = new ConfigRepository();
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingFlat($this->app);
+        $provider->register();
+
+        $this->assertSame('array', $config->get('flat.default'));
+        $this->assertSame('package-prefix', $config->get('flat.prefix'));
+    }
+
+    public function testMergeConfigFromAppOverridesPackageDefaults()
+    {
+        $config = new ConfigRepository([
+            'flat' => ['default' => 'redis'],
+        ]);
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingFlat($this->app);
+        $provider->register();
+
+        $this->assertSame('redis', $config->get('flat.default'));
+        $this->assertSame('package-prefix', $config->get('flat.prefix'));
+    }
+
+    public function testMergeConfigFromWithoutMergeableOptionsReplacesNestedArrays()
+    {
+        $config = new ConfigRepository([
+            'flat_stores' => [
+                'default' => 'redis',
+                'stores' => [
+                    'redis' => ['driver' => 'redis', 'connection' => 'cache'],
+                    's3' => ['driver' => 's3', 'bucket' => 'my-bucket'],
+                ],
+            ],
+        ]);
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingFlatWithStores($this->app);
+        $provider->register();
+
+        // App's stores should fully replace package's stores (no mergeableOptions)
+        $stores = $config->get('flat_stores.stores');
+        $this->assertArrayHasKey('redis', $stores);
+        $this->assertArrayHasKey('s3', $stores);
+        $this->assertArrayNotHasKey('array', $stores);
+        $this->assertArrayNotHasKey('file', $stores);
+
+        // App's redis config fully replaced package's
+        $this->assertSame('cache', $stores['redis']['connection']);
+        $this->assertArrayNotHasKey('lock_connection', $stores['redis']);
+    }
+
+    public function testMergeConfigFromWithMergeableOptionsCombinesNestedArrays()
+    {
+        $config = new ConfigRepository([
+            'mergeable_stores' => [
+                'default' => 'redis',
+                'stores' => [
+                    'redis' => ['driver' => 'redis', 'connection' => 'cache'],
+                    's3' => ['driver' => 's3', 'bucket' => 'my-bucket'],
+                ],
+            ],
+        ]);
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingMergeableStores($this->app);
+        $provider->register();
+
+        $stores = $config->get('mergeable_stores.stores');
+
+        // App's stores are combined with package's stores
+        $this->assertArrayHasKey('array', $stores);
+        $this->assertArrayHasKey('file', $stores);
+        $this->assertArrayHasKey('redis', $stores);
+        $this->assertArrayHasKey('s3', $stores);
+
+        // App's redis fully replaces package's redis (no deep merge into individual entries)
+        $this->assertSame('cache', $stores['redis']['connection']);
+        $this->assertArrayNotHasKey('lock_connection', $stores['redis']);
+
+        // Package defaults preserved for untouched stores
+        $this->assertSame('array', $stores['array']['driver']);
+        $this->assertSame('file', $stores['file']['driver']);
+
+        // Top-level app override still wins
+        $this->assertSame('redis', $config->get('mergeable_stores.default'));
+
+        // Top-level package default preserved when app doesn't override
+        $this->assertSame('package-prefix', $config->get('mergeable_stores.prefix'));
+    }
+
+    public function testMergeConfigFromWithMergeableOptionsWhenAppHasNoStores()
+    {
+        $config = new ConfigRepository([
+            'mergeable_stores' => [
+                'default' => 'redis',
+            ],
+        ]);
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingMergeableStores($this->app);
+        $provider->register();
+
+        // All package stores should be present since app didn't define any
+        $stores = $config->get('mergeable_stores.stores');
+        $this->assertArrayHasKey('array', $stores);
+        $this->assertArrayHasKey('file', $stores);
+        $this->assertArrayHasKey('redis', $stores);
+        $this->assertCount(3, $stores);
+    }
+
+    public function testMergeConfigFromWithMergeableOptionsWhenNoExistingConfig()
+    {
+        $config = new ConfigRepository();
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingMergeableStores($this->app);
+        $provider->register();
+
+        // All package defaults should be present
+        $this->assertSame('array', $config->get('mergeable_stores.default'));
+        $this->assertSame('package-prefix', $config->get('mergeable_stores.prefix'));
+        $stores = $config->get('mergeable_stores.stores');
+        $this->assertArrayHasKey('array', $stores);
+        $this->assertArrayHasKey('file', $stores);
+        $this->assertArrayHasKey('redis', $stores);
+    }
+
+    public function testMergeableOptionsDefaultsToEmptyArray()
+    {
+        $provider = new ServiceProviderForTestingFlat($this->app);
+
+        $result = (fn () => $this->mergeableOptions('anything'))->call($provider);
+
+        $this->assertSame([], $result);
+    }
 }
 
 class ServiceProviderForTestingOne extends ServiceProvider
@@ -194,5 +334,37 @@ class ServiceProviderForTestingTwo extends ServiceProvider
         $this->publishes(['source/unmarked/two/c' => 'destination/tagged/two/a']);
         $this->publishes(['source/tagged/two/a' => 'destination/tagged/two/a'], 'some_tag');
         $this->publishes(['source/tagged/two/b' => 'destination/tagged/two/b'], 'some_tag');
+    }
+}
+
+class ServiceProviderForTestingFlat extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/Fixtures/config/package_flat.php', 'flat');
+    }
+}
+
+class ServiceProviderForTestingFlatWithStores extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/Fixtures/config/package_with_stores.php', 'flat_stores');
+    }
+}
+
+class ServiceProviderForTestingMergeableStores extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/Fixtures/config/package_with_stores.php', 'mergeable_stores');
+    }
+
+    protected function mergeableOptions(string $name): array
+    {
+        return match ($name) {
+            'mergeable_stores' => ['stores'],
+            default => [],
+        };
     }
 }
