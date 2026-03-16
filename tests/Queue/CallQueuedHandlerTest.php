@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Exception;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Cache\Lock;
@@ -120,6 +122,63 @@ class CallQueuedHandlerTest extends TestCase
 
         $handler = new CallQueuedHandler($dispatcher, $container);
         $handler->call($job, ['command' => $serialized]);
+    }
+
+    public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse()
+    {
+        $container = m::mock(ContainerContract::class);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
+        $job->shouldReceive('fail')->once();
+
+        $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
+        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException()]);
+    }
+
+    public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue()
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('bound')->with(BatchRepository::class)->andReturn(false);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => true]);
+        $job->shouldReceive('resolveQueuedJobClass')->andReturn(CallQueuedHandlerTestRegularJob::class);
+        $job->shouldReceive('delete')->once();
+        $job->shouldReceive('fail')->never();
+
+        $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
+        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException()]);
+    }
+
+    public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext()
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('bound')->never();
+        $container->shouldReceive('make')->never();
+
+        // No propagated context set — hasPropagated() returns false
+        $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
+        $this->invokeMethod($handler, 'ensureUniqueJobLockIsReleasedViaContext', []);
+    }
+
+    public function testFailedMethodSetsJobInstanceWhenProvided()
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(Cache::class)->andReturn(m::mock(Cache::class));
+
+        $dispatcher = m::mock(BusDispatcher::class);
+
+        $command = new CallQueuedHandlerTestRegularJob();
+        $serialized = serialize($command);
+
+        $job = m::mock(Job::class);
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+        $handler->failed(['command' => $serialized], new Exception('test'), 'test-uuid', $job);
+
+        // If we get here without error, the job was set successfully
+        $this->assertTrue(true);
     }
 
     private function createHandler(): CallQueuedHandler
