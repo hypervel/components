@@ -7,8 +7,11 @@ namespace Hypervel\Queue;
 use __PHP_Incomplete_Class;
 use Exception;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
@@ -18,8 +21,6 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Pipeline\Pipeline;
-use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
-use ReflectionClass;
 use RuntimeException;
 use Throwable;
 
@@ -76,7 +77,7 @@ class CallQueuedHandler
             return unserialize($data['command']);
         }
 
-        if ($this->container->has(Encrypter::class)) {
+        if ($this->container->bound(Encrypter::class)) {
             return unserialize(
                 $this->container->make(Encrypter::class)->decrypt($data['command'])
             );
@@ -205,19 +206,13 @@ class CallQueuedHandler
      */
     protected function handleModelNotFound(Job $job, Throwable $e): void
     {
-        $class = $job->resolveName();
+        $this->ensureUniqueJobLockIsReleasedViaContext();
 
-        try {
-            $reflectionClass = new ReflectionClass($class);
+        if ($job->payload()['deleteWhenMissingModels'] ?? false) {
+            $this->ensureSuccessfulBatchJobIsRecordedForMissingModel($job, $job->resolveQueuedJobClass());
 
-            $shouldDelete = $reflectionClass->getDefaultProperties()['deleteWhenMissingModels']
-                ?? count($reflectionClass->getAttributes(DeleteWhenMissingModels::class)) !== 0;
-        } catch (Exception) {
-            $shouldDelete = false;
-        }
-
-        if ($shouldDelete) {
             $job->delete();
+
             return;
         }
 
@@ -225,13 +220,71 @@ class CallQueuedHandler
     }
 
     /**
+     * Ensure the lock for a unique job is released via context.
+     *
+     * This is required when we can't unserialize the job due to missing models.
+     */
+    protected function ensureUniqueJobLockIsReleasedViaContext(): void
+    {
+        if (! Context::hasPropagated()
+            || ! $this->container->bound(CacheFactory::class)
+        ) {
+            return;
+        }
+
+        $context = Context::propagated();
+
+        [$store, $key] = [
+            $context->getHidden('hypervel_unique_job_cache_store'),
+            $context->getHidden('hypervel_unique_job_key'),
+        ];
+
+        if ($store && $key) {
+            $this->container->make(CacheFactory::class)
+                ->store($store)
+                ->lock($key) // @phpstan-ignore method.notFound (lock() is on LockProvider, which concrete stores implement)
+                ->forceRelease();
+        }
+    }
+
+    /**
+     * Record a potentially batched job as successful when deleted because models were missing.
+     */
+    protected function ensureSuccessfulBatchJobIsRecordedForMissingModel(Job $job, string $class): void
+    {
+        if (! in_array(Batchable::class, class_uses_recursive($class), true)) {
+            return;
+        }
+
+        if (! $this->container->bound(BatchRepository::class)) {
+            return;
+        }
+
+        $batchId = $job->payload()['data']['batchId'] ?? null;
+
+        if ((! is_string($batchId) || $batchId === '')
+            || ! is_string($job->uuid()) || $job->uuid() === ''
+        ) {
+            return;
+        }
+
+        if ($batch = $this->container->make(BatchRepository::class)->find($batchId)) {
+            $batch->recordSuccessfulJob($job->uuid());
+        }
+    }
+
+    /**
      * Call the failed method on the job instance.
      *
      * The exception that caused the failure will be passed.
      */
-    public function failed(array $data, ?Throwable $e, string $uuid): void
+    public function failed(array $data, ?Throwable $e, string $uuid, ?Job $job = null): void
     {
         $command = $this->getCommand($data);
+
+        if (! is_null($job)) {
+            $command = $this->setJobInstanceIfNecessary($job, $command);
+        }
 
         if (! $this->commandShouldBeUniqueUntilProcessing($command)) {
             $this->ensureUniqueJobLockIsReleased($command);
@@ -252,7 +305,7 @@ class CallQueuedHandler
     /**
      * Ensure the batch is notified of the failed job.
      */
-    protected function ensureFailedBatchJobIsRecorded(string $uuid, mixed $command, Throwable $e): void
+    protected function ensureFailedBatchJobIsRecorded(string $uuid, mixed $command, ?Throwable $e): void
     {
         if (! in_array(Batchable::class, class_uses_recursive($command))) {
             return;
@@ -266,7 +319,7 @@ class CallQueuedHandler
     /**
      * Ensure the chained job catch callbacks are invoked.
      */
-    protected function ensureChainCatchCallbacksAreInvoked(string $uuid, mixed $command, Throwable $e): void
+    protected function ensureChainCatchCallbacksAreInvoked(string $uuid, mixed $command, ?Throwable $e): void
     {
         if (method_exists($command, 'invokeChainCatchCallbacks')) {
             $command->invokeChainCatchCallbacks($e);
