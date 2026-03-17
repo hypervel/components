@@ -119,4 +119,31 @@ trait Themes
 
         return $renderer($this);
     }
+
+    /**
+     * Reset theme state to defaults.
+     */
+    public static function resetTheme(): void
+    {
+        static::$theme = 'default';
+        static::$themes = [
+            'default' => [
+                TextPrompt::class => TextPromptRenderer::class,
+                TextareaPrompt::class => TextareaPromptRenderer::class,
+                PasswordPrompt::class => PasswordPromptRenderer::class,
+                SelectPrompt::class => SelectPromptRenderer::class,
+                MultiSelectPrompt::class => MultiSelectPromptRenderer::class,
+                ConfirmPrompt::class => ConfirmPromptRenderer::class,
+                PausePrompt::class => PausePromptRenderer::class,
+                SearchPrompt::class => SearchPromptRenderer::class,
+                MultiSearchPrompt::class => MultiSearchPromptRenderer::class,
+                SuggestPrompt::class => SuggestPromptRenderer::class,
+                Spinner::class => SpinnerRenderer::class,
+                Note::class => NoteRenderer::class,
+                Table::class => TableRenderer::class,
+                Progress::class => ProgressRenderer::class,
+                Clear::class => ClearRenderer::class,
+            ],
+        ];
+    }
 }
