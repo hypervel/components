@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use Carbon\Carbon;
+use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
@@ -210,6 +212,30 @@ if (! function_exists('broadcast')) {
     function broadcast(mixed $event = null): PendingBroadcast
     {
         return app(BroadcastFactory::class)->event($event);
+    }
+}
+
+if (! function_exists('broadcast_if')) {
+    /**
+     * Begin broadcasting an event if the given condition is true.
+     */
+    function broadcast_if(bool $boolean, mixed $event = null): PendingBroadcast
+    {
+        if ($boolean) {
+            return app(BroadcastFactory::class)->event(value($event));
+        }
+
+        return new FakePendingBroadcast();
+    }
+}
+
+if (! function_exists('broadcast_unless')) {
+    /**
+     * Begin broadcasting an event unless the given condition is true.
+     */
+    function broadcast_unless(bool $boolean, mixed $event = null): PendingBroadcast
+    {
+        return broadcast_if(! $boolean, $event);
     }
 }
 
@@ -912,8 +938,37 @@ if (! function_exists('co')) {
 }
 
 if (! function_exists('defer')) {
-    function defer(callable $callable): void
+    /**
+     * Defer execution of the given callback.
+     *
+     * When a name is provided, only the last callback registered with that
+     * name will execute (named deduplication). Unnamed calls go directly
+     * to Coroutine::defer() with zero overhead.
+     */
+    function defer(callable $callback, ?string $name = null): void
     {
-        \Hypervel\Coroutine\defer($callable);
+        if ($name === null) {
+            \Hypervel\Coroutine\defer($callback);
+            return;
+        }
+
+        // Register the drain hook BEFORE writing to Context (fail-fast:
+        // if we're outside a coroutine, Co::defer() fails before any
+        // Context mutation occurs).
+        if (! Context::has('__foundation.deferred_callbacks_registered')) {
+            \Hypervel\Coroutine\defer(function () {
+                $callbacks = Context::get('__foundation.deferred_callbacks', []);
+                foreach ($callbacks as $deferred) {
+                    $deferred();
+                }
+            });
+            Context::set('__foundation.deferred_callbacks_registered', true);
+        }
+
+        Context::override('__foundation.deferred_callbacks', function (?array $callbacks) use ($name, $callback) {
+            $callbacks ??= [];
+            $callbacks[$name] = $callback;
+            return $callbacks;
+        });
     }
 }
