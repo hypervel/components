@@ -95,4 +95,15 @@ trait Fallback
 
         return $fallback($this);
     }
+
+    /**
+     * Reset fallback state to defaults.
+     */
+    public static function resetFallback(): void
+    {
+        static::$shouldFallback = false;
+        static::$fallbacks = [];
+        Context::forget(self::SHOULD_FALLBACK_CONTEXT_KEY);
+        Context::forget(self::FALLBACKS_CONTEXT_KEY);
+    }
 }
