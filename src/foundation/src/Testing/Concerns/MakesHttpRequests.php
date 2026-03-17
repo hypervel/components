@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use BackedEnum;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
@@ -16,6 +17,7 @@ use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Support\Collection;
+use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
@@ -268,6 +270,14 @@ trait MakesHttpRequests
         $this->app['session']->setPreviousUrl($url);
 
         return $this->withHeader('referer', $url);
+    }
+
+    /**
+     * Set the referer header and previous URL session value from a given route in order to simulate a previous request.
+     */
+    public function fromRoute(BackedEnum|string $name, mixed $parameters = []): static
+    {
+        return $this->from($this->app['url']->route($name, $parameters));
     }
 
     /**
@@ -615,7 +625,13 @@ trait MakesHttpRequests
      */
     protected function createTestResponse($response, ?Request $request = null): TestResponse
     {
-        return TestResponse::fromBaseResponse($response, $request);
+        return tap(TestResponse::fromBaseResponse($response, $request), function ($response) {
+            $response->withExceptions(
+                $this->app->bound(LoggedExceptionCollection::class)
+                    ? $this->app->make(LoggedExceptionCollection::class)
+                    : new LoggedExceptionCollection()
+            );
+        });
     }
 
     /**
