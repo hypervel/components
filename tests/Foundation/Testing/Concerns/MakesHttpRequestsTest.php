@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Hypervel\Contracts\Routing\Registrar;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
@@ -12,6 +14,7 @@ use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
 
@@ -21,6 +24,53 @@ use PHPUnit\Framework\AssertionFailedError;
  */
 class MakesHttpRequestsTest extends TestCase
 {
+    public function testFromSetsHeaderAndSession()
+    {
+        $this->from('previous/url');
+
+        $this->assertSame('previous/url', $this->defaultHeaders['referer']);
+        $this->assertSame('previous/url', $this->app['session']->previousUrl());
+    }
+
+    public function testFromRouteSetsHeaderAndSession()
+    {
+        $router = $this->app->make(Registrar::class);
+
+        $router->get('previous/url', fn () => 'ok')->name('previous-url');
+
+        $this->fromRoute('previous-url');
+
+        $this->assertSame('http://localhost/previous/url', $this->defaultHeaders['referer']);
+        $this->assertSame('http://localhost/previous/url', $this->app['session']->previousUrl());
+    }
+
+    public function testFromRemoveHeader()
+    {
+        $this->withHeader('name', 'Milwad')->from('previous/url');
+
+        $this->assertEquals('Milwad', $this->defaultHeaders['name']);
+
+        $this->withoutHeader('name')->from('previous/url');
+
+        $this->assertArrayNotHasKey('name', $this->defaultHeaders);
+    }
+
+    public function testFromRemoveHeaders()
+    {
+        $this->withHeaders([
+            'name' => 'Milwad',
+            'foo' => 'bar',
+        ])->from('previous/url');
+
+        $this->assertEquals('Milwad', $this->defaultHeaders['name']);
+        $this->assertEquals('bar', $this->defaultHeaders['foo']);
+
+        $this->withoutHeaders(['name', 'foo'])->from('previous/url');
+
+        $this->assertArrayNotHasKey('name', $this->defaultHeaders);
+        $this->assertArrayNotHasKey('foo', $this->defaultHeaders);
+    }
+
     public function testWithTokenSetsAuthorizationHeader()
     {
         $this->withToken('foobar');
@@ -337,6 +387,64 @@ class MakesHttpRequestsTest extends TestCase
             return $value === 'value';
         });
     }
+
+    public function testFollowingRedirectsTerminatesInExpectedOrder()
+    {
+        $router = $this->app->make(Registrar::class);
+
+        $callOrder = [];
+        TerminatingMiddleware::$callback = function ($request) use (&$callOrder) {
+            $callOrder[] = $request->path();
+        };
+
+        $router->get('from', function () {
+            return new \Hypervel\Http\RedirectResponse('http://localhost/to');
+        })->middleware(TerminatingMiddleware::class);
+
+        $router->get('to', function () {
+            return 'OK';
+        })->middleware(TerminatingMiddleware::class);
+
+        $this->followingRedirects()->get('from');
+
+        $this->assertEquals(['from', 'to'], $callOrder);
+    }
+
+    public function testWithPrecognition()
+    {
+        $this->withPrecognition();
+        $this->assertSame('true', $this->defaultHeaders['Precognition']);
+
+        $this->app->make(Registrar::class)
+            ->get('test-route', fn () => 'ok')->middleware(HandlePrecognitiveRequests::class);
+        $this->get('test-route')
+            ->assertStatus(204)
+            ->assertHeader('Precognition', 'true')
+            ->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testCreateTestResponsePassesLoggedExceptionCollection()
+    {
+        $this->app->make(Registrar::class)
+            ->get('test-route', fn () => 'ok');
+
+        $response = $this->get('test-route');
+
+        $this->assertInstanceOf(LoggedExceptionCollection::class, $response->exceptions);
+    }
+
+    public function testCreateTestResponseUsesContainerBoundExceptionCollection()
+    {
+        $collection = new LoggedExceptionCollection();
+        $this->app->instance(LoggedExceptionCollection::class, $collection);
+
+        $this->app->make(Registrar::class)
+            ->get('test-route', fn () => 'ok');
+
+        $response = $this->get('test-route');
+
+        $this->assertSame($collection, $response->exceptions);
+    }
 }
 
 class MyMiddleware
@@ -344,5 +452,20 @@ class MyMiddleware
     public function handle($request, $next)
     {
         return $next($request . 'WithMiddleware');
+    }
+}
+
+class TerminatingMiddleware
+{
+    public static $callback;
+
+    public function handle($request, $next)
+    {
+        return $next($request);
+    }
+
+    public function terminate($request, $response)
+    {
+        call_user_func(static::$callback, $request, $response);
     }
 }

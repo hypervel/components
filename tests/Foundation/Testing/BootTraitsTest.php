@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
+use Hypervel\Foundation\Testing\Attributes\SetUp;
+use Hypervel\Foundation\Testing\Attributes\TearDown;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
@@ -14,9 +16,7 @@ use ReflectionMethod;
  */
 class BootTraitsTest extends TestCase
 {
-    use TestTrait;
-
-    public function testSetUpTraits()
+    public function testSetUpAndTearDownTraits()
     {
         $testCase = new TestCaseWithTrait('foo');
 
@@ -29,6 +29,38 @@ class BootTraitsTest extends TestCase
         $method->invoke($testCase);
 
         $this->assertTrue($testCase->tearDown);
+    }
+
+    public function testSetUpAndTearDownWithAttributes()
+    {
+        $testCase = new TestCaseWithAttributeTrait('foo');
+
+        $method = new ReflectionMethod($testCase, 'setUpTraits');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->attributeSetUp);
+
+        $method = new ReflectionMethod($testCase, 'callBeforeApplicationDestroyedCallbacks');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->attributeTearDown);
+    }
+
+    public function testConventionalAndAttributeTraitsWorkTogether()
+    {
+        $testCase = new TestCaseWithBothTraits('foo');
+
+        $method = new ReflectionMethod($testCase, 'setUpTraits');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->setUp);
+        $this->assertTrue($testCase->attributeSetUp);
+
+        $method = new ReflectionMethod($testCase, 'callBeforeApplicationDestroyedCallbacks');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->tearDown);
+        $this->assertTrue($testCase->attributeTearDown);
     }
 }
 
@@ -51,6 +83,33 @@ class TestCaseWithTrait extends TestbenchTestCase
     }
 }
 
+/**
+ * @internal
+ * @coversNothing
+ */
+class TestCaseWithAttributeTrait extends TestbenchTestCase
+{
+    use TestTraitWithAttributes;
+
+    public function foo(): void
+    {
+    }
+}
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class TestCaseWithBothTraits extends TestbenchTestCase
+{
+    use TestTrait;
+    use TestTraitWithAttributes;
+
+    public function foo(): void
+    {
+    }
+}
+
 trait TestTrait
 {
     public bool $setUp = false;
@@ -65,5 +124,24 @@ trait TestTrait
     public function tearDownTestTrait()
     {
         $this->tearDown = true;
+    }
+}
+
+trait TestTraitWithAttributes
+{
+    public bool $attributeSetUp = false;
+
+    public bool $attributeTearDown = false;
+
+    #[SetUp]
+    public function initializeSearch()
+    {
+        $this->attributeSetUp = true;
+    }
+
+    #[TearDown]
+    public function cleanUpSearch()
+    {
+        $this->attributeTearDown = true;
     }
 }
