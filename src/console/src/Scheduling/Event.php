@@ -755,4 +755,12 @@ class Event
             preg_replace("#['\"]#", '', Application::artisanBinary()),
         ], $command);
     }
+
+    /**
+     * Flush the scheduler event's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
