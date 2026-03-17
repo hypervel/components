@@ -1691,4 +1691,12 @@ class TestResponse implements ArrayAccess
 
         return $this->baseResponse->{$method}(...$args);
     }
+
+    /**
+     * Flush the test response's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
