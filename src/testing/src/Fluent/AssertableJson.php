@@ -150,4 +150,12 @@ class AssertableJson implements Arrayable
     {
         return $this->props;
     }
+
+    /**
+     * Flush the assertable JSON global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
