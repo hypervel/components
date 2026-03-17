@@ -1646,6 +1646,24 @@ class FoundationViteTest extends TestCase
         $this->cleanViteManifest($buildDir);
     }
 
+    public function testItCanFlushState()
+    {
+        $this->makeViteManifest();
+
+        ViteFacade::useCspNonce('test-nonce');
+        ViteFacade::withEntryPoints(['resources/js/app.js']);
+        ViteFacade::__invoke('resources/js/app.js');
+
+        $this->assertNotNull(ViteFacade::cspNonce());
+        $this->assertCount(1, ViteFacade::preloadedAssets());
+
+        ViteFacade::flush();
+
+        $this->assertNull(ViteFacade::cspNonce());
+        $this->assertCount(0, ViteFacade::preloadedAssets());
+        $this->assertSame('', ViteFacade::toHtml());
+    }
+
     protected function makeViteManifest($contents = null, $path = 'build')
     {
         app()->setBasePath(__DIR__);
