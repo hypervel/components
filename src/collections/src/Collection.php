@@ -1884,4 +1884,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     {
         unset($this->items[$key]);
     }
+
+    /**
+     * Flush the collection's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

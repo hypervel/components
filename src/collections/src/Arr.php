@@ -1099,4 +1099,12 @@ class Arr
 
         return is_array($value) ? $value : [$value];
     }
+
+    /**
+     * Flush the array helper's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

@@ -306,4 +306,12 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     {
         $this->offsetUnset($key);
     }
+
+    /**
+     * Flush the fluent instance's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
