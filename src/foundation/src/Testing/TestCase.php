@@ -14,6 +14,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCaseLifecycle;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -31,6 +32,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithSession;
     use InteractsWithTime;
     use InteractsWithTestCaseLifecycle;
+    use InteractsWithViews;
     use MocksApplicationServices;
     use RunTestsInCoroutine;
     use WithFaker;
