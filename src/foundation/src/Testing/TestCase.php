@@ -4,247 +4,76 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Context\Context;
-use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithDeprecationHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCaseLifecycle;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Support\Facades\Facade;
-use Hypervel\Support\Facades\ParallelTesting;
 use Throwable;
-
-use function Hypervel\Coroutine\run;
 
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
     use InteractsWithContainer;
-    use InteractsWithExceptionHandling;
     use MakesHttpRequests;
     use InteractsWithAuthentication;
     use InteractsWithConsole;
     use InteractsWithDatabase;
+    use InteractsWithDeprecationHandling;
+    use InteractsWithExceptionHandling;
     use InteractsWithSession;
     use InteractsWithTime;
+    use InteractsWithTestCaseLifecycle;
     use MocksApplicationServices;
     use RunTestsInCoroutine;
     use WithFaker;
 
     /**
-     * The callbacks that should be run after the application is created.
+     * Set up the test environment.
      */
-    protected array $afterApplicationCreatedCallbacks = [];
-
-    /**
-     * The callbacks that should be run before the application is destroyed.
-     */
-    protected array $beforeApplicationDestroyedCallbacks = [];
-
-    /**
-     * The exception thrown while running an application destruction callback.
-     */
-    protected ?Throwable $callbackException = null;
-
-    /**
-     * Indicates if we have made it through the base setUp function.
-     */
-    protected bool $setUpHasRun = false;
-
     protected function setUp(): void
     {
-        Facade::clearResolvedInstances();
-
-        /* @phpstan-ignore-next-line */
-        if (! $this->app) {
-            $this->refreshApplication();
-
-            ParallelTesting::callSetUpTestCaseCallbacks($this);
-        }
-
-        // Reset after Application exists so container-change detection works correctly
-        // and rebinding hooks are registered on the current container.
-        DatabaseConnectionResolver::flushCachedConnections();
-
-        $this->runInCoroutine(function () {
-            $this->setUpTraits();
-
-            // Preserve transaction manager context for the test coroutine.
-            // RefreshDatabase stores transaction state in Context, but setUpTraits runs
-            // in a temporary coroutine. Copy to non-coroutine context so the test
-            // coroutine (which copies from nonCoContext) can access it.
-            $this->preserveTransactionContext();
-        });
-
-        foreach ($this->afterApplicationCreatedCallbacks as $callback) {
-            $callback();
-        }
-
-        $this->setUpHasRun = true;
+        $this->setUpTheTestEnvironment();
     }
 
     /**
-     * Boot the testing helper traits.
-     *
-     * @return array
+     * Refresh the application instance.
      */
-    protected function setUpTraits()
+    protected function refreshApplication(): void
     {
-        $uses = array_flip(class_uses_recursive(static::class));
-
-        if (isset($uses[WithFaker::class])) {
-            $this->setUpFaker();
-        }
-
-        $this->setUpDatabaseTraits($uses);
-
-        if (isset($uses[WithoutMiddleware::class])) {
-            $this->disableMiddlewareForAllTests();
-        }
-
-        if (isset($uses[WithoutEvents::class])) {
-            $this->disableEventsForAllTests();
-        }
-
-        foreach ($uses as $trait) {
-            if (method_exists($this, $method = 'setUp' . class_basename($trait))) {
-                $this->{$method}();
-            }
-
-            if (method_exists($this, $method = 'tearDown' . class_basename($trait))) {
-                $this->beforeApplicationDestroyed(fn () => $this->{$method}());
-            }
-        }
-
-        return $uses;
+        $this->app = $this->createApplication();
     }
 
     /**
-     * Set up database-related testing traits.
-     *
-     * Override this method to customize database trait initialization order,
-     * e.g. to process test attributes before migrations run.
+     * Create the application.
      */
-    protected function setUpDatabaseTraits(array $uses): void
+    protected function createApplication(): ApplicationContract
     {
-        if (isset($uses[RefreshDatabase::class])) {
-            $this->refreshDatabase();
-        }
-
-        if (isset($uses[DatabaseMigrations::class])) {
-            $this->runDatabaseMigrations();
-        }
-
-        if (isset($uses[DatabaseTransactions::class])) {
-            $this->beginDatabaseTransaction();
-        }
+        return require BASE_PATH . '/bootstrap/app.php';
     }
 
+    /**
+     * Clean up the testing environment before the next test.
+     *
+     * @throws Throwable
+     */
     protected function tearDown(): void
     {
-        if ($this->app) {
-            $this->runInCoroutine(
-                fn () => $this->callBeforeApplicationDestroyedCallbacks()
-            );
-
-            ParallelTesting::callTearDownTestCaseCallbacks($this);
-
-            $this->flushApplication();
-        }
-
-        $this->afterApplicationCreatedCallbacks = [];
-        $this->beforeApplicationDestroyedCallbacks = [];
-
-        if ($this->callbackException) {
-            throw $this->callbackException;
-        }
-
-        HandleExceptions::flushState($this);
-
-        $this->setUpHasRun = false;
+        $this->tearDownTheTestEnvironment();
     }
 
     /**
-     * Register a callback to be run after the application is created.
+     * Clean up the testing environment before the next test case.
      */
-    public function afterApplicationCreated(callable $callback)
+    public static function tearDownAfterClass(): void
     {
-        $this->afterApplicationCreatedCallbacks[] = $callback;
-
-        if ($this->setUpHasRun) {
-            $callback();
-        }
-    }
-
-    /**
-     * Register a callback to be run before the application is destroyed.
-     */
-    protected function beforeApplicationDestroyed(callable $callback)
-    {
-        $this->beforeApplicationDestroyedCallbacks[] = $callback;
-    }
-
-    /**
-     * Execute the application's pre-destruction callbacks.
-     */
-    protected function callBeforeApplicationDestroyedCallbacks()
-    {
-        foreach ($this->beforeApplicationDestroyedCallbacks as $callback) {
-            try {
-                $callback();
-            } catch (Throwable $e) {
-                if (! $this->callbackException) {
-                    $this->callbackException = $e;
-                }
-            }
-        }
-    }
-
-    /**
-     * Preserve transaction manager context for the test coroutine.
-     *
-     * RefreshDatabase and DatabaseTransactions store transaction state in Context.
-     * Since setUpTraits runs in a temporary coroutine (separate from the test method's
-     * coroutine), we must copy this state to non-coroutine context. The test coroutine
-     * will then copy from non-coroutine context via copyFromNonCoroutine().
-     */
-    protected function preserveTransactionContext(): void
-    {
-        DatabaseTransactionsManager::copyToNonCoroutineState();
-    }
-
-    /**
-     * Ensure callback is executed in coroutine.
-     *
-     * Exceptions are captured and re-thrown outside the coroutine context
-     * so they propagate correctly to PHPUnit (e.g., for markTestSkipped).
-     */
-    protected function runInCoroutine(callable $callback): void
-    {
-        if (Coroutine::inCoroutine()) {
-            $callback();
-            return;
-        }
-
-        $exception = null;
-
-        run(function () use ($callback, &$exception) {
-            try {
-                $callback();
-            } catch (Throwable $e) {
-                $exception = $e;
-            }
-        });
-
-        if ($exception !== null) {
-            throw $exception;
-        }
+        static::tearDownAfterClassUsingTestCase();
     }
 }
