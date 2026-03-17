@@ -1493,4 +1493,12 @@ class Blueprint
     {
         return $this->connection->getSchemaBuilder()::$defaultTimePrecision;
     }
+
+    /**
+     * Flush the blueprint's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
