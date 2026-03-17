@@ -79,9 +79,11 @@ use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Http\Request;
+use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
+use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Validation\ValidationException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -142,6 +144,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->registerUriUrlGeneration();
 
         $this->registerDumper();
+        $this->registerExceptionTracking();
         $this->registerExceptionRenderer();
 
         $this->commands([
@@ -316,6 +319,28 @@ class FoundationServiceProvider extends ServiceProvider
                 $this->app->make(MaintenanceModeManager::class)->driver()
             )
         );
+    }
+
+    /**
+     * Register the exception tracking for tests.
+     */
+    protected function registerExceptionTracking(): void
+    {
+        if (! $this->app->runningUnitTests()) {
+            return;
+        }
+
+        $this->app->instance(
+            LoggedExceptionCollection::class,
+            new LoggedExceptionCollection()
+        );
+
+        $this->app->make('events')->listen(MessageLogged::class, function ($event) {
+            if (isset($event->context['exception'])) {
+                $this->app->make(LoggedExceptionCollection::class)
+                    ->push($event->context['exception']);
+            }
+        });
     }
 
     /**
