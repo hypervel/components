@@ -17,8 +17,10 @@ trait Interactivity
 
     /**
      * Whether to render the prompt interactively.
+     *
+     * Null means no override — falls back to stream_isatty(STDIN).
      */
-    protected static bool $interactive;
+    protected static ?bool $interactive = null;
 
     /**
      * Set interactive mode.
@@ -38,10 +40,19 @@ trait Interactivity
     public static function isInteractive(): ?bool
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get(self::INTERACTIVE_CONTEXT_KEY) ?? (isset(static::$interactive) ? static::$interactive : null);
+            return Context::get(self::INTERACTIVE_CONTEXT_KEY) ?? static::$interactive;
         }
 
-        return isset(static::$interactive) ? static::$interactive : null;
+        return static::$interactive;
+    }
+
+    /**
+     * Reset interactivity state to defaults.
+     */
+    public static function resetInteractivity(): void
+    {
+        static::$interactive = null;
+        Context::forget(self::INTERACTIVE_CONTEXT_KEY);
     }
 
     /**
