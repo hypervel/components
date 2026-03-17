@@ -334,4 +334,12 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
         return $this;
     }
+
+    /**
+     * Flush the file rule's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

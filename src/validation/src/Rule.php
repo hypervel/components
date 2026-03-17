@@ -270,4 +270,12 @@ class Rule
 
         return $parser->explode(ValidationRuleParser::filterConditionalRules($rules, $data));
     }
+
+    /**
+     * Flush the rule builder's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

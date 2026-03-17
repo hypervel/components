@@ -177,4 +177,12 @@ class Date implements Stringable
             ...$this->constraints,
         ]);
     }
+
+    /**
+     * Flush the date rule's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

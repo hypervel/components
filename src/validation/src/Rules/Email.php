@@ -254,4 +254,12 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
         return $this;
     }
+
+    /**
+     * Flush the email rule's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
