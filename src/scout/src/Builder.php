@@ -546,4 +546,12 @@ class Builder
 
         return $connection->getDriverName();
     }
+
+    /**
+     * Flush the scout builder's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
