@@ -1355,6 +1355,15 @@ class Route
     }
 
     /**
+     * Flush the route's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$validators = null;
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically access route parameters.
      */
     public function __get(string $key): mixed
