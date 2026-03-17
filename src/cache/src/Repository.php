@@ -783,4 +783,12 @@ class Repository implements ArrayAccess, CacheContract
     {
         $this->events?->dispatch($event);
     }
+
+    /**
+     * Flush the cache repository's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
