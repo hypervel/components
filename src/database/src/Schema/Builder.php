@@ -96,6 +96,7 @@ class Builder
         static::$defaultStringLength = 255;
         static::$defaultTimePrecision = 0;
         static::$defaultMorphKeyType = 'int';
+        static::flushMacros();
     }
 
     /**
