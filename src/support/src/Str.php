@@ -1746,12 +1746,15 @@ class Str
     }
 
     /**
-     * Return all factory functions to their default state.
+     * Flush the string helper's global state.
      */
-    public static function resetFactoryState(): void
+    public static function flushState(): void
     {
+        // Return all factory functions to their default state.
         static::createRandomStringsNormally();
         static::createUlidsNormally();
         static::createUuidsNormally();
+
+        static::flushMacros();
     }
 }
