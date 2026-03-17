@@ -411,4 +411,13 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     {
         return $this->uri->toString();
     }
+
+    /**
+     * Flush the URI helper's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$urlGeneratorResolver = null;
+        static::flushMacros();
+    }
 }
