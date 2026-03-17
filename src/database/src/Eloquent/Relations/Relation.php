@@ -504,4 +504,15 @@ abstract class Relation implements BuilderContract
     {
         $this->query = clone $this->query;
     }
+
+    /**
+     * Flush the relation's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$morphMap = [];
+        static::$requireMorphMap = false;
+        static::$selfJoinCount = 0;
+        static::flushMacros();
+    }
 }
