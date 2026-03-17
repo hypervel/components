@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Vite;
+use Hypervel\Support\Facades\Vite as ViteFacade;
+use Hypervel\Support\HtmlString;
 use Mockery;
 use Mockery\MockInterface;
 
 trait InteractsWithContainer
 {
-    protected ?ApplicationContract $app = null;
+    /**
+     * The original Vite handler.
+     */
+    protected ?Vite $originalVite = null;
 
     /**
      * Register an instance of an object in the container.
@@ -74,26 +79,105 @@ trait InteractsWithContainer
         return $this;
     }
 
-    protected function flushApplication(): void
+    /**
+     * Register a Vite handler that returns empty strings for all assets.
+     *
+     * @return $this
+     */
+    protected function withoutVite(): static
     {
-        $this->app->flush();
+        if ($this->originalVite === null) {
+            $this->originalVite = app(Vite::class);
+        }
 
-        $this->app = null;
+        ViteFacade::clearResolvedInstance();
+
+        $this->swap(Vite::class, new class extends Vite {
+            public function __invoke(string|array $entrypoints, ?string $buildDirectory = null): HtmlString
+            {
+                return new HtmlString('');
+            }
+
+            public function __call(string $method, array $parameters): mixed
+            {
+                return '';
+            }
+
+            public function __toString(): string
+            {
+                return '';
+            }
+
+            public function useIntegrityKey(string|false $key): static
+            {
+                return $this;
+            }
+
+            public function useBuildDirectory(string $path): static
+            {
+                return $this;
+            }
+
+            public function useHotFile(string $path): static
+            {
+                return $this;
+            }
+
+            public function withEntryPoints(array $entryPoints): static
+            {
+                return $this;
+            }
+
+            public function useScriptTagAttributes(array|callable $attributes): static
+            {
+                return $this;
+            }
+
+            public function useStyleTagAttributes(array|callable $attributes): static
+            {
+                return $this;
+            }
+
+            public function usePreloadTagAttributes(array|callable|false $attributes): static
+            {
+                return $this;
+            }
+
+            public function preloadedAssets(): array
+            {
+                return [];
+            }
+
+            public function reactRefresh(): ?HtmlString
+            {
+                return new HtmlString('');
+            }
+
+            public function content(string $asset, ?string $buildDirectory = null): string
+            {
+                return '';
+            }
+
+            public function asset(string $asset, ?string $buildDirectory = null): string
+            {
+                return '';
+            }
+        });
+
+        return $this;
     }
 
     /**
-     * Refresh the application instance.
+     * Restore Vite in the container.
+     *
+     * @return $this
      */
-    protected function refreshApplication(): void
+    protected function withVite(): static
     {
-        $this->app = $this->createApplication();
-    }
+        if ($this->originalVite) {
+            $this->app->instance(Vite::class, $this->originalVite);
+        }
 
-    /**
-     * Create the application.
-     */
-    protected function createApplication(): ApplicationContract
-    {
-        return require BASE_PATH . '/bootstrap/app.php';
+        return $this;
     }
 }
