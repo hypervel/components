@@ -221,9 +221,9 @@ abstract class Facade
     /**
      * Clear a resolved facade instance.
      */
-    public static function clearResolvedInstance(string $name): void
+    public static function clearResolvedInstance(?string $name = null): void
     {
-        unset(static::$resolvedInstance[$name]);
+        unset(static::$resolvedInstance[$name ?? static::getFacadeAccessor()]);
     }
 
     /**
