@@ -31,3 +31,6 @@ runs:
           pecl install redis > /dev/null
           docker-php-ext-enable redis > /dev/null
         fi
+
+        # Disable Swoole shortnames to avoid shadowing foundation helpers
+        echo "swoole.use_shortname=Off" > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
