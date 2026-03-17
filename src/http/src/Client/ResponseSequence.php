@@ -129,4 +129,12 @@ class ResponseSequence
 
         return $response instanceof Closure ? $response($request) : $response;
     }
+
+    /**
+     * Flush the response sequence's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

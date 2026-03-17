@@ -299,4 +299,12 @@ class Request implements ArrayAccess
     {
         throw new LogicException('Request data may not be mutated using array access.');
     }
+
+    /**
+     * Flush the client request's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
