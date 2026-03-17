@@ -6,8 +6,16 @@ namespace Hypervel\Tests\Foundation;
 
 use Carbon\Carbon;
 use DateTimeZone;
+use Hypervel\Broadcasting\FakePendingBroadcast;
+use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use stdClass;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 enum HelpersTestStringEnum: string
 {
@@ -147,6 +155,31 @@ class HelpersTest extends TestCase
         $this->assertInstanceOf(Carbon::class, $result);
     }
 
+    public function testCache()
+    {
+        $cache = m::mock(CacheManager::class);
+        $this->app['cache'] = $cache;
+
+        // cache() returns the CacheManager
+        $this->assertInstanceOf(CacheManager::class, cache());
+
+        // cache(['foo' => 'bar'], 1) puts
+        $cache->shouldReceive('put')->once()->with('foo', 'bar', 1);
+        cache(['foo' => 'bar'], 1);
+
+        // cache('foo') gets
+        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $this->assertSame('bar', cache('foo'));
+
+        // cache('foo', null) gets with null default
+        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $this->assertSame('bar', cache('foo', null));
+
+        // cache('baz', 'default') gets with default
+        $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
+        $this->assertSame('default', cache('baz', 'default'));
+    }
+
     public function testEventHelperReturnsArrayForNormalDispatch()
     {
         Event::listen('test.event', function () {
@@ -183,5 +216,170 @@ class HelpersTest extends TestCase
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
+    }
+
+    public function testAbortReceivesCodeAsSymfonyResponseInstance()
+    {
+        try {
+            abort($code = new SymfonyResponse());
+
+            $this->fail(
+                sprintf('abort function must throw %s when receiving code as Symfony Response instance.', HttpResponseException::class)
+            );
+        } catch (HttpResponseException $exception) {
+            $this->assertSame($code, $exception->getResponse());
+        }
+    }
+
+    public function testAbortReceivesCodeAsResponsableImplementation()
+    {
+        $request = \Hypervel\Http\Request::create('/');
+        $this->app->instance('request', $request);
+
+        try {
+            abort($code = new class implements Responsable {
+                public ?\Hypervel\Http\Request $request = null;
+
+                public function toResponse(\Hypervel\Http\Request $request): SymfonyResponse
+                {
+                    $this->request = $request;
+
+                    return new SymfonyResponse();
+                }
+            });
+
+            $this->fail(
+                sprintf('abort function must throw %s when receiving code as Responsable implementation.', HttpResponseException::class)
+            );
+        } catch (HttpResponseException) {
+            $this->assertSame($request, $code->request);
+        }
+    }
+
+    public function testAbortReceivesCodeAsInteger()
+    {
+        try {
+            abort(400, 'Bad request', ['X-FOO' => 'BAR']);
+
+            $this->fail('abort function must throw HttpException when receiving code as integer.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+            $this->assertSame('Bad request', $exception->getMessage());
+            $this->assertSame('BAR', $exception->getHeaders()['X-FOO']);
+        }
+    }
+
+    public function testBroadcastIfReturnsFakeOnFalse()
+    {
+        $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_if(false, 'foo'));
+    }
+
+    public function testBroadcastIfReturnsRealBroadcastOnTrue()
+    {
+        $result = broadcast_if(true, new stdClass());
+
+        $this->assertInstanceOf(PendingBroadcast::class, $result);
+        $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
+    }
+
+    public function testBroadcastIfEvaluatesEventLazily()
+    {
+        $evaluated = false;
+
+        broadcast_if(false, function () use (&$evaluated) {
+            $evaluated = true;
+            return new stdClass();
+        });
+
+        $this->assertFalse($evaluated, 'Event closure should not be evaluated when condition is false');
+    }
+
+    public function testBroadcastUnlessReturnsFakeOnTrue()
+    {
+        $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_unless(true, 'foo'));
+    }
+
+    public function testBroadcastUnlessReturnsRealBroadcastOnFalse()
+    {
+        $result = broadcast_unless(false, new stdClass());
+
+        $this->assertInstanceOf(PendingBroadcast::class, $result);
+        $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
+    }
+
+    public function testFakePendingBroadcastMethodsAreNoOps()
+    {
+        $fake = new FakePendingBroadcast();
+
+        $this->assertSame($fake, $fake->via('pusher'));
+        $this->assertSame($fake, $fake->toOthers());
+    }
+
+    public function testDeferWithoutNameExecutesCallback()
+    {
+        $executed = false;
+
+        \Swoole\Coroutine::create(function () use (&$executed) {
+            defer(function () use (&$executed) {
+                $executed = true;
+            });
+        });
+
+        $this->assertTrue($executed);
+    }
+
+    public function testDeferWithNameDeduplicatesCallbacks()
+    {
+        $results = [];
+
+        \Swoole\Coroutine::create(function () use (&$results) {
+            defer(function () use (&$results) {
+                $results[] = 'first';
+            }, 'sync-metrics');
+
+            defer(function () use (&$results) {
+                $results[] = 'second';
+            }, 'sync-metrics');
+        });
+
+        $this->assertSame(['second'], $results);
+    }
+
+    public function testDeferWithDifferentNamesRunsBoth()
+    {
+        $results = [];
+
+        \Swoole\Coroutine::create(function () use (&$results) {
+            defer(function () use (&$results) {
+                $results[] = 'foo';
+            }, 'foo');
+
+            defer(function () use (&$results) {
+                $results[] = 'bar';
+            }, 'bar');
+        });
+
+        $this->assertCount(2, $results);
+        $this->assertContains('foo', $results);
+        $this->assertContains('bar', $results);
+    }
+
+    public function testDeferWithNamedAndUnnamedBothExecute()
+    {
+        $results = [];
+
+        \Swoole\Coroutine::create(function () use (&$results) {
+            defer(function () use (&$results) {
+                $results[] = 'unnamed';
+            });
+
+            defer(function () use (&$results) {
+                $results[] = 'named';
+            }, 'my-name');
+        });
+
+        $this->assertCount(2, $results);
+        $this->assertContains('unnamed', $results);
+        $this->assertContains('named', $results);
     }
 }
