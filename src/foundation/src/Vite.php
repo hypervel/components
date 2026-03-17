@@ -746,7 +746,7 @@ class Vite implements Htmlable
 
         $chunk = $this->chunk($this->manifest($buildDirectory), $asset);
 
-        $path = public_path($buildDirectory . '/' . $chunk['file']);
+        $path = $this->publicPath($buildDirectory . '/' . $chunk['file']);
 
         if (! is_file($path) || ! file_exists($path)) {
             throw new ViteException("Unable to locate file from Vite manifest: {$path}.");
@@ -761,6 +761,14 @@ class Vite implements Htmlable
     protected function assetPath(string $path, ?bool $secure = null): string
     {
         return ($this->assetPathResolver ?? asset(...))($path, $secure);
+    }
+
+    /**
+     * Generate a public path for an asset.
+     */
+    protected function publicPath(string $path): string
+    {
+        return public_path($path);
     }
 
     /**
@@ -788,7 +796,7 @@ class Vite implements Htmlable
      */
     protected function manifestPath(string $buildDirectory): string
     {
-        return public_path($buildDirectory . '/' . $this->manifestFilename);
+        return $this->publicPath($buildDirectory . '/' . $this->manifestFilename);
     }
 
     /**
@@ -851,5 +859,18 @@ class Vite implements Htmlable
         $entryPoints = Context::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
 
         return $this->__invoke($entryPoints)->toHtml();
+    }
+
+    /**
+     * Flush all Vite state.
+     */
+    public static function flush(): void
+    {
+        Context::forget(static::NONCE_CONTEXT_KEY);
+        Context::forget(static::ENTRY_POINTS_CONTEXT_KEY);
+        Context::forget(static::PRELOADED_ASSETS_CONTEXT_KEY);
+
+        static::$manifests = [];
+        static::flushMacros();
     }
 }
