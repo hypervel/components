@@ -17,11 +17,13 @@ class AuthServiceProvider extends ServiceProvider
     protected array $policies = [];
 
     /**
-     * Bootstrap any application services.
+     * Register the application's policies.
      */
-    public function boot(): void
+    public function register(): void
     {
-        $this->registerPolicies();
+        $this->booting(function () {
+            $this->registerPolicies();
+        });
     }
 
     /**
@@ -29,8 +31,18 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function registerPolicies(): void
     {
-        foreach ($this->policies as $model => $policy) {
+        foreach ($this->policies() as $model => $policy) {
             Gate::policy($model, $policy);
         }
+    }
+
+    /**
+     * Get the policies defined on the provider.
+     *
+     * @return array<class-string, class-string>
+     */
+    public function policies(): array
+    {
+        return $this->policies;
     }
 }
