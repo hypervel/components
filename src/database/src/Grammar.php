@@ -236,4 +236,12 @@ abstract class Grammar
     {
         return 'Y-m-d H:i:s';
     }
+
+    /**
+     * Flush the grammar's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
