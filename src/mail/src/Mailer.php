@@ -515,4 +515,12 @@ class Mailer implements MailerContract, MailQueueContract
 
         return $this;
     }
+
+    /**
+     * Flush the mailer's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

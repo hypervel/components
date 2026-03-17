@@ -159,4 +159,12 @@ class Attachment
             fn ($data) => [$data(), $options],
         ));
     }
+
+    /**
+     * Flush the attachment's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
