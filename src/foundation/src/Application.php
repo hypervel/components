@@ -162,11 +162,24 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     public function __construct(?string $basePath = null)
     {
+        $this->checkEnvironment();
         $this->setBasePath($basePath ?: '');
 
         $this->registerBaseBindings();
         $this->registerBaseServiceProviders();
         $this->registerCoreContainerAliases();
+    }
+
+    /**
+     * Check that the runtime environment is properly configured.
+     */
+    protected function checkEnvironment(): void
+    {
+        if (filter_var(ini_get('swoole.use_shortname'), FILTER_VALIDATE_BOOLEAN)) {
+            throw new RuntimeException(
+                'Swoole short function names must be disabled. Set swoole.use_shortname=Off in your php.ini.'
+            );
+        }
     }
 
     /**
