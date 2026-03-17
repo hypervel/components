@@ -485,4 +485,24 @@ abstract class Prompt
 
         static::terminal()->restoreTty();
     }
+
+    /**
+     * Flush all prompt static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$cancelUsing = null;
+        static::$validateUsing = null;
+        static::$revertUsing = null;
+        static::$output = new ConsoleOutput();
+        static::$terminal = new Terminal();
+
+        Context::forget(self::OUTPUT_CONTEXT_KEY);
+        Context::forget(self::VALIDATE_USING_CONTEXT_KEY);
+
+        static::resetCursor();
+        static::resetFallback();
+        static::resetInteractivity();
+        static::resetTheme();
+    }
 }
