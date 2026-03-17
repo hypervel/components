@@ -2029,4 +2029,12 @@ class Builder implements BuilderContract
             $onCloneCallback($this);
         }
     }
+
+    /**
+     * Flush the Eloquent builder's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$macros = [];
+    }
 }
