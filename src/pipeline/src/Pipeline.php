@@ -267,4 +267,12 @@ class Pipeline implements PipelineContract
     {
         throw $e;
     }
+
+    /**
+     * Flush the pipeline's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
