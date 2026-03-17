@@ -459,4 +459,17 @@ class Sleep
     {
         static::$syncWithCarbon = $value;
     }
+
+    /**
+     * Flush all sleep state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$fake = false;
+        static::$sequence = [];
+        static::$fakeSleepCallbacks = [];
+        static::$syncWithCarbon = false;
+
+        static::flushMacros();
+    }
 }
