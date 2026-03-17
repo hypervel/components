@@ -18,6 +18,7 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
+use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
 
 /**
  * Provides test case lifecycle and attribute caching functionality.
@@ -247,5 +248,18 @@ trait InteractsWithTestCase
         static::$cachedTestCaseClassAttributes = [];
         static::$cachedTestCaseMethodAttributes = [];
         static::$cachedTestCaseUses = null;
+    }
+
+    /**
+     * Clear PHPUnit annotation parser caches.
+     */
+    public static function tearDownAfterClassUsingPHPUnit(): void
+    {
+        if (class_exists(PHPUnitRegistry::class)) {
+            (function () {
+                $this->classDocBlocks = [];
+                $this->methodDocBlocks = [];
+            })->call(PHPUnitRegistry::getInstance());
+        }
     }
 }

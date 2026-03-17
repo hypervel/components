@@ -121,6 +121,6 @@ class TestCase extends BaseTestCase
     public static function tearDownAfterClass(): void
     {
         static::tearDownAfterClassUsingTestCase();
-        parent::tearDownAfterClass();
+        static::tearDownAfterClassUsingPHPUnit();
     }
 }
