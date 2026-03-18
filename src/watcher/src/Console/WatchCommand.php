@@ -7,8 +7,10 @@ namespace Hypervel\Watcher\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\Concerns\NullDisableEventDispatcher;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\Watcher;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -31,6 +33,12 @@ class WatchCommand extends Command
      */
     public function handle(): void
     {
+        if (Application::getInstance()->runningInConsole()) {
+            throw new RuntimeException(
+                'Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.'
+            );
+        }
+
         $options = $this->container->make('config')->get('watcher', []);
 
         $option = $this->container->make(Option::class, [
