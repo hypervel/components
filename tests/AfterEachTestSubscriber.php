@@ -10,6 +10,8 @@ use Hypervel\ApiClient\PendingRequest as ApiClientPendingRequest;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Auth\Notifications\ResetPassword;
+use Hypervel\Auth\Notifications\VerifyEmail;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Console\Application as ConsoleApplication;
@@ -220,6 +222,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         RegisterProviders::flushState();
         Relation::flushState();
         ResetCommand::prohibit(false);
+        ResetPassword::flushState();
         ResourceRegistrar::flushState();
         ResponseSequence::flushState();
         Route::flushState();
@@ -249,6 +252,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         UrlGenerator::flushRequestState();
         ValidateSignature::flushState();
         Validator::flushState();
+        VerifyEmail::flushState();
         Vite::flush();
         WipeCommand::prohibit(false);
         WorkCommand::flushState();
