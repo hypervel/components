@@ -32,7 +32,12 @@ interface Guard
     public function validate(array $credentials = []): bool;
 
     /**
+     * Determine if the guard has a user instance.
+     */
+    public function hasUser(): bool;
+
+    /**
      * Set the current user.
      */
-    public function setUser(Authenticatable $user): void;
+    public function setUser(Authenticatable $user): static;
 }
