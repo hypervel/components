@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hypervel\Foundation\Application;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 
@@ -102,40 +101,29 @@ class ApplicationRunningInConsoleTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Serve command: bootstrap vs server phases
+    // Serve / watch commands use env-driven HTTP semantics during bootstrap
     // ------------------------------------------------------------------
 
-    public function testServeCommandBootstrapPhaseRunsInConsole()
+    public function testServeCommandCanBootstrapWithHttpSemanticsViaEnvVar()
     {
         $_SERVER['argv'] = ['artisan', 'serve'];
+        putenv('APP_RUNNING_IN_CONSOLE=false');
+
         $app = $this->getApplication();
-
-        // During bootstrap (before server starts), runningInConsole is true.
-        // Providers register commands, publishes, etc. under this value.
-        $this->assertTrue($app->runningInConsole());
-    }
-
-    public function testServeCommandFlipsToFalseBeforeServerStarts()
-    {
-        $_SERVER['argv'] = ['artisan', 'serve'];
-        $app = $this->getApplication();
-
-        // Simulate what ServerStartCommand::execute() does before $serverFactory->start()
-        $app->setRunningInConsole(false);
 
         $this->assertFalse($app->runningInConsole());
+        $this->assertFalse($app->runningConsoleCommand('serve'));
     }
 
-    public function testHttpWorkersInheritFalseAfterServerFlip()
+    public function testWatchCommandCanBootstrapWithHttpSemanticsViaEnvVar()
     {
+        $_SERVER['argv'] = ['artisan', 'watch'];
+        putenv('APP_RUNNING_IN_CONSOLE=false');
+
         $app = $this->getApplication();
 
-        // Simulate the serve command flipping the flag
-        $app->setRunningInConsole(false);
-
-        // Workers forked after this point inherit the Application state.
-        // Any code checking runningInConsole() during request handling sees false.
         $this->assertFalse($app->runningInConsole());
+        $this->assertFalse($app->runningConsoleCommand('watch'));
     }
 
     // ------------------------------------------------------------------
@@ -324,24 +312,15 @@ class ApplicationRunningInConsoleTest extends TestCase
         $this->assertSame('production', $result);
     }
 
-    // ------------------------------------------------------------------
-    // Full serve lifecycle simulation
-    // ------------------------------------------------------------------
-
-    public function testFullServeLifecycle()
+    public function testDetectEnvironmentIgnoresArgvWhenHttpSemanticsAreSetViaEnvVar()
     {
-        $_SERVER['argv'] = ['artisan', 'serve'];
+        $_SERVER['argv'] = ['artisan', '--env=staging'];
+        putenv('APP_RUNNING_IN_CONSOLE=false');
+
         $app = $this->getApplication();
 
-        // Phase 1: Bootstrap — providers register/boot under console mode
-        $this->assertTrue($app->runningInConsole());
-        $this->assertTrue($app->runningConsoleCommand('serve'));
+        $result = $app->detectEnvironment(fn () => 'production');
 
-        // Phase 2: ServerStartCommand::execute() flips the flag before server starts
-        $app->setRunningInConsole(false);
-
-        // Phase 3: HTTP server is running — request handlers see non-console
-        $this->assertFalse($app->runningInConsole());
-        $this->assertFalse($app->runningConsoleCommand('serve'));
+        $this->assertSame('production', $result);
     }
 }
