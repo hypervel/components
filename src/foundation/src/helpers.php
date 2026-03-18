@@ -158,13 +158,17 @@ if (! function_exists('asset')) {
 
 if (! function_exists('auth')) {
     /**
-     * Get auth guard.
+     * Get the auth manager or a specific guard instance.
      *
-     * @return ($guard is null ? AuthFactoryContract&Guard : Guard)
+     * @return ($guard is null ? AuthFactoryContract : Guard)
      */
-    function auth(?string $guard = null): mixed
+    function auth(?string $guard = null): AuthFactoryContract|Guard
     {
-        return \Hypervel\Auth\auth($guard);
+        if (is_null($guard)) {
+            return app(AuthFactoryContract::class);
+        }
+
+        return app(AuthFactoryContract::class)->guard($guard);
     }
 }
 
