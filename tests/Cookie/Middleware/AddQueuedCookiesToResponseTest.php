@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cookie\Middleware;
 
 use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
-use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 /**

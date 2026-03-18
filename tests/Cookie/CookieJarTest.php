@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cookie;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Symfony\Component\HttpFoundation\Cookie;
 use TypeError;
 
 enum CookieJarTestNameEnum: string

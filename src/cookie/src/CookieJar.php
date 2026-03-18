@@ -10,7 +10,7 @@ use Hypervel\Contracts\Cookie\QueueingFactory as JarContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
-use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
+use Symfony\Component\HttpFoundation\Cookie;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -106,7 +106,7 @@ class CookieJar implements JarContract
     /**
      * Get a queued cookie instance.
      */
-    public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): ?SymfonyCookie
+    public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): ?Cookie
     {
         $queued = Arr::get($this->getQueuedCookiesRaw(), enum_value($key), []);
 
@@ -122,7 +122,7 @@ class CookieJar implements JarContract
      */
     public function queue(mixed ...$parameters): void
     {
-        if (isset($parameters[0]) && $parameters[0] instanceof SymfonyCookie) {
+        if (isset($parameters[0]) && $parameters[0] instanceof Cookie) {
             $cookie = $parameters[0];
         } else {
             $cookie = $this->make(...array_values($parameters));
