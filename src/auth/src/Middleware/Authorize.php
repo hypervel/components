@@ -6,6 +6,7 @@ namespace Hypervel\Auth\Middleware;
 
 use Closure;
 use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
@@ -36,9 +37,10 @@ class Authorize
     /**
      * Handle an incoming request.
      *
+     * @throws AuthenticationException
      * @throws AuthorizationException
      */
-    public function handle(Request $request, Closure $next, string $ability, string ...$models): Response
+    public function handle(Request $request, Closure $next, string $ability, Model|string ...$models): Response
     {
         $this->gate->authorize($ability, $this->getGateArguments($request, $models));
 
@@ -58,7 +60,7 @@ class Authorize
     /**
      * Get the model to authorize.
      */
-    protected function getModel(Request $request, string $model): Model|string|null
+    protected function getModel(Request $request, string $model): mixed
     {
         if ($this->isClassName($model)) {
             return trim($model);
