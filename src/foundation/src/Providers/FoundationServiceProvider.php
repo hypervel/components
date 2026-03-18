@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Providers;
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -198,15 +197,6 @@ class FoundationServiceProvider extends ServiceProvider
             ViewClearCommand::class,
             ViewMakeCommand::class,
         ]);
-
-        $this->callAfterResolving(Request::class, function (Request $request) {
-            $request->setUserResolver(function (?string $guard = null) {
-                return $this->app
-                    ->make(AuthFactoryContract::class)
-                    ->guard($guard)
-                    ->user();
-            });
-        });
     }
 
     /**
