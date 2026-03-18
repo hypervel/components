@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum\Http\Middleware;
 
 use Closure;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Guards\SessionGuard;
+use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
@@ -61,9 +61,8 @@ class AuthenticateSession implements AuthenticatesSessions
 
         if ($shouldLogout->isNotEmpty()) {
             $shouldLogout->each(function ($guard) {
-                if (method_exists($guard, 'logout')) {
-                    $guard->logout();
-                }
+                /** @var SessionGuard $guard */
+                $guard->logout();
             });
 
             $request->session()->flush();
@@ -87,10 +86,7 @@ class AuthenticateSession implements AuthenticatesSessions
     protected function getFirstGuardWithUser(Collection $guards): ?string
     {
         return $guards->first(function (string $guard) {
-            $guardInstance = $this->auth->guard($guard);
-
-            return method_exists($guardInstance, 'hasUser')
-                   && $guardInstance->hasUser();
+            return $this->auth->guard($guard)->hasUser();
         });
     }
 
