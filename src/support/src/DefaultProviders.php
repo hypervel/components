@@ -18,6 +18,7 @@ class DefaultProviders
     {
         $this->providers = $providers ?: [
             \Hypervel\Auth\AuthServiceProvider::class,
+            \Hypervel\Auth\Passwords\PasswordResetServiceProvider::class,
             \Hypervel\Broadcasting\BroadcastServiceProvider::class,
             \Hypervel\Bus\BusServiceProvider::class,
             \Hypervel\Cache\CacheServiceProvider::class,
