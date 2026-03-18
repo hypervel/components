@@ -8,7 +8,8 @@ use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
-use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 
 use function Hypervel\Support\enum_value;
 
@@ -31,7 +32,7 @@ trait AuthorizesRequests
      *
      * @throws AuthorizationException
      */
-    public function authorizeForUser(?Authenticatable $user, mixed $ability, mixed $arguments = []): Response
+    public function authorizeForUser(mixed $user, mixed $ability, mixed $arguments = []): Response
     {
         [$ability, $arguments] = $this->parseAbilityAndArguments($ability, $arguments);
 
@@ -65,6 +66,30 @@ trait AuthorizesRequests
     }
 
     /**
+     * Authorize a resource action based on the incoming request.
+     */
+    public function authorizeResource(string|array $model, string|array|null $parameter = null, array $options = [], ?Request $request = null): void
+    {
+        $model = is_array($model) ? implode(',', $model) : $model;
+
+        $parameter = is_array($parameter) ? implode(',', $parameter) : $parameter;
+
+        $parameter = $parameter ?: Str::snake(class_basename($model));
+
+        $middleware = [];
+
+        foreach ($this->resourceAbilityMap() as $method => $ability) {
+            $modelName = in_array($method, $this->resourceMethodsWithoutModels()) ? $model : $parameter;
+
+            $middleware["can:{$ability},{$modelName}"][] = $method;
+        }
+
+        foreach ($middleware as $middlewareName => $methods) {
+            $this->middleware($middlewareName, $options)->only($methods);
+        }
+    }
+
+    /**
      * Get the map of resource methods to ability names.
      */
     protected function resourceAbilityMap(): array
@@ -78,5 +103,15 @@ trait AuthorizesRequests
             'update' => 'update',
             'destroy' => 'delete',
         ];
+    }
+
+    /**
+     * Get the list of resource methods which do not have model parameters.
+     *
+     * @return list<string>
+     */
+    protected function resourceMethodsWithoutModels(): array
+    {
+        return ['index', 'create', 'store'];
     }
 }
