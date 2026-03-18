@@ -84,7 +84,6 @@
             "Hypervel\\WebSocketServer\\": "src/websocket-server/src/"
         },
         "files": [
-            "src/auth/src/Functions.php",
             "src/bus/src/Functions.php",
             "src/cache/src/Functions.php",
             "src/config/src/Functions.php",
@@ -292,6 +291,7 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Auth\\AuthServiceProvider",
+                "Hypervel\\Auth\\Passwords\\PasswordResetServiceProvider",
                 "Hypervel\\Broadcasting\\BroadcastServiceProvider",
                 "Hypervel\\Bus\\BusServiceProvider",
                 "Hypervel\\Cache\\CacheServiceProvider",
