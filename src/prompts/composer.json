@@ -9,6 +9,16 @@
         "swoole",
         "hypervel"
     ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Hypervel\\Prompts\\": "src/"
