@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Contracts\Mail\Attachable;
-use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
@@ -1147,9 +1146,9 @@ class MailMailableTest extends TestCase
         $mailer->shouldReceive('render')
             ->andReturn('');
 
-        $this->app->singleton(FactoryContract::class, MailManager::class);
+        $this->app->singleton('mail.manager', fn ($app) => new MailManager($app));
         $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
-        $this->app->instance(MailerContract::class, $mailer);
+        $this->app->instance('mailer', $mailer);
     }
 
     protected function mockView()

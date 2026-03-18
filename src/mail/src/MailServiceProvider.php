@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hypervel\Contracts\Mail\Factory as FactoryContract;
-use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Support\ServiceProvider;
 
@@ -16,11 +14,26 @@ class MailServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(FactoryContract::class, fn ($app) => $app->build(MailManager::class));
+        $this->registerIlluminateMailer();
+        $this->registerMarkdownRenderer();
+    }
 
-        $this->app->singleton(MailerContract::class, fn ($app) => $app->make(FactoryContract::class)->mailer());
+    /**
+     * Register the mailer instance.
+     */
+    protected function registerIlluminateMailer(): void
+    {
+        $this->app->singleton('mail.manager', fn ($app) => new MailManager($app));
 
-        $this->app->bind(Markdown::class, fn ($app) => new Markdown(
+        $this->app->singleton('mailer', fn ($app) => $app->make('mail.manager')->mailer());
+    }
+
+    /**
+     * Register the Markdown renderer instance.
+     */
+    protected function registerMarkdownRenderer(): void
+    {
+        $this->app->singleton(Markdown::class, fn ($app) => new Markdown(
             $app->make(ViewFactoryContract::class),
             $app->make('config')->get('mail.markdown', []),
         ));

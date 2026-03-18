@@ -236,7 +236,7 @@ class Mailable implements MailableContract, Renderable
 
             /** @var \Hypervel\Mail\Mailer $mailer */
             $mailer = Container::getInstance()
-                ->make(Mailer::class);
+                ->make('mailer');
 
             return $mailer->render(
                 $this->buildView(),
@@ -1310,7 +1310,7 @@ class Mailable implements MailableContract, Renderable
 
             /** @var \Hypervel\Mail\Mailer $mailer */
             $mailer = Container::getInstance()
-                ->make(Mailer::class);
+                ->make('mailer');
 
             $html = $mailer->render(
                 $view = $this->buildView(),

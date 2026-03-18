@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
@@ -48,7 +47,7 @@ class MailLogTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $this->app->make(FactoryContract::class)
+        $transport = $this->app->make('mail.manager')
             ->removePoolable('log')
             ->getSymfonyTransport();
         $this->assertInstanceOf(LogTransport::class, $transport);
@@ -120,7 +119,7 @@ class MailLogTransportTest extends TestCase
 
         $this->app->instance(LoggerInterface::class, new NullLogger());
 
-        $transportLogger = $this->app->make(FactoryContract::class)->getSymfonyTransport()->logger();
+        $transportLogger = $this->app->make('mail.manager')->getSymfonyTransport()->logger();
 
         $this->assertEquals(
             $this->app->make(LoggerInterface::class),

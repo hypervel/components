@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -46,7 +45,7 @@ class MailFailoverTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $this->app->make(FactoryContract::class)
+        $transport = $this->app->make('mail.manager')
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
@@ -74,7 +73,7 @@ class MailFailoverTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $this->app->make(FactoryContract::class)
+        $transport = $this->app->make('mail.manager')
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
