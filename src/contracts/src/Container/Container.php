@@ -151,6 +151,11 @@ interface Container extends ContainerInterface
     public function resolved(string $abstract): bool;
 
     /**
+     * Register a new rebinding callback for an abstract type.
+     */
+    public function rebinding(string $abstract, Closure $callback): mixed;
+
+    /**
      * Register a new before resolving callback.
      */
     public function beforeResolving(Closure|string $abstract, ?Closure $callback = null): void;
