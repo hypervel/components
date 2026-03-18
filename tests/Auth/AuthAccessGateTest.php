@@ -10,6 +10,10 @@ use Hypervel\Auth\Access\HandlesAuthorization;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Tests\Auth\Fixtures\AbilitiesEnum;
+use Hypervel\Tests\Auth\Fixtures\DummyWithoutUsePolicy;
+use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicy;
+use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicyPolicy;
+use Hypervel\Tests\Auth\Fixtures\SubDummyWithUsePolicy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -1138,6 +1142,189 @@ class AuthAccessGateTest extends TestCase
         $this->assertTrue($gate->check(['edit', AbilitiesEnum::Update], new AccessGateTestDummy()));
     }
 
+    public function testDefineWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        // UnitEnum uses ->name, so key is 'ManageUsers'
+        $this->assertTrue($gate->allows('ManageUsers'));
+    }
+
+    public function testAllowsWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $this->assertTrue($gate->allows(GateTestUnitEnum::ManageUsers));
+    }
+
+    public function testDeniesWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => false);
+
+        $this->assertTrue($gate->denies(GateTestUnitEnum::ManageUsers));
+    }
+
+    public function testCheckWithArrayContainingUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define('allow_1', fn ($user) => true);
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $this->assertTrue($gate->check(['allow_1', GateTestUnitEnum::ManageUsers]));
+    }
+
+    public function testAnyWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define('deny', fn ($user) => false);
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $this->assertTrue($gate->any(['deny', GateTestUnitEnum::ManageUsers]));
+    }
+
+    public function testNoneWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define('deny_1', fn ($user) => false);
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => false);
+
+        $this->assertTrue($gate->none(['deny_1', GateTestUnitEnum::ManageUsers]));
+    }
+
+    public function testHasWithBackedEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(AbilitiesEnum::ViewDashboard, fn ($user) => true);
+
+        $this->assertTrue($gate->has(AbilitiesEnum::ViewDashboard));
+        $this->assertFalse($gate->has(AbilitiesEnum::Update));
+    }
+
+    public function testHasWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $this->assertTrue($gate->has(GateTestUnitEnum::ManageUsers));
+        $this->assertFalse($gate->has(GateTestUnitEnum::ViewReports));
+    }
+
+    public function testHasWithArrayContainingEnums()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(AbilitiesEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $this->assertTrue($gate->has([AbilitiesEnum::ViewDashboard, GateTestUnitEnum::ManageUsers]));
+        $this->assertFalse($gate->has([AbilitiesEnum::ViewDashboard, AbilitiesEnum::Update]));
+    }
+
+    public function testAuthorizeWithBackedEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(AbilitiesEnum::ViewDashboard, fn ($user) => true);
+
+        $response = $gate->authorize(AbilitiesEnum::ViewDashboard);
+
+        $this->assertTrue($response->allowed());
+    }
+
+    public function testAuthorizeWithUnitEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+
+        $response = $gate->authorize(GateTestUnitEnum::ManageUsers);
+
+        $this->assertTrue($response->allowed());
+    }
+
+    public function testInspectWithBackedEnum()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(AbilitiesEnum::ViewDashboard, fn ($user) => true);
+
+        $response = $gate->inspect(AbilitiesEnum::ViewDashboard);
+
+        $this->assertTrue($response->allowed());
+    }
+
+    public function testInspectWithUnitEnumDenied()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => false);
+
+        $response = $gate->inspect(GateTestUnitEnum::ManageUsers);
+
+        $this->assertFalse($response->allowed());
+    }
+
+    public function testBackedEnumAndStringInteroperability()
+    {
+        $gate = $this->getBasicGate();
+
+        // Define with enum, check with string
+        $gate->define(AbilitiesEnum::ViewDashboard, fn ($user) => true);
+        $this->assertTrue($gate->allows('view-dashboard'));
+
+        // Define with string, check with enum
+        $gate->define('update', fn ($user) => true);
+        $this->assertTrue($gate->allows(AbilitiesEnum::Update));
+    }
+
+    public function testUnitEnumAndStringInteroperability()
+    {
+        $gate = $this->getBasicGate();
+
+        // Define with enum, check with string (uses enum name)
+        $gate->define(GateTestUnitEnum::ManageUsers, fn ($user) => true);
+        $this->assertTrue($gate->allows('ManageUsers'));
+
+        // Define with string, check with enum
+        $gate->define('ViewReports', fn ($user) => true);
+        $this->assertTrue($gate->allows(GateTestUnitEnum::ViewReports));
+    }
+
+    public function testDefineWithIntBackedEnumNormalizesToStringKey()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestIntBackedEnum::CreatePost, fn ($user) => true);
+
+        // Int-backed enum value is cast to string '1' internally
+        $this->assertTrue($gate->has('1'));
+        $this->assertTrue($gate->allows('1'));
+    }
+
+    public function testAllowsWithIntBackedEnumWorksEndToEnd()
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateTestIntBackedEnum::CreatePost, fn ($user) => true);
+
+        // Int-backed enums are normalized to string throughout the flow
+        $this->assertTrue($gate->allows(GateTestIntBackedEnum::CreatePost));
+        $this->assertTrue($gate->has(GateTestIntBackedEnum::CreatePost));
+        $this->assertTrue($gate->inspect(GateTestIntBackedEnum::CreatePost)->allowed());
+        $gate->authorize(GateTestIntBackedEnum::CreatePost);
+    }
+
     /**
      * @param array $abilitiesToSet
      * @param array|string $abilitiesToCheck
@@ -1209,6 +1396,61 @@ class AuthAccessGateTest extends TestCase
         $this->assertSame('Nullable __invoke was called', AccessGateTestGuestNullableInvokable::$calledMethod);
 
         $this->assertFalse($gate->check('absent_invokable'));
+    }
+
+    public function testPolicyCanBeResolvedFromUsePolicyAttribute()
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(DummyWithUsePolicy::class)
+        );
+    }
+
+    public function testPolicyFromUsePolicyAttributeWorksWithObjectInstance()
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(new DummyWithUsePolicy())
+        );
+    }
+
+    public function testExplicitPolicyTakesPrecedenceOverUsePolicyAttribute()
+    {
+        $gate = $this->getBasicGate();
+
+        // Register an explicit policy that should take precedence
+        $gate->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+
+        $this->assertInstanceOf(
+            AccessGateTestPolicy::class,
+            $gate->getPolicyFor(DummyWithUsePolicy::class)
+        );
+    }
+
+    public function testUsePolicyAttributeTakesPrecedenceOverSubclassFallback()
+    {
+        $gate = $this->getBasicGate();
+
+        // Register a policy for the parent class
+        $gate->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+
+        // SubDummyWithUsePolicy extends DummyWithUsePolicy but has its own #[UsePolicy] attribute
+        // The attribute should take precedence over the subclass fallback
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(SubDummyWithUsePolicy::class)
+        );
+    }
+
+    public function testGetPolicyForReturnsNullForClassWithoutUsePolicyAttribute()
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertNull($gate->getPolicyFor(DummyWithoutUsePolicy::class));
     }
 
     public function testCanSetDenialResponseInConstructor()
@@ -1531,4 +1773,16 @@ class AccessGateTestPolicyThrowingAuthorizationException
     {
         throw new AuthorizationException('Not allowed.', 'some_code');
     }
+}
+
+enum GateTestUnitEnum
+{
+    case ManageUsers;
+    case ViewReports;
+}
+
+enum GateTestIntBackedEnum: int
+{
+    case CreatePost = 1;
+    case DeletePost = 2;
 }

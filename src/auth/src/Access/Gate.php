@@ -66,7 +66,7 @@ class Gate implements GateContract
         $abilities = is_array($ability) ? $ability : func_get_args();
 
         foreach ($abilities as $ability) {
-            if (! isset($this->abilities[enum_value($ability)])) {
+            if (! isset($this->abilities[(string) enum_value($ability)])) {
                 return false;
             }
         }
@@ -125,7 +125,7 @@ class Gate implements GateContract
      */
     public function define(UnitEnum|string $ability, array|callable|string $callback): static
     {
-        $ability = enum_value($ability);
+        $ability = (string) enum_value($ability);
 
         if (is_array($callback) && isset($callback[0]) && is_string($callback[0])) {
             $callback = $callback[0] . '@' . $callback[1];
@@ -287,7 +287,7 @@ class Gate implements GateContract
     public function inspect(UnitEnum|string $ability, mixed $arguments = []): Response
     {
         try {
-            $result = $this->raw(enum_value($ability), $arguments);
+            $result = $this->raw((string) enum_value($ability), $arguments);
 
             if ($result instanceof Response) {
                 return $result;
