@@ -29,6 +29,11 @@ interface QueueingFactory extends Factory
     public function expire(UnitEnum|string $name, ?string $path = null, ?string $domain = null): void;
 
     /**
+     * Determine if a cookie has been queued.
+     */
+    public function hasQueued(UnitEnum|string $key, ?string $path = null): bool;
+
+    /**
      * Remove a cookie from the queue.
      */
     public function unqueue(UnitEnum|string $name, ?string $path = null): void;
