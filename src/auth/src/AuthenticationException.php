@@ -28,10 +28,8 @@ class AuthenticationException extends Exception
 
     /**
      * Create a new authentication exception.
-     *
-     * @param string $message
      */
-    public function __construct($message = 'Unauthenticated.', array $guards = [], ?string $redirectTo = null)
+    public function __construct(string $message = 'Unauthenticated.', array $guards = [], ?string $redirectTo = null)
     {
         parent::__construct($message);
 
@@ -41,10 +39,8 @@ class AuthenticationException extends Exception
 
     /**
      * Get the guards that were checked.
-     *
-     * @return array
      */
-    public function guards()
+    public function guards(): array
     {
         return $this->guards;
     }
