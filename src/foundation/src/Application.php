@@ -1202,6 +1202,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Auth\Factory::class,
             ],
             'auth.driver' => [\Hypervel\Contracts\Auth\Guard::class],
+            'auth.password' => [\Hypervel\Auth\Passwords\PasswordBrokerManager::class, \Hypervel\Contracts\Auth\PasswordBrokerFactory::class],
+            'auth.password.broker' => [\Hypervel\Auth\Passwords\PasswordBroker::class, \Hypervel\Contracts\Auth\PasswordBroker::class],
             'cache' => [
                 \Hypervel\Cache\CacheManager::class,
                 \Hypervel\Contracts\Cache\Factory::class,
