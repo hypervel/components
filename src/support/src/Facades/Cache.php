@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Cache\Factory;
-
 /**
  * @method static \Hypervel\Contracts\Cache\Repository store(string|null $name = null)
  * @method static \Hypervel\Contracts\Cache\Repository driver(string|null $driver = null)
@@ -67,6 +65,6 @@ class Cache extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return Factory::class;
+        return 'cache';
     }
 }

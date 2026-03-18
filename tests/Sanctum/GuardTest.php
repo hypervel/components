@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
@@ -144,7 +143,7 @@ class GuardTest extends TestCase
         ]);
 
         // Set the user on the web guard
-        $authManager = $this->app->make(AuthManager::class);
+        $authManager = $this->app->make('auth');
         $authManager->guard('web')->setUser($user);
 
         // Make request without token - should use web guard

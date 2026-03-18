@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 
 /**
  * @method static void bootstrap()
@@ -28,6 +28,6 @@ class Artisan extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return KernelContract::class;
+        return ConsoleKernelContract::class;
     }
 }

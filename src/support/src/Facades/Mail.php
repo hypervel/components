@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Mail\Factory as MailFactoryContract;
 use Hypervel\Support\Testing\Fakes\MailFake;
 
 /**
@@ -72,6 +71,6 @@ class Mail extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return MailFactoryContract::class;
+        return 'mail.manager';
     }
 }

@@ -184,7 +184,7 @@ class BroadcasterTest extends TestCase
 
         $this->container->shouldReceive('make')
             ->once()
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         $this->assertInstanceOf(
@@ -211,7 +211,7 @@ class BroadcasterTest extends TestCase
 
         $this->container->shouldReceive('make')
             ->once()
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         $this->assertInstanceOf(
@@ -249,7 +249,7 @@ class BroadcasterTest extends TestCase
 
         $this->container->shouldReceive('make')
             ->twice()
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         $this->assertInstanceOf(
@@ -282,7 +282,7 @@ class BroadcasterTest extends TestCase
 
         $this->container->shouldReceive('make')
             ->once()
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         $this->broadcaster->retrieveUser('somechannel');
@@ -311,7 +311,7 @@ class BroadcasterTest extends TestCase
 
         $this->container->shouldReceive('make')
             ->once()
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         $this->broadcaster->retrieveUser('somechannel');

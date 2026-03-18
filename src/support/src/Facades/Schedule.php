@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Console\Scheduling\Schedule as ScheduleAccessor;
+use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
 
 /**
  * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|string $callback, array $parameters = [])
@@ -90,6 +90,6 @@ class Schedule extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return ScheduleAccessor::class;
+        return ConsoleSchedule::class;
     }
 }

@@ -6,7 +6,6 @@ namespace Hypervel\Permission\Middleware;
 
 use BackedEnum;
 use Closure;
-use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
 use Hypervel\Permission\Exceptions\PermissionException;
@@ -29,7 +28,7 @@ class PermissionMiddleware
      */
     public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
-        $auth = $this->container->make(AuthManager::class);
+        $auth = $this->container->make('auth');
         $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(

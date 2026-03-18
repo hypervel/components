@@ -1250,11 +1250,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Log\LogManager::class,
                 \Psr\Log\LoggerInterface::class,
             ],
-            \Hypervel\Contracts\Mail\Factory::class => [
-                'mail.manager',
+            'mail.manager' => [
                 \Hypervel\Mail\MailManager::class,
+                \Hypervel\Contracts\Mail\Factory::class,
             ],
-            \Hypervel\Contracts\Mail\Mailer::class => ['mailer'],
+            'mailer' => [
+                \Hypervel\Contracts\Mail\Mailer::class,
+            ],
             \Hypervel\Database\Migrations\Migrator::class => ['migrator'],
             'queue' => [
                 \Hypervel\Queue\QueueManager::class,

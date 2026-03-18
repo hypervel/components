@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Testing\ParallelTesting as ParallelTestingService;
-
 /**
  * @method static void resolveOptionsUsing(\Closure|null $resolver)
  * @method static void resolveTokenUsing(\Closure|null $resolver)
@@ -26,6 +24,6 @@ class ParallelTesting extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return ParallelTestingService::class;
+        return \Hypervel\Testing\ParallelTesting::class;
     }
 }

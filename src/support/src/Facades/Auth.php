@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Auth\AuthManager;
-use Hypervel\Contracts\Auth\Guard;
-
 /**
  * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(string|null $name = null)
  * @method static \Hypervel\Auth\SessionGuard createSessionDriver(string $name, array $config)
@@ -48,6 +45,6 @@ class Auth extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return AuthManager::class;
+        return 'auth';
     }
 }

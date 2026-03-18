@@ -6,7 +6,6 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
-use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Container\Container;
@@ -245,7 +244,7 @@ abstract class Broadcaster implements BroadcasterContract
         $options = $this->retrieveChannelOptions($channel);
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->make(AuthManager::class);
+        $auth = $this->container->make('auth');
 
         if (is_null($guards)) {
             return $auth->user();

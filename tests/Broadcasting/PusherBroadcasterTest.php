@@ -192,7 +192,7 @@ class PusherBroadcasterTest extends TestCase
         $authManager->shouldReceive('user')->andReturn($user);
 
         $this->container->shouldReceive('make')
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         return $request;
@@ -207,7 +207,7 @@ class PusherBroadcasterTest extends TestCase
         $authManager->shouldReceive('user')->andReturn(null);
 
         $this->container->shouldReceive('make')
-            ->with(AuthManager::class)
+            ->with('auth')
             ->andReturn($authManager);
 
         return $request;
