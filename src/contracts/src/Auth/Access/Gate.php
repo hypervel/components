@@ -6,7 +6,6 @@ namespace Hypervel\Contracts\Auth\Access;
 
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
-use Hypervel\Contracts\Auth\Authenticatable;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -19,8 +18,10 @@ interface Gate
 
     /**
      * Define a new ability.
+     *
+     * @throws InvalidArgumentException
      */
-    public function define(UnitEnum|string $ability, callable|string $callback): static;
+    public function define(UnitEnum|string $ability, array|callable|string $callback): static;
 
     /**
      * Define abilities for a resource.
@@ -43,14 +44,14 @@ interface Gate
     public function after(callable $callback): static;
 
     /**
-     * Determine if the given ability should be granted for the current user.
+     * Determine if all of the given abilities should be granted for the current user.
      */
-    public function allows(UnitEnum|string $ability, mixed $arguments = []): bool;
+    public function allows(iterable|UnitEnum|string $ability, mixed $arguments = []): bool;
 
     /**
-     * Determine if the given ability should be denied for the current user.
+     * Determine if any of the given abilities should be denied for the current user.
      */
-    public function denies(UnitEnum|string $ability, mixed $arguments = []): bool;
+    public function denies(iterable|UnitEnum|string $ability, mixed $arguments = []): bool;
 
     /**
      * Determine if all of the given abilities should be granted for the current user.
@@ -61,11 +62,6 @@ interface Gate
      * Determine if any one of the given abilities should be granted for the current user.
      */
     public function any(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
-
-    /**
-     * Determine if all of the given abilities should be denied for the current user.
-     */
-    public function none(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
 
     /**
      * Determine if the given ability should be granted for the current user.
@@ -88,16 +84,13 @@ interface Gate
 
     /**
      * Get a policy instance for a given class.
-     *
-     * @return mixed|void
-     * @throws InvalidArgumentException
      */
-    public function getPolicyFor(object|string $class);
+    public function getPolicyFor(object|string $class): mixed;
 
     /**
-     * Get a guard instance for the given user.
+     * Get a gate instance for the given user.
      */
-    public function forUser(?Authenticatable $user): static;
+    public function forUser(mixed $user): static;
 
     /**
      * Get all of the defined abilities.
