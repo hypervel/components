@@ -39,15 +39,13 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\Auth\\": "src/"
-        },
-        "files": [
-            "src/Functions.php"
-        ]
+        }
     },
     "extra": {
         "hypervel": {
             "providers": [
-                "Hypervel\\Auth\\AuthServiceProvider"
+                "Hypervel\\Auth\\AuthServiceProvider",
+                "Hypervel\\Auth\\Passwords\\PasswordResetServiceProvider"
             ]
         },
         "branch-alias": {
