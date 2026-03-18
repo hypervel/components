@@ -4,21 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 
-class GenericUser implements Authenticatable
+class GenericUser implements UserContract
 {
-    /**
-     * All of the user's attributes.
-     */
-    protected array $attributes;
-
     /**
      * Create a new generic User object.
      */
-    public function __construct(array $attributes)
-    {
-        $this->attributes = $attributes;
+    public function __construct(
+        protected array $attributes,
+    ) {
     }
 
     /**
@@ -38,52 +33,73 @@ class GenericUser implements Authenticatable
     }
 
     /**
+     * Get the name of the password attribute for the user.
+     */
+    public function getAuthPasswordName(): string
+    {
+        return 'password';
+    }
+
+    /**
      * Get the password for the user.
      */
-    public function getAuthPassword(): string
+    public function getAuthPassword(): ?string
     {
-        return $this->attributes['password'];
+        return $this->attributes[$this->getAuthPasswordName()];
+    }
+
+    /**
+     * Get the "remember me" token value.
+     */
+    public function getRememberToken(): ?string
+    {
+        return $this->attributes[$this->getRememberTokenName()];
+    }
+
+    /**
+     * Set the "remember me" token value.
+     */
+    public function setRememberToken(string $value): void
+    {
+        $this->attributes[$this->getRememberTokenName()] = $value;
+    }
+
+    /**
+     * Get the column name for the "remember me" token.
+     */
+    public function getRememberTokenName(): string
+    {
+        return 'remember_token';
     }
 
     /**
      * Dynamically access the user's attributes.
-     *
-     * @param string $key
-     * @return mixed
      */
-    public function __get($key)
+    public function __get(string $key): mixed
     {
         return $this->attributes[$key];
     }
 
     /**
      * Dynamically set an attribute on the user.
-     *
-     * @param string $key
-     * @param mixed $value
      */
-    public function __set($key, $value)
+    public function __set(string $key, mixed $value): void
     {
         $this->attributes[$key] = $value;
     }
 
     /**
      * Dynamically check if a value is set on the user.
-     *
-     * @param string $key
-     * @return bool
      */
-    public function __isset($key)
+    public function __isset(string $key): bool
     {
         return isset($this->attributes[$key]);
     }
 
     /**
      * Dynamically unset a value on the user.
-     *
-     * @param string $key
      */
-    public function __unset($key)
+    public function __unset(string $key): void
     {
         unset($this->attributes[$key]);
     }
