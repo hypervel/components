@@ -74,6 +74,48 @@ class AuthorizeMiddlewareTest extends TestCase
         $this->assertSame('Hypervel\Auth\Middleware\Authorize:ability,model,App\Models\Comment', $signature);
     }
 
+    public function testUsingWithBackedEnum()
+    {
+        $result = Authorize::using(AbilitiesEnum::ViewDashboard);
+
+        $this->assertSame(Authorize::class . ':view-dashboard', $result);
+    }
+
+    public function testUsingWithBackedEnumAndModels()
+    {
+        $result = Authorize::using(AbilitiesEnum::ViewDashboard, 'App\Models\User');
+
+        $this->assertSame(Authorize::class . ':view-dashboard,App\Models\User', $result);
+    }
+
+    public function testUsingWithUnitEnum()
+    {
+        $result = Authorize::using(AuthorizeMiddlewareTestUnitEnum::ManageUsers);
+
+        $this->assertSame(Authorize::class . ':ManageUsers', $result);
+    }
+
+    public function testUsingWithUnitEnumAndModels()
+    {
+        $result = Authorize::using(AuthorizeMiddlewareTestUnitEnum::ViewReports, 'App\Models\Report');
+
+        $this->assertSame(Authorize::class . ':ViewReports,App\Models\Report', $result);
+    }
+
+    public function testUsingWithIntBackedEnum()
+    {
+        $result = Authorize::using(AuthorizeMiddlewareTestIntBackedEnum::CreatePost);
+
+        $this->assertSame(Authorize::class . ':1', $result);
+    }
+
+    public function testUsingWithStringAbilityAndMultipleModels()
+    {
+        $result = Authorize::using('transfer', 'App\Models\Account', 'App\Models\User');
+
+        $this->assertSame(Authorize::class . ':transfer,App\Models\Account,App\Models\User', $result);
+    }
+
     public function testSimpleAbilityUnauthorized()
     {
         $this->expectException(AuthorizationException::class);
@@ -357,4 +399,16 @@ class AuthorizeMiddlewareTest extends TestCase
     {
         return $this->container->make(GateContract::class);
     }
+}
+
+enum AuthorizeMiddlewareTestUnitEnum
+{
+    case ManageUsers;
+    case ViewReports;
+}
+
+enum AuthorizeMiddlewareTestIntBackedEnum: int
+{
+    case CreatePost = 1;
+    case DeletePost = 2;
 }

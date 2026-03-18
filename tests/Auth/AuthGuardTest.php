@@ -22,6 +22,7 @@ use Hypervel\Cookie\CookieJar;
 use Hypervel\Support\Timebox;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -655,6 +656,141 @@ class AuthGuardTest extends TestCase
         $this->assertTrue($guard->hasUser());
         $guard->forgetUser();
         $this->assertFalse($guard->hasUser());
+    }
+
+    // =========================================================================
+    // Context / Architecture Tests (Hypervel-specific)
+    // =========================================================================
+
+    public function testSetUserBeforeSessionStartUsesUnstartedKey()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $session->shouldReceive('isStarted')->andReturn(false);
+
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+        $user = m::mock(Authenticatable::class);
+
+        $guard->setUser($user);
+
+        $this->assertTrue($guard->hasUser());
+        $this->assertSame($user, $guard->user());
+    }
+
+    public function testUnstartedUserTakesPrecedenceOverSessionLookup()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+
+        // First, set user before session is started
+        $session->shouldReceive('isStarted')->andReturn(false);
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+
+        $unstartedUser = m::mock(Authenticatable::class);
+        $guard->setUser($unstartedUser);
+
+        // Session should NOT be queried when unstarted user exists
+        $session->shouldNotReceive('get');
+
+        $this->assertSame($unstartedUser, $guard->user());
+    }
+
+    public function testForgetUserClearsBothStartedAndUnstartedKeys()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $session->shouldReceive('isStarted')->andReturn(false);
+
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+        $user = m::mock(Authenticatable::class);
+        $guard->setUser($user);
+
+        $this->assertTrue($guard->hasUser());
+
+        $guard->forgetUser();
+
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testLoggedOutFlagMakesUserReturnNull()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $mock = $this->getMockBuilder(SessionGuard::class)
+            ->onlyMethods(['clearUserDataFromStorage'])
+            ->setConstructorArgs(['default', $provider, $session, $app])
+            ->getMock();
+        $mock->expects($this->once())->method('clearUserDataFromStorage');
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getRememberToken')->andReturn(null);
+
+        $mock->setUser($user);
+        $this->assertSame($user, $mock->user());
+
+        $mock->logout();
+
+        $this->assertNull($mock->user());
+    }
+
+    public function testIdReturnsNullAfterLogout()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $mock = $this->getMockBuilder(SessionGuard::class)
+            ->onlyMethods(['clearUserDataFromStorage'])
+            ->setConstructorArgs(['default', $provider, $session, $app])
+            ->getMock();
+        $mock->expects($this->once())->method('clearUserDataFromStorage');
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getRememberToken')->andReturn(null);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(42);
+
+        $mock->setUser($user);
+        $this->assertSame(42, $mock->id());
+
+        $mock->logout();
+
+        $this->assertNull($mock->id());
+    }
+
+    public function testGetRequestResolvesFromContainer()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $freshRequest = \Symfony\Component\HttpFoundation\Request::create('/new-path', 'POST');
+        $app->shouldReceive('make')->with('request')->andReturn($freshRequest);
+
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+
+        $this->assertSame($freshRequest, $guard->getRequest());
+    }
+
+    public function testGetCookieJarThrowsWhenUnset()
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Cookie jar has not been set.');
+
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+
+        $guard->getCookieJar();
+    }
+
+    public function testAttemptingRegistersEventListener()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
+
+        $dispatcher = m::mock(\Hypervel\Contracts\Events\Dispatcher::class);
+        $dispatcher->shouldReceive('listen')
+            ->with(Attempting::class, m::type('callable'))
+            ->once();
+
+        $guard->setDispatcher($dispatcher);
+        $guard->attempting(function () {});
+    }
+
+    public function testViaRememberReturnsFalseByDefault()
+    {
+        $guard = $this->getGuard();
+
+        $this->assertFalse($guard->viaRemember());
     }
 
     protected function getGuard()

@@ -237,6 +237,113 @@ class AuthTokenGuardTest extends TestCase
 
         $this->assertFalse($guard->validate(['custom_token_field' => '']));
     }
+
+    // =========================================================================
+    // Context Isolation Tests (Hypervel-specific)
+    // =========================================================================
+
+    public function testDifferentTokensGetDifferentCachedUsers()
+    {
+        $user1 = new AuthTokenGuardTestUser();
+        $user1->id = 1;
+        $user2 = new AuthTokenGuardTestUser();
+        $user2->id = 2;
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')
+            ->with(['api_token' => 'token-a'])
+            ->once()
+            ->andReturn($user1);
+        $provider->shouldReceive('retrieveByCredentials')
+            ->with(['api_token' => 'token-b'])
+            ->once()
+            ->andReturn($user2);
+
+        $container = Container::setInstance(new Container());
+
+        // First request with token-a
+        $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
+        $container->instance('request', $request1);
+        $guard = new TokenGuard('token', $provider, $container);
+
+        $this->assertSame($user1, $guard->user());
+
+        // Switch to token-b — different token should resolve different user
+        $request2 = Request::create('/', 'GET', ['api_token' => 'token-b']);
+        $container->instance('request', $request2);
+
+        $this->assertSame($user2, $guard->user());
+    }
+
+    public function testEmptyTokenUsesDefaultKey()
+    {
+        $provider = m::mock(UserProvider::class);
+        $request = Request::create('/', 'GET');
+
+        $guard = $this->createGuard($provider, $request);
+        $guard->user(); // Resolves with empty token
+
+        // hasUser should be false (no token means no user)
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testSetUserOperatesPerToken()
+    {
+        $user = new AuthTokenGuardTestUser();
+        $user->id = 1;
+
+        $provider = m::mock(UserProvider::class);
+        $request = Request::create('/', 'GET', ['api_token' => 'my-token']);
+
+        $guard = $this->createGuard($provider, $request);
+        $guard->setUser($user);
+
+        $this->assertTrue($guard->hasUser());
+        $this->assertSame($user, $guard->user());
+    }
+
+    public function testForgetUserClearsCacheForCurrentToken()
+    {
+        $user = new AuthTokenGuardTestUser();
+        $user->id = 1;
+
+        $provider = m::mock(UserProvider::class);
+        $request = Request::create('/', 'GET', ['api_token' => 'my-token']);
+
+        $guard = $this->createGuard($provider, $request);
+        $guard->setUser($user);
+
+        $this->assertTrue($guard->hasUser());
+
+        $guard->forgetUser();
+
+        $this->assertFalse($guard->hasUser());
+    }
+
+    public function testChangingRequestTokenChangesWhichCachedUserIsSeen()
+    {
+        $user1 = new AuthTokenGuardTestUser();
+        $user1->id = 1;
+
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')
+            ->with(['api_token' => 'token-a'])
+            ->once()
+            ->andReturn($user1);
+
+        $container = Container::setInstance(new Container());
+        $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
+        $container->instance('request', $request1);
+
+        $guard = new TokenGuard('token', $provider, $container);
+        $this->assertSame($user1, $guard->user());
+
+        // Change to a request with no token — guard should not see user1
+        $request2 = Request::create('/', 'GET');
+        $container->instance('request', $request2);
+
+        $this->assertNull($guard->user());
+    }
 }
 
 class AuthTokenGuardTestUser implements Authenticatable
