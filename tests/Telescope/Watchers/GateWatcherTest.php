@@ -248,22 +248,23 @@ class User implements Authenticatable
         return 'secret';
     }
 
-    public function getAuthPasswordName()
+    public function getAuthPasswordName(): string
     {
-        return 'passord name';
+        return 'password';
     }
 
-    public function getRememberToken()
+    public function getRememberToken(): ?string
     {
         return 'i-am-telescope';
     }
 
-    public function setRememberToken($value)
+    public function setRememberToken(string $value): void
     {
     }
 
-    public function getRememberTokenName()
+    public function getRememberTokenName(): string
     {
+        return 'remember_token';
     }
 }
 

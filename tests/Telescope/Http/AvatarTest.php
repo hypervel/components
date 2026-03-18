@@ -98,4 +98,23 @@ class UserEloquent extends Model implements Authenticatable
     {
         return $this->password;
     }
+
+    public function getAuthPasswordName(): string
+    {
+        return 'password';
+    }
+
+    public function getRememberToken(): ?string
+    {
+        return null;
+    }
+
+    public function setRememberToken(string $value): void
+    {
+    }
+
+    public function getRememberTokenName(): string
+    {
+        return 'remember_token';
+    }
 }
