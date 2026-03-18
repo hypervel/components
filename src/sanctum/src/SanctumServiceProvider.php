@@ -6,7 +6,6 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -43,27 +42,13 @@ class SanctumServiceProvider extends ServiceProvider
     protected function registerSanctumGuard(): void
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
-            $authManager->extend('sanctum', function ($name, $config) use ($authManager) {
-                $request = $this->app->make(Request::class);
-
-                // Get the provider
-                $provider = $authManager->createUserProvider($config['provider'] ?? null);
-
-                // Get event dispatcher if available
-                $events = null;
-                if ($this->app->has(Dispatcher::class)) {
-                    $events = $this->app->make(Dispatcher::class);
-                }
-
-                // Get expiration from sanctum config
-                $expiration = $this->app->make('config')->get('sanctum.expiration');
-
+            $authManager->extend('sanctum', function ($app, $name, $config) use ($authManager) {
                 return new SanctumGuard(
                     name: $name,
-                    provider: $provider,
-                    request: $request,
-                    events: $events,
-                    expiration: $expiration
+                    provider: $authManager->createUserProvider($config['provider'] ?? null),
+                    app: $app,
+                    events: $app->has(Dispatcher::class) ? $app->make(Dispatcher::class) : null,
+                    expiration: $app->make('config')->get('sanctum.expiration'),
                 );
             });
         });
