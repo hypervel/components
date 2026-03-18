@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Auth\Providers\DatabaseUserProvider;
-use Hypervel\Auth\Providers\EloquentUserProvider;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\Contracts\Hashing\Hasher as HashContract;
-use Hypervel\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 
 trait CreatesUserProviders
@@ -48,13 +44,11 @@ trait CreatesUserProviders
 
     /**
      * Get the user provider configuration.
-     *
-     * @param null|string $provider
      */
-    protected function getProviderConfiguration($provider): ?array
+    protected function getProviderConfiguration(?string $provider): ?array
     {
         if ($provider = $provider ?: $this->getDefaultUserProvider()) {
-            return $this->config->get("auth.providers.{$provider}");
+            return $this->app['config']['auth.providers.' . $provider];
         }
 
         return null;
@@ -65,13 +59,10 @@ trait CreatesUserProviders
      */
     protected function createDatabaseProvider(array $config): DatabaseUserProvider
     {
-        $connection = $this->app->make(ConnectionResolverInterface::class)
-            ->connection($config['connection'] ?? null);
-
         return new DatabaseUserProvider(
-            $connection,
-            $this->app->make(HashContract::class),
-            $config['table']
+            $this->app['db']->connection($config['connection'] ?? null),
+            $this->app['hash'],
+            $config['table'],
         );
     }
 
@@ -80,10 +71,7 @@ trait CreatesUserProviders
      */
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
-        return new EloquentUserProvider(
-            $this->app->make(HashContract::class),
-            $config['model']
-        );
+        return new EloquentUserProvider($this->app['hash'], $config['model']);
     }
 
     /**
@@ -91,6 +79,6 @@ trait CreatesUserProviders
      */
     public function getDefaultUserProvider(): string
     {
-        return $this->config->get('auth.defaults.provider');
+        return $this->app['config']['auth.defaults.provider'];
     }
 }
