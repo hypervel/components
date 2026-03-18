@@ -44,13 +44,14 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertActingAs()
     {
+        $user = m::mock(UserContract::class);
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
             ->once()
             ->andReturn(true);
         $guard->shouldReceive('setUser')
             ->once()
-            ->andReturn($user = m::mock(UserContract::class));
+            ->andReturnSelf();
         $guard->shouldReceive('user')
             ->once()
             ->andReturn($user);
