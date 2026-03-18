@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Auth\Guards\GuardHelpers;
-use Hypervel\Container\Container;
+use Hypervel\Auth\GuardHelpers;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Http\Request;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
+use stdClass;
 
 class SanctumGuard implements GuardContract
 {
@@ -24,49 +24,64 @@ class SanctumGuard implements GuardContract
     use Macroable;
 
     /**
-     * The currently authenticated user.
+     * Sentinel value indicating "user was resolved but not found".
      */
-    protected ?Authenticatable $user = null;
+    private static object $nullUserSentinel;
 
     /**
      * Create a new guard instance.
      */
     public function __construct(
         protected string $name,
-        protected UserProvider $provider,
-        protected Request $request,
+        UserProvider $provider,
+        protected Container $app,
         protected ?Dispatcher $events = null,
-        protected ?int $expiration = null
+        protected ?int $expiration = null,
     ) {
+        $this->provider = $provider;
     }
 
     /**
      * Get the currently authenticated user.
+     *
+     * Uses coroutine Context to cache the resolved user per-request,
+     * keyed by token fingerprint. A sentinel value caches "no user
+     * found" so repeated calls don't trigger redundant lookups.
      */
     public function user(): ?Authenticatable
     {
-        // Check context cache first
-        if (Context::has($contextKey = $this->getContextKey())) {
-            return Context::get($contextKey);
+        self::$nullUserSentinel ??= new stdClass();
+
+        $token = $this->getTokenFromRequest();
+        $contextKey = $this->getContextKeyForToken($token);
+        $cached = Context::get($contextKey);
+
+        if ($cached === self::$nullUserSentinel) {
+            return null;
+        }
+
+        if ($cached !== null) {
+            return $cached;
         }
 
         // Check stateful guards first (like 'web')
-        $authFactory = Container::getInstance()->make(AuthFactory::class);
+        $authFactory = $this->app->make(AuthFactory::class);
         foreach (Arr::wrap(config('sanctum.guard', 'web')) as $guard) {
             if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
                 $user = $authFactory->guard($guard)->user();
                 if ($this->supportsTokens($user)) {
-                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
+                    /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
                     $tokenUser = $user;
                     $user = $tokenUser->withAccessToken(new TransientToken());
                 }
-                Context::set($contextKey, $user);
+                Context::set($contextKey, $user ?? self::$nullUserSentinel);
+
                 return $user;
             }
         }
 
         // Check for token authentication
-        if ($token = $this->getTokenFromRequest()) {
+        if ($token) {
             $model = Sanctum::$personalAccessTokenModel;
             $accessToken = $model::findToken($token);
 
@@ -74,32 +89,23 @@ class SanctumGuard implements GuardContract
                 $tokenable = $model::findTokenable($accessToken);
 
                 if ($this->supportsTokens($tokenable)) {
-                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
+                    /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
                     $user = $tokenable->withAccessToken($accessToken);
 
-                    // Dispatch event if event dispatcher is available
                     if ($this->events) {
                         $this->events->dispatch(new TokenAuthenticated($accessToken));
                     }
 
                     Context::set($contextKey, $user);
+
                     return $user;
                 }
             }
         }
 
-        Context::set($contextKey, null);
-        return null;
-    }
+        Context::set($contextKey, self::$nullUserSentinel);
 
-    /**
-     * Get the context key for caching.
-     */
-    protected function getContextKey(): string
-    {
-        $token = $this->getTokenFromRequest();
-        $suffix = $token ? md5($token) : 'default';
-        return "__auth.guards.{$this->name}.result.{$suffix}";
+        return null;
     }
 
     /**
@@ -122,11 +128,13 @@ class SanctumGuard implements GuardContract
             return null;
         }
 
+        $request = $this->app->make('request');
+
         if (is_callable(Sanctum::$accessTokenRetrievalCallback)) {
-            return (string) (Sanctum::$accessTokenRetrievalCallback)($this->request);
+            return (string) (Sanctum::$accessTokenRetrievalCallback)($request);
         }
 
-        $token = $this->getBearerToken();
+        $token = $this->getBearerToken($request);
 
         return $this->isValidBearerToken($token) ? $token : null;
     }
@@ -134,17 +142,17 @@ class SanctumGuard implements GuardContract
     /**
      * Get the bearer token from the request headers.
      */
-    protected function getBearerToken(): ?string
+    protected function getBearerToken(mixed $request): ?string
     {
-        $header = $this->request->header('Authorization', '');
+        $header = $request->header('Authorization', '');
 
         if (str_starts_with($header, 'Bearer ')) {
             return substr($header, 7);
         }
 
         // Check for token in request input as fallback
-        if ($this->request->has('token')) {
-            return $this->request->input('token');
+        if ($request->has('token')) {
+            return $request->input('token');
         }
 
         return null;
@@ -156,7 +164,7 @@ class SanctumGuard implements GuardContract
     protected function isValidBearerToken(?string $token = null): bool
     {
         if (! is_null($token) && str_contains($token, '|')) {
-            $model = new (Sanctum::$personalAccessTokenModel);
+            $model = new (Sanctum::$personalAccessTokenModel)();
 
             // @phpstan-ignore function.alreadyNarrowedType (custom token models may not extend Model)
             if (method_exists($model, 'getKeyType') && $model->getKeyType() === 'int') {
@@ -200,23 +208,40 @@ class SanctumGuard implements GuardContract
         }
 
         $model = $this->provider->getModel();
+
         return $tokenable instanceof $model;
+    }
+
+    /**
+     * Determine if the guard has a user instance.
+     */
+    public function hasUser(): bool
+    {
+        self::$nullUserSentinel ??= new stdClass();
+
+        $cached = Context::get($this->getContextKeyForToken($this->getTokenFromRequest()));
+
+        return $cached !== null && $cached !== self::$nullUserSentinel;
     }
 
     /**
      * Set the current user.
      */
-    public function setUser(Authenticatable $user): void
+    public function setUser(Authenticatable $user): static
     {
-        Context::set($this->getContextKey(), $user);
+        Context::set($this->getContextKeyForToken($this->getTokenFromRequest()), $user);
+
+        return $this;
     }
 
     /**
-     * Attempt to authenticate (not supported for token-based auth).
+     * Forget the current user.
      */
-    public function attempt(array $credentials = [], bool $login = true): bool
+    public function forgetUser(): static
     {
-        return false;
+        Context::forget($this->getContextKeyForToken($this->getTokenFromRequest()));
+
+        return $this;
     }
 
     /**
@@ -225,5 +250,17 @@ class SanctumGuard implements GuardContract
     public function validate(array $credentials = []): bool
     {
         return false;
+    }
+
+    /**
+     * Get the Context key for caching the authenticated user, keyed by token.
+     */
+    protected function getContextKeyForToken(?string $token): string
+    {
+        if ($token === null || $token === '') {
+            return "__auth.guards.{$this->name}.user.default";
+        }
+
+        return "__auth.guards.{$this->name}.user." . md5($token);
     }
 }
