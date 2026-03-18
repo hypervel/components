@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum\Fixtures;
 
-use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\HasApiTokens;
 
-class User extends Model implements Authenticatable
+class User extends Model implements AuthenticatableContract
 {
+    use Authenticatable;
     use HasApiTokens;
     use HasFactory;
 
@@ -24,21 +26,6 @@ class User extends Model implements Authenticatable
     protected static function newFactory(): UserFactory
     {
         return UserFactory::new();
-    }
-
-    public function getAuthIdentifierName(): string
-    {
-        return 'id';
-    }
-
-    public function getAuthIdentifier(): mixed
-    {
-        return $this->id;
-    }
-
-    public function getAuthPassword(): string
-    {
-        return $this->password;
     }
 }
 
