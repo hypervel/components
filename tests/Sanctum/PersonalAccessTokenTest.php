@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Tests\Sanctum\Fixtures\TokenAbility;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  */
 class PersonalAccessTokenTest extends TestCase
 {
-    public function testCanDetermineWhatItCanAndCantDo(): void
+    public function testCanDetermineWhatItCanAndCantDo()
     {
         $token = new PersonalAccessToken();
 
@@ -35,7 +35,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can('bar'));
     }
 
-    public function testCanCheckAbilitiesWithBackedEnum(): void
+    public function testCanCheckAbilitiesWithBackedEnum()
     {
         $token = new PersonalAccessToken();
         $token->abilities = ['posts:read', 'posts:write'];
@@ -45,7 +45,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertFalse($token->can(TokenAbility::UsersRead));
     }
 
-    public function testCantCheckAbilitiesWithBackedEnum(): void
+    public function testCantCheckAbilitiesWithBackedEnum()
     {
         $token = new PersonalAccessToken();
         $token->abilities = ['posts:read'];
@@ -54,7 +54,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->cant(TokenAbility::PostsWrite));
     }
 
-    public function testWildcardAbilityWorksWithBackedEnum(): void
+    public function testWildcardAbilityWorksWithBackedEnum()
     {
         $token = new PersonalAccessToken();
         $token->abilities = ['*'];
@@ -64,7 +64,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can(TokenAbility::UsersRead));
     }
 
-    public function testMixedStringAndEnumAbilitiesWork(): void
+    public function testMixedStringAndEnumAbilitiesWork()
     {
         $token = new PersonalAccessToken();
         $token->abilities = ['posts:read', 'legacy-ability'];

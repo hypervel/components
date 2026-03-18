@@ -8,8 +8,9 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\CheckAbilities;
+use Hypervel\Tests\Sanctum\Fixtures\DummyAuthenticatable;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -18,10 +19,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CheckAbilitiesTest extends TestCase
 {
-    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
+    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken()
     {
-        // Create a user object with the required methods
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             private $token;
 
             public function __construct()
@@ -37,21 +37,6 @@ class CheckAbilitiesTest extends TestCase
             public function tokenCan(string $ability): bool
             {
                 return in_array($ability, ['foo', 'bar']);
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 
@@ -73,11 +58,11 @@ class CheckAbilitiesTest extends TestCase
         $this->assertSame($response, $result);
     }
 
-    public function testExceptionIsThrownIfTokenDoesntHaveAbility(): void
+    public function testExceptionIsThrownIfTokenDoesntHaveAbility()
     {
         $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
 
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             private $token;
 
             public function __construct()
@@ -93,21 +78,6 @@ class CheckAbilitiesTest extends TestCase
             public function tokenCan(string $ability): bool
             {
                 return false;
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 
@@ -126,7 +96,7 @@ class CheckAbilitiesTest extends TestCase
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoAuthenticatedUser(): void
+    public function testExceptionIsThrownIfNoAuthenticatedUser()
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
@@ -145,11 +115,11 @@ class CheckAbilitiesTest extends TestCase
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoToken(): void
+    public function testExceptionIsThrownIfNoToken()
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             public function currentAccessToken()
             {
                 return null;
@@ -158,21 +128,6 @@ class CheckAbilitiesTest extends TestCase
             public function tokenCan(string $ability): bool
             {
                 return false;
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 

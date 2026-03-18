@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\TransientToken;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal
@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  */
 class TransientTokenTest extends TestCase
 {
-    public function testCanDetermineWhatItCanAndCantDo(): void
+    public function testCanDetermineWhatItCanAndCantDo()
     {
         $token = new TransientToken();
 

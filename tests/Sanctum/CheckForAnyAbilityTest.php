@@ -8,8 +8,9 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
+use Hypervel\Tests\Sanctum\Fixtures\DummyAuthenticatable;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -21,10 +22,9 @@ class CheckForAnyAbilityTest extends TestCase
     /**
      * Test request is passed along if any abilities are present on token.
      */
-    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
+    public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken()
     {
-        // Create a user object with the required methods
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             private $token;
 
             public function __construct()
@@ -41,21 +41,6 @@ class CheckForAnyAbilityTest extends TestCase
             {
                 // Return true only for 'foo', false for others
                 return $ability === 'foo';
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 
@@ -77,11 +62,11 @@ class CheckForAnyAbilityTest extends TestCase
         $this->assertSame($response, $result);
     }
 
-    public function testExceptionIsThrownIfTokenDoesntHaveAbility(): void
+    public function testExceptionIsThrownIfTokenDoesntHaveAbility()
     {
         $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
 
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             private $token;
 
             public function __construct()
@@ -97,21 +82,6 @@ class CheckForAnyAbilityTest extends TestCase
             public function tokenCan(string $ability): bool
             {
                 return false;
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 
@@ -130,7 +100,7 @@ class CheckForAnyAbilityTest extends TestCase
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoAuthenticatedUser(): void
+    public function testExceptionIsThrownIfNoAuthenticatedUser()
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
@@ -149,11 +119,11 @@ class CheckForAnyAbilityTest extends TestCase
         }, 'foo', 'bar');
     }
 
-    public function testExceptionIsThrownIfNoToken(): void
+    public function testExceptionIsThrownIfNoToken()
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
+        $user = new class extends DummyAuthenticatable {
             public function currentAccessToken()
             {
                 return null;
@@ -162,21 +132,6 @@ class CheckForAnyAbilityTest extends TestCase
             public function tokenCan(string $ability): bool
             {
                 return false;
-            }
-
-            public function getAuthIdentifierName(): string
-            {
-                return 'id';
-            }
-
-            public function getAuthIdentifier(): mixed
-            {
-                return 1;
-            }
-
-            public function getAuthPassword(): string
-            {
-                return 'password';
             }
         };
 
