@@ -19,6 +19,25 @@ namespace Hypervel\Support\Facades;
  */
 class Cookie extends Facade
 {
+    /**
+     * Determine if a cookie exists on the request.
+     */
+    public static function has(string $key): bool
+    {
+        return ! is_null(static::$app['request']->cookie($key, null));
+    }
+
+    /**
+     * Retrieve a cookie from the request.
+     */
+    public static function get(?string $key = null, mixed $default = null): string|array|null
+    {
+        return static::$app['request']->cookie($key, $default);
+    }
+
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'cookie';

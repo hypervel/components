@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Closure;
-use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Js;
@@ -19,6 +19,11 @@ use RuntimeException;
 
 abstract class Facade
 {
+    /**
+     * The application instance being facaded.
+     */
+    protected static $app;
+
     /**
      * The resolved object instances.
      */
@@ -45,15 +50,14 @@ abstract class Facade
      */
     public static function resolved(Closure $callback): void
     {
-        $container = Container::getInstance();
         $accessor = static::getFacadeAccessor();
 
-        if ($container->resolved($accessor) === true) {
-            $callback(static::getFacadeRoot());
+        if (static::$app->resolved($accessor) === true) {
+            $callback(static::getFacadeRoot(), static::$app);
         }
 
-        $container->afterResolving($accessor, function ($service) use ($callback) {
-            $callback($service);
+        static::$app->afterResolving($accessor, function ($service, $app) use ($callback) {
+            $callback($service, $app);
         });
     }
 
@@ -99,6 +103,20 @@ abstract class Facade
                     : static::createFreshMockInstance();
 
         return $mock->shouldReceive(...func_get_args());
+    }
+
+    /**
+     * Initiate a mock expectation on the facade.
+     */
+    public static function expects()
+    {
+        $name = static::getFacadeAccessor();
+
+        $mock = static::isMock()
+                    ? static::$resolvedInstance[$name]
+                    : static::createFreshMockInstance();
+
+        return $mock->expects(...func_get_args());
     }
 
     /**
@@ -151,27 +169,11 @@ abstract class Facade
      */
     public static function swap(mixed $instance)
     {
-        $accessor = static::getFacadeAccessor();
-        static::$resolvedInstance[$accessor] = $instance;
+        static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
 
-        Container::getInstance()->instance($accessor, $instance);
-    }
-
-    /**
-     * Handle dynamic, static calls to the object.
-     *
-     * @return mixed
-     * @throws RuntimeException
-     */
-    public static function __callStatic(string $method, array $args)
-    {
-        $instance = static::getFacadeRoot();
-
-        if (! $instance) {
-            throw new RuntimeException('A facade root has not been set.');
+        if (isset(static::$app)) {
+            static::$app->instance(static::getFacadeAccessor(), $instance);
         }
-
-        return $instance->{$method}(...$args);
     }
 
     /**
@@ -194,6 +196,14 @@ abstract class Facade
     }
 
     /**
+     * Get the registered name of the component.
+     */
+    protected static function getFacadeAccessor(): string
+    {
+        throw new RuntimeException('Facade does not implement getFacadeAccessor method.');
+    }
+
+    /**
      * Resolve the facade root instance from the container.
      */
     protected static function resolveFacadeInstance(string $name): mixed
@@ -202,20 +212,15 @@ abstract class Facade
             return static::$resolvedInstance[$name];
         }
 
-        $container = Container::getInstance();
+        if (static::$app) {
+            if (static::$cached) {
+                return static::$resolvedInstance[$name] = static::$app[$name];
+            }
 
-        // Guard against resolving facades before their services are available.
-        // Equivalent to Laravel's `if (static::$app)` null check — prevents
-        // auto-resolution cascades for unavailable accessors during bootstrap.
-        if (! $container->has($name)) {
-            return null;
+            return static::$app[$name];
         }
 
-        if (static::$cached) {
-            return static::$resolvedInstance[$name] = $container->make($name);
-        }
-
-        return $container->make($name);
+        return null;
     }
 
     /**
@@ -253,6 +258,7 @@ abstract class Facade
             'Crypt' => Crypt::class,
             'Date' => Date::class,
             'DB' => DB::class,
+            'Eloquent' => Model::class,
             'Event' => Event::class,
             'Exceptions' => Exceptions::class,
             'File' => File::class,
@@ -266,9 +272,11 @@ abstract class Facade
             'Mail' => Mail::class,
             'Notification' => Notification::class,
             'Number' => Number::class,
+            'Password' => Password::class,
             'Process' => Process::class,
             'Queue' => Queue::class,
             'RateLimiter' => RateLimiter::class,
+            'Redirect' => Redirect::class,
             'Redis' => Redis::class,
             'Request' => Request::class,
             'Response' => Response::class,
@@ -287,10 +295,35 @@ abstract class Facade
     }
 
     /**
-     * Get the registered name of the component.
+     * Get the application instance behind the facade.
      */
-    protected static function getFacadeAccessor(): string
+    public static function getFacadeApplication()
     {
-        throw new RuntimeException('Facade does not implement getFacadeAccessor method.');
+        return static::$app;
+    }
+
+    /**
+     * Set the application instance.
+     * @param mixed $app
+     */
+    public static function setFacadeApplication($app): void
+    {
+        static::$app = $app;
+    }
+
+    /**
+     * Handle dynamic, static calls to the object.
+     *
+     * @throws RuntimeException
+     */
+    public static function __callStatic(string $method, array $args)
+    {
+        $instance = static::getFacadeRoot();
+
+        if (! $instance) {
+            throw new RuntimeException('A facade root has not been set.');
+        }
+
+        return $instance->{$method}(...$args);
     }
 }

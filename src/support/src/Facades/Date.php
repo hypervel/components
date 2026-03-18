@@ -103,7 +103,7 @@ class Date extends Facade
      */
     protected static function resolveFacadeInstance(string $name): mixed
     {
-        if (! isset(static::$resolvedInstance[$name])) {
+        if (! isset(static::$resolvedInstance[$name]) && ! isset(static::$app, static::$app[$name])) {
             $class = static::DEFAULT_FACADE;
 
             static::swap(new $class());

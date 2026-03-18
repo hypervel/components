@@ -18,6 +18,7 @@ class RegisterFacades
     public function bootstrap(ApplicationContract $app): void
     {
         Facade::clearResolvedInstances();
+        Facade::setFacadeApplication($app);
 
         $composerAliases = [];
         try {

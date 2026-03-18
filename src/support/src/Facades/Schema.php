@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Database\Schema\SchemaProxy;
-
 /**
  * @method static void defaultStringLength(int $length)
  * @method static bool hasTable(string $table)
@@ -40,8 +38,24 @@ use Hypervel\Database\Schema\SchemaProxy;
  */
 class Schema extends Facade
 {
+    /**
+     * Indicates if the resolved facade should be cached.
+     */
+    protected static bool $cached = false;
+
+    /**
+     * Get a schema builder instance for a connection.
+     */
+    public static function connection(?string $name = null): \Hypervel\Database\Schema\Builder
+    {
+        return static::$app['db']->connection($name)->getSchemaBuilder();
+    }
+
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
-        return SchemaProxy::class;
+        return 'db.schema';
     }
 }
