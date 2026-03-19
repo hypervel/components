@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
@@ -17,7 +16,6 @@ use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\LogTransport;
-use Hypervel\Mail\Transport\SesTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
@@ -25,6 +23,7 @@ use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use Resend;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory;
 use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkTransportFactory;
@@ -69,7 +68,7 @@ class MailManager implements FactoryContract
      * The array of drivers which will be wrapped as pool proxies.
      */
     protected array $poolables = [
-        'smtp', 'sendmail', 'mailgun', 'ses', 'ses_v2', 'postmark', 'resend', 'failover', 'roundrobin',
+        'smtp', 'sendmail', 'mailgun', 'ses_v2', 'postmark', 'resend', 'failover', 'roundrobin',
     ];
 
     /**
@@ -142,6 +141,27 @@ class MailManager implements FactoryContract
         // of sent messages since these will be sent to a single email address.
         foreach (['from', 'reply_to', 'to', 'return_path'] as $type) {
             $this->setGlobalAddress($mailer, $config, $type);
+        }
+
+        return $mailer;
+    }
+
+    /**
+     * Build a new mailer instance.
+     *
+     * @TODO Implement transport pooling for on-demand mailers — see POOL-AND-MAIL-POOLING.md
+     */
+    public function build(array $config): Mailer
+    {
+        $mailer = new Mailer(
+            $config['name'] ?? 'ondemand',
+            $this->app->make(ViewFactoryContract::class),
+            $this->createSymfonyTransport($config),
+            $this->app->make(Dispatcher::class)
+        );
+
+        if ($this->app->has(QueueFactory::class)) {
+            $mailer->setQueue($this->app->make(QueueFactory::class));
         }
 
         return $mailer;
@@ -241,25 +261,6 @@ class MailManager implements FactoryContract
     }
 
     /**
-     * Create an instance of the Symfony Amazon SES Transport driver.
-     */
-    protected function createSesTransport(array $config): SesTransport
-    {
-        $config = array_merge(
-            $this->config->get('services.ses', []),
-            ['version' => 'latest', 'service' => 'email'],
-            $config
-        );
-
-        $config = Arr::except($config, ['transport']);
-
-        return new SesTransport(
-            new SesClient($this->addSesCredentials($config)),
-            $config['options'] ?? []
-        );
-    }
-
-    /**
      * Create an instance of the Symfony Amazon SES V2 Transport driver.
      */
     protected function createSesV2Transport(array $config): SesV2Transport
@@ -284,10 +285,24 @@ class MailManager implements FactoryContract
     protected function addSesCredentials(array $config): array
     {
         if (! empty($config['key']) && ! empty($config['secret'])) {
-            $config['credentials'] = Arr::only($config, ['key', 'secret', 'token']);
+            $config['credentials'] = Arr::only($config, ['key', 'secret']);
+
+            if (! empty($config['token'])) {
+                $config['credentials']['token'] = $config['token'];
+            }
         }
 
         return Arr::except($config, ['token']);
+    }
+
+    /**
+     * Create an instance of the Resend Transport driver.
+     */
+    protected function createResendTransport(array $config): Transport\ResendTransport
+    {
+        return new Transport\ResendTransport(
+            Resend::client($config['key'] ?? $this->config->get('services.resend.key')),
+        );
     }
 
     /**
@@ -349,25 +364,28 @@ class MailManager implements FactoryContract
      */
     protected function createFailoverTransport(array $config): FailoverTransport
     {
-        $transports = [];
-
-        foreach ($config['mailers'] as $name) {
-            $config = $this->getConfig($name);
-
-            if (is_null($config)) {
-                throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
-            }
-
-            $transports[] = $this->createSymfonyTransport($config);
-        }
-
-        return new FailoverTransport($transports);
+        return $this->createRoundrobinTransportOfClass($config, FailoverTransport::class);
     }
 
     /**
      * Create an instance of the Symfony Roundrobin Transport driver.
      */
     protected function createRoundrobinTransport(array $config): RoundRobinTransport
+    {
+        return $this->createRoundrobinTransportOfClass($config, RoundRobinTransport::class);
+    }
+
+    /**
+     * Create an instance of supplied class extending the Symfony Roundrobin Transport driver.
+     *
+     * @template TClass of RoundRobinTransport
+     *
+     * @param class-string<TClass> $class
+     * @return TClass
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function createRoundrobinTransportOfClass(array $config, string $class): RoundRobinTransport
     {
         $transports = [];
 
@@ -381,7 +399,7 @@ class MailManager implements FactoryContract
             $transports[] = $this->createSymfonyTransport($config);
         }
 
-        return new RoundRobinTransport($transports);
+        return new $class($transports, $config['retry_after'] ?? 60, $this->app->make(LoggerInterface::class));
     }
 
     /**
