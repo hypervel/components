@@ -25,11 +25,18 @@ class SesV2Transport extends AbstractTransport implements Stringable
         parent::__construct();
     }
 
+    /**
+     * @throws TransportException
+     */
     protected function doSend(SentMessage $message): void
     {
         $options = $this->options;
 
         if ($message->getOriginalMessage() instanceof Message) {
+            if ($listManagementOptions = $this->listManagementOptions($message)) {
+                $options['ListManagementOptions'] = $listManagementOptions;
+            }
+
             foreach ($message->getOriginalMessage()->getHeaders()->all() as $header) {
                 if ($header instanceof MetadataHeader) {
                     $options['EmailTags'][] = ['Name' => $header->getKey(), 'Value' => $header->getValue()];
@@ -63,7 +70,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
 
             throw new TransportException(
                 sprintf('Request to AWS SES V2 API failed. Reason: %s.', $reason),
-                $e->getCode(),
+                is_int($e->getCode()) ? $e->getCode() : 0, // @phpstan-ignore function.alreadyNarrowedType
                 $e
             );
         }
@@ -77,7 +84,22 @@ class SesV2Transport extends AbstractTransport implements Stringable
     }
 
     /**
-     * Get the Amazon SES V2 client for the SesTransport instance.
+     * Extract the SES list management options, if applicable.
+     */
+    protected function listManagementOptions(SentMessage $message): ?array
+    {
+        /* @phpstan-ignore-next-line */
+        if ($header = $message->getOriginalMessage()->getHeaders()->get('X-SES-LIST-MANAGEMENT-OPTIONS')) {
+            if (preg_match('/^(contactListName=)*(?<ContactListName>[^;]+)(;\s?topicName=(?<TopicName>.+))?$/ix', $header->getBodyAsString(), $listManagementOptions)) {
+                return array_filter($listManagementOptions, fn ($e) => in_array($e, ['ContactListName', 'TopicName']), ARRAY_FILTER_USE_KEY);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the Amazon SES V2 client for the SesV2Transport instance.
      */
     public function ses(): SesV2Client
     {
