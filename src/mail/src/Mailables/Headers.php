@@ -61,8 +61,8 @@ class Headers
      */
     public function referencesString(): string
     {
-        return Collection::make($this->references)->map(function ($messageId) {
-            return Str::finish(Str::start($messageId, '<'), '>');
-        })->implode(' ');
+        return (new Collection($this->references))
+            ->map(fn ($messageId) => Str::of($messageId)->start('<')->finish('>')->value())
+            ->implode(' ');
     }
 }
