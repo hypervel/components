@@ -8,6 +8,9 @@ use Exception;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Support\Collection;
 
+/**
+ * @property \Symfony\Component\Mime\Email $message
+ */
 class MessageSent
 {
     /**
@@ -24,8 +27,7 @@ class MessageSent
      */
     public function __serialize(): array
     {
-        /* @phpstan-ignore-next-line */
-        $hasAttachments = Collection::make($this->message->getAttachments())->isNotEmpty();
+        $hasAttachments = (new Collection($this->message->getAttachments()))->isNotEmpty(); // @phpstan-ignore property.nonObject
 
         return [
             'sent' => $this->sent,
