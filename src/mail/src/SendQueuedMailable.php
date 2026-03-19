@@ -10,13 +10,21 @@ use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 
 class SendQueuedMailable
 {
-    use Queueable;
     use InteractsWithQueue;
+    use Queueable;
+    use ReadsQueueAttributes;
 
     /**
      * The number of times the job may be attempted.
@@ -52,12 +60,12 @@ class SendQueuedMailable
             $this->afterCommit = property_exists($mailable, 'afterCommit') ? $mailable->afterCommit : null;
         }
 
-        $this->connection = property_exists($mailable, 'connection') ? $mailable->connection : null;
-        $this->maxExceptions = property_exists($mailable, 'maxExceptions') ? $mailable->maxExceptions : null;
-        $this->queue = property_exists($mailable, 'queue') ? $mailable->queue : null;
+        $this->connection = $this->getAttributeValue($mailable, Connection::class, 'connection');
+        $this->maxExceptions = $this->getAttributeValue($mailable, MaxExceptions::class, 'maxExceptions');
+        $this->queue = $this->getAttributeValue($mailable, QueueAttribute::class, 'queue');
         $this->shouldBeEncrypted = $mailable instanceof ShouldBeEncrypted;
-        $this->timeout = property_exists($mailable, 'timeout') ? $mailable->timeout : null;
-        $this->tries = property_exists($mailable, 'tries') ? $mailable->tries : null;
+        $this->timeout = $this->getAttributeValue($mailable, Timeout::class, 'timeout');
+        $this->tries = $this->getAttributeValue($mailable, Tries::class, 'tries');
     }
 
     /**
@@ -73,11 +81,13 @@ class SendQueuedMailable
      */
     public function backoff(): mixed
     {
-        if (! method_exists($this->mailable, 'backoff') && ! isset($this->mailable->backoff)) {
-            return null;
+        $backoff = $this->getAttributeValue($this->mailable, Backoff::class, 'backoff');
+
+        if (method_exists($this->mailable, 'backoff')) {
+            $backoff = $this->mailable->backoff();
         }
 
-        return $this->mailable->backoff ?? $this->mailable->backoff();
+        return $backoff;
     }
 
     /**
