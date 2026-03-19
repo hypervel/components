@@ -169,7 +169,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Render the given message as a view.
      */
-    public function render(array|string $view, array $data = []): string
+    public function render(array|Closure|string $view, array $data = []): string
     {
         // First we need to parse the view, which could either be a string or an array
         // containing both an HTML and plain text versions of the view which should
@@ -189,10 +189,10 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function replaceEmbeddedAttachments(string $renderedView, array $attachments): string
     {
-        if (preg_match_all('/<img.+?src=[\'"]cid:([^\'"]+)[\'"].*?>/i', $renderedView, $matches)) {
+        if (preg_match_all('/<img.+?src=[\'"]cid:([^\'"]+)[\'"].*?>/is', $renderedView, $matches)) {
             foreach (array_unique($matches[1]) as $image) {
                 foreach ($attachments as $attachment) {
-                    if ($attachment->getFilename() === $image) {
+                    if ($attachment->getContentId() === $image || $attachment->getFilename() === $image) {
                         $renderedView = str_replace(
                             'cid:' . $image,
                             'data:' . $attachment->getContentType() . ';base64,' . $attachment->bodyToString(),
@@ -467,9 +467,9 @@ class Mailer implements MailerContract, MailQueueContract
             return true;
         }
 
-        return tap(new MessageSending($message, $data), function ($event) {
-            $this->events->dispatch($event);
-        })->shouldSend();
+        return $this->events->until(
+            new MessageSending($message, $data)
+        ) !== false;
     }
 
     /**
