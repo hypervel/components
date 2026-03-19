@@ -118,6 +118,16 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Register the default queue route for a given class.
+     *
+     * @param array|class-string $class
+     */
+    public function route(array|string $class, ?string $queue = null, ?string $connection = null): void
+    {
+        $this->queueRoutes()->set($class, $queue, $connection);
+    }
+
+    /**
      * Determine if the driver is connected.
      */
     public function connected(?string $name = null): bool
