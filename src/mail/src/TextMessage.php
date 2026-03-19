@@ -43,11 +43,6 @@ class TextMessage
      */
     public function __call(string $method, array $parameters)
     {
-        $result = $this->forwardCallTo($this->message, $method, $parameters);
-        if ($result === $this->message) {
-            return $this;
-        }
-
-        return $result;
+        return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }
 }
