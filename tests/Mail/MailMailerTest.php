@@ -296,7 +296,7 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
 
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->once()->with(m::type(MessageSending::class));
+        $events->shouldReceive('until')->once()->with(m::type(MessageSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
 
         $mailer = new Mailer('array', $view, new ArrayTransport(), $events);
