@@ -9,32 +9,20 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Translation\Fixtures\Enums\Bar;
+use Hypervel\Tests\Translation\Fixtures\Enums\Baz;
+use Hypervel\Tests\Translation\Fixtures\Enums\Foo;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;
 
 use function Hypervel\Coroutine\run;
 
-enum TranslatorTestStringBackedEnum: string
-{
-    case February = 'February';
-}
-
-enum TranslatorTestIntBackedEnum: int
-{
-    case Thirteen = 13;
-}
-
-enum TranslatorTestUnitEnum
-{
-    case Hosni;
-}
-
 /**
  * @internal
  * @coversNothing
  */
-class TranslatorTest extends TestCase
+class TranslationTranslatorTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
@@ -330,17 +318,17 @@ class TranslatorTest extends TestCase
 
         $this->assertSame(
             'Laravel 12 was released in February 2025',
-            $translator->get('string_backed_enum', ['month' => TranslatorTestStringBackedEnum::February])
+            $translator->get('string_backed_enum', ['month' => Baz::February])
         );
 
         $this->assertSame(
             'Stay tuned for Laravel v13',
-            $translator->get('int_backed_enum', ['version' => TranslatorTestIntBackedEnum::Thirteen])
+            $translator->get('int_backed_enum', ['version' => Bar::Thirteen])
         );
 
         $this->assertSame(
             'Hosni gets excited about every new Laravel release',
-            $translator->get('unit_enum', ['person' => TranslatorTestUnitEnum::Hosni])
+            $translator->get('unit_enum', ['person' => Foo::Hosni])
         );
     }
 
