@@ -5,41 +5,31 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Attribute;
-use Closure;
+use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
-use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Testbench\Attributes\WithEnv;
-use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
 use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
-use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
-use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
 
-/**
- * Provides test case lifecycle and attribute caching functionality.
- *
- * @property null|\Hypervel\Contracts\Foundation\Application $app
- */
+use function Hypervel\Testbench\hypervel_or_fail;
+
 trait InteractsWithTestCase
 {
     /**
-     * Cached class attributes by class name.
-     *
-     * @var array<string, array<int, array{key: class-string, instance: object}>>
+     * Cached application bootstrap file path.
      */
-    protected static array $cachedTestCaseClassAttributes = [];
+    protected static string|bool|null $cacheApplicationBootstrapFile = null;
 
     /**
-     * Cached method attributes by "class:method" key.
+     * Cached traits used by test case.
      *
-     * @var array<string, array<int, array{key: class-string, instance: object}>>
+     * @var null|array<class-string, class-string>
      */
-    protected static array $cachedTestCaseMethodAttributes = [];
+    protected static ?array $cachedTestCaseUses = null;
 
     /**
      * Programmatically added class-level testing features.
@@ -56,20 +46,22 @@ trait InteractsWithTestCase
     protected static array $testCaseMethodTestingFeatures = [];
 
     /**
-     * Cached traits used by test case.
-     *
-     * @var null|array<class-string, class-string>
-     */
-    protected static ?array $cachedTestCaseUses = null;
-
-    /**
      * Check if the test case uses a specific trait.
      *
-     * @param class-string $trait
+     * @param null|class-string $trait
      */
-    public static function usesTestingConcern(string $trait): bool
+    public static function usesTestingConcern(?string $trait = null): bool
     {
-        return isset(static::cachedUsesForTestCase()[$trait]);
+        return isset(static::cachedUsesForTestCase()[$trait ?? Testing::class]);
+    }
+
+    /**
+     * Determine if the test case uses refresh-database testing concerns.
+     */
+    public static function usesRefreshDatabaseTestingConcern(): bool
+    {
+        return static::usesTestingConcern(LazilyRefreshDatabase::class)
+            || static::usesTestingConcern(RefreshDatabase::class);
     }
 
     /**
@@ -117,97 +109,24 @@ trait InteractsWithTestCase
     }
 
     /**
-     * Resolve and cache PHPUnit attributes for current test.
-     *
-     * @return \Hypervel\Support\Collection<class-string, \Hypervel\Support\Collection<int, object>>
-     */
-    protected function resolvePhpUnitAttributes(): Collection
-    {
-        $className = static::class;
-        $methodName = $this->name();
-
-        // Cache class attributes
-        if (! isset(static::$cachedTestCaseClassAttributes[$className])) {
-            static::$cachedTestCaseClassAttributes[$className] = AttributeParser::forClass($className);
-        }
-
-        // Cache method attributes
-        $cacheKey = "{$className}:{$methodName}";
-        if (! isset(static::$cachedTestCaseMethodAttributes[$cacheKey])) {
-            static::$cachedTestCaseMethodAttributes[$cacheKey] = AttributeParser::forMethod($className, $methodName);
-        }
-
-        // Merge all sources and group by attribute class
-        return (new Collection(array_merge(
-            static::$testCaseTestingFeatures,
-            static::$cachedTestCaseClassAttributes[$className],
-            static::$testCaseMethodTestingFeatures,
-            static::$cachedTestCaseMethodAttributes[$cacheKey],
-        )))->groupBy('key')
-            ->map(static fn ($attrs) => $attrs->pluck('instance'));
-    }
-
-    /**
-     * Resolve attributes for class (and optionally method) - used by static lifecycle methods.
+     * Resolve PHPUnit method attributes for specific method.
      *
      * @param class-string $className
-     * @return \Hypervel\Support\Collection<class-string, \Hypervel\Support\Collection<int, object>>
+     * @return Collection<class-string, Collection<int, object>>
      */
-    protected static function resolvePhpUnitAttributesForMethod(string $className, ?string $methodName = null): Collection
-    {
-        $attributes = array_merge(
-            static::$testCaseTestingFeatures,
-            AttributeParser::forClass($className),
-        );
-
-        if ($methodName !== null) {
-            $attributes = array_merge(
-                $attributes,
-                static::$testCaseMethodTestingFeatures,
-                AttributeParser::forMethod($className, $methodName),
-            );
-        }
-
-        return (new Collection($attributes))
-            ->groupBy('key')
-            ->map(static fn ($attrs) => $attrs->pluck('instance'));
-    }
+    abstract protected static function resolvePhpUnitAttributesForMethod(string $className, ?string $methodName = null): Collection;
 
     /**
-     * Execute setup lifecycle attributes (Invokable, Actionable, BeforeEach).
+     * Execute BeforeEach lifecycle attributes.
      */
     protected function setUpTheTestEnvironmentUsingTestCase(): void
     {
-        $attributes = $this->resolvePhpUnitAttributes()->flatten();
+        $app = hypervel_or_fail($this->app);
 
-        // Execute Invokable attributes (excluding WithConfig which runs earlier
-        // in resolveApplicationBootstrappers() before providers boot)
-        $attributes
-            ->filter(static fn ($instance) => $instance instanceof Invokable && ! $instance instanceof WithConfig && ! $instance instanceof WithEnv)
-            ->each(fn ($instance) => $instance($this->app));
-
-        // Execute Actionable attributes (like DefineRoute, DefineDatabase)
-        // DefineEnvironment is excluded - it runs earlier in defineEnvironment()
-        // before providers boot, so database config can be set before connections pool.
-        // Some attributes (like DefineDatabase with defer: true) return a Closure
-        // that must be executed to complete the setup
-        $attributes
-            ->filter(static fn ($instance) => $instance instanceof Actionable && ! $instance instanceof DefineEnvironment)
-            ->each(function ($instance): void {
-                $result = $instance->handle(
-                    $this->app,
-                    fn ($method, $parameters) => $this->{$method}(...$parameters)
-                );
-
-                if ($result instanceof Closure) {
-                    $result();
-                }
-            });
-
-        // Execute BeforeEach attributes
-        $attributes
+        $this->resolvePhpUnitAttributes()
+            ->flatten()
             ->filter(static fn ($instance) => $instance instanceof BeforeEach)
-            ->each(fn ($instance) => $instance->beforeEach($this->app));
+            ->each(static fn ($instance) => $instance->beforeEach($app));
     }
 
     /**
@@ -215,10 +134,12 @@ trait InteractsWithTestCase
      */
     protected function tearDownTheTestEnvironmentUsingTestCase(): void
     {
+        $app = hypervel_or_fail($this->app);
+
         $this->resolvePhpUnitAttributes()
             ->flatten()
             ->filter(static fn ($instance) => $instance instanceof AfterEach)
-            ->each(fn ($instance) => $instance->afterEach($this->app));
+            ->each(static fn ($instance) => $instance->afterEach($app));
 
         static::$testCaseMethodTestingFeatures = [];
     }
@@ -245,21 +166,6 @@ trait InteractsWithTestCase
             ->each(static fn ($instance) => $instance->afterAll());
 
         static::$testCaseTestingFeatures = [];
-        static::$cachedTestCaseClassAttributes = [];
-        static::$cachedTestCaseMethodAttributes = [];
-        static::$cachedTestCaseUses = null;
-    }
-
-    /**
-     * Clear PHPUnit annotation parser caches.
-     */
-    public static function tearDownAfterClassUsingPHPUnit(): void
-    {
-        if (class_exists(PHPUnitRegistry::class)) {
-            (function () {
-                $this->classDocBlocks = [];
-                $this->methodDocBlocks = [];
-            })->call(PHPUnitRegistry::getInstance());
-        }
+        static::$cacheApplicationBootstrapFile = null;
     }
 }
