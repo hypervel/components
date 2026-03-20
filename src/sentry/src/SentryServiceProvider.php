@@ -98,7 +98,10 @@ class SentryServiceProvider extends ServiceProvider
             $this->bootTracing();
         }
 
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+        }
+
         $this->registerCommands();
         $this->registerCoroutineContextPropagation();
     }
