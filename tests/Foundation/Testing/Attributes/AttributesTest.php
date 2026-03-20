@@ -150,37 +150,37 @@ class AttributesTest extends TestCase
 
     public function testWithMigrationImplementsInvokable(): void
     {
-        $attribute = new WithMigration('laravel');
+        $attribute = new WithMigration('hypervel');
 
         $this->assertInstanceOf(Invokable::class, $attribute);
-        $this->assertSame(['laravel'], $attribute->types);
+        $this->assertSame(['hypervel'], $attribute->types);
     }
 
     public function testWithMigrationDefaultsToLaravel(): void
     {
         $attribute = new WithMigration();
 
-        $this->assertSame(['laravel'], $attribute->types);
+        $this->assertSame(['hypervel'], $attribute->types);
     }
 
     public function testWithMigrationAliasesMapToLaravel(): void
     {
-        // cache, queue, session all map to 'laravel'
+        // cache, queue, session all map to 'hypervel'
         $cacheAttr = new WithMigration('cache');
         $queueAttr = new WithMigration('queue');
         $sessionAttr = new WithMigration('session');
 
-        $this->assertSame(['laravel'], $cacheAttr->types);
-        $this->assertSame(['laravel'], $queueAttr->types);
-        $this->assertSame(['laravel'], $sessionAttr->types);
+        $this->assertSame(['hypervel'], $cacheAttr->types);
+        $this->assertSame(['hypervel'], $queueAttr->types);
+        $this->assertSame(['hypervel'], $sessionAttr->types);
     }
 
     public function testWithMigrationDeduplicatesTypes(): void
     {
-        // Multiple aliases that map to 'laravel' should dedupe
-        $attribute = new WithMigration('cache', 'queue', 'session', 'laravel');
+        // Multiple aliases that map to 'hypervel' should dedupe
+        $attribute = new WithMigration('cache', 'queue', 'session', 'hypervel');
 
-        $this->assertSame(['laravel'], $attribute->types);
+        $this->assertSame(['hypervel'], $attribute->types);
     }
 
     public function testWithMigrationPreservesLiteralPaths(): void
@@ -194,7 +194,7 @@ class AttributesTest extends TestCase
     {
         $attribute = new WithMigration('cache', '/custom/path');
 
-        $this->assertSame(['laravel', '/custom/path'], $attribute->types);
+        $this->assertSame(['hypervel', '/custom/path'], $attribute->types);
     }
 
     public function testRequiresEnvImplementsActionable(): void
