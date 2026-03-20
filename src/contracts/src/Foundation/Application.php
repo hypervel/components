@@ -212,6 +212,18 @@ interface Application extends Container
     public function resolveProvider(string $provider): ServiceProvider;
 
     /**
+     * Register a deferred provider and service.
+     */
+    public function registerDeferredProvider(string $provider, ?string $service = null): void;
+
+    /**
+     * Add an array of services to the application's deferred services.
+     *
+     * @param array<string, string> $services
+     */
+    public function addDeferredServices(array $services): void;
+
+    /**
      * Determine if the application has booted.
      */
     public function isBooted(): bool;
@@ -270,6 +282,11 @@ interface Application extends Container
      * Get the current application fallback locale.
      */
     public function getFallbackLocale(): string;
+
+    /**
+     * Load and boot all of the remaining deferred providers.
+     */
+    public function loadDeferredProviders(): void;
 
     /**
      * Set the current application locale.
