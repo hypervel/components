@@ -297,6 +297,16 @@ interface Application extends Container
     public function getCachedEventsPath(): string;
 
     /**
+     * Get the path to the cached packages.php file.
+     */
+    public function getCachedPackagesPath(): string;
+
+    /**
+     * Get the path to the cached services.php file.
+     */
+    public function getCachedServicesPath(): string;
+
+    /**
      * Determine if the framework's base configuration should be merged.
      */
     public function shouldMergeFrameworkConfiguration(): bool;
