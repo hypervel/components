@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application;
@@ -443,6 +444,29 @@ class DatabaseManager implements ConnectionResolverInterface
     public function getConnections(): array
     {
         return $this->connections;
+    }
+
+    /**
+     * Purge all connections on the current manager instance.
+     *
+     * Resolves the DatabaseManager from the container and disconnects
+     * every active connection. Safe to call when no container or no
+     * database manager exists (e.g., unit tests).
+     */
+    public static function purgeConnections(): void
+    {
+        $container = Container::getInstance();
+
+        if (! $container->has('db')) {
+            return;
+        }
+
+        /** @var static $db */
+        $db = $container->make('db');
+
+        foreach (array_keys($db->getConnections()) as $name) {
+            $db->purge($name);
+        }
     }
 
     /**
