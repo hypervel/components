@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 /**
@@ -18,8 +18,6 @@ use Mockery as m;
  */
 class RegisterProvidersTest extends TestCase
 {
-    use HasMockedApplication;
-
     public function testRegisterProviders()
     {
         $mergedProviders = null;
@@ -48,10 +46,9 @@ class RegisterProvidersTest extends TestCase
                 TestOneServiceProvider::class,
             ]);
 
-        $app = $this->getApplication([
-            'config' => fn () => $config,
-            PackageManifest::class => fn () => $manifest,
-        ]);
+        $app = new Application($this->app->basePath());
+        $app->singleton('config', fn () => $config);
+        $app->singleton(PackageManifest::class, fn () => $manifest);
 
         (new RegisterProviders())->bootstrap($app);
 

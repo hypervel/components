@@ -141,8 +141,7 @@ use App\Providers\ProviderOrderingTest\AppBetaProvider;
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
@@ -152,15 +151,6 @@ use ReflectionMethod;
  */
 class ProviderOrderingTest extends TestCase
 {
-    use HasMockedApplication;
-
-    protected function tearDown(): void
-    {
-        RegisterProviders::flushState();
-
-        parent::tearDown();
-    }
-
     public function testFrameworkProvidersLoadBeforeApplicationProviders()
     {
         $app = $this->createAppWithProviders(
@@ -409,9 +399,7 @@ class ProviderOrderingTest extends TestCase
 
     public function testDefaultPriorityIsZero()
     {
-        $provider = new FrameworkAlphaProvider(
-            $this->getApplication()
-        );
+        $provider = new FrameworkAlphaProvider($this->app);
 
         $this->assertSame(0, $provider->priority);
     }
@@ -443,7 +431,7 @@ class ProviderOrderingTest extends TestCase
             });
 
         // Use an Application subclass that returns our test discovered providers
-        $app = new TestApplication('base_path', $discoveredProviders);
+        $app = new TestApplication($this->app->basePath(), $discoveredProviders);
 
         $app->singleton('config', fn () => $config);
 
