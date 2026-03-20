@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Composer;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\Facades\Facade;
-use Throwable;
 
 class RegisterFacades
 {
@@ -20,16 +18,11 @@ class RegisterFacades
         Facade::clearResolvedInstances();
         Facade::setFacadeApplication($app);
 
-        $composerAliases = [];
-        try {
-            $composerAliases = Arr::wrap(Composer::getJsonContent()['extra']['hypervel']['aliases'] ?? []);
-        } catch (Throwable $e) {
-            // do nothing
-        }
+        $packageAliases = $app->make(PackageManifest::class)->aliases();
 
         $configAliases = $app->make('config')
             ->get('app.aliases', []);
-        $aliases = array_merge($composerAliases, $configAliases);
+        $aliases = array_merge($packageAliases, $configAliases);
 
         $this->registerAliases($aliases);
     }
