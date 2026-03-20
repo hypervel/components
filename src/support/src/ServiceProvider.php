@@ -7,8 +7,9 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
-use Hypervel\Contracts\Translation\Loader as TranslationLoader;
+use Hypervel\Contracts\Support\DeferrableProvider;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Di\Aop\AspectCollector;
@@ -135,6 +136,10 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
+        if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
+            return;
+        }
+
         $config = $this->app->make('config');
 
         $packageDefaults = require $path;
@@ -173,6 +178,21 @@ abstract class ServiceProvider
     protected function mergeableOptions(string $name): array
     {
         return [];
+    }
+
+    /**
+     * Replace the given configuration with the existing configuration recursively.
+     */
+    protected function replaceConfigRecursivelyFrom(string $path, string $key): void
+    {
+        if (! ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached())) {
+            $config = $this->app->make('config');
+
+            $config->set($key, array_replace_recursive(
+                require $path,
+                $config->get($key, [])
+            ));
+        }
     }
 
     /**
@@ -219,11 +239,11 @@ abstract class ServiceProvider
     /**
      * Register a translation file namespace.
      */
-    protected function loadTranslationsFrom(string $path, string $namespace): void
+    protected function loadTranslationsFrom(string $path, ?string $namespace = null): void
     {
-        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path, $namespace) {
-            $translator->addNamespace($namespace, $path);
-        });
+        $this->callAfterResolving('translator', fn ($translator) => is_null($namespace)
+            ? $translator->addPath($path)
+            : $translator->addNamespace($namespace, $path));
     }
 
     /**
@@ -231,7 +251,7 @@ abstract class ServiceProvider
      */
     protected function loadJsonTranslationsFrom(string $path): void
     {
-        $this->callAfterResolving(TranslationLoader::class, function ($translator) use ($path) {
+        $this->callAfterResolving('translator', function ($translator) use ($path) {
             $translator->addJsonPath($path);
         });
     }
@@ -438,6 +458,48 @@ return [
     }
 
     /**
+     * Remove a provider from the bootstrap provider file.
+     *
+     * @param array<int, string>|string $providersToRemove
+     */
+    public static function removeProviderFromBootstrapFile(string|array $providersToRemove, ?string $path = null, bool $strict = false): bool
+    {
+        $path ??= app()->getBootstrapProvidersPath();
+
+        if (! file_exists($path)) {
+            return false;
+        }
+
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($path, true);
+        }
+
+        $providersToRemove = Arr::wrap($providersToRemove);
+
+        $providers = (new Collection(require $path))
+            ->unique()
+            ->sort()
+            ->values()
+            ->when(
+                $strict,
+                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => in_array($p, $providersToRemove, true)),
+                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => Str::contains($p, $providersToRemove))
+            )
+            ->map(fn ($p) => '    ' . $p . '::class,')
+            ->implode(PHP_EOL);
+
+        $content = '<?php
+
+return [
+' . $providers . '
+];';
+
+        file_put_contents($path, $content . PHP_EOL);
+
+        return true;
+    }
+
+    /**
      * Register commands that should run on "optimize".
      */
     protected function optimizes(?string $optimize = null, ?string $clear = null, ?string $key = null): void
@@ -480,6 +542,24 @@ return [
         }
 
         return $key;
+    }
+
+    /**
+     * Get the services provided by the provider.
+     *
+     * @return array<int, string>
+     */
+    public function provides(): array
+    {
+        return [];
+    }
+
+    /**
+     * Determine if the provider is deferred.
+     */
+    public function isDeferred(): bool
+    {
+        return $this instanceof DeferrableProvider;
     }
 
     /**
