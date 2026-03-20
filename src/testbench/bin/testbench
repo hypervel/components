@@ -44,17 +44,26 @@ define('TESTBENCH_WORKING_PATH', $workingPath);
 Hypervel\Testbench\Bootstrapper::bootstrap();
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Testbench\Bootstrapper;
+use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
+use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
+use Hypervel\Testbench\Workbench\Workbench;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
-use Workbench\App\Exceptions\ExceptionHandler;
 
 // Create application
-$app = new Application(BASE_PATH);
-$app->singleton(KernelContract::class, ConsoleKernel::class);
-$app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
+$configuration = Bootstrapper::getConfiguration();
+$app = $configuration !== null
+    ? TestbenchApplication::createFromConfig($configuration, static function ($app) use ($configuration): void {
+        Workbench::startWithProviders($app, $configuration);
+        Workbench::discoverRoutes($app, $configuration);
+
+        (new LoadMigrationsFromArray(
+            $configuration['migrations'] ?? [],
+            $configuration['seeders'] ?? false,
+        ))->bootstrap($app);
+    })
+    : TestbenchApplication::create(BASE_PATH);
 
 // Get console kernel and run
 $kernel = $app->make(KernelContract::class);
