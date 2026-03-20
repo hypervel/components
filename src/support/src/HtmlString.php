@@ -12,12 +12,12 @@ class HtmlString implements Htmlable, Stringable
     /**
      * The HTML string.
      */
-    protected string $html;
+    protected mixed $html;
 
     /**
      * Create a new HTML string instance.
      */
-    public function __construct(?string $html = '')
+    public function __construct(mixed $html = '')
     {
         $this->html = $html ?? '';
     }
