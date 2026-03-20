@@ -1,0 +1,9 @@
+providers:
+  - Hypervel\Tests\Testbench\Fixtures\Providers\ConfigTestServiceProvider
+
+env:
+  APP_DEBUG: false
+
+workbench:
+  start: /workbench
+  user: crynobone@gmail.com
