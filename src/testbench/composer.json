@@ -47,10 +47,17 @@
         ],
         "psr-4": {
             "Hypervel\\Testbench\\": "src/",
-            "Workbench\\App\\": "workbench/app/"
+            "Workbench\\App\\": "workbench/app/",
+            "Workbench\\Database\\Factories\\": "workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"
         }
     },
     "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Testbench\\TestbenchServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
