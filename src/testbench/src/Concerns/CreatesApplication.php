@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Closure;
-use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -16,19 +15,29 @@ use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
-use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
-use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\RequiresEnv;
+use Hypervel\Testbench\Attributes\RequiresHypervel;
+use Hypervel\Testbench\Attributes\ResolvesHypervel;
+use Hypervel\Testbench\Attributes\UsesFrameworkConfiguration;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithEnv;
-use Hypervel\Testbench\Contracts\Attributes\Actionable;
-use Workbench\App\Exceptions\ExceptionHandler;
+use Hypervel\Testbench\Bootstrap\LoadConfiguration as TestbenchLoadConfiguration;
+use Hypervel\Testbench\Bootstrap\LoadConfigurationWithWorkbench;
+use Hypervel\Testbench\Bootstrap\RegisterProviders as TestbenchRegisterProviders;
+use Hypervel\Testbench\Features\TestingFeature;
+use Hypervel\Testbench\Foundation\Bootstrap\SyncDatabaseEnvironmentVariables;
+use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\UndefinedValue;
+use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_skeleton_path;
@@ -46,13 +55,23 @@ use function Hypervel\Testbench\refresh_router_lookups;
 trait CreatesApplication
 {
     use InteractsWithParallelDatabase;
+    use InteractsWithWorkbench;
+    use WithHypervelBootstrapFile;
 
     /**
      * Get the base path for the application.
      */
     public static function applicationBasePath(): string
     {
-        return default_skeleton_path() ?: '';
+        return static::applicationBasePathUsingWorkbench() ?? (default_skeleton_path() ?: '');
+    }
+
+    /**
+     * Resolve the application's base path.
+     */
+    protected function getApplicationBasePath(): string
+    {
+        return static::applicationBasePath();
     }
 
     /**
@@ -62,7 +81,17 @@ trait CreatesApplication
      */
     protected function getPackageProviders(ApplicationContract $app): array
     {
-        return [];
+        return $this->getPackageProvidersUsingWorkbench($app) ?? [];
+    }
+
+    /**
+     * Get package bootstrappers.
+     *
+     * @return array<int, class-string>
+     */
+    protected function getPackageBootstrappers(ApplicationContract $app): array
+    {
+        return $this->getPackageBootstrappersUsingWorkbench($app) ?? [];
     }
 
     /**
@@ -76,6 +105,14 @@ trait CreatesApplication
     protected function getApplicationProviders(ApplicationContract $app): array
     {
         return $app->make('config')->get('app.providers', []);
+    }
+
+    /**
+     * Get the application timezone.
+     */
+    protected function getApplicationTimezone(ApplicationContract $app): ?string
+    {
+        return $app->make('config')->get('app.timezone');
     }
 
     /**
@@ -137,32 +174,160 @@ trait CreatesApplication
         $app = $this->resolveApplication();
 
         $this->resolveApplicationBindings($app);
+        $this->resolveApplicationExceptionHandler($app);
+        $this->resolveApplicationEnvironmentVariables($app);
         $this->resolveApplicationConfiguration($app);
+        $this->resolveApplicationHttpKernel($app);
+        $this->resolveApplicationHttpMiddlewares($app);
+        $this->resolveApplicationConsoleKernel($app);
         $this->resolveApplicationBootstrappers($app);
         $this->refreshApplicationRouteNameLookups($app);
 
         return $app;
     }
 
-    /**
-     * Create the default application instance.
-     */
     protected function resolveApplication(): ApplicationContract
     {
-        $app = new Application(BASE_PATH);
+        static::$cacheApplicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php');
 
-        // Use testbench Console Kernel with empty bootstrappers() so that
-        // ConsoleKernel::bootstrap() at the end of the lifecycle only sets
-        // hasBeenBootstrapped without re-running any bootstrappers.
-        $app->singleton(KernelContract::class, \Hypervel\Testbench\Console\Kernel::class);
-        $app->singleton(HttpKernelContract::class, \Hypervel\Testbench\Http\Kernel::class);
-        $app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
+        if (is_string(static::$cacheApplicationBootstrapFile)) {
+            $APP_BASE_PATH = $this->getApplicationBasePath();
 
-        // Apply default middleware configuration when the HTTP kernel is resolved.
-        // This mirrors ApplicationBuilder::withMiddleware() — sets global middleware,
-        // groups, aliases, and priority so middleware aliases like 'web', 'auth',
-        // 'signed' etc. resolve correctly in tests.
-        $app->afterResolving(HttpKernelContract::class, function ($kernel) {
+            /** @var ApplicationContract $app */
+            $app = require static::$cacheApplicationBootstrapFile;
+
+            return $app;
+        }
+
+        $app = new Application($this->getApplicationBasePath());
+
+        return $app;
+    }
+
+    /**
+     * Resolve application bindings.
+     */
+    protected function resolveApplicationBindings(ApplicationContract $app): void
+    {
+        foreach ($this->overrideApplicationBindings($app) as $original => $replacement) {
+            $app->bind($original, $replacement);
+        }
+    }
+
+    /**
+     * Resolve application HTTP exception handler.
+     */
+    protected function resolveApplicationExceptionHandler(ApplicationContract $app): void
+    {
+        $app->singleton(ExceptionHandlerContract::class, $this->applicationExceptionHandlerUsingWorkbench($app));
+    }
+
+    /**
+     * Resolve application environment variables.
+     */
+    protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
+    {
+        if ($this->loadEnvironmentVariables !== true) {
+            $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
+        }
+
+        if ($this->loadEnvironmentVariables === true) {
+            $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
+        }
+
+        $attributeCallbacks = TestingFeature::run(
+            testCase: $this,
+            attribute: fn () => $this->parseTestMethodAttributes($app, WithEnv::class),
+        )->get('attribute');
+
+        TestingFeature::run(
+            testCase: $this,
+            attribute: function () use ($app) {
+                $this->parseTestMethodAttributes($app, RequiresEnv::class);
+                $this->parseTestMethodAttributes($app, RequiresHypervel::class);
+            },
+        );
+
+        if ($this instanceof PHPUnitTestCase) {
+            $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
+                $attributeCallbacks->handle();
+            });
+        }
+    }
+
+    /**
+     * Mask inherited framework APP_ENV for Testbench applications that opt out of loading env files.
+     *
+     * The framework suite forces APP_ENV=testing globally via phpunit.xml.dist.
+     * Tests that disable environment loading should instead use the configuration
+     * defaults unless they explicitly provided APP_ENV or package-tester mode is enabled.
+     *
+     * @return Closure(): void
+     */
+    protected function maskInheritedApplicationEnvironment(): Closure
+    {
+        if (Env::has('TESTBENCH_PACKAGE_TESTER') || $this->hasConfiguredApplicationEnvironmentVariable('APP_ENV')) {
+            return static fn (): null => null;
+        }
+
+        $originalServerValue = $_SERVER['APP_ENV'] ?? new UndefinedValue();
+        $originalEnvironmentValue = $_ENV['APP_ENV'] ?? new UndefinedValue();
+        $originalProcessValue = getenv('APP_ENV');
+
+        unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
+
+        putenv('APP_ENV');
+        Env::flushRepository();
+
+        return static function () use ($originalServerValue, $originalEnvironmentValue, $originalProcessValue): void {
+            if ($originalServerValue instanceof UndefinedValue) {
+                unset($_SERVER['APP_ENV']);
+            } else {
+                $_SERVER['APP_ENV'] = $originalServerValue;
+            }
+
+            if ($originalEnvironmentValue instanceof UndefinedValue) {
+                unset($_ENV['APP_ENV']);
+            } else {
+                $_ENV['APP_ENV'] = $originalEnvironmentValue;
+            }
+
+            if ($originalProcessValue === false) {
+                putenv('APP_ENV');
+            } else {
+                putenv("APP_ENV={$originalProcessValue}");
+            }
+
+            Env::flushRepository();
+        };
+    }
+
+    /**
+     * Determine if the current test explicitly configured an environment variable.
+     */
+    protected function hasConfiguredApplicationEnvironmentVariable(string $key): bool
+    {
+        return $this->resolvePhpUnitAttributes()
+            ->flatten()
+            ->contains(
+                static fn ($instance) => $instance instanceof WithEnv && $instance->key === $key
+            );
+    }
+
+    /**
+     * Resolve application HTTP kernel implementation.
+     */
+    protected function resolveApplicationHttpKernel(ApplicationContract $app): void
+    {
+        $app->singleton(HttpKernelContract::class, $this->applicationHttpKernelUsingWorkbench($app));
+    }
+
+    /**
+     * Resolve application HTTP default middlewares.
+     */
+    protected function resolveApplicationHttpMiddlewares(ApplicationContract $app): void
+    {
+        $app->afterResolving(HttpKernelContract::class, function ($kernel): void {
             $middleware = (new \Hypervel\Foundation\Configuration\Middleware())
                 ->redirectGuestsTo(fn () => route('login'));
 
@@ -186,18 +351,16 @@ trait CreatesApplication
                 }
             }
         });
-
-        return $app;
     }
 
     /**
-     * Resolve application bindings.
+     * Resolve application console kernel implementation.
      */
-    protected function resolveApplicationBindings(ApplicationContract $app): void
+    protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
     {
-        foreach ($this->overrideApplicationBindings($app) as $original => $replacement) {
-            $app->bind($original, $replacement);
-        }
+        // Use the Testbench console kernel so the final bootstrap() call only
+        // marks the app bootstrapped and loads commands.
+        $app->singleton(KernelContract::class, $this->applicationConsoleKernelUsingWorkbench($app));
     }
 
     /**
@@ -209,17 +372,44 @@ trait CreatesApplication
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
-        $app->bootstrapWith([LoadEnvironmentVariables::class]);
+        $loadConfiguration = static::usesTestingConcern() && ! static::usesTestingConcern(WithWorkbench::class)
+            ? TestbenchLoadConfiguration::class
+            : LoadConfigurationWithWorkbench::class;
 
-        $app->make(LoadConfiguration::class)->bootstrap($app);
+        $app->singleton(FoundationLoadConfiguration::class, $loadConfiguration);
+
+        TestingFeature::run(
+            testCase: $this,
+            attribute: function () use ($app) {
+                $this->parseTestMethodAttributes($app, ResolvesHypervel::class); /* @phpstan-ignore method.notFound */
+                $this->parseTestMethodAttributes($app, UsesFrameworkConfiguration::class); /* @phpstan-ignore method.notFound */
+            },
+        );
+
+        $app->make(FoundationLoadConfiguration::class)->bootstrap($app);
+        $app->make(SyncDatabaseEnvironmentVariables::class)->bootstrap($app);
+
+        if (($timezone = $this->getApplicationTimezone($app)) !== null) {
+            $app->make('config')->set('app.timezone', $timezone);
+            date_default_timezone_set($timezone);
+        }
 
         // Rewrite the default database name for parallel testing before
         // defineEnvironment() runs, so custom connections derived from
         // the default connection inherit the per-worker database name.
         $this->configureParallelDatabaseName($app);
 
+        if (is_string($bootstrapProviderPath = $this->getApplicationBootstrapFile('providers.php'))) {
+            TestbenchRegisterProviders::merge([], $bootstrapProviderPath);
+        }
+
         $this->resolveApplicationProviders($app);
         $this->registerPackageAliases($app);
+
+        TestingFeature::run(
+            testCase: $this,
+            attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound */
+        );
     }
 
     /**
@@ -230,7 +420,9 @@ trait CreatesApplication
      */
     protected function resolveApplicationProviders(ApplicationContract $app): void
     {
-        $providers = (new Collection($this->getApplicationProviders($app)))
+        $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
+            $this->getApplicationProviders($app)
+        )))
             ->merge($this->getPackageProviders($app));
 
         $overrides = $this->overrideApplicationProviders($app);
@@ -258,39 +450,35 @@ trait CreatesApplication
     protected function resolveApplicationBootstrappers(ApplicationContract $app): void
     {
         $app->make(HandleExceptions::class)->bootstrap($app);
+
+        // Must be set BEFORE RegisterFacades, which calls PackageManifest::aliases()
+        // and would cache the unfiltered manifest if the ignore list isn't set yet.
+        PackageManifest::ignorePackageDiscoveriesFrom(
+            $this->ignorePackageDiscoveriesFromUsingWorkbench() ?? ['*']
+        );
+
         $app->make(RegisterFacades::class)->bootstrap($app);
-
-        // Process WithConfig attributes BEFORE providers register — providers
-        // read config during register() (e.g., hasDebugModeEnabled()). In Swoole,
-        // config is process-global and read once at boot. Matches Laravel's testbench
-        // which runs WithConfig during LoadConfiguration, before RegisterProviders.
-        $this->resolvePhpUnitAttributes()
-            ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof WithConfig || $instance instanceof WithEnv)
-            ->each(function ($instance) use ($app) {
-                $teardown = $instance($app);
-
-                if ($teardown instanceof Closure) {
-                    $this->beforeApplicationDestroyed($teardown);
-                }
-            });
-
-        $app->make(RegisterProviders::class)->bootstrap($app);
+        $app->make(TestbenchRegisterProviders::class)->bootstrap($app);
         $app->make(GenerateProxies::class)->bootstrap($app);
 
-        // Define environment and process DefineEnvironment attributes —
-        // modify config between RegisterProviders and BootProviders.
+        // Define environment between RegisterProviders and BootProviders.
         // Matches Orchestral's pattern for database config etc.
-        $this->defineEnvironment($app);
-        $this->resolvePhpUnitAttributes()
-            ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof Actionable && $instance instanceof DefineEnvironment)
-            ->each(fn ($instance) => $instance->handle(
-                $app,
-                fn ($method, $parameters) => $this->{$method}(...$parameters)
-            ));
+        TestingFeature::run(
+            testCase: $this,
+            default: fn () => $this->defineEnvironment($app),
+            attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
+            pest: fn () => $this->defineEnvironmentUsingPest($app), /* @phpstan-ignore method.notFound */
+        );
+
+        if (static::usesTestingConcern(WithWorkbench::class)) {
+            $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound */
+        }
 
         $app->make(BootProviders::class)->bootstrap($app);
+
+        foreach ($this->getPackageBootstrappers($app) as $bootstrapper) {
+            $app->make($bootstrapper)->bootstrap($app);
+        }
 
         // Override the normal ConnectionResolver (registered by DatabaseServiceProvider)
         // with the testing resolver that caches connections statically to prevent pool
@@ -298,8 +486,7 @@ trait CreatesApplication
         $app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
         Model::setConnectionResolver($app->make(ConnectionResolverInterface::class));
 
-        // Finalize — sets hasBeenBootstrapped, loads deferred providers + commands.
-        $app->make(ConsoleApplicationContract::class);
+        $app->make(KernelContract::class)->bootstrap();
     }
 
     /**
