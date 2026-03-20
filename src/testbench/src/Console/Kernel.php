@@ -4,27 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Console;
 
-use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Testbench\Foundation\Console\Kernel as ConsoleKernel;
+use Throwable;
 
-/**
- * Testbench console kernel with empty bootstrappers.
- *
- * The testbench test lifecycle calls bootstrappers manually (via
- * resolveApplicationBootstrappers) so it can insert defineEnvironment()
- * between RegisterProviders and BootProviders. This kernel returns an
- * empty bootstrapper list so that ConsoleKernel::bootstrap() — called
- * at the end of the lifecycle — sets hasBeenBootstrapped without
- * re-running any bootstrappers.
- */
-class Kernel extends ConsoleKernel
+final class Kernel extends ConsoleKernel
 {
     /**
-     * Get the bootstrap classes for the application.
+     * The Artisan commands provided by your application.
      *
-     * @return array<int, class-string>
+     * @var array<int, class-string>
      */
-    protected function bootstrappers(): array
+    protected array $commands = [];
+
+    /**
+     * Report the exception to the exception handler.
+     *
+     * @throws Throwable
+     */
+    protected function reportException(Throwable $e): void
     {
-        return [];
+        throw $e;
+    }
+
+    /**
+     * Determine if the kernel should discover commands.
+     */
+    protected function shouldDiscoverCommands(): bool
+    {
+        return get_class($this) === __CLASS__;
     }
 }
