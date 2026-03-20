@@ -659,10 +659,13 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = strip_tags($this->getContent());
+        $content = $this->decodedResponseText();
 
         foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringContainsString((string) $value, $content);
+            PHPUnit::withResponse($this)->assertStringContainsString(
+                html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8'),
+                $content
+            );
         }
 
         return $this;
@@ -713,13 +716,24 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = strip_tags($this->getContent());
+        $content = $this->decodedResponseText();
 
         foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringNotContainsString((string) $value, $content);
+            PHPUnit::withResponse($this)->assertStringNotContainsString(
+                html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8'),
+                $content
+            );
         }
 
         return $this;
+    }
+
+    /**
+     * Get the response text with HTML entities decoded for plain-text assertions.
+     */
+    protected function decodedResponseText(): string
+    {
+        return html_entity_decode(strip_tags($this->getContent()), ENT_QUOTES, 'UTF-8');
     }
 
     /**
