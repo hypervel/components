@@ -11,11 +11,15 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 /**
  * Translate the given message.
  */
-function __(?string $key = null, array $replace = [], ?string $locale = null): array|string
+function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|null
 {
+    if (is_null($key)) {
+        return $key;
+    }
+
     return Container::getInstance()
         ->make(TranslatorContract::class)
-        ->trans($key, $replace, $locale);
+        ->get($key, $replace, $locale);
 }
 
 /**
@@ -26,7 +30,7 @@ function __(?string $key = null, array $replace = [], ?string $locale = null): a
 function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
 {
     if (is_null($key)) {
-        Container::getInstance()
+        return Container::getInstance()
             ->make(TranslatorContract::class);
     }
 
@@ -42,5 +46,5 @@ function trans_choice(string $key, array|Countable|float|int $number, array $rep
 {
     return Container::getInstance()
         ->make(TranslatorContract::class)
-        ->transChoice($key, $number, $replace, $locale);
+        ->choice($key, $number, $replace, $locale);
 }
