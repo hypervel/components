@@ -216,6 +216,18 @@ class DeferredProviderTest extends TestCase
         $this->assertSame('real-value', $this->app->make('already.bound'));
     }
 
+    public function testDeferredProviderIsNotLoadedWhenNeverResolved()
+    {
+        $this->app->addDeferredServices(['deferred.service' => DeferredTestProvider::class]);
+
+        // Service is registered as deferred
+        $this->assertTrue($this->app->isDeferredService('deferred.service'));
+        $this->assertTrue($this->app->bound('deferred.service'));
+
+        // But the provider itself should NOT be loaded
+        $this->assertFalse($this->app->providerIsLoaded(DeferredTestProvider::class));
+    }
+
     public function testDeferredProviderResolvedBeforeBootIsBootedOnlyOnce()
     {
         DeferredBootCountProvider::$bootCount = 0;
