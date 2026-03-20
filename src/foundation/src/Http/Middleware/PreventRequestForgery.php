@@ -101,7 +101,7 @@ class PreventRequestForgery
      */
     protected function runningUnitTests(): bool
     {
-        return $this->app->runningUnitTests();
+        return $this->app->runningInConsole() && $this->app->runningUnitTests();
     }
 
     /**
