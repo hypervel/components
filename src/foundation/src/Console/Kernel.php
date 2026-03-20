@@ -49,7 +49,7 @@ class Kernel implements KernelContract
      */
     protected ?EventDispatcher $symfonyDispatcher = null;
 
-    protected ApplicationContract $artisan;
+    protected ?ApplicationContract $artisan = null;
 
     /**
      * The Artisan commands provided by the application.
@@ -484,7 +484,7 @@ class Kernel implements KernelContract
     /**
      * Set the Artisan application instance.
      */
-    public function setArtisan(ApplicationContract $artisan): void
+    public function setArtisan(?ApplicationContract $artisan): void
     {
         $this->artisan = $artisan;
     }
