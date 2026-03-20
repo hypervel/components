@@ -71,6 +71,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Events\DiscoverEvents::flushState();
         \Hypervel\Support\DotenvManager::flushState();
         \Hypervel\Database\Eloquent\Builder::flushState();
+        \Hypervel\Support\Env::flushState();
         \Hypervel\Validation\Rules\Email::flushState();
         \Hypervel\Support\EncodedHtmlString::flushState();
         \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
