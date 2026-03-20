@@ -104,4 +104,11 @@ class TestCaseTest extends TestCase
     {
         $this->assertNotNull($this->app);
     }
+
+    public function testPackageTestCaseRunsInTestingEnvironment(): void
+    {
+        $this->assertSame('testing', $this->app['env']);
+        $this->assertSame('testing', $this->app->environment());
+        $this->assertTrue($this->app->runningUnitTests());
+    }
 }
