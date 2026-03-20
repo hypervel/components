@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Support\LazyCollection;
-use Symfony\Component\Yaml\Yaml;
+use Hypervel\Testbench\Contracts\Config as ConfigContract;
+use Hypervel\Testbench\Foundation\Config;
 
 use function Hypervel\Filesystem\join_paths;
 
 class Bootstrapper
 {
-    protected static array $config = [];
+    protected static ?ConfigContract $configuration = null;
 
     protected static ?Filesystem $filesystem = null;
 
@@ -25,28 +25,40 @@ class Bootstrapper
 
     public static function bootstrap(): void
     {
-        static::loadConfigFromYaml(
-            $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : dirname(__DIR__)
-        );
+        $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : dirname(__DIR__);
 
-        $sourcePath = "{$workingPath}/workbench";
-        if (static::$config['hypervel'] ?? null) {
-            $sourcePath = static::$config['hypervel'];
+        if (! defined('TESTBENCH_WORKING_PATH')) {
+            define('TESTBENCH_WORKING_PATH', $workingPath);
         }
 
-        $basePath = static::createRuntimeCopy($sourcePath);
+        static::loadConfigFromYaml($workingPath);
+
+        $sourcePath = "{$workingPath}/hypervel";
+        if (static::$configuration?->offsetExists('hypervel') === true && is_string(static::$configuration['hypervel'])) {
+            $sourcePath = static::$configuration['hypervel'];
+        }
+
+        $basePath = static::resolveRuntimeBasePath($sourcePath);
 
         ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
 
-        static::generateEnv();
-        static::generateComposerLock();
-        static::registerPurgeFiles();
+        if (static::$runtimePath !== null) {
+            static::generateEnv();
+            static::registerPurgeFiles();
+        }
     }
 
     public static function getConfig(): array
     {
-        return static::$config;
+        return static::$configuration instanceof Config
+            ? static::$configuration->getAttributes()
+            : [];
+    }
+
+    public static function getConfiguration(): ?ConfigContract
+    {
+        return static::$configuration;
     }
 
     protected static function getFilesystem(): Filesystem
@@ -58,50 +70,16 @@ class Bootstrapper
         return static::$filesystem = new Filesystem();
     }
 
-    protected static function generateComposerLock(): void
-    {
-        $content = [
-            'packages' => [
-                [
-                    'name' => 'hypervel-testbench',
-                    'extra' => [
-                        'hypervel' => [
-                            'providers' => static::$config['providers'] ?? [],
-                            'dont-discover' => static::$config['dont-discover'] ?? [],
-                        ],
-                    ],
-                ],
-            ],
-            'packages-dev' => [],
-        ];
-
-        static::getFilesystem()->replace(
-            BASE_PATH . '/composer.lock',
-            json_encode($content, JSON_PRETTY_PRINT)
-        );
-    }
-
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void
     {
-        $filename = LazyCollection::make(static function () use ($filename) {
-            yield $filename;
-            yield "{$filename}.example";
-            yield "{$filename}.dist";
-        })->map(static function ($file) use ($workingPath) {
-            return str_contains($file, DIRECTORY_SEPARATOR) ? $file : join_paths($workingPath, $file);
-        })->filter(static fn ($file) => is_file($file))
-            ->first();
-
-        if (is_null($filename)) {
-            return;
-        }
-
-        static::$config = Yaml::parseFile($filename) ?? [];
+        static::$configuration = Config::cacheFromYaml($workingPath, $filename, $defaults);
     }
 
     protected static function generateEnv(): void
     {
-        if (! $env = static::$config['env'] ?? []) {
+        $env = static::$configuration?->getExtraAttributes()['env'] ?? [];
+
+        if ($env === []) {
             return;
         }
 
@@ -112,11 +90,11 @@ class Bootstrapper
     }
 
     /**
-     * Create a disposable runtime copy of the workbench directory.
+     * Create a disposable runtime copy of the skeleton directory.
      *
      * Tests write generated files (make:provider, make:model, etc.) and mutate
-     * bootstrap/providers.php into the app's basePath. By copying the workbench
-     * to a temp directory and using that as BASE_PATH, the committed workbench
+     * bootstrap/providers.php into the app's basePath. By copying the skeleton
+     * to a temp directory and using that as BASE_PATH, the committed skeleton
      * stays clean. The copy is deleted on shutdown.
      */
     protected static function createRuntimeCopy(string $sourcePath): string
@@ -156,6 +134,21 @@ class Bootstrapper
     }
 
     /**
+     * Resolve the runtime base path for the current process.
+     */
+    protected static function resolveRuntimeBasePath(string $sourcePath): string
+    {
+        $existingRuntimePath = $_SERVER['TESTBENCH_BASE_PATH'] ?? $_ENV['TESTBENCH_BASE_PATH'] ?? null;
+        $isRemoteProcess = ($_SERVER['TESTBENCH_PACKAGE_REMOTE'] ?? $_ENV['TESTBENCH_PACKAGE_REMOTE'] ?? null) === '(true)';
+
+        if ($isRemoteProcess && is_string($existingRuntimePath) && static::getFilesystem()->isDirectory($existingRuntimePath)) {
+            return $existingRuntimePath;
+        }
+
+        return static::createRuntimeCopy($sourcePath);
+    }
+
+    /**
      * Delete the disposable runtime copy.
      */
     protected static function deleteRuntimeCopy(): void
@@ -175,7 +168,7 @@ class Bootstrapper
 
     protected static function registerPurgeFiles(): void
     {
-        $purge = static::$config['purge'] ?? [];
+        $purge = static::$configuration?->getPurgeAttributes() ?? [];
         $files = $purge['files'] ?? [];
         $directories = $purge['directories'] ?? [];
 
