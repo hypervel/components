@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Support\Collection;
+use Symfony\Component\Finder\SplFileInfo;
 
 use function Hypervel\Testbench\join_paths;
 
@@ -64,7 +65,8 @@ trait InteractsWithPublishedFiles
     {
         $this->cachedExistingMigrationsFiles ??= (new Collection(
             $this->app['files']->files($this->app->databasePath('migrations'))
-        ))->filter(static fn ($file) => str_ends_with($file, '.php'))
+        ))->map($this->publishedFilePath(...))
+            ->filter(static fn (string $file) => str_ends_with($file, '.php'))
             ->all();
     }
 
@@ -255,9 +257,18 @@ trait InteractsWithPublishedFiles
     {
         $this->app['files']->delete(
             (new Collection($this->app['files']->files($this->app->databasePath('migrations'))))
-                ->reject(fn ($file) => in_array($file, $this->cachedExistingMigrationsFiles))
-                ->filter(static fn ($file) => str_ends_with($file, '.php'))
+                ->map($this->publishedFilePath(...))
+                ->reject(fn (string $file) => in_array($file, $this->cachedExistingMigrationsFiles, true))
+                ->filter(static fn (string $file) => str_ends_with($file, '.php'))
                 ->all()
         );
+    }
+
+    /**
+     * Normalize a published file entry into a filesystem path.
+     */
+    protected function publishedFilePath(string|SplFileInfo $file): string
+    {
+        return $file instanceof SplFileInfo ? $file->getPathname() : $file;
     }
 }
