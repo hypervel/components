@@ -14,7 +14,7 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class FileLoaderTest extends TestCase
+class TranslationFileLoaderTest extends TestCase
 {
     public function testLoadMethodLoadsTranslationsFromAddedPath()
     {
