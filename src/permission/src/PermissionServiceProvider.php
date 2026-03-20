@@ -15,7 +15,9 @@ class PermissionServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+        }
     }
 
     /**
