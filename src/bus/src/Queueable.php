@@ -108,9 +108,9 @@ trait Queueable
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public function onGroup(UnitEnum|string $group): static
+    public function onGroup(UnitEnum|string|null $group): static
     {
-        $this->messageGroup = enum_value($group);
+        $this->messageGroup = $group ? enum_value($group) : $group;
 
         return $this;
     }
@@ -120,7 +120,7 @@ trait Queueable
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
      */
-    public function withDeduplicator(?Closure $deduplicator): static
+    public function withDeduplicator(Closure|SerializableClosure|null $deduplicator): static
     {
         $this->deduplicator = $deduplicator instanceof Closure
             ? new SerializableClosure($deduplicator)
