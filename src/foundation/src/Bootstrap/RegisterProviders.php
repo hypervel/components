@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
-use Throwable;
 
 class RegisterProviders
 {
@@ -29,18 +26,16 @@ class RegisterProviders
      */
     public function bootstrap(ApplicationContract $app): void
     {
-        $this->mergeAdditionalProviders($app);
+        if (! $app->bound('config_loaded_from_cache')
+            || $app->make('config_loaded_from_cache') === false) {
+            $this->mergeAdditionalProviders($app);
+        }
 
         $app->registerConfiguredProviders();
     }
 
     /**
      * Merge the additional configured providers into the configuration.
-     *
-     * Merges only explicit providers (config defaults, programmatic merge,
-     * bootstrap file). Discovered providers are handled separately in
-     * Application::registerConfiguredProviders() where they are sandwiched
-     * between framework and application providers.
      */
     protected function mergeAdditionalProviders(ApplicationContract $app): void
     {
@@ -63,54 +58,6 @@ class RegisterProviders
                 array_values($bootstrapProviders ?? []),
             ),
         );
-    }
-
-    /**
-     * Discover providers from installed packages via composer metadata.
-     *
-     * This is the Hypervel equivalent of Laravel's PackageManifest::providers().
-     * It reads `extra.hypervel.providers` from each installed package's metadata.
-     *
-     * @return array<int, class-string>
-     */
-    public static function discoveredProviders(): array
-    {
-        $packagesToIgnore = static::packagesToIgnore();
-
-        if (in_array('*', $packagesToIgnore)) {
-            return [];
-        }
-
-        $providers = array_map(
-            fn (array $package) => Arr::wrap($package['hypervel']['providers'] ?? []),
-            Composer::getMergedExtra()
-        );
-
-        $providers = array_filter(
-            $providers,
-            fn ($package) => ! in_array($package, $packagesToIgnore),
-            ARRAY_FILTER_USE_KEY
-        );
-
-        return Arr::flatten($providers);
-    }
-
-    /**
-     * Get the packages that should not be discovered.
-     *
-     * @return array<int, string>
-     */
-    protected static function packagesToIgnore(): array
-    {
-        $packages = Composer::getMergedExtra('hypervel')['dont-discover'] ?? [];
-
-        try {
-            $project = Composer::getJsonContent()['extra']['hypervel']['dont-discover'] ?? [];
-        } catch (Throwable) {
-            $project = [];
-        }
-
-        return array_merge($packages, $project);
     }
 
     /**
