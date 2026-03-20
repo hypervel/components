@@ -53,4 +53,9 @@ interface Factory
      * Replace the namespace hints for the given namespace.
      */
     public function replaceNamespace(string $namespace, string|array $hints): static;
+
+    /**
+     * Flush the cache of located views.
+     */
+    public function flushFinderCache(): void;
 }
