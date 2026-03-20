@@ -56,6 +56,27 @@ abstract class ServiceProvider
      */
     protected static $publishableMigrationPaths = [];
 
+    /**
+     * Commands that should be run during the "optimize" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $optimizeCommands = [];
+
+    /**
+     * Commands that should be run during the "optimize:clear" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $optimizeClearCommands = [];
+
+    /**
+     * Commands that should be run during the "reload" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $reloadCommands = [];
+
     public function __construct(
         protected ApplicationContract $app
     ) {
@@ -377,6 +398,9 @@ abstract class ServiceProvider
         static::$publishes = [];
         static::$publishGroups = [];
         static::$publishableMigrationPaths = [];
+        static::$optimizeCommands = [];
+        static::$optimizeClearCommands = [];
+        static::$reloadCommands = [];
     }
 
     /**
@@ -411,6 +435,51 @@ return [
         file_put_contents($path, $content . PHP_EOL);
 
         return true;
+    }
+
+    /**
+     * Register commands that should run on "optimize".
+     */
+    protected function optimizes(?string $optimize = null, ?string $clear = null, ?string $key = null): void
+    {
+        $key = $this->getProviderKey($key);
+
+        if ($optimize) {
+            static::$optimizeCommands[$key] = $optimize;
+        }
+
+        if ($clear) {
+            static::$optimizeClearCommands[$key] = $clear;
+        }
+    }
+
+    /**
+     * Register commands that should run on "reload".
+     */
+    protected function reloads(string $reload, ?string $key = null): void
+    {
+        $key = $this->getProviderKey($key);
+
+        static::$reloadCommands[$key] = $reload;
+    }
+
+    /**
+     * Get a short descriptive key for the current service provider.
+     */
+    protected function getProviderKey(?string $key = null): string
+    {
+        $key ??= (string) Str::of(get_class($this))
+            ->classBasename()
+            ->before('ServiceProvider')
+            ->kebab()
+            ->lower()
+            ->trim();
+
+        if (empty($key)) {
+            $key = class_basename(get_class($this));
+        }
+
+        return $key;
     }
 
     /**
