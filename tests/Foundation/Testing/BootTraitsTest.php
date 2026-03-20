@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Foundation\Testing\Attributes\SetUp;
 use Hypervel\Foundation\Testing\Attributes\TearDown;
-use Hypervel\Testbench\TestCase as TestbenchTestCase;
+use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
@@ -68,7 +68,7 @@ class BootTraitsTest extends TestCase
  * @internal
  * @coversNothing
  */
-class TestCaseWithTrait extends TestbenchTestCase
+class TestCaseWithTrait extends FoundationTestCase
 {
     use TestTrait;
 
@@ -87,7 +87,7 @@ class TestCaseWithTrait extends TestbenchTestCase
  * @internal
  * @coversNothing
  */
-class TestCaseWithAttributeTrait extends TestbenchTestCase
+class TestCaseWithAttributeTrait extends FoundationTestCase
 {
     use TestTraitWithAttributes;
 
@@ -100,7 +100,7 @@ class TestCaseWithAttributeTrait extends TestbenchTestCase
  * @internal
  * @coversNothing
  */
-class TestCaseWithBothTraits extends TestbenchTestCase
+class TestCaseWithBothTraits extends FoundationTestCase
 {
     use TestTrait;
     use TestTraitWithAttributes;
