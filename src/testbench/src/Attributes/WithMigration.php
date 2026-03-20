@@ -15,8 +15,8 @@ use function Hypervel\Testbench\load_migration_paths;
 /**
  * Loads migration paths for the test.
  *
- * Accepts migration type aliases ('cache', 'queue', 'session', 'laravel') or literal paths.
- * When no arguments are provided, defaults to 'laravel' which loads the standard test migrations.
+ * Accepts migration type aliases ('cache', 'queue', 'session', 'hypervel') or literal paths.
+ * When no arguments are provided, defaults to 'hypervel' which loads the standard test migrations.
  */
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class WithMigration implements Invokable
@@ -31,8 +31,8 @@ final class WithMigration implements Invokable
      */
     public function __construct(string ...$types)
     {
-        $this->types = (new Collection(count($types) > 0 ? $types : ['laravel']))
-            ->transform(static fn (string $type): string => in_array($type, ['cache', 'queue', 'session']) ? 'laravel' : $type)
+        $this->types = (new Collection(count($types) > 0 ? $types : ['hypervel']))
+            ->transform(static fn (string $type): string => in_array($type, ['cache', 'queue', 'session'], true) ? 'hypervel' : $type)
             ->unique()
             ->values()
             ->all();
@@ -45,7 +45,7 @@ final class WithMigration implements Invokable
     {
         /** @var array<int, string> $paths */
         $paths = (new Collection($this->types))
-            ->transform(static fn (string $type): string => default_migration_path($type !== 'laravel' ? $type : null))
+            ->transform(static fn (string $type): string => default_migration_path($type !== 'hypervel' ? $type : null))
             ->all();
 
         load_migration_paths($app, $paths);
