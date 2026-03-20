@@ -5,15 +5,26 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Closure;
+use Composer\InstalledVersions;
+use Composer\Semver\VersionParser;
+use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Foundation\Application;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ProcessUtils;
+use Hypervel\Testbench\Contracts\Config as ConfigContract;
+use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
+use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
+use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
+use Hypervel\Testing\PendingCommand;
 use InvalidArgumentException;
+use PHPUnit\Runner\Version;
+use RuntimeException;
 
 use function Hypervel\Support\php_binary as support_php_binary;
 
@@ -29,6 +40,22 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
     if ($app->resolved($name)) {
         value($callback, $app->make($name), $app);
     }
+}
+
+/**
+ * Run artisan command.
+ */
+function artisan(TestCaseContract|ApplicationContract $context, string $command, array $parameters = []): int
+{
+    if ($context instanceof ApplicationContract) {
+        return $context->make(ConsoleKernel::class)->call($command, $parameters);
+    }
+
+    $pendingCommand = $context->artisan($command, $parameters);
+
+    return $pendingCommand instanceof PendingCommand
+        ? $pendingCommand->run()
+        : $pendingCommand;
 }
 
 /**
@@ -69,12 +96,30 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 function default_skeleton_path(array|string $path = ''): string|false
 {
     if (! defined('BASE_PATH')) {
+        Bootstrapper::bootstrap();
+    }
+
+    if (! defined('BASE_PATH')) {
         return false;
     }
 
     $result = join_paths(BASE_PATH, ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
 
     return realpath($result);
+}
+
+/**
+ * Determine if application is bootstrapped using Testbench's default skeleton.
+ */
+function uses_default_skeleton(?string $basePath = null): bool
+{
+    $basePath ??= default_skeleton_path() ?: null;
+
+    if ($basePath === null) {
+        return false;
+    }
+
+    return realpath(join_paths($basePath, 'bootstrap', '.testbench-default-skeleton')) !== false;
 }
 
 /**
@@ -87,9 +132,7 @@ function default_skeleton_path(array|string $path = ''): string|false
  */
 function default_migration_path(?string $type = null): string
 {
-    // Migrations live at testbench/migrations/, parallel to testbench/workbench/
-    // This mirrors Laravel's testbench-core/laravel/migrations/ structure
-    $basePath = dirname(__DIR__) . '/migrations';
+    $basePath = dirname(__DIR__) . '/hypervel/migrations';
 
     $path = realpath(
         is_null($type)
@@ -99,7 +142,7 @@ function default_migration_path(?string $type = null): string
 
     if ($path === false) {
         throw new InvalidArgumentException(
-            sprintf('Unable to resolve migration path for type [%s]', $type ?? 'laravel')
+            sprintf('Unable to resolve migration path for type [%s]', $type ?? 'hypervel')
         );
     }
 
@@ -123,19 +166,69 @@ function join_paths(?string $basePath, string ...$paths): string
 }
 
 /**
- * Get the path to the package folder.
+ * Determine if the path is a symlink for both Unix and Windows environments.
+ */
+function is_symlink(string $path): bool
+{
+    if (windows_os() && is_dir($path) && readlink($path) !== $path) {
+        return true;
+    }
+
+    return is_link($path);
+}
+
+/**
+ * Get the path to the testbench package folder.
+ *
+ * @param array<int, null|string>|string ...$path
+ */
+function testbench_path(array|string $path = ''): string
+{
+    $argumentCount = func_num_args();
+
+    $workingPath = defined('TESTBENCH_WORKING_PATH')
+        ? TESTBENCH_WORKING_PATH
+        : dirname(__DIR__);
+
+    if ($argumentCount === 1 && is_string($path) && str_starts_with($path, './')) {
+        return transform_relative_path($path, $workingPath) ?? $workingPath;
+    }
+
+    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
+        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+
+    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+
+    return str_starts_with($path, './')
+        ? transform_relative_path($path, $workingPath) ?? $workingPath
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
+}
+
+/**
+ * Get the path to the package root folder.
  *
  * @param array<int, null|string>|string ...$path
  */
 function package_path(array|string $path = ''): string
 {
-    $workingPath = defined('TESTBENCH_WORKING_PATH')
-        ? TESTBENCH_WORKING_PATH
-        : getcwd();
+    $argumentCount = func_num_args();
 
-    $path = join_paths(null, ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+    $workingPath = realpath(dirname(testbench_path(), 2)) ?: dirname(testbench_path(), 2);
 
-    return join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
+    if ($argumentCount === 1 && is_string($path) && str_starts_with($path, './')) {
+        return transform_relative_path($path, $workingPath) ?? $workingPath;
+    }
+
+    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
+        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+
+    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+
+    return str_starts_with($path, './')
+        ? transform_relative_path($path, $workingPath) ?? $workingPath
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
 }
 
 /**
@@ -155,8 +248,219 @@ function defined_environment_variables(): array
         ->filter(static fn ($value) => $value === null || is_scalar($value))
         ->when(
             ! defined('TESTBENCH_WORKING_PATH'),
-            static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', package_path())
+            static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', testbench_path())
         )->all();
+}
+
+/**
+ * Get default environment variables.
+ *
+ * @param iterable<string, mixed> $variables
+ * @return array<int, string>
+ */
+function parse_environment_variables(iterable $variables): array
+{
+    return (new Collection($variables))
+        ->transform(static function (mixed $value, string $key): string {
+            if (is_bool($value) || in_array($value, ['true', 'false'], true)) {
+                $value = in_array($value, [true, 'true'], true) ? '(true)' : '(false)';
+            } elseif ($value === null || $value === 'null') {
+                $value = '(null)';
+            } else {
+                $value = $key === 'APP_DEBUG'
+                    ? sprintf('(%s)', trim((string) $value, '()'))
+                    : "'{$value}'";
+            }
+
+            return "{$key}={$value}";
+        })
+        ->values()
+        ->all();
+}
+
+/**
+ * Determine if the Hypervel application's vendor directory already matches the working vendor path.
+ */
+function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath = null): bool
+{
+    $filesystem = new \Hypervel\Filesystem\Filesystem();
+
+    $appVendorPath = $app->basePath('vendor');
+    $workingPath ??= package_path('vendor');
+
+    return $filesystem->isFile(join_paths($appVendorPath, 'autoload.php'))
+        && $filesystem->hash(join_paths($appVendorPath, 'autoload.php')) === $filesystem->hash(join_paths($workingPath, 'autoload.php'));
+}
+
+/**
+ * Transform realpath to alias path.
+ */
+function transform_realpath_to_relative(string $path, ?string $workingPath = null, string $prefix = ''): string
+{
+    $separator = DIRECTORY_SEPARATOR;
+
+    if ($workingPath !== null) {
+        return str_replace(rtrim($workingPath, $separator) . $separator, $prefix . $separator, $path);
+    }
+
+    $hypervelPath = default_skeleton_path();
+    $workbenchPath = workbench_path();
+    $packagePath = package_path();
+
+    return match (true) {
+        $hypervelPath !== false && str_starts_with($path, $hypervelPath) => str_replace($hypervelPath . $separator, '@hypervel' . $separator, $path),
+        str_starts_with($path, $workbenchPath) => str_replace($workbenchPath . $separator, '@workbench' . $separator, $path),
+        str_starts_with($path, $packagePath) => str_replace($packagePath . $separator, '.' . $separator, $path),
+        $prefix !== '' => implode($separator, [$prefix, ltrim($path, $separator)]),
+        default => $path,
+    };
+}
+
+/**
+ * Transform relative path to an absolute path using the given working path.
+ */
+function transform_relative_path(?string $path, string $workingPath): ?string
+{
+    if ($path === null || $path === '') {
+        return $path;
+    }
+
+    if ($path === '@testbench') {
+        return default_skeleton_path() ?: $path;
+    }
+
+    if (str_starts_with($path, './') || str_starts_with($path, '../')) {
+        return realpath(join_paths($workingPath, $path)) ?: join_paths($workingPath, $path);
+    }
+
+    return $path;
+}
+
+/**
+ * Get the workbench configuration.
+ *
+ * @return array<string, mixed>
+ */
+function workbench(): array
+{
+    /** @var ConfigContract $config */
+    $config = app()->bound(ConfigContract::class)
+        ? app()->make(ConfigContract::class)
+        : new Config();
+
+    return $config->getWorkbenchAttributes();
+}
+
+/**
+ * Get the path to the workbench folder.
+ *
+ * @param array<int, null|string>|string ...$path
+ */
+function workbench_path(array|string $path = ''): string
+{
+    return testbench_path('workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+}
+
+/**
+ * Get the package-relative path to the testbench folder.
+ *
+ * @param array<int, null|string>|string ...$path
+ */
+function testbench_relative_path(array|string $path = ''): string
+{
+    $resolvedPath = testbench_path(...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+    $packageRoot = rtrim(package_path(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    return ltrim(str_replace($packageRoot, '', $resolvedPath), DIRECTORY_SEPARATOR);
+}
+
+/**
+ * Get the package-relative path to the workbench folder.
+ *
+ * @param array<int, null|string>|string ...$path
+ */
+function workbench_relative_path(array|string $path = ''): string
+{
+    return testbench_relative_path('workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+}
+
+/**
+ * Compare the installed version of a package.
+ */
+function package_version_compare(string $package, string $version, ?string $operator = null): int|bool
+{
+    $prettyVersion = InstalledVersions::getPrettyVersion($package);
+
+    if ($prettyVersion === null) {
+        throw new RuntimeException(sprintf('Unable to compare "%s" version', $package));
+    }
+
+    $versionParser = new VersionParser();
+    $normalizedPackageVersion = $versionParser->normalize($prettyVersion);
+    $normalizedVersion = $versionParser->normalize($version);
+
+    if ($operator === null) {
+        return version_compare($normalizedPackageVersion, $normalizedVersion);
+    }
+
+    return version_compare($normalizedPackageVersion, $normalizedVersion, $operator);
+}
+
+/**
+ * Compare the installed Hypervel framework version.
+ */
+function hypervel_version_compare(string $version, ?string $operator = null): int|bool
+{
+    $versionParser = new VersionParser();
+    $normalizedApplicationVersion = $versionParser->normalize(Application::VERSION);
+    $normalizedVersion = $versionParser->normalize($version);
+
+    if ($operator === null) {
+        return version_compare($normalizedApplicationVersion, $normalizedVersion);
+    }
+
+    return version_compare($normalizedApplicationVersion, $normalizedVersion, $operator);
+}
+
+/**
+ * Compare the installed PHPUnit version.
+ */
+function phpunit_version_compare(string $version, ?string $operator = null): int|bool
+{
+    $currentVersion = Version::id();
+
+    $normalizedCurrentVersion = match (true) {
+        str_starts_with($currentVersion, '13.0-') => '13.0.0',
+        default => $currentVersion,
+    };
+
+    if ($operator === null) {
+        return version_compare($normalizedCurrentVersion, $version);
+    }
+
+    return version_compare($normalizedCurrentVersion, $version, $operator);
+}
+
+/**
+ * Ensure the provided application is available or throw an exception.
+ */
+function hypervel_or_fail(mixed $app, ?string $caller = null): Application
+{
+    if ($app instanceof Application) {
+        return $app;
+    }
+
+    if ($caller === null) {
+        $debug = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1] ?? null;
+
+        if (is_array($debug) && isset($debug['class'])) {
+            $caller = sprintf('%s::%s', $debug['class'], $debug['function']);
+        } elseif (is_array($debug)) {
+            $caller = $debug['function'];
+        }
+    }
+
+    throw ApplicationNotAvailableException::make($caller);
 }
 
 /**
