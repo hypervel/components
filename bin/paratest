@@ -100,5 +100,11 @@ $command = escapeshellarg($paratest) . ' ' . implode(' ', array_map('escapeshell
 
 fwrite(STDERR, "Running: paratest --processes {$processes}" . ($extraArgs ? ' ' . implode(' ', $extraArgs) : '') . "\n");
 
+// Signal to worker processes that parallel testing infrastructure is active.
+// Required by ParallelTesting::inParallel() — without this flag, parallel
+// callbacks (TestDatabases, TestCaches, TestViews) are skipped even when
+// TEST_TOKEN is present. Uses putenv() so the subprocess inherits it.
+putenv('HYPERVEL_PARALLEL_TESTING=1');
+
 passthru($command, $exitCode);
 exit($exitCode);
