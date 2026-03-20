@@ -9,6 +9,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
 /**
  * @method static \Hypervel\Contracts\Mail\Mailer mailer(string|null $name = null)
  * @method static \Hypervel\Contracts\Mail\Mailer driver(string|null $driver = null)
+ * @method static \Hypervel\Mail\Mailer build(array $config)
  * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config, string|null $poolName = null)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
@@ -24,6 +25,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static array getPoolables()
  * @method static \Hypervel\Mail\MailManager setPoolables(array $poolables)
  * @method static \Hypervel\Mail\PendingMail to(mixed $users)
+ * @method static \Hypervel\Mail\PendingMail cc(mixed $users)
  * @method static \Hypervel\Mail\PendingMail bcc(mixed $users)
  * @method static \Hypervel\Mail\SentMessage|null raw(string $text, mixed $callback)
  * @method static \Hypervel\Mail\SentMessage|null send(\Hypervel\Contracts\Mail\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
@@ -43,7 +45,6 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static bool hasSent(string $mailable)
  * @method static \Hypervel\Support\Collection queued(\Closure|string $mailable, callable|null $callback = null)
  * @method static bool hasQueued(string $mailable)
- * @method static \Hypervel\Mail\PendingMail cc(mixed $users)
  * @method static mixed queue(\Hypervel\Contracts\Mail\Mailable|array|string $view, string|null $queue = null)
  * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, \Hypervel\Contracts\Mail\Mailable|array|string $view, string|null $queue = null)
  *

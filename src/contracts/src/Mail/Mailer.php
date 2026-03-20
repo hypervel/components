@@ -18,6 +18,11 @@ interface Mailer
     /**
      * Begin the process of mailing a mailable class instance.
      */
+    public function cc(mixed $users): PendingMail;
+
+    /**
+     * Begin the process of mailing a mailable class instance.
+     */
     public function bcc(mixed $users): PendingMail;
 
     /**
