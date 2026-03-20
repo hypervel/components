@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
-use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
@@ -32,9 +31,10 @@ class AboutCommandTest extends TestCase
         });
     }
 
-    #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/../../View/templates')]
-    public function testItRespectsCustomPathForCompiledViews(): void
+    public function testItReportsCompiledViewsWhenCached()
     {
+        remote('view:cache')->mustRun();
+
         $process = remote('about --json', ['APP_ENV' => 'local'])->mustRun();
 
         tap(json_decode($process->getOutput(), true), static function (array $output) {
