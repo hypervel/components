@@ -7,7 +7,7 @@ namespace Hypervel\Testbench\Foundation\Process;
 use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ProcessUtils;
-use RuntimeException;
+use Laravel\SerializableClosure\SerializableClosure;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\php_binary;
@@ -43,17 +43,27 @@ final class RemoteCommand
     public function handle(string $commander, Closure|array|string $command): ProcessDecorator
     {
         $env = is_string($this->env) ? ['APP_ENV' => $this->env] : $this->env;
+        $definedEnvironmentVariables = defined_environment_variables();
 
         $env['TESTBENCH_PACKAGE_REMOTE'] = '(true)';
 
-        // Closure commands require SerializableClosure - not implemented yet
-        if ($command instanceof Closure) {
-            throw new RuntimeException(
-                'Closure commands are not yet supported by remote(). Use string commands instead.'
-            );
+        if (defined('BASE_PATH')) {
+            $env['TESTBENCH_BASE_PATH'] ??= BASE_PATH;
         }
 
-        $commands = Arr::wrap($command);
+        if (! array_key_exists('APP_ENV', $env)) {
+            unset($definedEnvironmentVariables['APP_ENV']);
+        }
+
+        if ($command instanceof Closure) {
+            $env['HYPERVEL_INVOKABLE_CLOSURE'] = base64_encode(
+                serialize(new SerializableClosure($command))
+            );
+            $env['APP_KEY'] ??= config('app.key') ?? false;
+            $commands = ['invoke-serialized-closure'];
+        } else {
+            $commands = Arr::wrap($command);
+        }
 
         $process = Process::fromShellCommandline(
             command: Arr::join([
@@ -62,7 +72,7 @@ final class RemoteCommand
                 ...$commands,
             ], ' '),
             cwd: $this->workingPath,
-            env: array_merge(defined_environment_variables(), $env)
+            env: array_merge($definedEnvironmentVariables, $env)
         );
 
         if (is_bool($this->tty)) {
