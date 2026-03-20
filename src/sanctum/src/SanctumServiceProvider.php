@@ -31,7 +31,10 @@ class SanctumServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerSanctumGuard();
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+        }
+
         $this->registerRoutes();
         $this->registerCommands();
     }
