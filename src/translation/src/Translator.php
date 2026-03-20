@@ -386,7 +386,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     {
         $locales = array_filter([$locale ?: $this->getLocale(), $this->fallback]);
 
-        return call_user_func($this->determineLocalesUsing ?: fn () => $locales, $locales);
+        $determined = call_user_func($this->determineLocalesUsing ?: fn () => $locales, $locales);
+
+        return array_values(array_unique($determined));
     }
 
     /**
@@ -492,23 +494,5 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         }
 
         $this->stringableHandlers[$class] = $handler;
-    }
-
-    /**
-     * Get the translation for a given key.
-     */
-    public function trans(string $key, array $replace = [], ?string $locale = null): array|string
-    {
-        return $this->get($key, $replace, $locale);
-    }
-
-    /**
-     * Get a translation according to an integer value.
-     *
-     * @param array|Countable|int $number
-     */
-    public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
-    {
-        return $this->choice($key, $number, $replace, $locale);
     }
 }
