@@ -24,7 +24,10 @@ class HorizonServiceProvider extends ServiceProvider
         $this->registerEvents();
         $this->registerRoutes();
         $this->registerResources();
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+        }
+
         $this->registerCommands();
     }
 
