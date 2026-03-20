@@ -78,7 +78,7 @@ class KernelTest extends TestCase
         $handler->shouldReceive('report')->once()->with($exception);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
-        $kernel = $this->app->make(KernelContract::class);
+        $kernel = new Kernel($this->app, $this->app->make('events'));
 
         $method = new ReflectionMethod($kernel, 'reportException');
         $method->invoke($kernel, $exception);
@@ -93,7 +93,7 @@ class KernelTest extends TestCase
         $handler->shouldReceive('renderForConsole')->once()->with($output, $exception);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
-        $kernel = $this->app->make(KernelContract::class);
+        $kernel = new Kernel($this->app, $this->app->make('events'));
 
         $method = new ReflectionMethod($kernel, 'renderException');
         $method->invoke($kernel, $output, $exception);
