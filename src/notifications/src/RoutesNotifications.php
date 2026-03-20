@@ -8,6 +8,9 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Notifications\Dispatcher;
 use Hypervel\Support\Str;
 
+/**
+ * @property string $email
+ */
 trait RoutesNotifications
 {
     /**
