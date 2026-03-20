@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
  * @internal
  * @coversNothing
  */
-class MessageSelectorTest extends TestCase
+class TranslationMessageSelectorTest extends TestCase
 {
     #[DataProvider('chooseTestData')]
     public function testChoose($expected, $id, $number)
