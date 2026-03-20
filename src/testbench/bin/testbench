@@ -3,13 +3,6 @@
 
 declare(strict_types=1);
 
-/*
- * Testbench CLI - Run console commands in a Hypervel testbench environment.
- *
- * Used by remote() to spawn subprocesses for testing scenarios that require
- * process isolation (e.g., queue workers with job timeouts).
- */
-
 // Load autoloader - check multiple locations for monorepo vs installed package
 $autoloadPaths = [
     $_composer_autoload_path ?? null,
@@ -24,13 +17,9 @@ foreach (array_filter($autoloadPaths) as $autoloadPath) {
     }
 }
 
-// Determine working path - must contain testbench.yaml
-// Order of preference:
-// 1. TESTBENCH_WORKING_PATH env if it contains testbench.yaml
-// 2. The testbench package directory (src/testbench relative to this binary)
-// 3. Current working directory
+// Determine working path
 $envPath = getenv('TESTBENCH_WORKING_PATH');
-$testbenchPackageDir = dirname(__DIR__);  // bin/testbench -> testbench/
+$testbenchPackageDir = dirname(__DIR__);
 
 $workingPath = match (true) {
     is_string($envPath) && is_file($envPath . '/testbench.yaml') => $envPath,
@@ -40,39 +29,12 @@ $workingPath = match (true) {
 
 define('TESTBENCH_WORKING_PATH', $workingPath);
 
-// Bootstrap the testbench environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, etc.)
+// Bootstrap Swoole environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, loads config)
 Hypervel\Testbench\Bootstrapper::bootstrap();
 
-use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Testbench\Bootstrapper;
-use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
-use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
-use Hypervel\Testbench\Workbench\Workbench;
-use Symfony\Component\Console\Input\ArgvInput;
-use Symfony\Component\Console\Output\ConsoleOutput;
+$config = Hypervel\Testbench\Bootstrapper::getConfiguration()
+    ?? new Hypervel\Testbench\Foundation\Config();
 
-// Create application
-$configuration = Bootstrapper::getConfiguration();
-$app = $configuration !== null
-    ? TestbenchApplication::createFromConfig($configuration, static function ($app) use ($configuration): void {
-        Workbench::startWithProviders($app, $configuration);
-        Workbench::discoverRoutes($app, $configuration);
+$commander = new Hypervel\Testbench\Console\Commander($config, $workingPath);
 
-        (new LoadMigrationsFromArray(
-            $configuration['migrations'] ?? [],
-            $configuration['seeders'] ?? false,
-        ))->bootstrap($app);
-    })
-    : TestbenchApplication::create(BASE_PATH);
-
-// Get console kernel and run
-$kernel = $app->make(KernelContract::class);
-
-$input = new ArgvInput();
-$output = new ConsoleOutput();
-
-$status = $kernel->handle($input, $output);
-
-$kernel->terminate($input, $status);
-
-exit($status);
+$commander->handle();
