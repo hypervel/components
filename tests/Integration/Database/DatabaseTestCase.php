@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
 
@@ -28,18 +27,6 @@ abstract class DatabaseTestCase extends TestCase
      * The current database driver.
      */
     protected string $driver;
-
-    protected function setUp(): void
-    {
-        $this->beforeApplicationDestroyed(function () {
-            $db = $this->app->make(DatabaseManager::class);
-            foreach (array_keys($db->getConnections()) as $name) {
-                $db->purge($name);
-            }
-        });
-
-        parent::setUp();
-    }
 
     protected function defineEnvironment(ApplicationContract $app): void
     {

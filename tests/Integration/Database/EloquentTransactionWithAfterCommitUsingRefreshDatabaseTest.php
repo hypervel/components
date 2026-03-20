@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 
@@ -19,18 +18,6 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
     use RefreshDatabase;
 
     protected string $driver;
-
-    protected function setUp(): void
-    {
-        $this->beforeApplicationDestroyed(function () {
-            $database = $this->app->make(DatabaseManager::class);
-            foreach (array_keys($database->getConnections()) as $name) {
-                $database->purge($name);
-            }
-        });
-
-        parent::setUp();
-    }
 
     protected function afterRefreshingDatabase(): void
     {

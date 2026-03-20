@@ -21,7 +21,7 @@ use function Hypervel\Testbench\remote;
  * @coversNothing
  */
 #[RequiresPhpExtension('pcntl')]
-#[WithMigration('laravel', 'queue')]
+#[WithMigration('hypervel', 'queue')]
 #[WithConfig('queue.default', 'database')]
 class BatchableTransactionTest extends DatabaseTestCase
 {

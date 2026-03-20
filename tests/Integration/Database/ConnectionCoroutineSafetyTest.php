@@ -277,7 +277,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $capturedQuery = null;
 
         /** @var Connection $connection */
-        $connection = DB::connection($this->driver);
+        $connection = DB::connection();
         $connection->beforeExecuting(function ($query) use (&$called, &$capturedQuery) {
             $called = true;
             $capturedQuery = $query;
@@ -292,7 +292,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testClearBeforeExecutingCallbacksExists(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->driver);
+        $connection = DB::connection();
 
         $called = false;
         $connection->beforeExecuting(function () use (&$called) {
@@ -310,7 +310,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testConnectionTracksErrorCount(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->driver);
+        $connection = DB::connection();
 
         $this->assertTrue(method_exists($connection, 'getErrorCount'));
 
@@ -328,7 +328,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testPooledConnectionHasEventDispatcher(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->driver);
+        $connection = DB::connection();
 
         $dispatcher = $connection->getEventDispatcher();
         $this->assertNotNull($dispatcher, 'Pooled connection should have event dispatcher configured');
@@ -337,7 +337,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testPooledConnectionHasTransactionManager(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->driver);
+        $connection = DB::connection();
 
         $manager = $connection->getTransactionManager();
         $this->assertNotNull($manager, 'Pooled connection should have transaction manager configured');

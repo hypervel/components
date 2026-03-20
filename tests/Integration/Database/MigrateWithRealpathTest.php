@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class MigrateWithRealpathTest extends DatabaseTestCase
+class MigrateWithRealpathTest extends TestCase
 {
     protected function setUp(): void
     {

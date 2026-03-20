@@ -24,10 +24,26 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
         });
     }
 
+    /**
+     * Apply hashing configuration and rebuild resolved drivers for the current test.
+     *
+     * @param array<string, int|string> $configurations
+     */
+    protected function configureHashing(array $configurations): void
+    {
+        foreach ($configurations as $key => $value) {
+            Config::set($key, $value);
+        }
+
+        $this->app->make('hash')->forgetDrivers();
+    }
+
     public function testHashedWithBcrypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $subject = HashedCast::create([
             'password' => 'password',
@@ -44,8 +60,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testNotHashedIfAlreadyHashedWithBcrypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 13 rounds; bcrypt;
@@ -61,8 +79,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testNotHashedIfNullWithBrcypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $subject = HashedCast::create([
             'password' => null,
@@ -77,8 +97,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithHigherCostThrowsExceptionWithBcrypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 10);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 10,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -91,8 +113,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithLowerCostDoesNotThrowExceptionWithBcrypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 7 rounds; bcrypt;
@@ -108,8 +132,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingDifferentHashAlgorithmThrowsExceptionWithBcrypt()
     {
-        Config::set('hashing.driver', 'bcrypt');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'bcrypt',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -122,10 +148,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testHashedWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $subject = HashedCast::create([
             'password' => 'password',
@@ -144,10 +172,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testNotHashedIfAlreadyHashedWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 1234 memory; 2 threads; 7 time; argon2i;
@@ -163,10 +193,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testNotHashedIfNullWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $subject = HashedCast::create([
             'password' => null,
@@ -181,10 +213,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithHigherMemoryThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -197,10 +231,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithHigherTimeThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -213,10 +249,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithHigherThreadsThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 1234);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 1234,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -229,10 +267,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithLowerMemoryThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 3456);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 3456,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 2345 memory; 2 threads; 7 time; argon2i;
@@ -248,10 +288,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithLowerTimeThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 2345);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 8);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 2345,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 8,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 2345 memory; 2 threads; 7 time; argon2i;
@@ -267,10 +309,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingHashWithLowerThreadsThrowsExceptionWithArgon()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.argon.memory', 2345);
-        Config::set('hashing.argon.threads', 3);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.argon.memory' => 2345,
+            'hashing.argon.threads' => 3,
+            'hashing.argon.time' => 7,
+        ]);
 
         $subject = HashedCast::create([
             // "password"; 2345 memory; 2 threads; 7 time; argon2i;
@@ -286,8 +330,10 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingDifferentHashAlgorithmThrowsExceptionWithArgonAndBcrypt()
     {
-        Config::set('hashing.driver', 'argon');
-        Config::set('hashing.bcrypt.rounds', 13);
+        $this->configureHashing([
+            'hashing.driver' => 'argon',
+            'hashing.bcrypt.rounds' => 13,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");
@@ -300,10 +346,12 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 
     public function testPassingDifferentHashAlgorithmThrowsExceptionWithArgon2idAndBcrypt()
     {
-        Config::set('hashing.driver', 'argon2id');
-        Config::set('hashing.argon.memory', 2345);
-        Config::set('hashing.argon.threads', 2);
-        Config::set('hashing.argon.time', 7);
+        $this->configureHashing([
+            'hashing.driver' => 'argon2id',
+            'hashing.argon.memory' => 2345,
+            'hashing.argon.threads' => 2,
+            'hashing.argon.time' => 7,
+        ]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Could not verify the hashed value's configuration.");

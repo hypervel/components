@@ -423,7 +423,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->seedProducts();
 
         $categories = $this->table()
-            ->select('category', DB::connection($this->driver)->raw('COUNT(*) as count'))
+            ->select('category', DB::connection()->raw('COUNT(*) as count'))
             ->groupBy('category')
             ->get();
 
@@ -435,7 +435,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->seedProducts();
 
         $categories = $this->table()
-            ->select('category', DB::connection($this->driver)->raw('SUM(stock) as total_stock'))
+            ->select('category', DB::connection()->raw('SUM(stock) as total_stock'))
             ->groupBy('category')
             ->havingRaw('SUM(stock) > ?', [50])
             ->get();

@@ -65,13 +65,12 @@ class ConnectorTest extends SqliteTestCase
     /**
      * Test default pragma values for SQLite connection.
      *
-     * The default config has foreign_key_constraints => true, so foreign_keys is 1.
+     * The default testing connection has foreign_key_constraints => false, so foreign_keys is 0.
      * journal_mode differs based on database type: 'memory' for :memory:, 'delete' for file-based.
      */
     public function testDefaultPragmaValues(): void
     {
-        // Default config has foreign_key_constraints => true
-        $this->assertSame(1, Schema::pragma('foreign_keys'));
+        $this->assertSame(0, Schema::pragma('foreign_keys'));
         $this->assertSame(60000, Schema::pragma('busy_timeout'));
 
         $expectedJournalMode = $this->usesSqliteInMemoryDatabaseConnection() ? 'memory' : 'delete';

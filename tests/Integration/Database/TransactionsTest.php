@@ -37,7 +37,7 @@ class TransactionsTest extends DatabaseTestCase
 
     protected function conn(): ConnectionInterface
     {
-        return DB::connection($this->driver);
+        return DB::connection();
     }
 
     public function testBasicTransaction(): void
