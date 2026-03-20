@@ -15,6 +15,26 @@ use Hypervel\Testing\TestingServiceProvider;
  */
 class TestingServiceProviderTest extends TestCase
 {
+    private mixed $originalParallelTesting;
+
+    protected function setUp(): void
+    {
+        $this->originalParallelTesting = $_SERVER['HYPERVEL_PARALLEL_TESTING'] ?? null;
+
+        parent::setUp();
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalParallelTesting === null) {
+            unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
+        } else {
+            $_SERVER['HYPERVEL_PARALLEL_TESTING'] = $this->originalParallelTesting;
+        }
+
+        parent::tearDown();
+    }
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -38,6 +58,8 @@ class TestingServiceProviderTest extends TestCase
 
     public function testCallbacksRegisteredViaServiceAreInvoked()
     {
+        $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
+
         $parallelTesting = $this->app->make(ParallelTesting::class);
         $parallelTesting->resolveTokenUsing(fn () => '1');
 
