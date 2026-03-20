@@ -23,7 +23,10 @@ class TelescopeServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerCommands();
-        $this->registerPublishing();
+
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+        }
 
         if (! config('telescope.enabled')) {
             return;
