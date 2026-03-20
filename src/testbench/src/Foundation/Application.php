@@ -144,6 +144,30 @@ class Application
     }
 
     /**
+     * Create symlink to vendor path via new application instance.
+     */
+    public static function createVendorSymlink(?string $basePath, string $workingVendorPath): ApplicationContract
+    {
+        $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
+
+        (new Actions\CreateVendorSymlink($workingVendorPath))->handle($app);
+
+        return $app;
+    }
+
+    /**
+     * Delete symlink to vendor path via new application instance.
+     */
+    public static function deleteVendorSymlink(?string $basePath): ApplicationContract
+    {
+        $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
+
+        (new Actions\DeleteVendorSymlink())->handle($app);
+
+        return $app;
+    }
+
+    /**
      * Flush the application state used by lightweight Testbench tests.
      */
     public static function flushState(object $instance): void

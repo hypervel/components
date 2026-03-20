@@ -23,6 +23,8 @@ use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
 use Hypervel\Testing\PendingCommand;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase as PHPUnitTestCase;
+use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
 use RuntimeException;
 
@@ -43,6 +45,25 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
 }
 
 /**
+ * Create Hypervel application instance.
+ *
+ * @param null|callable(ApplicationContract):void $resolvingCallback
+ * @param array<string, mixed> $options
+ */
+function container(
+    ?string $basePath = null,
+    ?callable $resolvingCallback = null,
+    array $options = [],
+    ?Config $config = null
+): Foundation\Application {
+    if ($config instanceof Config) {
+        return Foundation\Application::makeFromConfig($config, $resolvingCallback, $options);
+    }
+
+    return Foundation\Application::make($basePath, $resolvingCallback, $options);
+}
+
+/**
  * Run artisan command.
  */
 function artisan(TestCaseContract|ApplicationContract $context, string $command, array $parameters = []): int
@@ -56,6 +77,29 @@ function artisan(TestCaseContract|ApplicationContract $context, string $command,
     return $pendingCommand instanceof PendingCommand
         ? $pendingCommand->run()
         : $pendingCommand;
+}
+
+/**
+ * Exit cleanly from a test process.
+ *
+ * Resets PHPUnit's shutdown handler message to prevent
+ * "PHPUnit did not exit cleanly" warnings on process exit.
+ */
+function bail(?object $testCase, int $status = 0): never
+{
+    if ($testCase instanceof PHPUnitTestCase && phpunit_version_compare('12.3.5', '>=')) {
+        ShutdownHandler::resetMessage();
+    }
+
+    exit($status);
+}
+
+/**
+ * Exit cleanly from a test process.
+ */
+function terminate(?object $testCase, int $status = 0): never
+{
+    bail($testCase, $status);
 }
 
 /**
