@@ -11,9 +11,11 @@ use Hypervel\Console\View\Components\Info;
 use Hypervel\Console\View\Components\Task;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
@@ -443,17 +445,30 @@ class Migrator
 
     /**
      * Run a migration method on the given connection.
+     *
+     * Sets both the resolver default and the coroutine Context key so that
+     * Schema/DB facade calls inside the migration body resolve to the correct
+     * connection. This handles both the migrator's --database override and
+     * per-migration $connection properties.
      */
     protected function runMethod(Connection $connection, object $migration, string $method): void
     {
         $previousConnection = $this->resolver->getDefaultConnection();
+        $previousContext = Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
             $this->resolver->setDefaultConnection($connection->getName());
+            Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
 
             $migration->{$method}();
         } finally {
             $this->resolver->setDefaultConnection($previousConnection);
+
+            if ($previousContext === null) {
+                Context::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+            } else {
+                Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
+            }
         }
     }
 
