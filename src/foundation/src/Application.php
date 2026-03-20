@@ -12,7 +12,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
-use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -234,6 +234,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->instance(ContainerContract::class, $this);
         $this->instance(ApplicationContract::class, $this);
         $this->instance(\Psr\Container\ContainerInterface::class, $this);
+
+        $this->singleton(PackageManifest::class, fn () => new PackageManifest(
+            new Filesystem(),
+            $this->basePath(),
+            $this->getCachedPackagesPath()
+        ));
 
         // Console application must be bound before service providers because
         // resolving it triggers Kernel::getArtisan() which calls bootstrap().
@@ -620,6 +626,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Get the path to the cached packages.php file.
+     */
+    public function getCachedPackagesPath(): string
+    {
+        return $this->normalizeCachePath('APP_PACKAGES_CACHE', 'cache/packages.php');
+    }
+
+    /**
      * Determine if the application routes are cached.
      */
     public function routesAreCached(): bool
@@ -756,7 +770,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
         return in_array(
             $_SERVER['argv'][1] ?? null,
-            is_array($commands[0] ?? null) ? $commands[0] : $commands
+            is_array($commands[0] ?? null) ? $commands[0] : $commands,
+            true
         );
     }
 
@@ -868,7 +883,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function discoverProviders(): array
     {
-        return RegisterProviders::discoveredProviders();
+        return $this->make(PackageManifest::class)->providers();
     }
 
     /**
@@ -1221,6 +1236,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cookie\Factory::class,
                 \Hypervel\Contracts\Cookie\QueueingFactory::class,
             ],
+            'composer' => [\Hypervel\Support\Composer::class],
             'db' => [\Hypervel\Database\DatabaseManager::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
