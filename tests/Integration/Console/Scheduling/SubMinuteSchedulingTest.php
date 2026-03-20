@@ -153,8 +153,8 @@ class SubMinuteSchedulingTest extends TestCase
             Carbon::setTestNow(now()->add($duration));
 
             if ($startedAt->diffInSeconds() >= 30) {
-                $this->artisan('schedule:stop')
-                    ->expectsOutputToContain('Broadcasting schedule stop signal.');
+                $this->artisan('schedule:interrupt')
+                    ->expectsOutputToContain('Broadcasting schedule interrupt signal.');
             }
         });
 
