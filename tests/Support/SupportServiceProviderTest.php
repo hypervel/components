@@ -306,6 +306,138 @@ class SupportServiceProviderTest extends TestCase
 
         $this->assertSame([], $result);
     }
+
+    public function testMergeConfigFromSkipsWhenConfigIsCached()
+    {
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(true);
+        $app->shouldReceive('make')->with('config')->never();
+
+        $provider = new ServiceProviderForTestingFlat($app);
+        $provider->register();
+
+        // Config should not have been touched — merge was skipped
+        $this->assertNull((new ConfigRepository())->get('flat'));
+    }
+
+    public function testMergeConfigFromRunsWhenConfigIsNotCached()
+    {
+        $config = new ConfigRepository();
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingFlat($app);
+        $provider->register();
+
+        $this->assertSame('array', $config->get('flat.default'));
+    }
+
+    public function testReplaceConfigRecursivelyFromSkipsWhenCached()
+    {
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(true);
+        $app->shouldReceive('make')->with('config')->never();
+
+        $provider = new ServiceProviderForTestingReplace($app);
+        $provider->register();
+
+        $this->assertNull((new ConfigRepository())->get('flat'));
+    }
+
+    public function testReplaceConfigRecursivelyFromRunsWhenNotCached()
+    {
+        $config = new ConfigRepository([
+            'flat' => ['default' => 'redis', 'extra' => 'app-value'],
+        ]);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingReplace($app);
+        $provider->register();
+
+        // Package defaults should be replaced recursively with app values winning
+        $this->assertSame('redis', $config->get('flat.default'));
+        $this->assertSame('app-value', $config->get('flat.extra'));
+        // Package-only keys should still be present
+        $this->assertSame('package-prefix', $config->get('flat.prefix'));
+    }
+
+    public function testLoadTranslationsFromWithoutNamespace()
+    {
+        $translator = m::mock(\Hypervel\Translation\Translator::class);
+        $translator->shouldReceive('addPath')->once()->with(__DIR__ . '/translations');
+
+        $this->app->shouldReceive('afterResolving')->once()->with('translator', m::on(function ($callback) use ($translator) {
+            $callback($translator);
+
+            return true;
+        }));
+
+        $provider = new ServiceProviderForTestingOne($this->app);
+        $provider->loadTranslationsFrom(__DIR__ . '/translations');
+    }
+
+    public function testLoadTranslationsFromWithNamespace()
+    {
+        $translator = m::mock(\Hypervel\Translation\Translator::class);
+        $translator->shouldReceive('addNamespace')->once()->with('namespace', __DIR__ . '/translations');
+
+        $this->app->shouldReceive('afterResolving')->once()->with('translator', m::on(function ($callback) use ($translator) {
+            $callback($translator);
+
+            return true;
+        }));
+
+        $provider = new ServiceProviderForTestingOne($this->app);
+        $provider->loadTranslationsFrom(__DIR__ . '/translations', 'namespace');
+    }
+
+    public function testCanRemoveProvider()
+    {
+        $tempFile = sys_get_temp_dir() . '/hypervel_test_providers_' . getmypid() . '.php';
+
+        try {
+            file_put_contents(
+                $tempFile,
+                $contents = <<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+    App\Providers\TelescopeServiceProvider::class,
+];
+PHP
+            );
+
+            // Strict mode — should delete nothing (partial match doesn't work)
+            ServiceProvider::removeProviderFromBootstrapFile('TelescopeServiceProvider', $tempFile, true);
+            $this->assertStringEqualsStringIgnoringLineEndings($contents, trim(file_get_contents($tempFile)));
+
+            // Strict mode — exact match deletes the provider
+            ServiceProvider::removeProviderFromBootstrapFile('App\Providers\TelescopeServiceProvider', $tempFile, true);
+            $this->assertStringEqualsStringIgnoringLineEndings(<<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+];
+PHP, trim(file_get_contents($tempFile)));
+
+            // Fuzzy mode — partial match deletes the provider
+            ServiceProvider::removeProviderFromBootstrapFile('AppServiceProvider', $tempFile);
+            $this->assertStringEqualsStringIgnoringLineEndings(<<<'PHP'
+<?php
+
+return [
+
+];
+PHP, trim(file_get_contents($tempFile)));
+        } finally {
+            @unlink($tempFile);
+        }
+    }
 }
 
 class ServiceProviderForTestingOne extends ServiceProvider
@@ -323,6 +455,13 @@ class ServiceProviderForTestingOne extends ServiceProvider
         $this->publishesMigrations(['source/unmarked/two' => 'destination/unmarked/two']);
         $this->publishesMigrations(['source/tagged/three' => 'destination/tagged/three'], 'tag_three');
         $this->publishesMigrations(['source/tagged/multiple_two' => 'destination/tagged/multiple_two'], ['tag_four', 'tag_five']);
+    }
+
+    public function loadTranslationsFrom(string $path, ?string $namespace = null): void
+    {
+        $this->callAfterResolving('translator', fn ($translator) => is_null($namespace)
+            ? $translator->addPath($path)
+            : $translator->addNamespace($namespace, $path));
     }
 }
 
@@ -355,6 +494,14 @@ class ServiceProviderForTestingFlatWithStores extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/Fixtures/config/package_with_stores.php', 'flat_stores');
+    }
+}
+
+class ServiceProviderForTestingReplace extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->replaceConfigRecursivelyFrom(__DIR__ . '/Fixtures/config/package_flat.php', 'flat');
     }
 }
 
