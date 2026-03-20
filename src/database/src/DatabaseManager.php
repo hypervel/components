@@ -368,7 +368,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * Checks Context first for per-coroutine override (from usingConnection()),
      * then falls back to the global config default.
      */
-    public function getDefaultConnection(): string
+    public function getDefaultConnection(): ?string
     {
         return Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
             ?? $this->app['config']['database.default'];
@@ -377,7 +377,7 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Set the default connection name.
      */
-    public function setDefaultConnection(string $name): void
+    public function setDefaultConnection(?string $name): void
     {
         $this->app['config']['database.default'] = $name;
     }

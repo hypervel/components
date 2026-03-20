@@ -16,10 +16,10 @@ interface ConnectionResolverInterface
     /**
      * Get the default connection name.
      */
-    public function getDefaultConnection(): string;
+    public function getDefaultConnection(): ?string;
 
     /**
      * Set the default connection name.
      */
-    public function setDefaultConnection(string $name): void;
+    public function setDefaultConnection(?string $name): void;
 }

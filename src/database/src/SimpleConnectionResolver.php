@@ -25,7 +25,7 @@ class SimpleConnectionResolver implements ConnectionResolverInterface
     /**
      * The default connection name.
      */
-    protected string $default = 'default';
+    protected ?string $default = 'default';
 
     public function __construct(
         protected DatabaseManager $manager
@@ -48,7 +48,7 @@ class SimpleConnectionResolver implements ConnectionResolverInterface
     /**
      * Get the default connection name.
      */
-    public function getDefaultConnection(): string
+    public function getDefaultConnection(): ?string
     {
         return $this->default;
     }
@@ -56,7 +56,7 @@ class SimpleConnectionResolver implements ConnectionResolverInterface
     /**
      * Set the default connection name.
      */
-    public function setDefaultConnection(string $name): void
+    public function setDefaultConnection(?string $name): void
     {
         $this->default = $name;
     }

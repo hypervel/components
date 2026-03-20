@@ -34,7 +34,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * The default connection name.
      */
-    protected string $default;
+    protected ?string $default;
 
     protected PoolFactory $factory;
 
@@ -96,7 +96,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      * Checks Context first for per-coroutine override (from usingConnection()),
      * then falls back to the configured default.
      */
-    public function getDefaultConnection(): string
+    public function getDefaultConnection(): ?string
     {
         return Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY) ?? $this->default;
     }
@@ -104,7 +104,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * Set the default connection name.
      */
-    public function setDefaultConnection(string $name): void
+    public function setDefaultConnection(?string $name): void
     {
         $this->default = $name;
     }
