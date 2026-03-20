@@ -258,6 +258,34 @@ class MakesHttpRequestsTest extends TestCase
             ->assertHeader('X-Header', 'Value');
     }
 
+    public function testCallPropagatesFinishedRequestToParentCoroutine()
+    {
+        $this->app->make(Router::class)->get('/hello', fn () => 'hello world');
+
+        $this->call('GET', 'hello?foo=bar')->assertSuccessful();
+
+        $this->assertSame('http://localhost/hello?foo=bar', url()->full());
+        $this->assertSame('http://localhost/hello', url()->current());
+        $this->assertSame(['foo' => 'bar'], request()->all());
+    }
+
+    public function testCallPropagatesFlashedInputToParentCoroutine()
+    {
+        $this->app->make(Router::class)
+            ->get('/web/hello', function () {
+                $request = request()->merge(['name' => 'test-old-value']);
+                $request->flash();
+
+                return 'hello world';
+            })->middleware('web');
+
+        $response = $this->call('GET', 'web/hello');
+
+        $response->assertSuccessful();
+        $response->assertSessionHasInput('name', 'test-old-value');
+        $this->assertSame('test-old-value', old('name'));
+    }
+
     public function testAssertSessionHasErrors()
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
