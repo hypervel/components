@@ -27,6 +27,8 @@
     "autoload": {
         "psr-4": {
             "Workbench\\App\\": "src/testbench/workbench/app/",
+            "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Contracts\\": "src/contracts/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
@@ -51,7 +53,6 @@
             "Hypervel\\Hashing\\": "src/hashing/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\Http\\": "src/http/src/",
-
             "Hypervel\\JWT\\": "src/jwt/src/",
             "Hypervel\\Log\\": "src/log/src/",
             "Hypervel\\Mail\\": "src/mail/src/",
@@ -205,7 +206,6 @@
         "hypervel/hashing": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
-
         "hypervel/jwt": "self.version",
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",
@@ -243,6 +243,7 @@
         "hypervel/websocket-server": "self.version"
     },
     "suggest": {
+        "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0).",
         "ext-intl": "Required to use number formatting and spellout features.",
         "hypervel/redis": "Required to use redis driver. (^0.4).",
         "hypervel/session": "Required to use session guard. (^3.1).",
@@ -252,6 +253,7 @@
         "symfony/http-client": "Required to use the Symfony API mail transports (^8.0).",
         "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^8.0).",
         "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^8.0).",
+        "resend/resend-php": "Required to enable support for the Resend mail transport (^1.0).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
         "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2).",
         "meilisearch/meilisearch-php": "Required to use the Meilisearch Scout driver (^1.16).",
@@ -261,6 +263,7 @@
     "require-dev": {
         "ably/ably-php": "^1.0",
         "brianium/paratest": "^7.19",
+        "composer/semver": "^3.4",
         "fakerphp/faker": "^1.24",
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
@@ -277,6 +280,7 @@
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
+        "resend/resend-php": "^1.0",
         "swoole/ide-helper": "^6.0.2",
         "symfony/filesystem": "^8.0",
         "symfony/yaml": "^8.0",
@@ -322,6 +326,7 @@
                 "Hypervel\\Session\\SessionServiceProvider",
                 "Hypervel\\Signal\\SignalServiceProvider",
                 "Hypervel\\Socialite\\SocialiteServiceProvider",
+                "Hypervel\\Testbench\\TestbenchServiceProvider",
                 "Hypervel\\Testing\\TestingServiceProvider",
                 "Hypervel\\Translation\\TranslationServiceProvider",
                 "Hypervel\\Validation\\ValidationServiceProvider",
