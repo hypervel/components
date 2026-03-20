@@ -9,20 +9,20 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\Facades\Date;
 use Symfony\Component\Console\Attribute\AsCommand;
 
-#[AsCommand(name: 'schedule:stop')]
-class ScheduleStopCommand extends Command
+#[AsCommand(name: 'schedule:interrupt')]
+class ScheduleInterruptCommand extends Command
 {
     /**
      * The console signature name.
      */
-    protected ?string $signature = 'schedule:stop
-        {--minutes=1 : TTL in minutes for the stop signal}
+    protected ?string $signature = 'schedule:interrupt
+        {--minutes=1 : TTL in minutes for the interrupt signal}
     ';
 
     /**
      * The console command description.
      */
-    protected string $description = 'Stop the current schedule workers';
+    protected string $description = 'Interrupt the current schedule run';
 
     /**
      * Create a new schedule interrupt command.
@@ -42,11 +42,11 @@ class ScheduleStopCommand extends Command
     {
         /* @phpstan-ignore-next-line */
         $this->cache->put(
-            'hypervel:schedule:stop',
+            'hypervel:schedule:interrupt',
             true,
             Date::now()->addMinutes((int) $this->option('minutes'))
         );
 
-        $this->components->info('Broadcasting schedule stop signal.');
+        $this->components->info('Broadcasting schedule interrupt signal.');
     }
 }

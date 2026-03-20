@@ -324,16 +324,16 @@ class ScheduleRunCommand extends Command
         $this->lastChecked = Date::now();
 
         /* @phpstan-ignore-next-line */
-        return $this->shouldStop = $this->cache->get('hypervel:schedule:stop', false);
+        return $this->shouldStop = $this->cache->get('hypervel:schedule:interrupt', false);
     }
 
     /**
-     * Clear the stop cache.
+     * Clear the interrupt cache.
      */
     protected function clearShouldStop(): void
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->delete('hypervel:schedule:stop');
+        $this->cache->delete('hypervel:schedule:interrupt');
 
         $this->shouldStop = false;
     }
