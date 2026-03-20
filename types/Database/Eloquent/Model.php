@@ -40,7 +40,7 @@ function test(User $user, Post $post, Comment $comment, Article $article): void
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->withoutTrashed());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->prunable());
     assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->notifications());
-    assertType('Hypervel\Database\Query\Builder', $user->unreadNotifications());
+    assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->unreadNotifications());
 
     assertType('Hypervel\Database\Eloquent\Collection<(int|string), User>', $user->newCollection([new User()]));
     assertType('Hypervel\Types\Model\Posts<(int|string), Hypervel\Types\Model\Post>', $post->newCollection(['foo' => new Post()]));
