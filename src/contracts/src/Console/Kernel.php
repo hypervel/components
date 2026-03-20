@@ -100,7 +100,7 @@ interface Kernel
     /**
      * Set the Artisan application instance.
      */
-    public function setArtisan(Application $artisan): void;
+    public function setArtisan(?Application $artisan): void;
 
     /**
      * Terminate the application.
