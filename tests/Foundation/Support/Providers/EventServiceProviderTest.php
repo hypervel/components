@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Support\Providers;
 
+use Hypervel\Auth\Events\Registered;
+use Hypervel\Auth\Listeners\SendEmailVerificationNotification;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -203,6 +205,32 @@ class EventServiceProviderTest extends TestCase
         event('App\Events\CustomEvent');
         Event::assertDispatched('App\Events\CustomEvent');
     }
+
+    public function testConfigureEmailVerificationRegistersListenerWhenNotInListen()
+    {
+        $provider = new EventServiceProvider($this->app);
+
+        $reflection = new ReflectionMethod($provider, 'configureEmailVerification');
+        $reflection->invoke($provider);
+
+        $dispatcher = $this->app->make('events');
+        $this->assertTrue($dispatcher->hasListeners(Registered::class));
+    }
+
+    public function testConfigureEmailVerificationSkipsWhenAlreadyInListen()
+    {
+        $provider = new EventServiceProviderWithEmailVerification($this->app);
+
+        $reflection = new ReflectionMethod($provider, 'configureEmailVerification');
+        $reflection->invoke($provider);
+
+        $dispatcher = $this->app->make('events');
+        $listeners = $dispatcher->getListeners(Registered::class);
+
+        // configureEmailVerification() should skip because Registered is already
+        // in $listen with SendEmailVerificationNotification. No listener registered.
+        $this->assertCount(0, $listeners);
+    }
 }
 
 class EventServiceProviderWithListens extends EventServiceProvider
@@ -210,6 +238,15 @@ class EventServiceProviderWithListens extends EventServiceProvider
     protected array $listen = [
         'App\Events\CustomEvent' => [
             'App\Listeners\CustomListener',
+        ],
+    ];
+}
+
+class EventServiceProviderWithEmailVerification extends EventServiceProvider
+{
+    protected array $listen = [
+        Registered::class => [
+            SendEmailVerificationNotification::class,
         ],
     ];
 }

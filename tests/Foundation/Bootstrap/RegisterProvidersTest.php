@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
-use Hypervel\Support\Composer;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -41,20 +41,25 @@ class RegisterProvidersTest extends TestCase
                 return $mergedProviders ?? [];
             });
 
+        $manifest = m::mock(PackageManifest::class);
+        $manifest->shouldReceive('providers')
+            ->once()
+            ->andReturn([
+                TestOneServiceProvider::class,
+            ]);
+
         $app = $this->getApplication([
             'config' => fn () => $config,
+            PackageManifest::class => fn () => $manifest,
         ]);
-
-        Composer::setBasePath(dirname(__DIR__) . '/Fixtures/project1');
 
         (new RegisterProviders())->bootstrap($app);
 
+        // TestOneServiceProvider discovered via PackageManifest, registers 'foo'
         $this->assertSame('foo', $app->make('foo'));
-        $this->assertSame('bar', $app->make('bar'));
 
-        // should not register TestThreeServiceProvider because of `dont-discover`
-        $this->assertFalse($app->bound('baz'));
-        $this->assertFalse($app->bound('qux'));
+        // TestTwoServiceProvider from config app.providers, registers 'bar'
+        $this->assertSame('bar', $app->make('bar'));
     }
 }
 

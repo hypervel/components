@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
-use Hypervel\Support\Composer;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -29,8 +29,16 @@ class RegisterFacadesTest extends TestCase
                 'FooAlias' => 'FooClass',
             ]);
 
+        $manifest = m::mock(PackageManifest::class);
+        $manifest->shouldReceive('aliases')
+            ->once()
+            ->andReturn([
+                'TestAlias' => 'TestClass',
+            ]);
+
         $app = $this->getApplication([
             'config' => fn () => $config,
+            PackageManifest::class => fn () => $manifest,
         ]);
 
         $bootstrapper = $this->createPartialMock(
@@ -38,14 +46,13 @@ class RegisterFacadesTest extends TestCase
             ['registerAliases']
         );
 
+        // Package aliases come first, then config aliases override
         $bootstrapper->expects($this->once())
             ->method('registerAliases')
             ->with([
-                'FooAlias' => 'FooClass',
                 'TestAlias' => 'TestClass',
+                'FooAlias' => 'FooClass',
             ]);
-
-        Composer::setBasePath(dirname(__DIR__) . '/Fixtures/project1');
 
         $bootstrapper->bootstrap($app);
     }
