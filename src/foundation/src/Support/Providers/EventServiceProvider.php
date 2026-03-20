@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Support\Providers;
 
+use Hypervel\Auth\Events\Registered;
+use Hypervel\Auth\Listeners\SendEmailVerificationNotification;
 use Hypervel\Foundation\Events\DiscoverEvents;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\ServiceProvider;
@@ -63,6 +66,10 @@ class EventServiceProvider extends ServiceProvider
             foreach ($this->observers as $model => $observers) {
                 $model::observe($observers);
             }
+        });
+
+        $this->booted(function () {
+            $this->configureEmailVerification();
         });
     }
 
@@ -182,6 +189,17 @@ class EventServiceProvider extends ServiceProvider
     public static function disableEventDiscovery(): void
     {
         static::$shouldDiscoverEvents = false;
+    }
+
+    /**
+     * Configure the proper event listeners for email verification.
+     */
+    protected function configureEmailVerification(): void
+    {
+        if (! isset($this->listen[Registered::class])
+            || ! in_array(SendEmailVerificationNotification::class, Arr::wrap($this->listen[Registered::class]), true)) {
+            Event::listen(Registered::class, SendEmailVerificationNotification::class);
+        }
     }
 
     /**
