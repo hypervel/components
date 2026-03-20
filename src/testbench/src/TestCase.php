@@ -10,8 +10,7 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
-use Hypervel\Testbench\Concerns\HandlesAttributes;
-use Hypervel\Testbench\Concerns\InteractsWithTestCase;
+use Hypervel\Testbench\Pest\WithPest;
 use Swoole\Timer;
 
 /**
@@ -29,14 +28,14 @@ use Swoole\Timer;
  * @internal
  * @coversNothing
  */
-class TestCase extends BaseTestCase
+class TestCase extends BaseTestCase implements Contracts\TestCase
 {
-    use Concerns\CreatesApplication;
-    use Concerns\HandlesAssertions;
-    use Concerns\HandlesDatabases;
-    use Concerns\HandlesRoutes;
-    use HandlesAttributes;
-    use InteractsWithTestCase;
+    use Concerns\Testing;
+
+    /**
+     * Automatically loads environment variables when available.
+     */
+    protected bool $loadEnvironmentVariables = true;
 
     protected static bool $hasBootstrappedTestbench = false;
 
@@ -103,24 +102,29 @@ class TestCase extends BaseTestCase
         parent::tearDown();
     }
 
-    /**
-     * Reload the application instance.
-     */
-    protected function reloadApplication(): void
-    {
-        $this->tearDown();
-        $this->setUp();
-    }
-
     public static function setUpBeforeClass(): void
     {
-        parent::setUpBeforeClass();
+        static::setUpBeforeClassUsingPHPUnit();
+
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            static::setUpBeforeClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+        }
+
         static::setUpBeforeClassUsingTestCase();
+        static::setUpBeforeClassUsingWorkbench();
     }
 
     public static function tearDownAfterClass(): void
     {
+        static::tearDownAfterClassUsingWorkbench();
         static::tearDownAfterClassUsingTestCase();
+
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+        }
+
         static::tearDownAfterClassUsingPHPUnit();
     }
 }
