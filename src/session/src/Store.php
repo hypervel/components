@@ -31,17 +31,17 @@ class Store implements Session
     /**
      * Context key for whether the session has been started.
      */
-    protected const STARTED_CONTEXT_KEY = '__session.store.started';
+    public const STARTED_CONTEXT_KEY = '__session.store.started';
 
     /**
      * Context key for the session attributes.
      */
-    protected const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
+    public const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
 
     /**
      * Context key for the session ID.
      */
-    protected const ID_CONTEXT_KEY = '__session.store.id';
+    public const ID_CONTEXT_KEY = '__session.store.id';
 
     /**
      * Create a new session instance.
@@ -540,6 +540,7 @@ class Store implements Session
      */
     public static function flushState(): void
     {
+        Context::forget(self::CONTEXT_KEY);
         Context::forget(self::STARTED_CONTEXT_KEY);
         Context::forget(self::ID_CONTEXT_KEY);
         Context::forget(self::ATTRIBUTES_CONTEXT_KEY);
