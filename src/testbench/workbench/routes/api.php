@@ -15,8 +15,8 @@ use Hypervel\Support\Facades\Route;
 |
 */
 
-Route::get('hello', function () {
+Route::get('api/hello', function () {
     return ['message' => 'Hello, world!'];
 });
 
-Route::get('failed', fn () => throw new RuntimeException('Bad route!'));
+Route::get('api/failed', fn () => throw new RuntimeException('Bad route!'));

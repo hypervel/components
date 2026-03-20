@@ -10,7 +10,7 @@ declare(strict_types=1);
  * array_merge behavior.
  */
 return [
-    'env' => env('APP_ENV', 'dev'),
+    'env' => env('APP_ENV', 'workbench'),
 
     'debug' => (bool) env('APP_DEBUG', false),
 
