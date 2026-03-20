@@ -136,6 +136,17 @@ class TranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
+    public function testGetDoesNotCallGetLineTwiceForMissingKeyWhenLocaleMatchesFallback()
+    {
+        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['getLine'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
+        $translator->setFallback('en');
+        $translator->getLoader()->shouldReceive('load')->with('en', '*', '*')->andReturn([]);
+
+        $translator->expects($this->once())->method('getLine')->with('*', 'messages', 'en', 'test', [])->willReturn(null);
+
+        $translator->get('messages.test', [], 'en');
+    }
+
     public function testGetMethodProperlyLoadsAndRetrievesItemForGlobalNamespace()
     {
         $translator = new Translator($this->getLoader(), 'en');
@@ -395,6 +406,11 @@ class TranslatorTest extends TestCase
         });
 
         $this->assertSame('en', $translator->getLocale());
+    }
+
+    public function testDoubleUnderscoreHelperReturnsNullWhenKeyIsNull()
+    {
+        $this->assertNull(\Hypervel\Translation\__(null));
     }
 
     protected function getLoader()
