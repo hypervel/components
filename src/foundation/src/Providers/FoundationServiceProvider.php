@@ -22,6 +22,7 @@ use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CastMakeCommand;
 use Hypervel\Foundation\Console\ChannelMakeCommand;
 use Hypervel\Foundation\Console\ClassMakeCommand;
+use Hypervel\Foundation\Console\ClearCompiledCommand;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\ComponentMakeCommand;
 use Hypervel\Foundation\Console\ConfigCacheCommand;
@@ -42,6 +43,7 @@ use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Foundation\Console\EventMakeCommand;
 use Hypervel\Foundation\Console\ExceptionMakeCommand;
 use Hypervel\Foundation\Console\InterfaceMakeCommand;
+use Hypervel\Foundation\Console\InvokeSerializedClosureCommand;
 use Hypervel\Foundation\Console\JobMakeCommand;
 use Hypervel\Foundation\Console\JobMiddlewareMakeCommand;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
@@ -50,8 +52,12 @@ use Hypervel\Foundation\Console\MailMakeCommand;
 use Hypervel\Foundation\Console\ModelMakeCommand;
 use Hypervel\Foundation\Console\NotificationMakeCommand;
 use Hypervel\Foundation\Console\ObserverMakeCommand;
+use Hypervel\Foundation\Console\OptimizeClearCommand;
+use Hypervel\Foundation\Console\OptimizeCommand;
+use Hypervel\Foundation\Console\PackageDiscoverCommand;
 use Hypervel\Foundation\Console\PolicyMakeCommand;
 use Hypervel\Foundation\Console\ProviderMakeCommand;
+use Hypervel\Foundation\Console\ReloadCommand;
 use Hypervel\Foundation\Console\RequestMakeCommand;
 use Hypervel\Foundation\Console\ResourceMakeCommand;
 use Hypervel\Foundation\Console\RouteCacheCommand;
@@ -79,6 +85,7 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
@@ -125,9 +132,11 @@ class FoundationServiceProvider extends ServiceProvider
             );
         }
 
-        $this->publishes([
-            __DIR__ . '/../Exceptions/views' => $this->app->resourcePath('views/errors/'),
-        ], 'hypervel-errors');
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__ . '/../Exceptions/views' => $this->app->resourcePath('views/errors/'),
+            ], 'hypervel-errors');
+        }
     }
 
     /**
@@ -135,6 +144,11 @@ class FoundationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton('composer', fn ($app) => new Composer(
+            $app['files'],
+            $app->basePath()
+        ));
+
         $this->registerConsoleSchedule();
         $this->listenCommandException();
         $this->registerMaintenanceModeManager();
@@ -150,6 +164,7 @@ class FoundationServiceProvider extends ServiceProvider
             AboutCommand::class,
             CastMakeCommand::class,
             ChannelMakeCommand::class,
+            ClearCompiledCommand::class,
             ClassMakeCommand::class,
             ComponentMakeCommand::class,
             ConfigCacheCommand::class,
@@ -170,6 +185,7 @@ class FoundationServiceProvider extends ServiceProvider
             EventMakeCommand::class,
             ExceptionMakeCommand::class,
             InterfaceMakeCommand::class,
+            InvokeSerializedClosureCommand::class,
             JobMakeCommand::class,
             JobMiddlewareMakeCommand::class,
             ListenerMakeCommand::class,
@@ -177,8 +193,12 @@ class FoundationServiceProvider extends ServiceProvider
             ModelMakeCommand::class,
             NotificationMakeCommand::class,
             ObserverMakeCommand::class,
+            OptimizeCommand::class,
+            OptimizeClearCommand::class,
+            PackageDiscoverCommand::class,
             PolicyMakeCommand::class,
             ProviderMakeCommand::class,
+            ReloadCommand::class,
             RequestMakeCommand::class,
             ResourceMakeCommand::class,
             RouteCacheCommand::class,
