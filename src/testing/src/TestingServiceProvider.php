@@ -4,20 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
-use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\AggregateServiceProvider;
 
-/**
- * Service provider for the testing package.
- */
-class TestingServiceProvider extends ServiceProvider
+class TestingServiceProvider extends AggregateServiceProvider
 {
     /**
-     * Register testing services.
+     * The provider class names.
+     *
+     * @var array<int, class-string<\Hypervel\Support\ServiceProvider>>
      */
-    public function register(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->app->singleton(ParallelTesting::class, fn ($app) => new ParallelTesting($app));
-        }
-    }
+    protected array $providers = [
+        ParallelTestingServiceProvider::class,
+    ];
 }
