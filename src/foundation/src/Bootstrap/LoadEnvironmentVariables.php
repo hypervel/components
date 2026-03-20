@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Dotenv\Exception\InvalidFileException;
-use Hypervel\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
 use Symfony\Component\Console\Input\ArgvInput;
