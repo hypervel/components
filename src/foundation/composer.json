@@ -63,6 +63,9 @@
         "hypervel/view": "^0.4",
         "hypervel/websocket-server": "^0.4"
     },
+    "suggest": {
+        "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0)."
+    },
     "autoload": {
         "psr-4": {
             "Hypervel\\Foundation\\": "src/"
