@@ -7,6 +7,11 @@ namespace Hypervel\Auth\Passwords;
 use Hypervel\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use SensitiveParameter;
 
+/**
+ * @property string $email
+ *
+ * @method void notify(mixed $instance)
+ */
 trait CanResetPassword
 {
     /**
