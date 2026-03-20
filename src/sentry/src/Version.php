@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hypervel\Support\Composer;
+use Hypervel\Container\Container;
+use Hypervel\Foundation\PackageManifest;
 
 final class Version
 {
@@ -19,6 +20,7 @@ final class Version
 
     public static function getSdkVersion(): string
     {
-        return Composer::getVersions()['hypervel/sentry'] ?? self::SDK_VERSION;
+        return Container::getInstance()->make(PackageManifest::class)->version('hypervel/sentry')
+            ?? self::SDK_VERSION;
     }
 }
