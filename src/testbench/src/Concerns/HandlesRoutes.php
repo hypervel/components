@@ -10,11 +10,14 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Env;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineRoute;
 use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\Features\TestingFeature;
 use Hypervel\Testbench\Foundation\Bootstrap\SyncTestbenchCachedRoutes;
 use Laravel\SerializableClosure\SerializableClosure;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\refresh_router_lookups;
@@ -122,8 +125,21 @@ trait HandlesRoutes
         if ($cached === true) {
             remote('route:cache')->mustRun();
 
-            \assert($this->app instanceof HypervelApplication);
-            \assert($files->exists($this->app->getCachedRoutesPath()) === true);
+            if ($this->app instanceof HypervelApplication) {
+                $cachedRoutesPath = $this->app->getCachedRoutesPath();
+            } else {
+                $configuredCachedRoutesPath = Env::get('APP_ROUTES_CACHE');
+
+                $cachedRoutesPath = $configuredCachedRoutesPath === null
+                    ? join_paths($basePath, 'bootstrap', 'cache', 'routes-v7.php')
+                    : (Str::startsWith($configuredCachedRoutesPath, ['/', '\\'])
+                        ? $configuredCachedRoutesPath
+                        : join_paths($basePath, $configuredCachedRoutesPath));
+            }
+
+            if (! $files->exists($cachedRoutesPath)) {
+                throw new RuntimeException("Route cache file was not created at [{$cachedRoutesPath}].");
+            }
         }
 
         if ($this->app instanceof HypervelApplication) {
