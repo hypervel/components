@@ -3,6 +3,8 @@
 
 declare(strict_types=1);
 
+use Composer\InstalledVersions;
+
 // Load autoloader - check multiple locations for monorepo vs installed package
 $autoloadPaths = [
     $_composer_autoload_path ?? null,
@@ -17,15 +19,17 @@ foreach (array_filter($autoloadPaths) as $autoloadPath) {
     }
 }
 
-// Determine working path
+// Determine consumer package path
 $envPath = getenv('TESTBENCH_WORKING_PATH');
-$testbenchPackageDir = dirname(__DIR__);
+$installedRootPath = InstalledVersions::getRootPackage()['install_path'] ?? null;
 
 $workingPath = match (true) {
-    is_string($envPath) && is_file($envPath . '/testbench.yaml') => $envPath,
-    is_file($testbenchPackageDir . '/testbench.yaml') => $testbenchPackageDir,
+    is_string($envPath) && $envPath !== '' => $envPath,
+    is_string($installedRootPath) && $installedRootPath !== '' => $installedRootPath,
     default => getcwd(),
 };
+
+$workingPath = realpath($workingPath) ?: $workingPath;
 
 define('TESTBENCH_WORKING_PATH', $workingPath);
 
