@@ -47,6 +47,22 @@ class ConnectorTest extends SqliteTestCase
         ]);
     }
 
+    /**
+     * Configure explicit SQLite connections for default pragma assertions.
+     */
+    protected function useDefaultSqliteConnections(Application $app): void
+    {
+        $app->make('config')->set('database.connections.memory_sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $app->make('config')->set('database.connections.file_sqlite', [
+            'driver' => 'sqlite',
+            'database' => database_path('custom.sqlite'),
+        ]);
+    }
+
     protected function defineDatabaseMigrations(): void
     {
         // Create the custom.sqlite database file for tests that need it
@@ -64,19 +80,22 @@ class ConnectorTest extends SqliteTestCase
 
     /**
      * Test default pragma values for SQLite connection.
-     *
-     * The default testing connection has foreign_key_constraints => false, so foreign_keys is 0.
-     * journal_mode differs based on database type: 'memory' for :memory:, 'delete' for file-based.
      */
+    #[DefineEnvironment('useDefaultSqliteConnections')]
     public function testDefaultPragmaValues(): void
     {
-        $this->assertSame(0, Schema::pragma('foreign_keys'));
-        $this->assertSame(60000, Schema::pragma('busy_timeout'));
+        $memorySchema = Schema::connection('memory_sqlite');
+        $fileSchema = Schema::connection('file_sqlite');
 
-        $expectedJournalMode = $this->usesSqliteInMemoryDatabaseConnection() ? 'memory' : 'delete';
-        $this->assertSame($expectedJournalMode, Schema::pragma('journal_mode'));
+        $this->assertSame(0, $memorySchema->pragma('foreign_keys'));
+        $this->assertSame(60000, $memorySchema->pragma('busy_timeout'));
+        $this->assertSame('memory', $memorySchema->pragma('journal_mode'));
+        $this->assertSame(2, $memorySchema->pragma('synchronous'));
 
-        $this->assertSame(2, Schema::pragma('synchronous'));
+        $this->assertSame(0, $fileSchema->pragma('foreign_keys'));
+        $this->assertSame(60000, $fileSchema->pragma('busy_timeout'));
+        $this->assertSame('delete', $fileSchema->pragma('journal_mode'));
+        $this->assertSame(2, $fileSchema->pragma('synchronous'));
     }
 
     /**

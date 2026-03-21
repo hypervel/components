@@ -131,12 +131,22 @@ trait InteractsWithSqliteDatabaseFile
         } finally {
             $this->purgeSqliteConnection();
 
+            if ($filesystem->exists($baseDatabase)) {
+                $filesystem->delete($baseDatabase);
+            }
+
             if (isset($temporaryBaseDatabase)) {
                 $filesystem->move($temporaryBaseDatabase, $baseDatabase);
             }
 
-            if (isset($temporaryActiveDatabase)) {
-                $filesystem->move($temporaryActiveDatabase, $activeDatabase);
+            if ($activeDatabase !== $baseDatabase) {
+                if ($filesystem->exists($activeDatabase)) {
+                    $filesystem->delete($activeDatabase);
+                }
+
+                if (isset($temporaryActiveDatabase)) {
+                    $filesystem->move($temporaryActiveDatabase, $activeDatabase);
+                }
             }
         }
     }

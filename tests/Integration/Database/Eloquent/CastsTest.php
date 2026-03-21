@@ -61,12 +61,19 @@ class CastsTest extends DatabaseTestCase
 
     public function testBooleanCast(): void
     {
-        $model = CastModel::create(['name' => 'Test', 'is_active' => 1]);
+        $model = new CastModel(['name' => 'Test', 'is_active' => 1]);
+
+        $this->assertTrue($model->getAttributes()['is_active']);
+
+        $model->save();
 
         $this->assertIsBool($model->is_active);
         $this->assertTrue($model->is_active);
 
         $model->is_active = 0;
+
+        $this->assertFalse($model->getAttributes()['is_active']);
+
         $model->save();
 
         $this->assertFalse($model->fresh()->is_active);

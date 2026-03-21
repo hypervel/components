@@ -979,6 +979,10 @@ trait HasAttributes
             $value = $this->fromDateTime($value);
         }
 
+        if (! is_null($value) && $this->hasCast($key, ['bool', 'boolean'])) {
+            $value = (bool) $value;
+        }
+
         if ($this->isEnumCastable($key)) {
             $this->setEnumCastableAttribute($key, $value);
 
