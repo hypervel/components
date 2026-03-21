@@ -23,15 +23,15 @@ class Bootstrapper
 
     public static function bootstrap(): void
     {
-        $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : dirname(__DIR__);
+        $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : package_path();
 
         if (! defined('TESTBENCH_WORKING_PATH')) {
             define('TESTBENCH_WORKING_PATH', $workingPath);
         }
 
-        static::loadConfigFromYaml($workingPath);
+        static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
-        $sourcePath = "{$workingPath}/hypervel";
+        $sourcePath = testbench_path('hypervel');
         if (static::$configuration?->offsetExists('hypervel') === true && is_string(static::$configuration['hypervel'])) {
             $sourcePath = static::$configuration['hypervel'];
         }
@@ -58,6 +58,16 @@ class Bootstrapper
         return static::$configuration;
     }
 
+    /**
+     * Flush the cached bootstrap state.
+     */
+    public static function flushState(): void
+    {
+        static::$configuration = null;
+        static::$runtimePath = null;
+        static::$filesystem = null;
+    }
+
     protected static function getFilesystem(): Filesystem
     {
         if (static::$filesystem) {
@@ -70,6 +80,30 @@ class Bootstrapper
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void
     {
         static::$configuration = Config::cacheFromYaml($workingPath, $filename, $defaults);
+    }
+
+    /**
+     * Resolve the directory that owns the active testbench.yaml file.
+     */
+    protected static function resolveConfigurationPath(string $workingPath): string
+    {
+        return static::hasConfigurationFile($workingPath)
+            ? $workingPath
+            : testbench_path();
+    }
+
+    /**
+     * Determine if the given path contains a testbench configuration file.
+     */
+    protected static function hasConfigurationFile(string $workingPath, string $filename = 'testbench.yaml'): bool
+    {
+        foreach ([$filename, "{$filename}.example", "{$filename}.dist"] as $candidate) {
+            if (static::getFilesystem()->isFile(join_paths($workingPath, $candidate))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
