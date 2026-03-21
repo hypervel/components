@@ -25,6 +25,7 @@ use Throwable;
 
 use function Hypervel\Testbench\is_symlink;
 use function Hypervel\Testbench\join_paths;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\transform_relative_path;
 
 class Commander
@@ -122,7 +123,7 @@ class Commander
     {
         if (! $this->app instanceof HypervelApplication) {
             $appBasePath = $this->getApplicationBasePath();
-            $vendorPath = join_paths($this->workingPath, 'vendor');
+            $vendorPath = package_path('vendor');
 
             TerminatingConsole::beforeWhen(
                 ! is_symlink(join_paths($appBasePath, 'vendor')),
