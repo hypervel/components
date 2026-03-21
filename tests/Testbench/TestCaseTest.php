@@ -4,111 +4,79 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Testbench\Concerns\CreatesApplication;
-use Hypervel\Testbench\Concerns\HandlesAttributes;
-use Hypervel\Testbench\Concerns\HandlesDatabases;
-use Hypervel\Testbench\Concerns\HandlesRoutes;
-use Hypervel\Testbench\Concerns\InteractsWithTestCase;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Foundation\Application;
+use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
+use Hypervel\Testbench\Foundation\Application as Testbench;
+use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\PHPUnit\TestCase;
+use Override;
+use PHPUnit\Framework\Attributes\Test;
+
+use function Hypervel\Testbench\container;
 
 /**
  * @internal
  * @coversNothing
  */
-#[WithConfig('testing.testcase_class', 'class_level')]
 class TestCaseTest extends TestCase
 {
-    protected bool $defineEnvironmentCalled = false;
-
-    protected function defineEnvironment(ApplicationContract $app): void
+    #[Override]
+    protected function tearDown(): void
     {
-        parent::defineEnvironment($app);
+        Testbench::flushState($this);
 
-        $this->defineEnvironmentCalled = true;
-        $app->make('config')->set('testing.define_environment', 'called');
+        parent::tearDown();
     }
 
-    public function testTestCaseUsesCreatesApplicationTrait(): void
+    #[Test]
+    public function itCanCreateTheTestcase()
     {
-        $uses = class_uses_recursive(static::class);
+        // Use a dummy method name that exists on the anonymous class.
+        // Swoole's runtime hooks cause PHPUnit's error handler to reflect
+        // on the TestCase's stored method name during createApplication(),
+        // which fails if the method doesn't exist on the anonymous class.
+        $testbench = new /**
+         * @coversNothing
+         */
+        class('runTest') extends \Hypervel\Testbench\TestCase {
+        };
 
-        $this->assertArrayHasKey(CreatesApplication::class, $uses);
+        $app = $testbench->createApplication();
+
+        $this->assertInstanceOf(Application::class, $app);
+        $this->assertEquals('UTC', date_default_timezone_get());
+        $this->assertEquals('testing', $app['env']);
+        $this->assertSame('testing', $app->environment());
+        $this->assertTrue($app->runningUnitTests());
+        $this->assertInstanceOf(ConfigRepository::class, $app['config']);
+
+        $this->assertInstanceOf(TestCaseContract::class, $testbench);
+        $this->assertTrue($testbench->isRunningTestCase());
+        $this->assertFalse($testbench->isRunningTestCaseUsingPest());
+
+        $app->terminate();
     }
 
-    public function testTestCaseUsesHandlesRoutesTrait(): void
+    #[Test]
+    public function itCanCreateAContainer()
     {
-        $uses = class_uses_recursive(static::class);
+        $container = container();
 
-        $this->assertArrayHasKey(HandlesRoutes::class, $uses);
-    }
+        $app = $container->createApplication();
 
-    public function testTestCaseUsesHandlesDatabasesTrait(): void
-    {
-        $uses = class_uses_recursive(static::class);
+        $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'workbench';
 
-        $this->assertArrayHasKey(HandlesDatabases::class, $uses);
-    }
+        $this->assertInstanceOf(Application::class, $app);
+        $this->assertEquals('UTC', date_default_timezone_get());
+        $this->assertEquals($environment, $app['env']);
+        $this->assertSame($environment, $app->environment());
+        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
+        $this->assertInstanceOf(ConfigRepository::class, $app['config']);
 
-    public function testTestCaseUsesHandlesAttributesTrait(): void
-    {
-        $uses = class_uses_recursive(static::class);
+        $this->assertFalse($container->isRunningTestCase());
+        $this->assertFalse($container->isRunningTestCaseUsingPest());
 
-        $this->assertArrayHasKey(HandlesAttributes::class, $uses);
-    }
-
-    public function testTestCaseUsesInteractsWithTestCaseTrait(): void
-    {
-        $uses = class_uses_recursive(static::class);
-
-        $this->assertArrayHasKey(InteractsWithTestCase::class, $uses);
-    }
-
-    public function testDefineEnvironmentIsCalled(): void
-    {
-        $this->assertTrue($this->defineEnvironmentCalled);
-        $this->assertSame('called', $this->app->make('config')->get('testing.define_environment'));
-    }
-
-    public function testClassLevelAttributeIsApplied(): void
-    {
-        // The WithConfig attribute at class level should be applied
-        $this->assertSame('class_level', $this->app->make('config')->get('testing.testcase_class'));
-    }
-
-    #[WithConfig('testing.method_attribute', 'method_level')]
-    public function testMethodLevelAttributeIsApplied(): void
-    {
-        // The WithConfig attribute at method level should be applied
-        $this->assertSame('method_level', $this->app->make('config')->get('testing.method_attribute'));
-    }
-
-    public function testReloadApplicationMethodExists(): void
-    {
-        $this->assertTrue(method_exists($this, 'reloadApplication'));
-    }
-
-    public function testStaticLifecycleMethodsExist(): void
-    {
-        $this->assertTrue(method_exists(static::class, 'setUpBeforeClass'));
-        $this->assertTrue(method_exists(static::class, 'tearDownAfterClass'));
-    }
-
-    public function testUsesTestingConcernIsAvailable(): void
-    {
-        $this->assertTrue(static::usesTestingConcern(HandlesAttributes::class));
-    }
-
-    public function testAppIsAvailable(): void
-    {
-        $this->assertNotNull($this->app);
-    }
-
-    public function testPackageTestCaseRunsInTestingEnvironment(): void
-    {
-        $this->assertSame('testing', $this->app['env']);
-        $this->assertSame('testing', $this->app->environment());
-        $this->assertTrue($this->app->runningUnitTests());
+        $app->terminate();
     }
 }
