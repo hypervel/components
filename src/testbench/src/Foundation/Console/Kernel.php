@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Console;
 
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Symfony\Component\Console\Input\InputInterface;
 
 /**
  * Base testbench console kernel with empty bootstrappers.
@@ -18,6 +19,16 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
  */
 abstract class Kernel extends ConsoleKernel
 {
+    /**
+     * Terminate the application.
+     */
+    public function terminate(InputInterface $input, int $status): void
+    {
+        parent::terminate($input, $status);
+
+        TerminatingConsole::handle();
+    }
+
     /**
      * Get the bootstrap classes for the application.
      *
