@@ -19,6 +19,7 @@ use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
 use Hypervel\Testing\PendingCommand;
@@ -230,9 +231,7 @@ function testbench_path(array|string $path = ''): string
 {
     $argumentCount = func_num_args();
 
-    $workingPath = defined('TESTBENCH_WORKING_PATH')
-        ? TESTBENCH_WORKING_PATH
-        : dirname(__DIR__);
+    $workingPath = dirname(__DIR__);
 
     if ($argumentCount === 1 && is_string($path) && str_starts_with($path, './')) {
         return transform_relative_path($path, $workingPath) ?? $workingPath;
@@ -258,7 +257,15 @@ function package_path(array|string $path = ''): string
 {
     $argumentCount = func_num_args();
 
-    $workingPath = realpath(dirname(testbench_path(), 2)) ?: dirname(testbench_path(), 2);
+    $workingPath = once(static function (): string {
+        $resolvedPath = realpath(match (true) {
+            defined('TESTBENCH_WORKING_PATH') => TESTBENCH_WORKING_PATH,
+            Env::has('TESTBENCH_WORKING_PATH') => (string) Env::get('TESTBENCH_WORKING_PATH'),
+            default => InstalledVersions::getRootPackage()['install_path'],
+        });
+
+        return $resolvedPath !== false ? $resolvedPath : getcwd();
+    });
 
     if ($argumentCount === 1 && is_string($path) && str_starts_with($path, './')) {
         return transform_relative_path($path, $workingPath) ?? $workingPath;
@@ -291,8 +298,8 @@ function defined_environment_variables(): array
         ->mapWithKeys(static fn (string $key) => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
         ->filter(static fn ($value) => $value === null || is_scalar($value))
         ->when(
-            ! defined('TESTBENCH_WORKING_PATH'),
-            static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', testbench_path())
+            ! Env::has('TESTBENCH_WORKING_PATH'),
+            static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', package_path())
         )->all();
 }
 
@@ -402,7 +409,29 @@ function workbench(): array
  */
 function workbench_path(array|string $path = ''): string
 {
-    return testbench_path('workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+    $argumentCount = func_num_args();
+
+    $packageWorkbenchPath = package_path('workbench');
+    $workingPath = is_dir($packageWorkbenchPath)
+        || is_file(package_path('testbench.yaml'))
+        || is_file(package_path('testbench.yaml.example'))
+        || is_file(package_path('testbench.yaml.dist'))
+            ? $packageWorkbenchPath
+            : testbench_path('workbench');
+
+    if ($argumentCount === 1 && is_string($path) && str_starts_with($path, './')) {
+        return transform_relative_path($path, $workingPath) ?? $workingPath;
+    }
+
+    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
+        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+
+    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+
+    return str_starts_with($path, './')
+        ? transform_relative_path($path, $workingPath) ?? $workingPath
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
 }
 
 /**
