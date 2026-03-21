@@ -32,14 +32,16 @@ class TestCaseTest extends TestCase
     #[Test]
     public function itCanCreateTheTestcase()
     {
-        // Use a dummy method name that exists on the anonymous class.
-        // Swoole's runtime hooks cause PHPUnit's error handler to reflect
-        // on the TestCase's stored method name during createApplication(),
-        // which fails if the method doesn't exist on the anonymous class.
+        // Use a real dummy test method on the anonymous class so PHPUnit's
+        // metadata parser can resolve the stored method name while
+        // createApplication() loads environment variables.
         $testbench = new /**
          * @coversNothing
          */
-        class('runTest') extends \Hypervel\Testbench\TestCase {
+        class('testDummy') extends \Hypervel\Testbench\TestCase {
+            public function testDummy()
+            {
+            }
         };
 
         $app = $testbench->createApplication();
