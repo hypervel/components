@@ -68,6 +68,14 @@ class Filesystem
     }
 
     /**
+     * Get the contents of a file as decoded JSON.
+     */
+    public function json(string $path, int $flags = 0, bool $lock = false): array
+    {
+        return json_decode($this->get($path, $lock), true, 512, $flags);
+    }
+
+    /**
      * Get the returned value of a file.
      *
      * @throws FileNotFoundException
