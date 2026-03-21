@@ -65,12 +65,20 @@
     "config": {
         "sort-packages": true
     },
-    "bin": [
-        "bin/testbench",
-        "bin/testbench-sync"
-    ],
     "scripts": {
-        "sync": "@php bin/testbench-sync"
+        "post-autoload-dump": [
+            "@clear",
+            "@prepare"
+        ],
+        "clear": "@php bin/testbench package:purge-skeleton --ansi",
+        "prepare": "@php bin/testbench package:discover --ansi",
+        "serve": [
+            "@clear",
+            "@php bin/testbench serve --ansi"
+        ]
     },
+    "bin": [
+        "bin/testbench"
+    ],
     "minimum-stability": "dev"
 }
