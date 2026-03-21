@@ -1,0 +1,13 @@
+{
+    "name": "testbench/example",
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Tests\\Testbench\\Fixtures\\Providers\\ParentServiceProvider"
+            ],
+            "aliases": {
+                "RootAlias": "RootClass"
+            }
+        }
+    }
+}
