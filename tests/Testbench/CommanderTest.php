@@ -45,6 +45,17 @@ class CommanderTest extends TestCase
     }
 
     #[Test]
+    public function itCanCallCommanderUsingCliAndDiscoverPackages(): void
+    {
+        $this->withoutSqliteDatabase(function () {
+            $process = remote('package:discover --no-ansi');
+            $process->mustRun();
+
+            $this->assertStringContainsString('INFO  Discovering packages.', $process->getOutput());
+        });
+    }
+
+    #[Test]
     public function itOutputCorrectDefaults(): void
     {
         $this->withoutSqliteDatabase(function () {
