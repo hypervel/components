@@ -165,7 +165,6 @@ trait HandlesRoutes
                     ...$files->glob($this->app->basePath(join_paths('routes', 'testbench-*.php')))
                 );
             }
-
         });
 
         $this->requireApplicationCachedRoutesHasRun = true;

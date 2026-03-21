@@ -427,7 +427,9 @@ trait CreatesApplication
         // Rewrite the default database name for parallel testing before
         // defineEnvironment() runs, so custom connections derived from
         // the default connection inherit the per-worker database name.
-        $this->configureParallelDatabaseName($app);
+        if ($this->isRunningTestCase()) {
+            $this->configureParallelDatabaseName($app);
+        }
 
         if (is_string($bootstrapProviderPath = $this->getApplicationBootstrapFile('providers.php'))) {
             TestbenchRegisterProviders::merge([], $bootstrapProviderPath);
@@ -514,9 +516,12 @@ trait CreatesApplication
 
         // Override the normal ConnectionResolver (registered by DatabaseServiceProvider)
         // with the testing resolver that caches connections statically to prevent pool
-        // exhaustion. Must happen AFTER providers register/boot so it wins.
-        $app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
-        Model::setConnectionResolver($app->make(ConnectionResolverInterface::class));
+        // exhaustion. Only for test cases — remote subprocesses (e.g. queue:work) need
+        // the real pool-based resolver for proper coroutine lifecycle.
+        if ($this->isRunningTestCase()) {
+            $app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+            Model::setConnectionResolver($app->make(ConnectionResolverInterface::class));
+        }
 
         $app->make(KernelContract::class)->bootstrap();
     }
