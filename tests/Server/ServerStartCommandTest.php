@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server;
 
+use Hypervel\Console\Command as ConsoleCommand;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
@@ -13,6 +14,7 @@ use Hypervel\Server\ServerFactory;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -32,14 +34,21 @@ class ServerStartCommandTest extends TestCase
     public function testServeCommandFailsFastWhenRunningInConsoleIsTrue()
     {
         $command = new ServerStartCommand($this->app);
-        $command->setHypervel($this->app);
 
         Application::getInstance()->setRunningInConsole(true);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
 
-        $command->run(new ArrayInput(['--disable-event-dispatcher' => true]), new NullOutput());
+        $command->run(new ArrayInput([]), new NullOutput());
+    }
+
+    public function testServeCommandUsesThePlainSymfonyRuntimeBoundary()
+    {
+        $command = new ServerStartCommand($this->app);
+
+        $this->assertInstanceOf(SymfonyCommand::class, $command);
+        $this->assertNotInstanceOf(ConsoleCommand::class, $command);
     }
 
     public function testServeCommandStartsServerWhenRunningInConsoleIsFalse()
@@ -62,11 +71,10 @@ class ServerStartCommandTest extends TestCase
         $this->app->instance(Repository::class, $config);
 
         $command = new ServerStartCommand($this->app);
-        $command->setHypervel($this->app);
 
         Application::getInstance()->setRunningInConsole(false);
 
-        $result = $command->run(new ArrayInput(['--disable-event-dispatcher' => true]), new NullOutput());
+        $result = $command->run(new ArrayInput([]), new NullOutput());
 
         $this->assertSame(0, $result);
     }

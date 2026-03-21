@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Commands;
 
-use Hypervel\Console\Command;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
@@ -13,15 +12,24 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
 use InvalidArgumentException;
+use Override;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Support\swoole_hook_flags;
 
+/**
+ * Extends Symfony Command directly — NOT Hypervel\Console\Command — because the
+ * Swoole server must own the event loop. Hypervel\Console\Command brings coroutine
+ * wrapping and signal traits that start the event loop before Server::start().
+ */
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
-class ServerStartCommand extends Command
+class ServerStartCommand extends SymfonyCommand
 {
-    public function __construct(private Container $container)
+    public function __construct(protected Container $container)
     {
         parent::__construct('serve');
         $this->setDescription('Start Hypervel servers.');
@@ -30,7 +38,16 @@ class ServerStartCommand extends Command
     /**
      * Execute the server start command.
      */
-    public function handle(): int
+    #[Override]
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        return $this->startServer();
+    }
+
+    /**
+     * Start the configured Swoole servers.
+     */
+    protected function startServer(): int
     {
         if (Application::getInstance()->runningInConsole()) {
             throw new RuntimeException(
