@@ -122,7 +122,7 @@ function refresh_router_lookups(Router $router): void
  */
 function load_migration_paths(ApplicationContract $app, array|string $paths): void
 {
-    after_resolving($app, Migrator::class, static function (Migrator $migrator) use ($paths): void {
+    after_resolving($app, 'migrator', static function (Migrator $migrator) use ($paths): void {
         foreach (Arr::wrap($paths) as $path) {
             $migrator->path($path);
         }
@@ -505,6 +505,21 @@ function hypervel_or_fail(mixed $app, ?string $caller = null): Application
     }
 
     throw ApplicationNotAvailableException::make($caller);
+}
+
+/**
+ * Determine if running via the Testbench CLI.
+ */
+function is_testbench_cli(?bool $dusk = null): bool
+{
+    $usingTestbench = \defined('TESTBENCH_CORE');
+    $usingTestbenchDusk = \defined('TESTBENCH_DUSK');
+
+    return match ($dusk) {
+        false => $usingTestbench === true && $usingTestbenchDusk === false,
+        true => $usingTestbench === true && $usingTestbenchDusk === true,
+        default => $usingTestbench === true,
+    };
 }
 
 /**
