@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Attribute;
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Routing\RouteCollection;
+use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\Attributes\DefineRoute;
+use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\Features\TestingFeature;
+use Hypervel\Testbench\Foundation\Bootstrap\SyncTestbenchCachedRoutes;
+use Laravel\SerializableClosure\SerializableClosure;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\refresh_router_lookups;
+use function Hypervel\Testbench\remote;
 
 trait HandlesRoutes
 {
@@ -20,9 +26,9 @@ trait HandlesRoutes
     use InteractsWithTestCase;
 
     /**
-     * Whether cached routes have been set up for this test.
+     * Whether cached routes have been loaded for this test.
      */
-    protected bool $defineCacheRoutesHasRun = false;
+    protected bool $requireApplicationCachedRoutesHasRun = false;
 
     /**
      * Setup application routes.
@@ -75,99 +81,94 @@ trait HandlesRoutes
     /**
      * Define stash routes setup.
      */
-    protected function defineStashRoutes(string $routes): void
+    protected function defineStashRoutes(Closure|string $route): void
     {
-        $this->defineCacheRoutes($routes, false);
+        $this->defineCacheRoutes($route, false);
     }
 
     /**
-     * Define cached routes for the application.
-     *
-     * Writes the given route definitions to a temporary file, registers them,
-     * compiles to a cache file, then reloads the application so it boots with
-     * CompiledRouteCollection. Cleans up both files on teardown.
+     * Define cache routes setup.
      */
-    protected function defineCacheRoutes(string $routes, bool $cached = true): void
+    protected function defineCacheRoutes(Closure|string $route, bool $cached = true): void
     {
+        static::usesTestingFeature($attribute = new UsesVendor(), Attribute::TARGET_METHOD);
+
+        if (
+            $this->app instanceof HypervelApplication
+            && property_exists($this, 'setUpHasRun') /* @phpstan-ignore function.alreadyNarrowedType */
+            && $this->setUpHasRun === true
+        ) {
+            $attribute->beforeEach($this->app);
+        }
+
         $files = new Filesystem();
 
-        $basePath = $this->app->basePath();
+        $time = time();
 
-        // Use a random suffix instead of time() to guarantee a unique path per
-        // invocation. ReflectionClosure caches tokenized source by file path,
-        // so reusing the same path within a process causes stale closure bodies
-        // to be serialized into the route cache.
-        $routeFile = join_paths($basePath, 'routes', 'testbench-' . bin2hex(random_bytes(8)) . '.php');
-
-        // Ensure the routes directory exists
-        $files->ensureDirectoryExists(dirname($routeFile));
-
-        // Write route definitions to temp file
-        $files->put($routeFile, $routes);
-
-        if ($cached === true) {
-            // Reset the router to a fresh collection so only this invocation's
-            // routes are compiled. Without this, routes from a previous
-            // defineCacheRoutes() call would accumulate on the router.
-            /** @var Router $router */
-            $router = $this->app['router'];
-            $router->setRoutes(new RouteCollection());
-
-            require $routeFile;
-
-            /** @var RouteCollection $routeCollection */
-            $routeCollection = $router->getRoutes();
-
-            $routeCollection->refreshNameLookups();
-            $routeCollection->refreshActionLookups();
-
-            // Serialize each route for caching
-            foreach ($routeCollection as $route) {
-                $route->prepareForSerialization();
-            }
-
-            // Compile routes in memory before reloading so the data survives the
-            // reload. Writing the cache file is deferred until after reload to avoid
-            // a previous invocation's beforeApplicationDestroyed cleanup deleting
-            // the file before we can require it.
-            $stub = $files->get(
-                join_paths(dirname(__DIR__, 3), 'foundation', 'src', 'Console', 'stubs', 'routes.stub')
-            );
-
-            $cacheContent = str_replace(
-                '{{routes}}',
-                var_export($routeCollection->compile(), true),
-                $stub
-            );
+        $basePath = static::applicationBasePath();
+        if ($route instanceof Closure) {
+            $cached = false;
+            /** @var string $serializeRoute */
+            $serializeRoute = serialize(SerializableClosure::unsigned($route));
+            $stub = $files->get(join_paths(__DIR__, 'Fixtures', 'routes.stub'));
+            $route = str_replace('{{routes}}', var_export($serializeRoute, true), $stub);
         }
 
-        // Reload the app — any cleanup callbacks from a previous
-        // defineCacheRoutes() call will fire here safely, since we
-        // haven't written this invocation's cache file yet.
-        $this->reloadApplication();
+        $files->put(
+            join_paths($basePath, 'routes', "testbench-{$time}.php"),
+            $route
+        );
 
         if ($cached === true) {
-            // Write and load the cache file on the NEW app. The workbench has
-            // no RouteServiceProvider to load it automatically. The cache file
-            // calls app('router')->setCompiledRoutes(...), installing the
-            // CompiledRouteCollection.
-            $cachePath = $this->app->getCachedRoutesPath();
-            $files->ensureDirectoryExists(dirname($cachePath));
-            $files->put($cachePath, $cacheContent);
-            require $cachePath;
+            remote('route:cache')->mustRun();
+
+            \assert($this->app instanceof HypervelApplication);
+            \assert($files->exists($this->app->getCachedRoutesPath()) === true);
         }
 
-        // Register cleanup on the NEW app (after reload), so the cache file
-        // persists through the reload but is cleaned up when the test finishes
-        $this->beforeApplicationDestroyed(function () use ($files, $routeFile) {
-            $files->delete($routeFile);
+        if ($this->app instanceof HypervelApplication) {
+            $this->reloadApplication();
+        }
 
-            // Use the current app's cache path (may differ after reload)
-            if ($this->app) {
-                $files->delete($this->app->getCachedRoutesPath());
+        $this->requireApplicationCachedRoutes($files, $cached);
+    }
+
+    /**
+     * Require application cached routes.
+     *
+     * @internal
+     */
+    protected function requireApplicationCachedRoutes(Filesystem $files, bool $cached): void
+    {
+        if ($this->requireApplicationCachedRoutesHasRun === true) {
+            return;
+        }
+
+        $this->afterApplicationCreated(function () use ($cached): void {
+            $app = $this->app;
+
+            if ($app instanceof HypervelApplication) {
+                if ($cached === true) {
+                    require $app->getCachedRoutesPath();
+                } else {
+                    (new SyncTestbenchCachedRoutes())->bootstrap($app);
+                }
             }
         });
 
-        $this->defineCacheRoutesHasRun = true;
+        $this->beforeApplicationDestroyed(function () use ($files): void {
+            if ($this->app instanceof HypervelApplication) {
+                // Use the dynamic cache path — parallel workers suffix it with _test_{token},
+                // so hardcoding routes-v7.php would miss the actual file and leak stale caches.
+                $files->delete(
+                    $this->app->getCachedRoutesPath(),
+                    ...$files->glob($this->app->basePath(join_paths('routes', 'testbench-*.php')))
+                );
+            }
+
+            usleep(1_000_000);
+        });
+
+        $this->requireApplicationCachedRoutesHasRun = true;
     }
 }
