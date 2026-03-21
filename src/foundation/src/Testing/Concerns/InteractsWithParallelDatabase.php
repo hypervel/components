@@ -121,7 +121,7 @@ trait InteractsWithParallelDatabase
     {
         if (isset(static::$originalDatabaseName)) {
             $database = static::$originalDatabaseName;
-        } elseif (preg_match('/^(.*)_test_[^\/\\\\]+$/', $database, $matches) === 1) {
+        } elseif (preg_match('/^(.*)_test_[^\/\\\]+$/', $database, $matches) === 1) {
             $database = $matches[1];
             static::$originalDatabaseName = $database;
         } else {
