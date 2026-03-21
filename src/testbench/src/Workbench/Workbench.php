@@ -16,6 +16,7 @@ use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use ReflectionClass;
@@ -273,7 +274,14 @@ class Workbench
      */
     public static function configuration(): ConfigContract
     {
-        return static::$cachedConfiguration ??= Config::cacheFromYaml(testbench_path());
+        return static::$cachedConfiguration ??= Bootstrapper::getConfiguration()
+            ?? Config::cacheFromYaml(
+                is_file(package_path('testbench.yaml'))
+                || is_file(package_path('testbench.yaml.example'))
+                || is_file(package_path('testbench.yaml.dist'))
+                    ? package_path()
+                    : testbench_path()
+            );
     }
 
     /**
