@@ -24,6 +24,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
       - name: Setup PHP extensions
         uses: ./.github/actions/setup-php
 
