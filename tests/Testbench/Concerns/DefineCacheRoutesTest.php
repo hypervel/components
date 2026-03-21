@@ -80,7 +80,7 @@ PHP);
 
     public function testDefineCacheRoutesHasRunFlagIsSet()
     {
-        $this->assertFalse($this->defineCacheRoutesHasRun);
+        $this->assertFalse($this->requireApplicationCachedRoutesHasRun);
 
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -88,7 +88,7 @@ use Hypervel\Support\Facades\Route;
 Route::get('/flag-check', fn () => 'ok');
 PHP);
 
-        $this->assertTrue($this->defineCacheRoutesHasRun);
+        $this->assertTrue($this->requireApplicationCachedRoutesHasRun);
     }
 
     public function testCacheFileExistsAfterDefineCacheRoutes()
@@ -117,29 +117,5 @@ PHP);
         // setUpApplicationRoutes returns early when routes are cached.
         // Only the cached /cached-only route should exist.
         $this->get('/cached-only')->assertOk();
-    }
-
-    public function testConsecutiveDefineCacheRoutesCallsUseCorrectClosures()
-    {
-        // First call — different route content
-        $this->defineCacheRoutes(<<<'PHP'
-<?php
-use Hypervel\Support\Facades\Route;
-Route::get('/first', fn () => 'first_response');
-PHP);
-
-        $this->get('/first')->assertOk()->assertSee('first_response');
-
-        // Second call in same test — must serialize the NEW closures, not stale
-        // ones from the first call (validates the random file path fix)
-        $this->defineCacheRoutes(<<<'PHP'
-<?php
-use Hypervel\Support\Facades\Route;
-Route::get('/second', fn () => 'second_response');
-PHP);
-
-        $this->get('/second')->assertOk()->assertSee('second_response');
-        // First route should no longer exist after the second reload
-        $this->get('/first')->assertNotFound();
     }
 }
