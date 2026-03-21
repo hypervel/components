@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Testbench\Foundation;
 
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\PHPUnit\TestCase;
+use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Tests\Testbench\Fixtures\Providers\ChildServiceProvider;
-use Hypervel\Tests\Testbench\Fixtures\Providers\ConfigTestServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -24,7 +24,7 @@ class ConfigTest extends TestCase
         $this->assertNull($config['hypervel']);
         $this->assertSame(['APP_DEBUG=(false)'], $config['env']);
         $this->assertSame([], $config['bootstrappers']);
-        $this->assertSame([ConfigTestServiceProvider::class], $config['providers']);
+        $this->assertSame([TestbenchServiceProvider::class], $config['providers']);
         $this->assertSame([], $config['dont-discover']);
         $this->assertSame([], $config['migrations']);
         $this->assertFalse($config['seeders']);
@@ -35,7 +35,7 @@ class ConfigTest extends TestCase
             ],
             'bootstrappers' => [],
             'providers' => [
-                ConfigTestServiceProvider::class,
+                TestbenchServiceProvider::class,
             ],
             'dont-discover' => [],
         ], $config->getExtraAttributes());
@@ -142,7 +142,7 @@ class ConfigTest extends TestCase
         $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
 
         $this->assertSame([
-            ConfigTestServiceProvider::class,
+            TestbenchServiceProvider::class,
         ], $config['providers']);
 
         $config->addProviders([
@@ -150,7 +150,7 @@ class ConfigTest extends TestCase
         ]);
 
         $this->assertSame([
-            ConfigTestServiceProvider::class,
+            TestbenchServiceProvider::class,
             ChildServiceProvider::class,
         ], $config['providers']);
     }
@@ -161,15 +161,15 @@ class ConfigTest extends TestCase
         $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
 
         $this->assertSame([
-            ConfigTestServiceProvider::class,
+            TestbenchServiceProvider::class,
         ], $config['providers']);
 
         $config->addProviders([
-            ConfigTestServiceProvider::class,
+            TestbenchServiceProvider::class,
         ]);
 
         $this->assertSame([
-            ConfigTestServiceProvider::class,
+            TestbenchServiceProvider::class,
         ], $config['providers']);
     }
 }
