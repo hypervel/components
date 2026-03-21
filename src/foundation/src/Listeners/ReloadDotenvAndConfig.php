@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Listeners;
 
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\DotenvManager;
 
@@ -17,19 +18,9 @@ class ReloadDotenvAndConfig
 
     public function __construct(protected Application $container)
     {
-        $this->setConfigCallback();
-
-        $container->afterResolving('config', function (Repository $config) {
-            if (static::$stopCallback) {
-                return;
-            }
-
-            static::$stopCallback = true;
-            foreach (static::$modifiedItems as $key => $value) {
-                $config->set($key, $value);
-            }
-            static::$stopCallback = false;
-        });
+        $this->setConfigCallback(
+            $this->container->make(Repository::class)
+        );
     }
 
     /**
@@ -43,7 +34,10 @@ class ReloadDotenvAndConfig
 
     protected function reloadConfig(): void
     {
-        $this->container->forgetInstance('config');
+        $config = $this->rebuildConfigRepository();
+
+        $this->setConfigCallback($config);
+        $this->replayModifiedItems($config);
     }
 
     protected function reloadDotenv(): void
@@ -58,14 +52,57 @@ class ReloadDotenvAndConfig
         );
     }
 
-    protected function setConfigCallback(): void
+    /**
+     * Track runtime config mutations on the active repository instance.
+     */
+    protected function setConfigCallback(Repository $config): void
     {
-        $this->container->make('config')
-            ->afterSettingCallback(function (array $values) {
-                static::$modifiedItems = array_replace(
-                    static::$modifiedItems,
-                    $values
-                );
-            });
+        $config->afterSettingCallback(function (array $values): void {
+            if (static::$stopCallback) {
+                return;
+            }
+
+            static::$modifiedItems = array_replace(
+                static::$modifiedItems,
+                $values
+            );
+        });
+    }
+
+    /**
+     * Rebuild the config repository through the normal foundation bootstrap path.
+     */
+    protected function rebuildConfigRepository(): Repository
+    {
+        (new LoadConfiguration())->bootstrap($this->container);
+
+        return $this->container->make(Repository::class);
+    }
+
+    /**
+     * Reapply runtime config mutations onto a freshly rebuilt repository.
+     */
+    protected function replayModifiedItems(Repository $config): void
+    {
+        if (static::$modifiedItems === []) {
+            return;
+        }
+
+        static::$stopCallback = true;
+
+        try {
+            $config->set(static::$modifiedItems);
+        } finally {
+            static::$stopCallback = false;
+        }
+    }
+
+    /**
+     * Flush the listener's static mutation tracking state.
+     */
+    public static function flushState(): void
+    {
+        static::$modifiedItems = [];
+        static::$stopCallback = false;
     }
 }
