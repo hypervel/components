@@ -12,6 +12,9 @@ use Hypervel\Testbench\Foundation\Process\ProcessResult;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
+use Stringable;
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 use function Hypervel\Testbench\remote;
 
@@ -51,5 +54,32 @@ class RemoteCommandTest extends TestCase
             $this->assertSame('{"successful":true,"result":"i:2;"}', $process->getOutput());
             $this->assertSame(2, $result->output());
         });
+    }
+
+    #[Test]
+    public function itDoesNotForwardTheParentRuntimeCopyToServeCommands(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $serveProcess = remote('serve --help');
+            $aboutProcess = remote('about --json');
+
+            $this->assertArrayNotHasKey('TESTBENCH_BASE_PATH', $this->processEnvironment($serveProcess));
+            $this->assertSame(BASE_PATH, $this->processEnvironment($aboutProcess)['TESTBENCH_BASE_PATH'] ?? null);
+        });
+    }
+
+    /**
+     * Get the configured environment variables for the wrapped Symfony process.
+     *
+     * @return array<string, null|string|Stringable>
+     */
+    private function processEnvironment(ProcessDecorator $process): array
+    {
+        $reflection = new ReflectionClass($process);
+        $property = $reflection->getProperty('process');
+        /** @var SymfonyProcess $symfonyProcess */
+        $symfonyProcess = $property->getValue($process);
+
+        return $symfonyProcess->getEnv();
     }
 }
