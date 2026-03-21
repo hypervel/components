@@ -19,6 +19,7 @@ use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Testbench\Workbench\Workbench;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -94,6 +95,8 @@ class Commander
     {
         $input = new ArgvInput();
         $output = new ConsoleOutput();
+
+        $this->prepareCommandEnvironment($input);
 
         try {
             $hypervel = $this->hypervel();
@@ -224,6 +227,20 @@ class Commander
         }
 
         return 1;
+    }
+
+    /**
+     * Prepare environment variables required by the incoming command.
+     */
+    protected function prepareCommandEnvironment(InputInterface $input): void
+    {
+        if ($input->getFirstArgument() !== 'serve') {
+            return;
+        }
+
+        putenv('APP_RUNNING_IN_CONSOLE=false');
+        $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
+        $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
     }
 
     /**
