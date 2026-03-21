@@ -166,7 +166,6 @@ trait HandlesRoutes
                 );
             }
 
-            usleep(1_000_000);
         });
 
         $this->requireApplicationCachedRoutesHasRun = true;
