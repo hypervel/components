@@ -16,7 +16,7 @@ $autoloadPaths = array_filter([
     BASE_PATH . '/vendor/autoload.php',
     getcwd() . '/vendor/autoload.php',
     is_string(getenv('TESTBENCH_WORKING_PATH'))
-        ? dirname((string) getenv('TESTBENCH_WORKING_PATH'), 2) . '/vendor/autoload.php'
+        ? (string) getenv('TESTBENCH_WORKING_PATH') . '/vendor/autoload.php'
         : null,
 ]);
 
@@ -29,6 +29,20 @@ foreach ($autoloadPaths as $autoloadPath) {
 
 if (! class_exists(Hypervel\Foundation\Application::class)) {
     fwrite(STDERR, "Unable to locate Composer autoloader for the Hypervel testbench workbench.\n");
+    exit(1);
+}
+
+$committedTestbenchRoot = realpath(__DIR__ . '/..');
+
+if (
+    is_string($committedTestbenchRoot)
+    && is_file($committedTestbenchRoot . '/testbench.yaml')
+    && is_file($committedTestbenchRoot . '/bin/testbench')
+) {
+    fwrite(
+        STDERR,
+        "This committed Testbench skeleton artisan entrypoint must not be run directly. Use php src/testbench/bin/testbench ... so Testbench boots a disposable runtime copy.\n"
+    );
     exit(1);
 }
 
