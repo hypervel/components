@@ -427,9 +427,7 @@ trait CreatesApplication
         // Rewrite the default database name for parallel testing before
         // defineEnvironment() runs, so custom connections derived from
         // the default connection inherit the per-worker database name.
-        if ($this->isRunningTestCase()) {
-            $this->configureParallelDatabaseName($app);
-        }
+        $this->configureParallelDatabaseName($app);
 
         if (is_string($bootstrapProviderPath = $this->getApplicationBootstrapFile('providers.php'))) {
             TestbenchRegisterProviders::merge([], $bootstrapProviderPath);

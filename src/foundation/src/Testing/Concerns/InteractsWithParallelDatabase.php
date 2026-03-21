@@ -119,12 +119,13 @@ trait InteractsWithParallelDatabase
      */
     protected function parallelTestDatabase(string $database, string $token): string
     {
-        // Capture the original database name on first call so subsequent
-        // calls don't double-suffix the name.
-        if (! isset(static::$originalDatabaseName)) {
+        if (isset(static::$originalDatabaseName)) {
+            $database = static::$originalDatabaseName;
+        } elseif (preg_match('/^(.*)_test_[^\/\\\\]+$/', $database, $matches) === 1) {
+            $database = $matches[1];
             static::$originalDatabaseName = $database;
         } else {
-            $database = static::$originalDatabaseName;
+            static::$originalDatabaseName = $database;
         }
 
         return "{$database}_test_{$token}";
