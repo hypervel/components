@@ -44,10 +44,11 @@ final class RemoteCommand
     {
         $env = is_string($this->env) ? ['APP_ENV' => $this->env] : $this->env;
         $definedEnvironmentVariables = defined_environment_variables();
+        $commandName = $this->resolveCommandName($command);
 
         $env['TESTBENCH_PACKAGE_REMOTE'] = '(true)';
 
-        if (defined('BASE_PATH')) {
+        if (defined('BASE_PATH') && $commandName !== 'serve') {
             $env['TESTBENCH_BASE_PATH'] ??= BASE_PATH;
         }
 
@@ -80,5 +81,23 @@ final class RemoteCommand
         }
 
         return new ProcessDecorator($process, $command);
+    }
+
+    /**
+     * Resolve the top-level command name for the given invocation.
+     */
+    private function resolveCommandName(Closure|array|string $command): ?string
+    {
+        if ($command instanceof Closure) {
+            return null;
+        }
+
+        if (is_array($command)) {
+            return $command[0] ?? null;
+        }
+
+        $commandName = strtok(trim($command), " \t\n\r\0\x0B");
+
+        return $commandName === false ? null : $commandName;
     }
 }
