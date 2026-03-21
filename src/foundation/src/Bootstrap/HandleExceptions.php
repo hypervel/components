@@ -10,6 +10,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
+use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -79,10 +80,11 @@ class HandleExceptions
             return;
         }
 
-        $options = static::$app['config']->get('logging.deprecations') ?? [];
-        $channel = $options['channel'] ?? 'null';
+        $this->ensureDeprecationLoggerIsConfigured();
 
-        with($logger->channel($channel), function ($log) use ($message, $file, $line, $level, $options) {
+        $options = static::$app['config']->get('logging.deprecations') ?? [];
+
+        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $options) {
             if ($options['trace'] ?? false) {
                 $log->warning((string) new ErrorException($message, 0, $level, $file, $line));
             } else {
@@ -104,6 +106,45 @@ class HandleExceptions
         return ! class_exists(LogManager::class)
             || ! static::$app->hasBeenBootstrapped()
             || (static::$app->runningUnitTests() && ! Env::get('LOG_DEPRECATIONS_WHILE_TESTING'));
+    }
+
+    /**
+     * Ensure the "deprecations" logger is configured.
+     */
+    protected function ensureDeprecationLoggerIsConfigured(): void
+    {
+        $config = static::$app['config'];
+
+        if ($config->get('logging.channels.deprecations')) {
+            return;
+        }
+
+        $this->ensureNullLogDriverIsConfigured();
+
+        if (is_array($options = $config->get('logging.deprecations'))) {
+            $driver = $options['channel'] ?? 'null';
+        } else {
+            $driver = $options ?? 'null';
+        }
+
+        $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+    }
+
+    /**
+     * Ensure the "null" log driver is configured.
+     */
+    protected function ensureNullLogDriverIsConfigured(): void
+    {
+        $config = static::$app['config'];
+
+        if ($config->get('logging.channels.null')) {
+            return;
+        }
+
+        $config->set('logging.channels.null', [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ]);
     }
 
     /**
