@@ -8,8 +8,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 
-use function Hypervel\Filesystem\join_paths;
-
 class Bootstrapper
 {
     protected static ?ConfigContract $configuration = null;
@@ -44,7 +42,6 @@ class Bootstrapper
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
 
         if (static::$runtimePath !== null) {
-            static::generateEnv();
             static::registerPurgeFiles();
         }
     }
@@ -73,20 +70,6 @@ class Bootstrapper
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void
     {
         static::$configuration = Config::cacheFromYaml($workingPath, $filename, $defaults);
-    }
-
-    protected static function generateEnv(): void
-    {
-        $env = static::$configuration?->getExtraAttributes()['env'] ?? [];
-
-        if ($env === []) {
-            return;
-        }
-
-        static::getFilesystem()->replace(
-            join_paths(BASE_PATH, '/.env'),
-            implode(PHP_EOL, $env)
-        );
     }
 
     /**
