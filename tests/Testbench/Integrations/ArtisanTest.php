@@ -33,4 +33,31 @@ class ArtisanTest extends TestCase
 
         $this->assertSame(json_decode($artisan->getOutput(), true), json_decode($remote->getOutput(), true));
     }
+
+    #[Test]
+    public function itRejectsRunningTheCommittedSkeletonArtisanEntrypointsDirectly(): void
+    {
+        foreach ([
+            package_path('src', 'testbench', 'hypervel', 'artisan'),
+            package_path('src', 'testbench', 'workbench', 'artisan'),
+        ] as $artisanPath) {
+            $process = new Process(
+                command: [php_binary(), $artisanPath, '--version', '--no-ansi'],
+                cwd: package_path(),
+                env: ['TESTBENCH_WORKING_PATH' => package_path()],
+            );
+
+            $process->run();
+
+            $this->assertFalse($process->isSuccessful());
+            $this->assertStringContainsString(
+                'must not be run directly',
+                $process->getErrorOutput()
+            );
+            $this->assertStringContainsString(
+                'php src/testbench/bin/testbench',
+                $process->getErrorOutput()
+            );
+        }
+    }
 }
