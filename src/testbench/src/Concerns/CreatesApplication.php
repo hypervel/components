@@ -14,11 +14,10 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
-use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
-use Hypervel\Foundation\PackageManifest;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Routing\Router;
@@ -30,12 +29,14 @@ use Hypervel\Testbench\Attributes\ResolvesHypervel;
 use Hypervel\Testbench\Attributes\UsesFrameworkConfiguration;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithEnv;
+use Hypervel\Testbench\Bootstrap\HandleExceptions as TestbenchHandleExceptions;
 use Hypervel\Testbench\Bootstrap\LoadConfiguration as TestbenchLoadConfiguration;
 use Hypervel\Testbench\Bootstrap\LoadConfigurationWithWorkbench;
 use Hypervel\Testbench\Bootstrap\RegisterProviders as TestbenchRegisterProviders;
 use Hypervel\Testbench\Features\TestingFeature;
 use Hypervel\Testbench\Foundation\Bootstrap\SyncDatabaseEnvironmentVariables;
 use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testbench\Foundation\UndefinedValue;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 
@@ -64,6 +65,16 @@ trait CreatesApplication
     public static function applicationBasePath(): string
     {
         return static::applicationBasePathUsingWorkbench() ?? (default_skeleton_path() ?: '');
+    }
+
+    /**
+     * Ignore package discovery from.
+     *
+     * @return array<int, string>
+     */
+    public function ignorePackageDiscoveriesFrom(): array
+    {
+        return $this->ignorePackageDiscoveriesFromUsingWorkbench() ?? ['*'];
     }
 
     /**
@@ -177,6 +188,13 @@ trait CreatesApplication
         $this->resolveApplicationExceptionHandler($app);
         $this->resolveApplicationEnvironmentVariables($app);
         $this->resolveApplicationConfiguration($app);
+
+        // Must run AFTER resolveApplicationConfiguration() because LoadConfiguration's
+        // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
+        // would overwrite the 'testing' environment. By running after, our
+        // detectEnvironment('testing') takes precedence.
+        $this->resolveApplicationCore($app);
+
         $this->resolveApplicationHttpKernel($app);
         $this->resolveApplicationHttpMiddlewares($app);
         $this->resolveApplicationConsoleKernel($app);
@@ -223,15 +241,27 @@ trait CreatesApplication
     }
 
     /**
+     * Resolve application core environment.
+     */
+    protected function resolveApplicationCore(ApplicationContract $app): void
+    {
+        if ($this->isRunningTestCase()) {
+            $app->detectEnvironment(static fn () => 'testing');
+        }
+    }
+
+    /**
      * Resolve application environment variables.
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
-        if ($this->loadEnvironmentVariables !== true) {
-            $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType */
+            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
+                $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
+            }
         }
 
-        if ($this->loadEnvironmentVariables === true) {
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables === true) { /* @phpstan-ignore function.alreadyNarrowedType */
             $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
         }
 
@@ -248,7 +278,7 @@ trait CreatesApplication
             },
         );
 
-        if ($this instanceof PHPUnitTestCase) {
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
             $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
                 $attributeCallbacks->handle();
             });
@@ -376,7 +406,7 @@ trait CreatesApplication
             ? TestbenchLoadConfiguration::class
             : LoadConfigurationWithWorkbench::class;
 
-        $app->singleton(FoundationLoadConfiguration::class, $loadConfiguration);
+        $app->bind(FoundationLoadConfiguration::class, $loadConfiguration);
 
         TestingFeature::run(
             testCase: $this,
@@ -449,13 +479,15 @@ trait CreatesApplication
      */
     protected function resolveApplicationBootstrappers(ApplicationContract $app): void
     {
-        $app->make(HandleExceptions::class)->bootstrap($app);
+        $app->make(
+            $this->isRunningTestCase()
+                ? TestbenchHandleExceptions::class
+                : FoundationHandleExceptions::class
+        )->bootstrap($app);
 
-        // Must be set BEFORE RegisterFacades, which calls PackageManifest::aliases()
-        // and would cache the unfiltered manifest if the ignore list isn't set yet.
-        PackageManifest::ignorePackageDiscoveriesFrom(
-            $this->ignorePackageDiscoveriesFromUsingWorkbench() ?? ['*']
-        );
+        // Must be swapped BEFORE RegisterFacades and RegisterProviders, which both
+        // read from the package manifest during bootstrap.
+        PackageManifest::swap($app, $this);
 
         $app->make(RegisterFacades::class)->bootstrap($app);
         $app->make(TestbenchRegisterProviders::class)->bootstrap($app);
