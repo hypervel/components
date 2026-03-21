@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use DateTimeInterface;
 use Exception;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Processors\PostgresProcessor;
@@ -12,6 +13,7 @@ use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Override;
+use PDO;
 
 class PostgresConnection extends Connection
 {
@@ -39,6 +41,47 @@ class PostgresConnection extends Connection
     protected function escapeBool(bool $value): string
     {
         return $value ? 'true' : 'false';
+    }
+
+    /**
+     * Prepare the query bindings for execution.
+     *
+     * The base connection converts booleans to integers (1/0). With native
+     * prepares that's fine — the driver handles type coercion. But with
+     * emulated prepares (PDO::ATTR_EMULATE_PREPARES), PDO inlines the
+     * integer literal into the SQL string, and PostgreSQL rejects integers
+     * for boolean columns. This override converts booleans to 'true'/'false'
+     * string literals instead, which PostgreSQL accepts.
+     *
+     * @param array<mixed> $bindings
+     * @return array<mixed>
+     */
+    public function prepareBindings(array $bindings): array
+    {
+        if (! $this->isUsingEmulatedPrepares()) {
+            return parent::prepareBindings($bindings);
+        }
+
+        $grammar = $this->getQueryGrammar();
+
+        foreach ($bindings as $key => $value) {
+            if ($value instanceof DateTimeInterface) {
+                $bindings[$key] = $value->format($grammar->getDateFormat());
+            } elseif (is_bool($value)) {
+                // Use PostgreSQL boolean literals instead of integers.
+                $bindings[$key] = $value ? 'true' : 'false';
+            }
+        }
+
+        return $bindings;
+    }
+
+    /**
+     * Determine if emulated prepares are enabled for the connection.
+     */
+    protected function isUsingEmulatedPrepares(): bool
+    {
+        return ($this->config['options'][PDO::ATTR_EMULATE_PREPARES] ?? false) === true;
     }
 
     /**
