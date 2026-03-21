@@ -11,6 +11,7 @@ use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\Foundation\Env;
 
 use function Hypervel\Testbench\join_paths;
+use function Hypervel\Testbench\testbench_path;
 
 trait CopyTestbenchFiles
 {
@@ -26,11 +27,13 @@ trait CopyTestbenchFiles
         bool $backupExistingFile = true,
         bool $resetOnTerminating = true
     ): void {
+        $sourcePath = $this->resolveTestbenchSourcePath($filesystem, $workingPath);
+
         $configurationFile = (new LazyCollection(static function () {
             yield 'testbench.yaml';
             yield 'testbench.yaml.example';
             yield 'testbench.yaml.dist';
-        }))->map(static fn ($file) => join_paths($workingPath, $file))
+        }))->map(static fn ($file) => join_paths($sourcePath, $file))
             ->filter(static fn ($file) => $filesystem->isFile($file))
             ->first();
 
@@ -69,9 +72,10 @@ trait CopyTestbenchFiles
         bool $backupExistingFile = true,
         bool $resetOnTerminating = true
     ): void {
-        $workingPath = $filesystem->isDirectory(join_paths($workingPath, 'workbench'))
-            ? join_paths($workingPath, 'workbench')
-            : $workingPath;
+        $sourcePath = $this->resolveTestbenchSourcePath($filesystem, $workingPath);
+        $workingPath = $filesystem->isDirectory(join_paths($sourcePath, 'workbench'))
+            ? join_paths($sourcePath, 'workbench')
+            : $sourcePath;
 
         $testbenchEnvFilename = $this->testbenchEnvironmentFile();
 
@@ -125,5 +129,23 @@ trait CopyTestbenchFiles
             Env::has('TESTBENCH_ENVIRONMENT_FILENAME') => Env::get('TESTBENCH_ENVIRONMENT_FILENAME'),
             default => '.env',
         };
+    }
+
+    /**
+     * Resolve the source path for testbench config and workbench fixtures.
+     */
+    protected function resolveTestbenchSourcePath(Filesystem $filesystem, string $workingPath): string
+    {
+        foreach (['testbench.yaml', 'testbench.yaml.example', 'testbench.yaml.dist'] as $configurationFile) {
+            if ($filesystem->isFile(join_paths($workingPath, $configurationFile))) {
+                return $workingPath;
+            }
+        }
+
+        if ($filesystem->isDirectory(join_paths($workingPath, 'workbench'))) {
+            return $workingPath;
+        }
+
+        return testbench_path();
     }
 }
