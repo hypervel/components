@@ -110,11 +110,19 @@ trait InteractsWithPHPUnit
     protected static function resolvePhpUnitAttributesForMethod(string $className, ?string $methodName = null): Collection
     {
         if (! isset(static::$cachedTestCaseClassAttributes[$className])) {
-            static::$cachedTestCaseClassAttributes[$className] = AttributeParser::forClass($className);
+            static::$cachedTestCaseClassAttributes[$className] = rescue(
+                static fn () => AttributeParser::forClass($className),
+                [],
+                false
+            );
         }
 
         if ($methodName !== null && ! isset(static::$cachedTestCaseMethodAttributes["{$className}:{$methodName}"])) {
-            static::$cachedTestCaseMethodAttributes["{$className}:{$methodName}"] = AttributeParser::forMethod($className, $methodName);
+            static::$cachedTestCaseMethodAttributes["{$className}:{$methodName}"] = rescue(
+                static fn () => AttributeParser::forMethod($className, $methodName),
+                [],
+                false
+            );
         }
 
         return (new Collection(array_merge(
