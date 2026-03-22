@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use TypeError;
 
 /**
@@ -17,7 +17,7 @@ use TypeError;
 class QueueableTest extends TestCase
 {
     #[DataProvider('connectionDataProvider')]
-    public function testOnConnection(mixed $connection, ?string $expected): void
+    public function testOnConnection(mixed $connection, ?string $expected)
     {
         $job = new FakeJob();
         $job->onConnection($connection);
@@ -26,7 +26,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('connectionDataProvider')]
-    public function testAllOnConnection(mixed $connection, ?string $expected): void
+    public function testAllOnConnection(mixed $connection, ?string $expected)
     {
         $job = new FakeJob();
         $job->allOnConnection($connection);
@@ -45,7 +45,7 @@ class QueueableTest extends TestCase
         ];
     }
 
-    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -53,7 +53,7 @@ class QueueableTest extends TestCase
         $job->onConnection(IntConnectionEnum::Redis);
     }
 
-    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -62,7 +62,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('queuesDataProvider')]
-    public function testOnQueue(mixed $queue, ?string $expected): void
+    public function testOnQueue(mixed $queue, ?string $expected)
     {
         $job = new FakeJob();
         $job->onQueue($queue);
@@ -71,7 +71,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('queuesDataProvider')]
-    public function testAllOnQueue(mixed $queue, ?string $expected): void
+    public function testAllOnQueue(mixed $queue, ?string $expected)
     {
         $job = new FakeJob();
         $job->allOnQueue($queue);
@@ -90,7 +90,7 @@ class QueueableTest extends TestCase
         ];
     }
 
-    public function testOnQueueWithIntBackedEnumThrowsTypeError(): void
+    public function testOnQueueWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -98,7 +98,7 @@ class QueueableTest extends TestCase
         $job->onQueue(IntQueueEnum::High);
     }
 
-    public function testAllOnQueueWithIntBackedEnumThrowsTypeError(): void
+    public function testAllOnQueueWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
