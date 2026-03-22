@@ -624,16 +624,17 @@ class AuthAccessGateTest extends TestCase
             ++$counter;
         };
         $gate->guessPolicyNamesUsing($guesserCallback);
-        $gate->getPolicyFor('fooClass');
+        $gate->getPolicyFor('fooClassA');
         $this->assertSame(1, $counter);
 
-        // now the guesser callback should be present on the new gate as well
+        // The guesser callback should be present on the new gate as well.
+        // Each call uses a unique class name to avoid the static policy cache.
         $newGate = $gate->forUser((object) ['id' => 1]);
 
-        $newGate->getPolicyFor('fooClass');
+        $newGate->getPolicyFor('fooClassB');
         $this->assertSame(2, $counter);
 
-        $newGate->getPolicyFor('fooClass');
+        $newGate->getPolicyFor('fooClassC');
         $this->assertSame(3, $counter);
     }
 
@@ -1489,6 +1490,108 @@ class AuthAccessGateTest extends TestCase
         $this->assertSame('not_found', $response->message());
         $this->assertSame('xyz', $response->code());
         $this->assertSame(404, $response->status());
+    }
+
+    public function testPolicyCacheReturnsSameResultOnSecondCall()
+    {
+        $gate = $this->getBasicGate();
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
+
+        $first = $gate->getPolicyFor(new AccessGateTestDummy());
+        $second = $gate->getPolicyFor(new AccessGateTestDummy());
+
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $first);
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $second);
+    }
+
+    public function testPolicyCacheDoesNotInterfereWithExplicitPolicies()
+    {
+        $gate = $this->getBasicGate();
+
+        // Trigger cache for AccessGateTestDummy via attribute/guess (will cache as false)
+        $this->assertNull($gate->getPolicyFor(new AccessGateTestDummy()));
+
+        // Now register an explicit policy — should take precedence over the cache
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
+
+        $result = $gate->getPolicyFor(new AccessGateTestDummy());
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $result);
+    }
+
+    public function testPolicyCacheIsClearedByFlushState()
+    {
+        $gate = $this->getBasicGate();
+
+        $counter = 0;
+        $gate->guessPolicyNamesUsing(function () use (&$counter) {
+            ++$counter;
+            return [];
+        });
+
+        $gate->getPolicyFor('SomeClassA');
+        $this->assertSame(1, $counter);
+
+        // After flush, the guesser should be called again for the same class
+        Gate::flushState();
+
+        $gate->getPolicyFor('SomeClassA');
+        $this->assertSame(2, $counter);
+    }
+
+    public function testPolicyCacheStoresNullForClassWithNoPolicy()
+    {
+        $gate = $this->getBasicGate();
+
+        $counter = 0;
+        $gate->guessPolicyNamesUsing(function () use (&$counter) {
+            ++$counter;
+            return [];
+        });
+
+        // First call — resolves and caches "no policy"
+        $this->assertNull($gate->getPolicyFor('NonExistentModel'));
+        $this->assertSame(1, $counter);
+
+        // Second call — returns cached "no policy" without calling guesser
+        $this->assertNull($gate->getPolicyFor('NonExistentModel'));
+        $this->assertSame(1, $counter);
+    }
+
+    public function testGuestCacheIsClearedByFlushState()
+    {
+        $gate = new Gate(new Container(), function () {
+        });
+
+        // Trigger guest cache by checking a policy method with null user
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyThatAllowsGuests::class);
+        $gate->check('edit', new AccessGateTestDummy());
+
+        // Flush should clear the guest cache without errors
+        Gate::flushState();
+
+        // Re-run the same check — should work identically after flush
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyThatAllowsGuests::class);
+        $this->assertTrue($gate->check('edit', new AccessGateTestDummy()));
+    }
+
+    public function testFlushStateClearsAllCaches()
+    {
+        $gate = $this->getBasicGate();
+
+        // Populate policy cache
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
+        $gate->getPolicyFor(new AccessGateTestDummy());
+
+        // Populate ability method cache
+        $gate->check('update-dash', new AccessGateTestDummy());
+
+        // Flush all — should not throw
+        Gate::flushState();
+
+        // Verify everything still works after flush
+        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
+        $result = $gate->getPolicyFor(new AccessGateTestDummy());
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $result);
     }
 }
 

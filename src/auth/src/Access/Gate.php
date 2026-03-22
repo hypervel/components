@@ -11,14 +11,20 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\UsePolicy;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
+use RuntimeException;
 use UnitEnum;
+use WeakMap;
 
 use function Hypervel\Support\enum_value;
 
@@ -42,6 +48,51 @@ class Gate implements GateContract
      * @var null|callable
      */
     protected $guessPolicyNamesUsingCallback;
+
+    /**
+     * Cached model class to policy class mappings.
+     *
+     * Stores the resolved policy class string (or false for "no policy found")
+     * per model class. Persists for the worker lifetime — model-to-policy
+     * mappings don't change at runtime. The policy *instance* is not cached
+     * here; resolvePolicy() goes through the container each time.
+     *
+     * Explicit policies ($this->policies) bypass this cache entirely.
+     *
+     * @var array<class-string, class-string|false>
+     */
+    protected static array $policyClassCache = [];
+
+    /**
+     * Cached guest-access results for class methods.
+     *
+     * Stores whether a method's first parameter allows null (nullable type
+     * or null default value). Persists for the worker lifetime — method
+     * signatures don't change at runtime.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $guestMethodCache = [];
+
+    /**
+     * Cached guest-access results for closures.
+     *
+     * WeakMap ensures entries disappear with the closure, preventing stale
+     * results when object IDs are recycled during a long worker lifetime.
+     *
+     * @var null|WeakMap<Closure, bool>
+     */
+    protected static ?WeakMap $guestClosureCache = null;
+
+    /**
+     * Cached ability name to method name mappings.
+     *
+     * Persists for the worker lifetime — ability names are fixed strings.
+     * Bounded by the number of unique ability names in the application.
+     *
+     * @var array<string, string>
+     */
+    protected static array $abilityMethodCache = [];
 
     /**
      * Create a new gate instance.
@@ -169,18 +220,18 @@ class Gate implements GateContract
      */
     protected function buildAbilityCallback(string $ability, string $callback): Closure
     {
-        return function () use ($ability, $callback) {
-            if (str_contains($callback, '@')) {
-                [$class, $method] = Str::parseCallback($callback);
-            } else {
-                $class = $callback;
-            }
+        if (str_contains($callback, '@')) {
+            [$class, $method] = Str::parseCallback($callback);
+        } else {
+            $class = $callback;
+            $method = null;
+        }
+
+        return function () use ($ability, $class, $method) {
+            $arguments = func_get_args();
+            $user = array_shift($arguments);
 
             $policy = $this->resolvePolicy($class);
-
-            $arguments = func_get_args();
-
-            $user = array_shift($arguments);
 
             $result = $this->callPolicyBefore(
                 $policy,
@@ -193,9 +244,9 @@ class Gate implements GateContract
                 return $result;
             }
 
-            return isset($method)
-                ? $policy->{$method}(...func_get_args())
-                : $policy(...func_get_args());
+            return $method !== null
+                ? $policy->{$method}($user, ...$arguments)
+                : $policy($user, ...$arguments);
         };
     }
 
@@ -250,9 +301,13 @@ class Gate implements GateContract
      */
     public function check(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
-        return (new Collection($abilities))->every(
-            fn ($ability) => $this->inspect($ability, $arguments)->allowed()
-        );
+        foreach (is_iterable($abilities) ? $abilities : [$abilities] as $ability) {
+            if (! $this->inspect($ability, $arguments)->allowed()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -260,7 +315,13 @@ class Gate implements GateContract
      */
     public function any(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
-        return (new Collection($abilities))->contains(fn ($ability) => $this->check($ability, $arguments));
+        foreach (is_iterable($abilities) ? $abilities : [$abilities] as $ability) {
+            if ($this->check($ability, $arguments)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -365,8 +426,19 @@ class Gate implements GateContract
      */
     protected function methodAllowsGuests(mixed $class, string $method): bool
     {
+        $className = is_string($class) ? $class : get_class($class);
+        $key = $className . '::' . $method;
+
+        return static::$guestMethodCache[$key] ??= $this->resolveMethodAllowsGuests($className, $method);
+    }
+
+    /**
+     * Resolve whether a class method allows guest users via reflection.
+     */
+    private function resolveMethodAllowsGuests(string $className, string $method): bool
+    {
         try {
-            $reflection = new ReflectionClass($class);
+            $reflection = new ReflectionClass($className);
 
             $method = $reflection->getMethod($method);
         } catch (Exception) {
@@ -382,6 +454,20 @@ class Gate implements GateContract
      * Determine if the callback allows guests.
      */
     protected function callbackAllowsGuests(callable $callback): bool
+    {
+        if ($callback instanceof Closure) {
+            $cache = static::$guestClosureCache ??= new WeakMap();
+
+            return $cache[$callback] ??= $this->resolveCallbackAllowsGuests($callback);
+        }
+
+        return $this->resolveCallbackAllowsGuests($callback);
+    }
+
+    /**
+     * Resolve whether a callable allows guest users via reflection.
+     */
+    private function resolveCallbackAllowsGuests(callable $callback): bool
     {
         $parameters = (new ReflectionFunction($callback))->getParameters();
 
@@ -491,29 +577,53 @@ class Gate implements GateContract
             $class = get_class($class);
         }
 
+        // Explicitly registered policies bypass the cache — they're a fast
+        // hash lookup, and the policies array can be modified at runtime.
         if (isset($this->policies[$class])) {
             return $this->resolvePolicy($this->policies[$class]);
         }
 
+        if (! array_key_exists($class, static::$policyClassCache)) {
+            static::$policyClassCache[$class] = $this->resolvePolicyClass($class);
+        }
+
+        $policyClass = static::$policyClassCache[$class];
+
+        return $policyClass !== false
+            ? $this->resolvePolicy($policyClass)
+            : null;
+    }
+
+    /**
+     * Resolve the policy class for the given model class.
+     *
+     * Checks the UsePolicy attribute, convention-based guessing, and
+     * subclass fallback. Returns the policy class string or false if
+     * no policy is found.
+     *
+     * @return class-string|false
+     */
+    private function resolvePolicyClass(string $class): string|false
+    {
         $policy = $this->getPolicyFromAttribute($class);
 
         if (! is_null($policy)) {
-            return $this->resolvePolicy($policy);
+            return $policy;
         }
 
         foreach ($this->guessPolicyName($class) as $guessedPolicy) {
             if (class_exists($guessedPolicy)) {
-                return $this->resolvePolicy($guessedPolicy);
+                return $guessedPolicy;
             }
         }
 
         foreach ($this->policies as $expected => $policy) {
             if (is_subclass_of($class, $expected)) {
-                return $this->resolvePolicy($policy);
+                return $policy;
             }
         }
 
-        return null;
+        return false;
     }
 
     /**
@@ -541,7 +651,7 @@ class Gate implements GateContract
     protected function guessPolicyName(string $class): array
     {
         if ($this->guessPolicyNamesUsingCallback) {
-            return Arr::wrap(call_user_func($this->guessPolicyNamesUsingCallback, $class));
+            return Arr::wrap(($this->guessPolicyNamesUsingCallback)($class));
         }
 
         $classDirname = str_replace('/', '\\', dirname(str_replace('\\', '/', $class)));
@@ -567,6 +677,10 @@ class Gate implements GateContract
     {
         $this->guessPolicyNamesUsingCallback = $callback;
 
+        // A custom guess callback changes how unregistered policies are resolved,
+        // so any cached results from the default guesser may be stale.
+        static::$policyClassCache = [];
+
         return $this;
     }
 
@@ -583,11 +697,13 @@ class Gate implements GateContract
      */
     protected function resolvePolicyCallback(mixed $user, string $ability, array $arguments, mixed $policy): bool|callable
     {
-        if (! is_callable([$policy, $this->formatAbilityToMethod($ability)])) {
+        $method = $this->formatAbilityToMethod($ability);
+
+        if (! is_callable([$policy, $method])) {
             return false;
         }
 
-        return function () use ($user, $ability, $arguments, $policy) {
+        return function () use ($user, $ability, $arguments, $policy, $method) {
             // This callback will be responsible for calling the policy's before method and
             // running this policy method if necessary. This is used to when objects are
             // mapped to policy objects in the user's configurations or on this class.
@@ -604,8 +720,6 @@ class Gate implements GateContract
             if (! is_null($result)) {
                 return $result;
             }
-
-            $method = $this->formatAbilityToMethod($ability);
 
             return $this->callPolicyMethod($policy, $method, $user, $arguments);
         };
@@ -655,7 +769,8 @@ class Gate implements GateContract
      */
     protected function formatAbilityToMethod(string $ability): string
     {
-        return str_contains($ability, '-') ? Str::camel($ability) : $ability;
+        return static::$abilityMethodCache[$ability]
+            ??= (str_contains($ability, '-') ? Str::camel($ability) : $ability);
     }
 
     /**
@@ -679,7 +794,7 @@ class Gate implements GateContract
      */
     protected function resolveUser(): mixed
     {
-        return call_user_func($this->userResolver);
+        return ($this->userResolver)();
     }
 
     /**
@@ -716,5 +831,139 @@ class Gate implements GateContract
         $this->container = $container;
 
         return $this;
+    }
+
+    /**
+     * Apply the policy's scope method to filter a query to authorized rows.
+     *
+     * Runs before() callbacks first. If a before callback returns true (allow all),
+     * the query is returned unmodified. If it returns false (deny all), a "no rows"
+     * constraint is added. If null (no opinion), the policy's *Scope method is called.
+     *
+     * After callbacks are not run — they expect a boolean result, not a Builder.
+     *
+     * @throws RuntimeException
+     */
+    public function scope(string $ability, Builder $query): Builder
+    {
+        $user = $this->resolveUser();
+
+        $beforeResult = $this->callBeforeCallbacks($user, $ability, [$query->getModel()]);
+
+        if ($beforeResult === true) {
+            return $query;
+        }
+
+        if ($beforeResult === false) {
+            $query->whereRaw('0 = 1');
+
+            return $query;
+        }
+
+        $policy = $this->getPolicyFor($query->getModel());
+        $method = $this->formatAbilityToMethod($ability) . 'Scope';
+
+        if (! $policy || ! method_exists($policy, $method)) {
+            throw new RuntimeException(
+                'Policy [' . ($policy ? get_class($policy) : 'null')
+                . '] does not define a [' . $method . '] method.'
+            );
+        }
+
+        $policyBeforeResult = $this->callPolicyBefore($policy, $user, $ability, [$query->getModel()]);
+
+        if ($policyBeforeResult === true) {
+            return $query;
+        }
+
+        if ($policyBeforeResult === false) {
+            $query->whereRaw('0 = 1');
+
+            return $query;
+        }
+
+        if (! $this->canBeCalledWithUser($user, $policy, $method)) {
+            $query->whereRaw('0 = 1');
+
+            return $query;
+        }
+
+        return $policy->{$method}($user, $query);
+    }
+
+    /**
+     * Get a SQL expression from the policy for per-row authorization.
+     *
+     * Runs before() callbacks first. If a before callback returns true,
+     * DB::raw('true') is returned. If false, DB::raw('false'). If null,
+     * the policy's *Select method is called.
+     *
+     * After callbacks are not run — they expect a boolean result, not an Expression.
+     *
+     * Accepts a Builder for full query context, or a model class/instance
+     * as shorthand (internally creates a fresh query).
+     *
+     * @param Builder|class-string<Model>|Model $query
+     *
+     * @throws RuntimeException
+     */
+    public function select(string $ability, Builder|Model|string $query): Expression
+    {
+        if (! $query instanceof Builder) {
+            $query = is_object($query)
+                ? $query->newQuery()
+                : (new $query())->newQuery();
+        }
+
+        $user = $this->resolveUser();
+
+        $beforeResult = $this->callBeforeCallbacks($user, $ability, [$query->getModel()]);
+
+        if ($beforeResult === true) {
+            return DB::raw('true');
+        }
+
+        if ($beforeResult === false) {
+            return DB::raw('false');
+        }
+
+        $policy = $this->getPolicyFor($query->getModel());
+        $method = $this->formatAbilityToMethod($ability) . 'Select';
+
+        if (! $policy || ! method_exists($policy, $method)) {
+            throw new RuntimeException(
+                'Policy [' . ($policy ? get_class($policy) : 'null')
+                . '] does not define a [' . $method . '] method.'
+            );
+        }
+
+        $policyBeforeResult = $this->callPolicyBefore($policy, $user, $ability, [$query->getModel()]);
+
+        if ($policyBeforeResult === true) {
+            return DB::raw('true');
+        }
+
+        if ($policyBeforeResult === false) {
+            return DB::raw('false');
+        }
+
+        if (! $this->canBeCalledWithUser($user, $policy, $method)) {
+            return DB::raw('false');
+        }
+
+        return $policy->{$method}($user, $query);
+    }
+
+    /**
+     * Flush all static caches.
+     *
+     * Called between tests by AfterEachTestSubscriber for test isolation.
+     */
+    public static function flushState(): void
+    {
+        static::$policyClassCache = [];
+        static::$guestMethodCache = [];
+        static::$guestClosureCache = new WeakMap();
+        static::$abilityMethodCache = [];
     }
 }

@@ -6,7 +6,11 @@ namespace Hypervel\Contracts\Auth\Access;
 
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Expression;
 use InvalidArgumentException;
+use RuntimeException;
 use UnitEnum;
 
 interface Gate
@@ -81,6 +85,22 @@ interface Gate
      * @throws AuthorizationException
      */
     public function raw(string $ability, mixed $arguments = []): mixed;
+
+    /**
+     * Apply the policy's scope method to filter a query to authorized rows.
+     *
+     * @throws RuntimeException
+     */
+    public function scope(string $ability, Builder $query): Builder;
+
+    /**
+     * Get a SQL expression from the policy for per-row authorization.
+     *
+     * @param Builder|class-string<Model>|Model $query
+     *
+     * @throws RuntimeException
+     */
+    public function select(string $ability, Builder|Model|string $query): Expression;
 
     /**
      * Get a policy instance for a given class.
