@@ -793,6 +793,46 @@ class AuthGuardTest extends TestCase
         $this->assertFalse($guard->viaRemember());
     }
 
+    public function testGetNameReturnsConsistentValue()
+    {
+        $guard = $this->getGuard();
+
+        $first = $guard->getName();
+        $second = $guard->getName();
+
+        $this->assertSame($first, $second);
+
+        // A guard with a different name should return a different value
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $otherGuard = new SessionGuard('api', $provider, $session, $app, $timebox);
+
+        $this->assertNotSame($guard->getName(), $otherGuard->getName());
+    }
+
+    public function testGetRecallerNameReturnsConsistentValue()
+    {
+        $guard = $this->getGuard();
+
+        $first = $guard->getRecallerName();
+        $second = $guard->getRecallerName();
+
+        $this->assertSame($first, $second);
+
+        // A guard with a different name should return a different value
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $otherGuard = new SessionGuard('api', $provider, $session, $app, $timebox);
+
+        $this->assertNotSame($guard->getRecallerName(), $otherGuard->getRecallerName());
+    }
+
+    public function testGetNameContainsGuardName()
+    {
+        $guard = $this->getGuard();
+
+        $this->assertStringContainsString('default', $guard->getName());
+        $this->assertStringStartsWith('login_default_', $guard->getName());
+    }
+
     protected function getGuard()
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();

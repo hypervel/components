@@ -66,6 +66,16 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     protected Timebox $timebox;
 
     /**
+     * The precomputed session name for this guard.
+     */
+    private readonly string $hashedName;
+
+    /**
+     * The precomputed recaller cookie name for this guard.
+     */
+    private readonly string $hashedRecallerName;
+
+    /**
      * Create a new authentication guard.
      *
      * @param string $name The name of the guard. Typically "web".
@@ -87,6 +97,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     ) {
         $this->provider = $provider;
         $this->timebox = $timebox ?: new Timebox();
+
+        $classHash = sha1(static::class);
+        $this->hashedName = 'login_' . $this->name . '_' . $classHash;
+        $this->hashedRecallerName = 'remember_' . $this->name . '_' . $classHash;
     }
 
     /**
@@ -721,7 +735,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function getName(): string
     {
-        return 'login_' . $this->name . '_' . sha1(static::class);
+        return $this->hashedName;
     }
 
     /**
@@ -729,7 +743,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function getRecallerName(): string
     {
-        return 'remember_' . $this->name . '_' . sha1(static::class);
+        return $this->hashedRecallerName;
     }
 
     /**
