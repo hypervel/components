@@ -31,9 +31,7 @@ trait Batchable
         }
 
         if ($this->batchId) {
-            return Container::getInstance()
-                ->make(BatchRepository::class)
-                ->find($this->batchId);
+            return Container::getInstance()->make(BatchRepository::class)->find($this->batchId);
         }
 
         return null;
@@ -61,6 +59,8 @@ trait Batchable
 
     /**
      * Indicate that the job should use a fake batch.
+     *
+     * @return array{0: $this, 1: BatchFake}
      */
     public function withFakeBatch(
         string $id = '',
@@ -72,7 +72,7 @@ trait Batchable
         array $options = [],
         ?CarbonImmutable $createdAt = null,
         ?CarbonImmutable $cancelledAt = null,
-        ?CarbonImmutable $finishedAt = null
+        ?CarbonImmutable $finishedAt = null,
     ): array {
         $this->fakeBatch = new BatchFake(
             empty($id) ? (string) Str::uuid() : $id,
