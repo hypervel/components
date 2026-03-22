@@ -17,18 +17,25 @@ use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
+use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Bus\Dispatcher;
-use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
+use RuntimeException;
+use Throwable;
 
 /**
  * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
@@ -36,6 +43,8 @@ use Pusher\Pusher;
 class BroadcastManager implements BroadcastingFactoryContract
 {
     use HasPoolProxy;
+    use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
 
     /**
      * The array of resolved broadcast drivers.
@@ -70,6 +79,10 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function routes(?array $attributes = null): void
     {
+        if ($this->app instanceof CachesRoutes && $this->app->routesAreCached()) {
+            return;
+        }
+
         $attributes = $attributes ?: ['middleware' => ['web']];
 
         $this->app['router']->group($attributes, function ($router) {
@@ -86,6 +99,10 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function userRoutes(?array $attributes = null): void
     {
+        if ($this->app instanceof CachesRoutes && $this->app->routesAreCached()) {
+            return;
+        }
+
         $attributes = $attributes ?: ['middleware' => ['web']];
 
         $this->app['router']->group($attributes, function ($router) {
@@ -126,7 +143,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function on(array|Channel|string $channels): AnonymousEvent
     {
-        return new AnonymousEvent($this, $channels);
+        return new AnonymousEvent($channels);
     }
 
     /**
@@ -151,7 +168,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function event(mixed $event = null): PendingBroadcast
     {
         return new PendingBroadcast(
-            $this->app->make(EventDispatcher::class),
+            $this->app->make('events'),
             $event,
         );
     }
@@ -164,16 +181,30 @@ class BroadcastManager implements BroadcastingFactoryContract
         if ($event instanceof ShouldBroadcastNow
             || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
         ) {
-            $this->app->make(Dispatcher::class)->dispatchNow(new BroadcastEvent(clone $event));
+            $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(new BroadcastEvent(clone $event));
+
+            $event instanceof ShouldRescue
+                ? $this->rescue($dispatch)
+                : $dispatch();
+
             return;
         }
 
-        $queue = match (true) {
-            method_exists($event, 'broadcastQueue') => $event->broadcastQueue(),
-            isset($event->broadcastQueue) => $event->broadcastQueue,
-            isset($event->queue) => $event->queue,
-            default => null,
-        };
+        $queue = null;
+
+        if (method_exists($event, 'broadcastQueue')) {
+            $queue = $event->broadcastQueue();
+        } elseif (isset($event->broadcastQueue)) {
+            $queue = $event->broadcastQueue;
+        } elseif (isset($event->queue)) {
+            $queue = $event->queue;
+        }
+
+        if (is_null($queue)) {
+            $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')
+                ?? $this->resolveQueueFromQueueRoute($event)
+                ?? null;
+        }
 
         $broadcastEvent = new BroadcastEvent(clone $event);
 
@@ -185,17 +216,30 @@ class BroadcastManager implements BroadcastingFactoryContract
             }
         }
 
-        $this->app->make(Queue::class)
-            ->connection($event->connection ?? null)
+        $push = fn () => $this->app->make(Queue::class)
+            ->connection(
+                $event->connection
+                    ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
+                    ?? $this->resolveConnectionFromQueueRoute($event)
+                    ?? null
+            )
             ->pushOn($queue, $broadcastEvent);
+
+        $event instanceof ShouldRescue
+            ? $this->rescue($push)
+            : $push();
     }
 
     /**
      * Determine if the broadcastable event must be unique and determine if we can acquire the necessary lock.
      */
-    protected function mustBeUniqueAndCannotAcquireLock(UniqueBroadcastEvent $event): bool
+    protected function mustBeUniqueAndCannotAcquireLock(mixed $event): bool
     {
-        return ! (new UniqueLock($event->uniqueVia()))->acquire($event);
+        return ! (new UniqueLock(
+            method_exists($event, 'uniqueVia')
+                ? $event->uniqueVia()
+                : $this->app->make(Cache::class)
+        ))->acquire($event);
     }
 
     /**
@@ -240,18 +284,19 @@ class BroadcastManager implements BroadcastingFactoryContract
         return in_array($config['driver'], $this->poolables)
             ? $this->createPoolProxy(
                 $name,
-                fn () => $this->doResolve($config),
+                fn () => $this->doResolve($name, $config),
                 $config['pool'] ?? []
             )
-            : $this->doResolve($config);
+            : $this->doResolve($name, $config);
     }
 
     /**
      * Resolve the given broadcaster.
      *
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
-    protected function doResolve(array $config): Broadcaster
+    protected function doResolve(string $name, array $config): Broadcaster
     {
         if (isset($this->customCreators[$config['driver']])) {
             return $this->callCustomCreator($config);
@@ -263,7 +308,15 @@ class BroadcastManager implements BroadcastingFactoryContract
             throw new InvalidArgumentException("Driver [{$config['driver']}] is not supported.");
         }
 
-        return $this->{$driverMethod}($config);
+        try {
+            return $this->{$driverMethod}($config);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                "Failed to create broadcaster for connection \"{$name}\" with error: {$e->getMessage()}.",
+                0,
+                $e,
+            );
+        }
     }
 
     /**
@@ -409,9 +462,21 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback;
+        $this->customCreators[$driver] = $callback->bindTo($this, $this);
 
         return $this;
+    }
+
+    /**
+     * Execute the given callback using "rescue" if possible.
+     */
+    protected function rescue(Closure $callback): mixed
+    {
+        if (function_exists('rescue')) {
+            return rescue($callback);
+        }
+
+        return $callback();
     }
 
     /**

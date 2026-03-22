@@ -15,6 +15,8 @@ class BroadcastServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(BroadcastManager::class, fn ($app) => new BroadcastManager($app));
+
         $this->app->singleton(BroadcasterContract::class, function ($app) {
             return $app->make(BroadcastManager::class)->connection();
         });

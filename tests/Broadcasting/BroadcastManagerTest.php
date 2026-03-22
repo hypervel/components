@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
+use Exception;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
@@ -12,7 +13,8 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
-use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
@@ -21,6 +23,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use RuntimeException;
 
 /**
  * @internal
@@ -55,10 +58,11 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        $lockKey = 'hypervel_unique_job:' . UniqueBroadcastEvent::class . ':' . TestEventUnique::class;
+        $lockKey = 'hypervel_unique_job:' . TestEventUnique::class . ':';
+        $lock = m::mock(\Hypervel\Contracts\Cache\Lock::class);
+        $lock->shouldReceive('get')->once()->andReturn(true);
         $cache = m::mock(Cache::class);
-        $cache->shouldReceive('lock')->with($lockKey, 0)->andReturnSelf();
-        $cache->shouldReceive('get')->andReturn(true);
+        $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
         $this->app->singleton(Cache::class, fn () => $cache);
 
         Broadcast::queue(new TestEventUnique());
@@ -141,6 +145,56 @@ class BroadcastManagerTest extends TestCase
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->userRoutes();
+    }
+
+    public function testRoutesAreNotRegisteredWhenCached(): void
+    {
+        $app = m::mock(Container::class . ',' . CachesRoutes::class);
+        $app->shouldReceive('routesAreCached')->once()->andReturnTrue();
+        $app->shouldNotReceive('offsetGet');
+
+        $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->routes();
+    }
+
+    public function testExtendBindsCallbackToManager(): void
+    {
+        $app = m::mock(Container::class);
+        $broadcastManager = new BroadcastManager($app);
+
+        $boundInstance = null;
+        $broadcastManager->extend('custom', function () use (&$boundInstance) {
+            $boundInstance = $this;
+
+            return m::mock(\Hypervel\Contracts\Broadcasting\Broadcaster::class);
+        });
+
+        $app->shouldReceive('make')->with('config')->andReturn(
+            m::mock()->shouldReceive('get')->with('broadcasting.connections.test')->andReturn([
+                'driver' => 'custom',
+            ])->getMock()
+        );
+
+        $broadcastManager->connection('test');
+        $this->assertSame($broadcastManager, $boundInstance);
+    }
+
+    public function testDriverCreationFailureWrapsExceptionWithConnectionName(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
+
+        $app = m::mock(Container::class);
+        $app->shouldReceive('make')->with('config')->andReturn(
+            m::mock()->shouldReceive('get')->with('broadcasting.connections.failing')->andReturn([
+                'driver' => 'redis',
+            ])->getMock()
+        );
+        $app->shouldReceive('make')->with(\Hypervel\Contracts\Redis\Factory::class)
+            ->andThrow(new Exception('Redis unavailable.'));
+
+        $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->connection('failing');
     }
 }
 
