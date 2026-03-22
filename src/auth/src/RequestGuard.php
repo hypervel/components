@@ -70,8 +70,7 @@ class RequestGuard implements Guard
             return $cached;
         }
 
-        $user = call_user_func(
-            $this->callback,
+        $user = ($this->callback)(
             $this->app->make('request'),
             $this->getProvider()
         );
@@ -86,8 +85,7 @@ class RequestGuard implements Guard
      */
     public function validate(#[SensitiveParameter] array $credentials = []): bool
     {
-        return ! is_null(call_user_func(
-            $this->callback,
+        return ! is_null(($this->callback)(
             $credentials['request'],
             $this->getProvider()
         ));
