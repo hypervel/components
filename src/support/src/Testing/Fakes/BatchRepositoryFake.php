@@ -10,7 +10,6 @@ use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 
 class BatchRepositoryFake implements BatchRepository
@@ -92,7 +91,7 @@ class BatchRepositoryFake implements BatchRepository
     public function markAsFinished(int|string $batchId): void
     {
         if (isset($this->batches[$batchId])) {
-            $this->batches[$batchId]->finishedAt = Carbon::now();
+            $this->batches[$batchId]->finishedAt = CarbonImmutable::now();
         }
     }
 

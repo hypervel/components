@@ -106,7 +106,7 @@ class PendingChain
     /**
      * Dispatch the job chain.
      */
-    public function dispatch(): PendingDispatch
+    public function dispatch(): mixed
     {
         if (is_string($this->job)) {
             $firstJob = new $this->job(...func_get_args());
@@ -141,7 +141,7 @@ class PendingChain
     /**
      * Dispatch the job chain if the given truth test passes.
      */
-    public function dispatchIf(bool|Closure $boolean): ?PendingDispatch
+    public function dispatchIf(bool|Closure $boolean): mixed
     {
         return value($boolean) ? $this->dispatch() : null;
     }
@@ -149,7 +149,7 @@ class PendingChain
     /**
      * Dispatch the job chain unless the given truth test passes.
      */
-    public function dispatchUnless(bool|Closure $boolean): ?PendingDispatch
+    public function dispatchUnless(bool|Closure $boolean): mixed
     {
         return ! value($boolean) ? $this->dispatch() : null;
     }

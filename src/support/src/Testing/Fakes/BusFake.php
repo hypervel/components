@@ -584,7 +584,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Create a new chain of queueable jobs.
      */
-    public function chain(array|Collection $jobs): PendingChain
+    public function chain(mixed $jobs = null): PendingChain
     {
         $jobs = Collection::wrap($jobs);
         $jobs = ChainedBatch::prepareNestedBatches($jobs);
@@ -603,7 +603,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Create a new batch of queueable jobs.
      */
-    public function batch(array|Collection $jobs): PendingBatch
+    public function batch(mixed $jobs): PendingBatch
     {
         return new PendingBatchFake($this, Collection::wrap($jobs));
     }

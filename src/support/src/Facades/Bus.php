@@ -7,7 +7,6 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Foundation\Bus\PendingChain;
-use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Support\Testing\Fakes\BusFake;
 
 /**
@@ -78,7 +77,7 @@ class Bus extends Facade
      *
      * @param array|mixed $jobs
      */
-    public static function dispatchChain(mixed $jobs): PendingDispatch
+    public static function dispatchChain(mixed $jobs): mixed
     {
         $jobs = is_array($jobs) ? $jobs : func_get_args();
 
