@@ -85,6 +85,11 @@ interface Session
     public function flashInput(array $value): void;
 
     /**
+     * Reflash all of the session flash data.
+     */
+    public function reflash(): void;
+
+    /**
      * Get a subset of the session data.
      */
     public function only(array $keys): array;
