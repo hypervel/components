@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
@@ -40,6 +41,11 @@ abstract class Broadcaster implements BroadcasterContract
      * The registered channel options.
      */
     protected static array $channelOptions = [];
+
+    /**
+     * The binding registrar instance.
+     */
+    protected ?BindingRegistrar $bindingRegistrar = null;
 
     /**
      * Resolve the authenticated user payload for the incoming connection request.
@@ -99,7 +105,7 @@ abstract class Broadcaster implements BroadcasterContract
 
             $handler = $this->normalizeChannelHandlerToCallable($callback);
 
-            $result = $handler($this->retrieveUser($channel), ...$parameters);
+            $result = $handler($this->retrieveUser($request, $channel), ...$parameters);
 
             if ($result === false) {
                 throw new AccessDeniedHttpException();
@@ -173,11 +179,27 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function resolveBinding(string $key, string $value, array $callbackParameters): mixed
     {
-        return $this->resolveImplicitBindingIfPossible(
+        $newValue = $this->resolveExplicitBindingIfPossible($key, $value);
+
+        return $newValue === $value ? $this->resolveImplicitBindingIfPossible(
             $key,
             $value,
             $callbackParameters
-        );
+        ) : $newValue;
+    }
+
+    /**
+     * Resolve an explicit parameter binding if applicable.
+     */
+    protected function resolveExplicitBindingIfPossible(string $key, mixed $value): mixed
+    {
+        $binder = $this->binder();
+
+        if ($binder && $binder->getBindingCallback($key)) {
+            return call_user_func($binder->getBindingCallback($key), $value);
+        }
+
+        return $value;
     }
 
     /**
@@ -224,6 +246,20 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
+     * Get the model binding registrar instance.
+     */
+    protected function binder(): ?BindingRegistrar
+    {
+        if (! $this->bindingRegistrar) {
+            $this->bindingRegistrar = $this->container->bound(BindingRegistrar::class)
+                ? $this->container->make(BindingRegistrar::class)
+                : null;
+        }
+
+        return $this->bindingRegistrar;
+    }
+
+    /**
      * Normalize the given callback into a callable.
      *
      * @param mixed $callback
@@ -239,20 +275,18 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Retrieve the authenticated user using the configured guard (if any).
      */
-    protected function retrieveUser(string $channel): mixed
+    protected function retrieveUser(Request $request, string $channel): mixed
     {
         $options = $this->retrieveChannelOptions($channel);
+
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->make('auth');
-
         if (is_null($guards)) {
-            return $auth->user();
+            return $request->user();
         }
 
         foreach (Arr::wrap($guards) as $guard) {
-            $user = $auth->guard($guard)->user();
-            if ($user) {
+            if ($user = $request->user($guard)) {
                 return $user;
             }
         }
@@ -281,6 +315,8 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function channelNameMatchesPattern(string $channel, string $pattern): bool
     {
+        $pattern = str_replace('.', '\.', $pattern);
+
         return (bool) preg_match('/^' . preg_replace('/\{(.*?)\}/', '([^\.]+)', $pattern) . '$/', $channel);
     }
 
