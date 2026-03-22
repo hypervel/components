@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use Closure;
-use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Support\Str;
 
