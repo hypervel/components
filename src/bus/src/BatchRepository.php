@@ -23,7 +23,7 @@ interface BatchRepository
     /**
      * Store a new pending batch.
      */
-    public function store(PendingBatch $batch): ?Batch;
+    public function store(PendingBatch $batch): Batch;
 
     /**
      * Increment the total number of jobs within the batch.
