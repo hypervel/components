@@ -8,13 +8,21 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Support\Arr;
 use ReflectionClass;
 use ReflectionProperty;
+use Throwable;
 
 class BroadcastEvent implements ShouldQueue
 {
     use Queueable;
+    use ReadsQueueAttributes;
 
     /**
      * The event instance.
@@ -42,16 +50,22 @@ class BroadcastEvent implements ShouldQueue
     public ?int $maxExceptions;
 
     /**
+     * Delete the job if its models no longer exist.
+     */
+    public bool $deleteWhenMissingModels = true;
+
+    /**
      * Create a new job handler instance.
      */
     public function __construct(mixed $event)
     {
         $this->event = $event;
-        $this->tries = $event->tries ?? null;
-        $this->timeout = $event->timeout ?? null;
-        $this->backoff = $event->backoff ?? null;
-        $this->afterCommit = $event->afterCommit ?? null;
-        $this->maxExceptions = $event->maxExceptions ?? null;
+        $this->tries = $this->getAttributeValue($event, Tries::class, 'tries');
+        $this->timeout = $this->getAttributeValue($event, Timeout::class, 'timeout');
+        $this->backoff = $this->getAttributeValue($event, Backoff::class, 'backoff');
+        $this->afterCommit = property_exists($event, 'afterCommit') ? $event->afterCommit : null;
+        $this->maxExceptions = $this->getAttributeValue($event, MaxExceptions::class, 'maxExceptions');
+        $this->deleteWhenMissingModels = $this->getAttributeValue($event, DeleteWhenMissingModels::class, 'deleteWhenMissingModels', $this->deleteWhenMissingModels);
     }
 
     /**
@@ -59,15 +73,15 @@ class BroadcastEvent implements ShouldQueue
      */
     public function handle(BroadcastingFactory $manager): void
     {
+        $name = method_exists($this->event, 'broadcastAs')
+            ? $this->event->broadcastAs()
+            : get_class($this->event);
+
         $channels = Arr::wrap($this->event->broadcastOn());
 
         if (empty($channels)) {
             return;
         }
-
-        $name = method_exists($this->event, 'broadcastAs')
-            ? $this->event->broadcastAs()
-            : get_class($this->event);
 
         $connections = method_exists($this->event, 'broadcastConnections')
             ? $this->event->broadcastConnections()
@@ -77,9 +91,9 @@ class BroadcastEvent implements ShouldQueue
 
         foreach ($connections as $connection) {
             $manager->connection($connection)->broadcast(
-                $channels,
+                $this->getConnectionChannels($channels, $connection),
                 $name,
-                $payload
+                $this->getConnectionPayload($payload, $connection)
             );
         }
     }
@@ -116,6 +130,58 @@ class BroadcastEvent implements ShouldQueue
         }
 
         return $value;
+    }
+
+    /**
+     * Get the channels for the given connection.
+     */
+    protected function getConnectionChannels(array $channels, ?string $connection): array
+    {
+        return is_array($channels[$connection ?? ''] ?? null)
+            ? $channels[$connection ?? '']
+            : $channels;
+    }
+
+    /**
+     * Get the payload for the given connection.
+     */
+    protected function getConnectionPayload(array $payload, ?string $connection): array
+    {
+        $connectionPayload = is_array($payload[$connection ?? ''] ?? null)
+            ? $payload[$connection ?? '']
+            : $payload;
+
+        if (isset($payload['socket'])) {
+            $connectionPayload['socket'] = $payload['socket'];
+        }
+
+        return $connectionPayload;
+    }
+
+    /**
+     * Get the middleware for the underlying event.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        if (! method_exists($this->event, 'middleware')) {
+            return [];
+        }
+
+        return $this->event->middleware();
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $e = null): void
+    {
+        if (! method_exists($this->event, 'failed')) {
+            return;
+        }
+
+        $this->event->failed($e);
     }
 
     /**

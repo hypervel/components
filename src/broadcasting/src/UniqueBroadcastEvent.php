@@ -13,20 +13,18 @@ class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
     /**
      * The unique lock identifier.
      */
-    public string $uniqueId;
+    public string $uniqueId = '';
 
     /**
      * The number of seconds the unique lock should be maintained.
      */
-    public int $uniqueFor;
+    public int $uniqueFor = 0;
 
     /**
      * Create a new event instance.
      */
     public function __construct(mixed $event)
     {
-        $this->uniqueId = get_class($event);
-
         if (method_exists($event, 'uniqueId')) {
             $this->uniqueId .= $event->uniqueId();
         } elseif (property_exists($event, 'uniqueId')) {
