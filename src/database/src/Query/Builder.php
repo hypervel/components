@@ -257,7 +257,9 @@ class Builder implements BuilderContract
         $columns = is_array($columns) ? $columns : func_get_args();
 
         foreach ($columns as $as => $column) {
-            if (is_string($as) && $this->isQueryable($column)) {
+            if (is_string($as) && $column instanceof ExpressionContract) {
+                $this->selectExpression($column, $as);
+            } elseif (is_string($as) && $this->isQueryable($column)) {
                 $this->selectSub($column, $as);
             } else {
                 $this->columns[] = $column;
@@ -400,7 +402,13 @@ class Builder implements BuilderContract
         $columns = is_array($column) ? $column : func_get_args();
 
         foreach ($columns as $as => $column) {
-            if (is_string($as) && $this->isQueryable($column)) {
+            if (is_string($as) && $column instanceof ExpressionContract) {
+                if (is_null($this->columns)) {
+                    $this->select($this->from . '.*');
+                }
+
+                $this->selectExpression($column, $as);
+            } elseif (is_string($as) && $this->isQueryable($column)) {
                 if (is_null($this->columns)) {
                     $this->select($this->from . '.*');
                 }

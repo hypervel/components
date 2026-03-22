@@ -5058,6 +5058,30 @@ SQL;
         $this->assertSame('select (1 + 1) as "expr" from "one"', $builder->toSql());
     }
 
+    public function testSelectWithAliasedExpression()
+    {
+        $builder = $this->getBuilder();
+        $builder->from('users')->select(['is_admin' => new Raw('role = 1')]);
+
+        $this->assertSame('select (role = 1) as "is_admin" from "users"', $builder->toSql());
+    }
+
+    public function testAddSelectWithAliasedExpression()
+    {
+        $builder = $this->getBuilder();
+        $builder->from('users')->select('*')->addSelect(['is_admin' => new Raw('role = 1')]);
+
+        $this->assertSame('select *, (role = 1) as "is_admin" from "users"', $builder->toSql());
+    }
+
+    public function testAddSelectWithAliasedExpressionPreservesDefaultColumns()
+    {
+        $builder = $this->getBuilder();
+        $builder->from('users')->addSelect(['is_admin' => new Raw('role = 1')]);
+
+        $this->assertSame('select "users".*, (role = 1) as "is_admin" from "users"', $builder->toSql());
+    }
+
     public function testSelect()
     {
         $builder = $this->getBuilder();
@@ -5068,7 +5092,7 @@ SQL;
             'five' => new Raw('1 + 1'),
         ]);
 
-        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", 1 + 1 from "one"', $builder->toSql());
+        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", (1 + 1) as "five" from "one"', $builder->toSql());
     }
 
     public function testUppercaseLeadingBooleansAreRemoved()
