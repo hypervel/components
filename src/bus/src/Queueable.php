@@ -84,9 +84,7 @@ trait Queueable
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $value = enum_value($connection);
-
-        $this->connection = is_null($value) ? null : $value;
+        $this->connection = enum_value($connection);
 
         return $this;
     }
@@ -96,9 +94,7 @@ trait Queueable
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
-
-        $this->queue = is_null($value) ? null : $value;
+        $this->queue = enum_value($queue);
 
         return $this;
     }
@@ -110,7 +106,7 @@ trait Queueable
      */
     public function onGroup(UnitEnum|string|null $group): static
     {
-        $this->messageGroup = $group ? enum_value($group) : $group;
+        $this->messageGroup = enum_value($group);
 
         return $this;
     }
@@ -134,9 +130,7 @@ trait Queueable
      */
     public function allOnConnection(UnitEnum|string|null $connection): static
     {
-        $value = enum_value($connection);
-
-        $resolvedConnection = is_null($value) ? null : $value;
+        $resolvedConnection = enum_value($connection);
 
         $this->chainConnection = $resolvedConnection;
         $this->connection = $resolvedConnection;
@@ -149,9 +143,7 @@ trait Queueable
      */
     public function allOnQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
-
-        $resolvedQueue = is_null($value) ? null : $value;
+        $resolvedQueue = enum_value($queue);
 
         $this->chainQueue = $resolvedQueue;
         $this->queue = $resolvedQueue;
@@ -214,11 +206,9 @@ trait Queueable
      */
     public function chain(array $chain): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect($chain));
-
-        $this->chained = $jobs->map(function ($job) {
-            return $this->serializeJob($job);
-        })->all();
+        $this->chained = ChainedBatch::prepareNestedBatches(new Collection($chain))
+            ->map(fn ($job) => $this->serializeJob($job))
+            ->all();
 
         return $this;
     }
@@ -295,7 +285,7 @@ trait Queueable
      */
     public function invokeChainCatchCallbacks(Throwable $e): void
     {
-        Collection::make($this->chainCatchCallbacks)->each(function ($callback) use ($e) {
+        (new Collection($this->chainCatchCallbacks))->each(function ($callback) use ($e) {
             $callback($e);
         });
     }
@@ -306,14 +296,14 @@ trait Queueable
     public function assertHasChain(array $expectedChain): void
     {
         PHPUnit::assertTrue(
-            collect($expectedChain)->isNotEmpty(),
+            (new Collection($expectedChain))->isNotEmpty(),
             'The expected chain can not be empty.'
         );
 
-        if (collect($expectedChain)->contains(fn ($job) => is_object($job))) {
-            $expectedChain = collect($expectedChain)->map(fn ($job) => serialize($job))->all();
+        if ((new Collection($expectedChain))->contains(fn ($job) => is_object($job))) {
+            $expectedChain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
         } else {
-            $chain = collect($this->chained)->map(fn ($job) => get_class(unserialize($job)))->all();
+            $chain = (new Collection($this->chained))->map(fn ($job) => get_class(unserialize($job)))->all();
         }
 
         PHPUnit::assertTrue(
