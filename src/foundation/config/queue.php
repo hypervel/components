@@ -129,7 +129,7 @@ return [
     | can control how and where failed jobs are stored. Hypervel ships with
     | support for storing failed jobs in a simple file or in a database.
     |
-    | Supported drivers: "database-uuids", "dynamodb", "file", "null"
+    | Supported drivers: "database-uuids", "file", "null"
     |
     */
 
