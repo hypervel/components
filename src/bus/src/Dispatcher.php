@@ -42,14 +42,16 @@ class Dispatcher implements QueueingDispatcher
     protected array $handlers = [];
 
     /**
+     * Indicate if dispatching after response is disabled.
+     */
+    protected bool $allowsDispatchingAfterResponses = true;
+
+    /**
      * Create a new command dispatcher instance.
-     *
-     * @param Container $container the container implementation
-     * @param null|Closure $queueResolver the queue resolver callback
      */
     public function __construct(
         protected Container $container,
-        protected ?Closure $queueResolver = null
+        protected ?Closure $queueResolver = null,
     ) {
         $this->pipeline = new Pipeline($container);
     }
@@ -88,10 +90,7 @@ class Dispatcher implements QueueingDispatcher
     {
         $uses = class_uses_recursive($command);
 
-        if (in_array(InteractsWithQueue::class, $uses)
-            && in_array(Queueable::class, $uses)
-            && ! $command->job
-        ) {
+        if (isset($uses[InteractsWithQueue::class], $uses[Queueable::class]) && ! $command->job) {
             $command->setJob(new SyncJob($this->container, json_encode([]), 'sync', 'sync'));
         }
 
@@ -120,15 +119,11 @@ class Dispatcher implements QueueingDispatcher
      */
     public function findBatch(string $batchId): ?Batch
     {
-        return $this->container
-            ->get(BatchRepository::class)
-            ->find($batchId);
+        return $this->container->make(BatchRepository::class)->find($batchId);
     }
 
     /**
      * Create a new batch of queueable jobs.
-     *
-     * @param array|Collection|mixed $jobs
      */
     public function batch(mixed $jobs): PendingBatch
     {
@@ -138,7 +133,7 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Create a new chain of queueable jobs.
      */
-    public function chain(array|Collection $jobs): PendingChain
+    public function chain(mixed $jobs = null): PendingChain
     {
         $jobs = Collection::wrap($jobs);
         $jobs = ChainedBatch::prepareNestedBatches($jobs);
@@ -221,6 +216,12 @@ class Dispatcher implements QueueingDispatcher
      */
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
+        if (! $this->allowsDispatchingAfterResponses) {
+            $this->dispatchSync($command);
+
+            return;
+        }
+
         Coroutine::defer(fn () => $this->dispatchSync($command, $handler));
     }
 
@@ -240,6 +241,26 @@ class Dispatcher implements QueueingDispatcher
     public function map(array $map): static
     {
         $this->handlers = array_merge($this->handlers, $map);
+
+        return $this;
+    }
+
+    /**
+     * Allow dispatching after responses.
+     */
+    public function withDispatchingAfterResponses(): static
+    {
+        $this->allowsDispatchingAfterResponses = true;
+
+        return $this;
+    }
+
+    /**
+     * Disable dispatching after responses.
+     */
+    public function withoutDispatchingAfterResponses(): static
+    {
+        $this->allowsDispatchingAfterResponses = false;
 
         return $this;
     }
