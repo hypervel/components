@@ -36,6 +36,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Auth\Notifications\ResetPassword::flushState();
         \Hypervel\Auth\Notifications\VerifyEmail::flushState();
         \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushChannels();
+        \Hypervel\Bus\PendingBatch::flushState();
         \Hypervel\Cache\Repository::flushState();
         \Hypervel\Console\Application::forgetBootstrappers();
         \Hypervel\Console\Scheduling\Event::flushState();
