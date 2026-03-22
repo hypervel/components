@@ -90,7 +90,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @var array<int, string>
      */
-    protected array $parameters;
+    protected array $parameters = [];
 
     /**
      * The paginator options.
@@ -185,7 +185,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get a cursor instance for the given item.
      */
-    public function getCursorForItem(object $item, bool $isNext = true): Cursor
+    public function getCursorForItem(array|object $item, bool $isNext = true): Cursor
     {
         return new Cursor($this->getParametersForItem($item), $isNext);
     }
@@ -197,7 +197,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @throws Exception
      */
-    public function getParametersForItem(object $item): array
+    public function getParametersForItem(array|object $item): array
     {
         /** @var Collection<string, int> $flipped */
         $flipped = (new Collection($this->parameters))->filter()->flip();

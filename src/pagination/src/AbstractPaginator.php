@@ -203,7 +203,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      *
      * @return $this
      */
-    public function appends(array|string|null $key, ?string $value = null): static
+    public function appends(array|string|null $key, array|string|null $value = null): static
     {
         if (is_null($key)) {
             return $this;
