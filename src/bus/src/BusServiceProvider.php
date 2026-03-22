@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher as QueueingDispatcherContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Support\ServiceProvider;
 
 class BusServiceProvider extends ServiceProvider
@@ -27,12 +28,12 @@ class BusServiceProvider extends ServiceProvider
 
         $this->app->alias(
             Dispatcher::class,
-            DispatcherContract::class
+            DispatcherContract::class,
         );
 
         $this->app->alias(
             Dispatcher::class,
-            QueueingDispatcherContract::class
+            QueueingDispatcherContract::class,
         );
     }
 
@@ -41,12 +42,14 @@ class BusServiceProvider extends ServiceProvider
      */
     protected function registerBatchServices(): void
     {
-        $this->app->singleton(BatchRepository::class, DatabaseBatchRepository::class);
+        $this->app->singleton(BatchRepository::class, function ($app) {
+            return $app->make(DatabaseBatchRepository::class);
+        });
 
         $this->app->singleton(DatabaseBatchRepository::class, function ($app) {
             return new DatabaseBatchRepository(
                 $app->make(BatchFactory::class),
-                $app->make(\Hypervel\Database\ConnectionResolverInterface::class),
+                $app->make(ConnectionResolverInterface::class),
                 $app->make('config')->get('queue.batching.table', 'job_batches'),
                 $app->make('config')->get('queue.batching.database'),
             );
