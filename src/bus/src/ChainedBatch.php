@@ -44,6 +44,9 @@ class ChainedBatch implements ShouldQueue
 
         $this->name = $batch->name;
         $this->options = $batch->options;
+
+        $this->queue = $batch->queue();
+        $this->connection = $batch->connection();
     }
 
     /**
@@ -51,8 +54,8 @@ class ChainedBatch implements ShouldQueue
      */
     public static function prepareNestedBatches(Collection $jobs): Collection
     {
-        return $jobs->map(fn ($job) => match (true) {
-            is_array($job) => static::prepareNestedBatches(collect($job))->all(),
+        return $jobs->filter()->values()->map(fn ($job) => match (true) {
+            is_array($job) => static::prepareNestedBatches(new Collection($job))->all(),
             $job instanceof Collection => static::prepareNestedBatches($job),
             $job instanceof PendingBatch => new ChainedBatch($job),
             default => $job,
@@ -75,8 +78,7 @@ class ChainedBatch implements ShouldQueue
     public function toPendingBatch(): PendingBatch
     {
         /** @var QueueingDispatcher $dispatcher */
-        $dispatcher = Container::getInstance()
-            ->make(Dispatcher::class);
+        $dispatcher = Container::getInstance()->make(Dispatcher::class);
 
         $batch = $dispatcher->batch($this->jobs);
 
@@ -121,9 +123,7 @@ class ChainedBatch implements ShouldQueue
 
             $batch->finally(function (Batch $batch) use ($next) {
                 if (! $batch->cancelled()) {
-                    Container::getInstance()
-                        ->make(Dispatcher::class)
-                        ->dispatch($next);
+                    Container::getInstance()->make(Dispatcher::class)->dispatch($next);
                 }
             });
 
