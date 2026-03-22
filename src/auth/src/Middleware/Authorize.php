@@ -10,7 +10,6 @@ use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
-use Hypervel\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
 use UnitEnum;
 
@@ -52,9 +51,10 @@ class Authorize
      */
     protected function getGateArguments(Request $request, array $models): array
     {
-        return (new Collection($models))
-            ->map(fn ($model) => $model instanceof Model ? $model : $this->getModel($request, $model))
-            ->all();
+        return array_map(
+            fn ($model) => $model instanceof Model ? $model : $this->getModel($request, $model),
+            $models
+        );
     }
 
     /**
