@@ -70,7 +70,7 @@ class CookieJar implements JarContract
     /**
      * Create a new cookie instance.
      */
-    public function make(UnitEnum|string $name, string $value, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
+    public function make(UnitEnum|string $name, ?string $value, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
     {
         [$path, $domain, $secure, $sameSite] = $this->getPathAndDomain($path, $domain, $secure, $sameSite);
 
@@ -92,7 +92,7 @@ class CookieJar implements JarContract
      */
     public function forget(UnitEnum|string $name, ?string $path = null, ?string $domain = null): Cookie
     {
-        return $this->make($name, '', -2628000, $path, $domain);
+        return $this->make($name, null, -2628000, $path, $domain);
     }
 
     /**
