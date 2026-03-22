@@ -12,11 +12,17 @@ class Recaller
     protected string $recaller;
 
     /**
+     * The parsed segments of the recaller string.
+     */
+    private readonly array $segments;
+
+    /**
      * Create a new recaller instance.
      */
     public function __construct(string $recaller)
     {
         $this->recaller = @unserialize($recaller, ['allowed_classes' => false]) ?: $recaller;
+        $this->segments = explode('|', $this->recaller);
     }
 
     /**
@@ -24,7 +30,7 @@ class Recaller
      */
     public function id(): string
     {
-        return explode('|', $this->recaller, 3)[0];
+        return $this->segments[0];
     }
 
     /**
@@ -32,7 +38,7 @@ class Recaller
      */
     public function token(): string
     {
-        return explode('|', $this->recaller, 3)[1];
+        return $this->segments[1];
     }
 
     /**
@@ -40,7 +46,7 @@ class Recaller
      */
     public function hash(): string
     {
-        return explode('|', $this->recaller, 4)[2];
+        return $this->segments[2];
     }
 
     /**
@@ -56,7 +62,7 @@ class Recaller
      */
     protected function properString(): bool
     {
-        return str_contains($this->recaller, '|');
+        return count($this->segments) > 1;
     }
 
     /**
@@ -64,9 +70,9 @@ class Recaller
      */
     protected function hasAllSegments(): bool
     {
-        $segments = explode('|', $this->recaller);
-
-        return count($segments) >= 3 && trim($segments[0]) !== '' && trim($segments[1]) !== '';
+        return count($this->segments) >= 3
+            && trim($this->segments[0]) !== ''
+            && trim($this->segments[1]) !== '';
     }
 
     /**
@@ -74,6 +80,6 @@ class Recaller
      */
     public function segments(): array
     {
-        return explode('|', $this->recaller);
+        return $this->segments;
     }
 }
