@@ -128,7 +128,7 @@ class JwtGuard implements Guard
 
         $user = null;
 
-        $payload = $this->jwtManager->decode($token);
+        $payload = $this->decodeToken($token);
         $sub = $payload['sub'] ?? null;
         $user = $sub ? $this->provider->retrieveById($sub) : null;
 
@@ -171,7 +171,20 @@ class JwtGuard implements Guard
             return [];
         }
 
-        return $this->jwtManager->decode($token);
+        return $this->decodeToken($token);
+    }
+
+    /**
+     * Decode a JWT token, caching the result per-request.
+     *
+     * Avoids decoding the same token multiple times when both user()
+     * and getPayload() are called in the same request.
+     */
+    protected function decodeToken(string $token): array
+    {
+        $contextKey = "__auth.guards.{$this->name}.payload." . md5($token);
+
+        return Context::getOrSet($contextKey, fn () => $this->jwtManager->decode($token));
     }
 
     /**

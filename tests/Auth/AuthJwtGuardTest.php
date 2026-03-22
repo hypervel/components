@@ -414,6 +414,36 @@ class AuthJwtGuardTest extends TestCase
         $this->assertFalse($guard->onceUsingId(999));
     }
 
+    public function testDecodedPayloadIsCachedBetweenUserAndGetPayload()
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveById')->with(1)->andReturn(
+            m::mock(Authenticatable::class)
+        );
+
+        $jwtManager = m::mock(ManagerContract::class);
+        // decode() should be called exactly once — the second call uses the cache
+        $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn([
+            'sub' => 1,
+            'iat' => 1000,
+            'exp' => 9999999999,
+        ]);
+
+        $guard = $this->createGuard(
+            provider: $provider,
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer('valid-token'),
+        );
+
+        // First call — decodes the token
+        $user = $guard->user();
+        $this->assertNotNull($user);
+
+        // Second call — should use cached payload, not decode again
+        $payload = $guard->getPayload();
+        $this->assertSame(1, $payload['sub']);
+    }
+
     /**
      * Create a JwtGuard instance for testing.
      */
