@@ -36,7 +36,7 @@ class CreateSqliteDbCommand extends Command
 
         $from = $filesystem->exists(join_paths($databasePath, 'database.sqlite.example'))
             ? join_paths($databasePath, 'database.sqlite.example')
-            : (string) realpath(join_paths(__DIR__, 'stubs', 'database.sqlite.example'));
+            : (string) realpath(join_paths(__DIR__, 'Fixtures', 'database.sqlite.example'));
 
         $to = join_paths($databasePath, $this->databaseName());
 

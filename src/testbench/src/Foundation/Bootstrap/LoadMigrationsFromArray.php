@@ -31,6 +31,9 @@ final class LoadMigrationsFromArray
     ) {
     }
 
+    /**
+     * Bootstrap the given application.
+     */
     public function bootstrap(Application $app): void
     {
         if ($this->seeders !== false) {
@@ -42,6 +45,9 @@ final class LoadMigrationsFromArray
         }
     }
 
+    /**
+     * Bootstrap seeders.
+     */
     private function bootstrapSeeders(Application $app): void
     {
         $app->make(EventDispatcher::class)
@@ -65,6 +71,9 @@ final class LoadMigrationsFromArray
             });
     }
 
+    /**
+     * Bootstrap migrations.
+     */
     private function bootstrapMigrations(Application $app): void
     {
         $paths = Collection::wrap(
@@ -81,6 +90,9 @@ final class LoadMigrationsFromArray
         load_migration_paths($app, $paths);
     }
 
+    /**
+     * Determine whether default migrations should be included.
+     */
     private function includesDefaultMigrations(Application $app): bool
     {
         return workbench()['install'] === true

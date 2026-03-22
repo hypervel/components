@@ -8,6 +8,9 @@ use Exception;
 
 class PHPUnitErrorException extends \PHPUnit\Framework\Exception
 {
+    /**
+     * Create a new PHPUnit error exception.
+     */
     public function __construct(string $message, int $code, string $file, int $line, ?Exception $previous = null)
     {
         parent::__construct($message, $code, $previous);

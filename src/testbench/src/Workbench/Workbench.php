@@ -347,7 +347,7 @@ class Workbench
             static::$cachedUserModel = $userModel;
         }
 
-        return static::$cachedUserModel != false ? static::$cachedUserModel : null;
+        return static::$cachedUserModel !== false ? static::$cachedUserModel : null;
     }
 
     /**

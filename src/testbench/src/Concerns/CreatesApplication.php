@@ -189,7 +189,7 @@ trait CreatesApplication
         $this->resolveApplicationEnvironmentVariables($app);
         $this->resolveApplicationConfiguration($app);
 
-        // Must run AFTER resolveApplicationConfiguration() because LoadConfiguration's
+        // Must run after resolveApplicationConfiguration() because LoadConfiguration's
         // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
         // would overwrite the 'testing' environment. By running after, our
         // detectEnvironment('testing') takes precedence.
@@ -204,6 +204,9 @@ trait CreatesApplication
         return $app;
     }
 
+    /**
+     * Resolve the application instance.
+     */
     protected function resolveApplication(): ApplicationContract
     {
         static::$cacheApplicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php');

@@ -20,6 +20,9 @@ final class CreateVendorSymlink
     ) {
     }
 
+    /**
+     * Create a vendor symlink for the application.
+     */
     public function handle(ApplicationContract $app): void
     {
         $filesystem = new Filesystem();

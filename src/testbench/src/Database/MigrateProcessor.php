@@ -22,6 +22,9 @@ class MigrateProcessor
     ) {
     }
 
+    /**
+     * Run migration.
+     */
     public function up(): static
     {
         $this->dispatch('migrate');
@@ -29,6 +32,9 @@ class MigrateProcessor
         return $this;
     }
 
+    /**
+     * Rollback migration.
+     */
     public function rollback(): static
     {
         $this->dispatch('migrate:rollback');
@@ -36,6 +42,9 @@ class MigrateProcessor
         return $this;
     }
 
+    /**
+     * Dispatch artisan command.
+     */
     protected function dispatch(string $command): void
     {
         artisan($this->testbench, $command, $this->options);

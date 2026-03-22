@@ -13,6 +13,9 @@ use function Hypervel\Testbench\is_symlink;
  */
 final class DeleteVendorSymlink
 {
+    /**
+     * Delete the vendor symlink from the application.
+     */
     public function handle(ApplicationContract $app): void
     {
         tap($app->basePath('vendor'), static function (string $appVendorPath): void {

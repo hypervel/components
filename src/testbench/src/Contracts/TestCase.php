@@ -25,7 +25,7 @@ interface TestCase
 
     public function be(Authenticatable $user, ?string $guard = null): static;
 
-    public function seed($class = 'Database\Seeders\DatabaseSeeder');
+    public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static;
 
     public function artisan(string $command, array $parameters = []): int|PendingCommand;
 }

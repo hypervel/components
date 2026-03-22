@@ -298,12 +298,13 @@ class Config extends Fluent implements ConfigContract
      */
     public function getPurgeAttributes(): array
     {
-        return array_merge(
+        $config = array_merge(
             $this->purgeConfig,
             $this->attributes['purge'],
         );
 
         /** @var TPurgeConfig $config */
+        return $config;
     }
 
     /**

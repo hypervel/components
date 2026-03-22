@@ -302,10 +302,9 @@ trait InteractsWithDatabase
     /**
      * Seed a given database connection.
      *
-     * @param array|string $class
-     * @return $this
+     * @param array<int, class-string>|class-string $class
      */
-    public function seed($class = 'Database\Seeders\DatabaseSeeder')
+    public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static
     {
         foreach (Arr::wrap($class) as $class) {
             $this->artisan('db:seed', ['--class' => $class, '--no-interaction' => true]);

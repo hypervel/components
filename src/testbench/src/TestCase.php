@@ -39,6 +39,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
     protected static bool $hasBootstrappedTestbench = false;
 
+    /**
+     * Setup the test environment.
+     */
     protected function setUp(): void
     {
         if (! static::$hasBootstrappedTestbench) {
@@ -94,6 +97,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         $this->app = $this->createApplication();
     }
 
+    /**
+     * Clean up the testing environment before the next test.
+     */
     protected function tearDown(): void
     {
         // Execute AfterEach attributes INSIDE coroutine context
@@ -102,6 +108,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         parent::tearDown();
     }
 
+    /**
+     * Prepare the testing environment before the running the test case.
+     */
     public static function setUpBeforeClass(): void
     {
         static::setUpBeforeClassUsingPHPUnit();
@@ -115,6 +124,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         static::setUpBeforeClassUsingWorkbench();
     }
 
+    /**
+     * Clean up the testing environment before the next test case.
+     */
     public static function tearDownAfterClass(): void
     {
         static::tearDownAfterClassUsingWorkbench();

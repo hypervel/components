@@ -35,7 +35,7 @@ final class LoadEnvironmentVariables extends \Hypervel\Foundation\Bootstrap\Load
             if (! is_file($environmentFile)) {
                 Dotenv::create(
                     Env::getRepository(),
-                    (string) realpath(join_paths(__DIR__, 'stubs')),
+                    (string) realpath(join_paths(__DIR__, 'Fixtures')),
                     '.env.testbench',
                 )->load();
 

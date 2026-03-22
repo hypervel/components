@@ -15,9 +15,8 @@ trait HandlesAssertions
      * Mark the test as skipped when condition is not equivalent to true.
      *
      * @param null|bool|(Closure($this): bool) $condition
-     * @param mixed $condition
      */
-    protected function markTestSkippedUnless($condition, string $message): void
+    protected function markTestSkippedUnless(bool|Closure|null $condition, string $message): void
     {
         /* @phpstan-ignore argument.type */
         if (! value($condition)) {
@@ -29,9 +28,8 @@ trait HandlesAssertions
      * Mark the test as skipped when condition is equivalent to true.
      *
      * @param null|bool|(Closure($this): bool) $condition
-     * @param mixed $condition
      */
-    protected function markTestSkippedWhen($condition, string $message): void
+    protected function markTestSkippedWhen(bool|Closure|null $condition, string $message): void
     {
         /* @phpstan-ignore argument.type */
         if (value($condition)) {

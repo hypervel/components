@@ -21,6 +21,9 @@ class Bootstrapper
      */
     protected static ?string $runtimePath = null;
 
+    /**
+     * Bootstrap the testbench environment.
+     */
     public static function bootstrap(): void
     {
         $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : package_path();
@@ -46,6 +49,9 @@ class Bootstrapper
         }
     }
 
+    /**
+     * Get the configuration attributes as an array.
+     */
     public static function getConfig(): array
     {
         return static::$configuration instanceof Config
@@ -53,6 +59,9 @@ class Bootstrapper
             : [];
     }
 
+    /**
+     * Get the cached configuration instance.
+     */
     public static function getConfiguration(): ?ConfigContract
     {
         return static::$configuration;
@@ -68,6 +77,9 @@ class Bootstrapper
         static::$filesystem = null;
     }
 
+    /**
+     * Get the filesystem instance.
+     */
     protected static function getFilesystem(): Filesystem
     {
         if (static::$filesystem) {
@@ -183,6 +195,9 @@ class Bootstrapper
         static::$runtimePath = null;
     }
 
+    /**
+     * Register shutdown handlers to purge configured files and directories.
+     */
     protected static function registerPurgeFiles(): void
     {
         $purge = static::$configuration?->getPurgeAttributes() ?? [];

@@ -50,7 +50,7 @@ class EnsureDirectoryExists
                 }
 
                 $this->filesystem->ensureDirectoryExists($directory, 0755, true);
-                $this->filesystem->copy(join_paths(__DIR__, 'stubs', '.gitkeep'), join_paths($directory, '.gitkeep'));
+                $this->filesystem->copy(join_paths(__DIR__, 'Fixtures', '.gitkeep'), join_paths($directory, '.gitkeep'));
 
                 $this->components?->task(sprintf('Prepare [%s] directory', $location));
             });
