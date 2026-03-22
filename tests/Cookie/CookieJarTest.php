@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie;
 
+use ArgumentCountError;
 use Hypervel\Context\RequestContext;
 use Hypervel\Cookie\CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Cookie;
 use TypeError;
@@ -35,6 +37,269 @@ enum CookieJarTestNameIntEnum: int
  */
 class CookieJarTest extends TestCase
 {
+    // =========================================================================
+    // Laravel CookieTest (adapted for Context-based storage)
+    // =========================================================================
+
+    public function testCookiesAreCreatedWithProperOptions()
+    {
+        $cookie = new CookieJar();
+        $cookie->setDefaultPathAndDomain('foo', 'bar');
+        $c = $cookie->make('color', 'blue', 10, '/path', '/domain', true, false, false, 'lax');
+        $this->assertSame('blue', $c->getValue());
+        $this->assertFalse($c->isHttpOnly());
+        $this->assertTrue($c->isSecure());
+        $this->assertSame('/domain', $c->getDomain());
+        $this->assertSame('/path', $c->getPath());
+        $this->assertSame('lax', $c->getSameSite());
+
+        $c2 = $cookie->forever('color', 'blue', '/path', '/domain', true, false, false, 'strict');
+        $this->assertSame('blue', $c2->getValue());
+        $this->assertFalse($c2->isHttpOnly());
+        $this->assertTrue($c2->isSecure());
+        $this->assertSame('/domain', $c2->getDomain());
+        $this->assertSame('/path', $c2->getPath());
+        $this->assertSame('strict', $c2->getSameSite());
+
+        $c3 = $cookie->forget('color');
+        $this->assertNull($c3->getValue());
+        $this->assertTrue($c3->getExpiresTime() < time());
+    }
+
+    public function testCookiesAreCreatedWithProperOptionsUsingDefaultPathAndDomain()
+    {
+        $cookie = new CookieJar();
+        $cookie->setDefaultPathAndDomain('/path', '/domain', true, 'lax');
+        $c = $cookie->make('color', 'blue');
+        $this->assertSame('blue', $c->getValue());
+        $this->assertTrue($c->isSecure());
+        $this->assertSame('/domain', $c->getDomain());
+        $this->assertSame('/path', $c->getPath());
+        $this->assertSame('lax', $c->getSameSite());
+        $this->assertTrue($c->isHttpOnly());
+    }
+
+    public function testCookiesCanSetSecureOptionUsingDefaultPathAndDomain()
+    {
+        $cookie = new CookieJar();
+        $cookie->setDefaultPathAndDomain('/path', '/domain', true, 'lax');
+        $c = $cookie->make('color', 'blue', 10, null, null, false);
+        $this->assertSame('blue', $c->getValue());
+        $this->assertFalse($c->isSecure());
+        $this->assertSame('/domain', $c->getDomain());
+        $this->assertSame('/path', $c->getPath());
+        $this->assertSame('lax', $c->getSameSite());
+    }
+
+    public function testQueuedCookiesWithoutName()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $cookie = new CookieJar();
+        $cookie->queue($cookie->make('', 'bar'));
+    }
+
+    public function testQueuedCookiesWithInvalidParameter()
+    {
+        $this->expectException(ArgumentCountError::class);
+
+        $cookie = new CookieJar();
+        $cookie->queue('invalidCookie');
+    }
+
+    public function testQueuedCookiesWithHandlingEmptyValues()
+    {
+        $cookie = new CookieJar();
+        $cookie->queue($cookie->make('foo', ''));
+        $this->assertTrue($cookie->hasQueued('foo'));
+        $this->assertEquals('', $cookie->queued('foo')->getValue());
+    }
+
+    public function testQueuedCookiesWithRepeatedValue()
+    {
+        $cookie = new CookieJar();
+        $cookie->queue($cookie->make('foo', 'newBar'));
+        $this->assertTrue($cookie->hasQueued('foo'));
+        $this->assertEquals('newBar', $cookie->queued('foo')->getValue());
+
+        $this->expectException(ArgumentCountError::class);
+        $cookie->queue('invalidCookie');
+    }
+
+    public function testQueuedCookies()
+    {
+        $cookie = new CookieJar();
+        $this->assertEmpty($cookie->getQueuedCookies());
+        $this->assertFalse($cookie->hasQueued('foo'));
+        $cookie->queue($cookie->make('foo', 'bar'));
+        $this->assertTrue($cookie->hasQueued('foo'));
+        $this->assertInstanceOf(Cookie::class, $cookie->queued('foo'));
+        $cookie->queue('qu', 'ux');
+        $this->assertTrue($cookie->hasQueued('qu'));
+        $this->assertInstanceOf(Cookie::class, $cookie->queued('qu'));
+    }
+
+    public function testQueuedWithPath()
+    {
+        $cookieJar = new CookieJar();
+        $cookieOne = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieTwo = $cookieJar->make('foo', 'rab', 0, '/');
+        $cookieJar->queue($cookieOne);
+        $cookieJar->queue($cookieTwo);
+        $this->assertEquals($cookieOne, $cookieJar->queued('foo', null, '/path'));
+        $this->assertEquals($cookieTwo, $cookieJar->queued('foo', null, '/'));
+    }
+
+    public function testQueuedWithoutPath()
+    {
+        $cookieJar = new CookieJar();
+        $cookieOne = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieTwo = $cookieJar->make('foo', 'rab', 0, '/');
+        $cookieJar->queue($cookieOne);
+        $cookieJar->queue($cookieTwo);
+        $this->assertEquals($cookieTwo, $cookieJar->queued('foo'));
+    }
+
+    public function testHasQueued()
+    {
+        $cookieJar = new CookieJar();
+        // test empty queue
+        $this->assertFalse($cookieJar->hasQueued('foo'));
+
+        $cookie = $cookieJar->make('foo', 'bar');
+        $cookieJar->queue($cookie);
+        $this->assertTrue($cookieJar->hasQueued('foo'));
+        $this->assertFalse($cookieJar->hasQueued('nonexistent'));
+    }
+
+    public function testHasQueuedWithPath()
+    {
+        $cookieJar = new CookieJar();
+        $cookieOne = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieTwo = $cookieJar->make('foo', 'rab', 0, '/');
+        $cookieJar->queue($cookieOne);
+        $cookieJar->queue($cookieTwo);
+        $this->assertTrue($cookieJar->hasQueued('foo', '/path'));
+        $this->assertTrue($cookieJar->hasQueued('foo', '/'));
+        $this->assertFalse($cookieJar->hasQueued('foo', '/wrongPath'));
+    }
+
+    public function testExpire()
+    {
+        $cookieJar = new CookieJar();
+        $this->assertCount(0, $cookieJar->getQueuedCookies());
+
+        $cookieJar->expire('foobar', '/path', '/domain');
+
+        $cookie = $cookieJar->queued('foobar');
+        $this->assertSame('foobar', $cookie->getName());
+        $this->assertNull($cookie->getValue());
+        $this->assertSame('/path', $cookie->getPath());
+        $this->assertSame('/domain', $cookie->getDomain());
+        $this->assertTrue($cookie->getExpiresTime() < time());
+        $this->assertCount(1, $cookieJar->getQueuedCookies());
+    }
+
+    public function testUnqueue()
+    {
+        $cookie = new CookieJar();
+
+        $cookie->unqueue('nonexistent');
+        $this->assertEmpty($cookie->getQueuedCookies());
+
+        $cookie->queue($cookie->make('foo', 'bar'));
+        $cookie->unqueue('foo');
+        $this->assertEmpty($cookie->getQueuedCookies());
+    }
+
+    public function testUnqueueMultipleCookies()
+    {
+        $cookie = new CookieJar();
+        $cookie->queue($cookie->make('foo', 'bar'));
+        $cookie->queue($cookie->make('baz', 'qux'));
+        $cookie->unqueue('foo');
+        $this->assertTrue($cookie->hasQueued('baz'));
+        $this->assertFalse($cookie->hasQueued('foo'));
+    }
+
+    public function testUnqueueWithPath()
+    {
+        $cookieJar = new CookieJar();
+        $cookieOne = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieTwo = $cookieJar->make('foo', 'rab', 0, '/');
+        $cookieJar->queue($cookieOne);
+        $cookieJar->queue($cookieTwo);
+        $cookieJar->unqueue('foo', '/path');
+        $this->assertFalse($cookieJar->hasQueued('foo', '/path'));
+        $this->assertTrue($cookieJar->hasQueued('foo', '/'));
+    }
+
+    public function testUnqueueOnlyCookieForName()
+    {
+        $cookieJar = new CookieJar();
+        $cookie = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieJar->queue($cookie);
+        $cookieJar->unqueue('foo', '/path');
+        $this->assertEmpty($cookieJar->getQueuedCookies());
+    }
+
+    public function testCookieJarIsMacroable()
+    {
+        $cookie = new CookieJar();
+        $cookie->macro('foo', function () {
+            return 'bar';
+        });
+        $this->assertSame('bar', $cookie->foo());
+    }
+
+    public function testQueueCookie()
+    {
+        $cookieJar = new CookieJar();
+        $cookie = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieJar->queue($cookie);
+        $this->assertEquals($cookie, $cookieJar->queued('foo', null, '/path'));
+    }
+
+    public function testQueueWithCreatingNewCookie()
+    {
+        $cookieJar = new CookieJar();
+        $cookieJar->queue('foo', 'bar', 0, '/path');
+        $this->assertEquals(
+            new Cookie('foo', 'bar', 0, '/path'),
+            $cookieJar->queued('foo', null, '/path')
+        );
+    }
+
+    public function testGetQueuedCookies()
+    {
+        $cookieJar = new CookieJar();
+        $cookieOne = $cookieJar->make('foo', 'bar', 0, '/path');
+        $cookieTwo = $cookieJar->make('foo', 'rab', 0, '/');
+        $cookieThree = $cookieJar->make('oof', 'bar', 0, '/path');
+        $cookieJar->queue($cookieOne);
+        $cookieJar->queue($cookieTwo);
+        $cookieJar->queue($cookieThree);
+        $this->assertEquals(
+            [$cookieOne, $cookieTwo, $cookieThree],
+            $cookieJar->getQueuedCookies()
+        );
+    }
+
+    public function testFlushQueuedCookies()
+    {
+        $cookieJar = new CookieJar();
+        $cookieJar->queue($cookieJar->make('foo', 'bar', 0, '/path'));
+        $cookieJar->queue($cookieJar->make('foo', 'rab', 0, '/'));
+        $this->assertCount(2, $cookieJar->getQueuedCookies());
+
+        $cookieJar->flushQueuedCookies();
+        $this->assertEmpty($cookieJar->getQueuedCookies());
+    }
+
+    // =========================================================================
+    // Hypervel-specific: has() / get() from request context
+    // =========================================================================
+
     public function testHas()
     {
         $request = m::mock(Request::class);
@@ -57,92 +322,20 @@ class CookieJarTest extends TestCase
         $this->assertEquals('bar', $manager->get('foo'));
     }
 
-    public function testMake()
+    // =========================================================================
+    // Hypervel-specific: forever duration
+    // =========================================================================
+
+    public function testForeverUsesLaravelDuration()
     {
         $manager = new CookieJar();
+        $cookie = $manager->forever('remember_token', 'token123');
 
-        $this->assertInstanceOf(Cookie::class, $manager->make('foo', 'bar'));
-    }
-
-    public function testQueue()
-    {
-        $manager = $this->getMockBuilder(CookieJar::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['getQueuedCookiesRaw', 'setQueuedCookies'])
-            ->getMock();
-
-        $manager->expects($this->once())
-            ->method('getQueuedCookiesRaw')
-            ->willReturn([]);
-        $manager->expects($this->once())
-            ->method('setQueuedCookies')
-            ->with([
-                'foo' => [
-                    '/' => $cookie = new Cookie('foo', 'bar'),
-                ],
-            ]);
-
-        $manager->queue($cookie);
-    }
-
-    public function testQueuedReturnsNullWhenCookieDoesNotExist()
-    {
-        $manager = new CookieJar();
-
-        $this->assertNull($manager->queued('missing'));
-    }
-
-    public function testHasQueuedReturnsFalseWhenCookieDoesNotExist()
-    {
-        $manager = new CookieJar();
-
-        $this->assertFalse($manager->hasQueued('missing'));
-    }
-
-    public function testUnqueue()
-    {
-        $manager = $this->getMockBuilder(CookieJar::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['getQueuedCookiesRaw', 'setQueuedCookies'])
-            ->getMock();
-
-        $manager->expects($this->once())
-            ->method('getQueuedCookiesRaw')
-            ->willReturn([
-                'foo' => [
-                    '/' => new Cookie('foo', 'bar'),
-                ],
-            ]);
-        $manager->expects($this->once())
-            ->method('setQueuedCookies')
-            ->with([]);
-
-        $manager->unqueue('foo');
-    }
-
-    public function testUnqueueWithPath()
-    {
-        $manager = $this->getMockBuilder(CookieJar::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['getQueuedCookiesRaw', 'setQueuedCookies'])
-            ->getMock();
-
-        $manager->expects($this->once())
-            ->method('getQueuedCookiesRaw')
-            ->willReturn([
-                'foo' => [
-                    '/bar' => new Cookie('foo', 'bar'),
-                ],
-            ]);
-        $manager->expects($this->once())
-            ->method('setQueuedCookies')
-            ->with([]);
-
-        $manager->unqueue('foo', '/bar');
+        $this->assertEqualsWithDelta(576000 * 60, $cookie->getExpiresTime() - time(), 5);
     }
 
     // =========================================================================
-    // Enum Support Tests
+    // Hypervel-specific: Enum Support
     // =========================================================================
 
     public function testHasAcceptsStringBackedEnum()
@@ -219,14 +412,6 @@ class CookieJarTest extends TestCase
         $this->assertSame('token123', $cookie->getValue());
     }
 
-    public function testForeverUsesLaravelDuration()
-    {
-        $manager = new CookieJar();
-        $cookie = $manager->forever('remember_token', 'token123');
-
-        $this->assertEqualsWithDelta(576000 * 60, $cookie->getExpiresTime() - time(), 5);
-    }
-
     public function testForeverAcceptsUnitEnum()
     {
         $manager = new CookieJar();
@@ -244,7 +429,7 @@ class CookieJarTest extends TestCase
 
         $this->assertInstanceOf(Cookie::class, $cookie);
         $this->assertSame('session_id', $cookie->getName());
-        $this->assertSame('', $cookie->getValue());
+        $this->assertNull($cookie->getValue());
     }
 
     public function testForgetAcceptsUnitEnum()
@@ -254,7 +439,7 @@ class CookieJarTest extends TestCase
 
         $this->assertInstanceOf(Cookie::class, $cookie);
         $this->assertSame('theme', $cookie->getName());
-        $this->assertSame('', $cookie->getValue());
+        $this->assertNull($cookie->getValue());
     }
 
     public function testMakeWithIntBackedEnumThrowsTypeError()
