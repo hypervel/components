@@ -6,7 +6,6 @@ namespace Hypervel\Contracts\Bus;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\PendingBatch;
-use Hypervel\Support\Collection;
 
 interface QueueingDispatcher extends Dispatcher
 {
@@ -18,7 +17,7 @@ interface QueueingDispatcher extends Dispatcher
     /**
      * Create a new batch of queueable jobs.
      */
-    public function batch(array|Collection $jobs): PendingBatch;
+    public function batch(mixed $jobs): PendingBatch;
 
     /**
      * Dispatch a command to its appropriate handler behind a queue.

@@ -29,6 +29,11 @@ interface Dispatcher
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void;
 
     /**
+     * Create a new chain of queueable jobs.
+     */
+    public function chain(mixed $jobs = null): mixed;
+
+    /**
      * Determine if the given command has a handler.
      */
     public function hasCommandHandler(mixed $command): bool;
