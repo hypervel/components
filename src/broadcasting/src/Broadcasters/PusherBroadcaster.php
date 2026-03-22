@@ -38,27 +38,10 @@ class PusherBroadcaster extends Broadcaster
             return null;
         }
 
-        if (method_exists($this->pusher, 'authenticateUser')) { // @phpstan-ignore function.alreadyNarrowedType (Pusher 6.x compatibility)
-            return json_decode(
-                $this->pusher->authenticateUser($request->input('socket_id'), $user),
-                true,
-            );
-        }
-
-        $settings = $this->pusher->getSettings();
-        $encodedUser = json_encode($user);
-        $decodedString = "{$request->input('socket_id')}::user::{$encodedUser}";
-
-        $auth = $settings['auth_key'] . ':' . hash_hmac(
-            'sha256',
-            $decodedString,
-            $settings['secret']
+        return json_decode(
+            $this->pusher->authenticateUser($request->input('socket_id'), $user),
+            true,
         );
-
-        return [
-            'auth' => $auth,
-            'user_data' => $encodedUser,
-        ];
     }
 
     /**
@@ -68,18 +51,17 @@ class PusherBroadcaster extends Broadcaster
      */
     public function auth(Request $request): mixed
     {
-        $channelName = $request->input('channel_name');
-        $normalizeChannelName = $this->normalizeChannelName($channelName);
+        $channelName = $this->normalizeChannelName($request->input('channel_name'));
 
-        if (empty($channelName)
-            || ($this->isGuardedChannel($channelName) && ! $this->retrieveUser($normalizeChannelName))
+        if (empty($request->input('channel_name'))
+            || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
         ) {
             throw new AccessDeniedHttpException();
         }
 
         return parent::verifyUserCanAccessChannel(
             $request,
-            $normalizeChannelName
+            $channelName
         );
     }
 
@@ -93,11 +75,13 @@ class PusherBroadcaster extends Broadcaster
 
         if (str_starts_with($channelName, 'private')) {
             return $this->decodePusherResponse(
+                $request,
                 $this->pusher->authorizeChannel($channelName, $socketId),
             );
         }
 
         $user = $this->retrieveUser(
+            $request,
             $this->normalizeChannelName($channelName)
         );
 
@@ -106,6 +90,7 @@ class PusherBroadcaster extends Broadcaster
             : $user->getAuthIdentifier();
 
         return $this->decodePusherResponse(
+            $request,
             $this->pusher->authorizePresenceChannel($channelName, $socketId, (string) $broadcastIdentifier, $result)
         );
     }
@@ -113,9 +98,14 @@ class PusherBroadcaster extends Broadcaster
     /**
      * Decode the given Pusher response.
      */
-    protected function decodePusherResponse(mixed $response): array
+    protected function decodePusherResponse(Request $request, mixed $response): mixed
     {
-        return json_decode($response, true);
+        if (! $request->input('callback', false)) {
+            return json_decode($response, true);
+        }
+
+        return response()->json(json_decode($response, true))
+            ->withCallback($request->input('callback'));
     }
 
     /**
