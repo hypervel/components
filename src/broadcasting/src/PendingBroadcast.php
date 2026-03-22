@@ -7,6 +7,8 @@ namespace Hypervel\Broadcasting;
 use Hypervel\Contracts\Events\Dispatcher;
 use UnitEnum;
 
+use function Hypervel\Support\enum_value;
+
 class PendingBroadcast
 {
     /**
@@ -24,7 +26,7 @@ class PendingBroadcast
     public function via(UnitEnum|string|null $connection = null): static
     {
         if (method_exists($this->event, 'broadcastVia')) {
-            $this->event->broadcastVia($connection);
+            $this->event->broadcastVia(enum_value($connection));
         }
 
         return $this;

@@ -43,7 +43,7 @@ class AnonymousEvent implements ShouldBroadcast
     /**
      * Create a new anonymous broadcastable event instance.
      */
-    public function __construct(protected BroadcastManager $broadcastManager, protected array|Channel|string $channels)
+    public function __construct(protected array|Channel|string $channels)
     {
         $this->channels = Arr::wrap($channels);
     }
@@ -107,7 +107,7 @@ class AnonymousEvent implements ShouldBroadcast
      */
     public function send(): void
     {
-        $broadcast = $this->broadcastManager->event($this)->via($this->connection);
+        $broadcast = broadcast($this)->via($this->connection);
 
         if (! $this->includeCurrentUser) {
             $broadcast->toOthers();
@@ -134,10 +134,8 @@ class AnonymousEvent implements ShouldBroadcast
 
     /**
      * Get the channels the event should broadcast on.
-     *
-     * @return Channel[]|string[]
      */
-    public function broadcastOn(): array
+    public function broadcastOn(): Channel|array
     {
         return $this->channels;
     }
