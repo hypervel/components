@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Http\Request;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Redis\RedisProxy;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -20,19 +20,20 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
  */
 class RedisBroadcasterTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected RedisBroadcaster $broadcaster;
 
     protected Container $container;
+
+    protected Redis|m\MockInterface $redis;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->container = m::mock(Container::class);
-        $factory = m::mock(Redis::class);
-        $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $factory])->makePartial();
+        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
+        $this->redis = m::mock(Redis::class);
+        $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $this->redis])->makePartial();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -145,20 +146,61 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
+    public function testBroadcastUsesPublishPerChannelOnCluster()
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+        $connection->shouldReceive('publish')->once()->with('test-channel-1', m::type('string'));
+        $connection->shouldReceive('publish')->once()->with('test-channel-2', m::type('string'));
+        $connection->shouldNotReceive('eval');
+
+        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+
+        $broadcaster = new RedisBroadcaster($this->container, $this->redis);
+        $broadcaster->broadcast(['test-channel-1', 'test-channel-2'], 'test-event', ['data' => 'value']);
+    }
+
+    public function testBroadcastUsesEvalOnNonCluster()
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
+        $connection->shouldReceive('eval')->once();
+        $connection->shouldNotReceive('publish');
+
+        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+
+        $broadcaster = new RedisBroadcaster($this->container, $this->redis);
+        $broadcaster->broadcast(['test-channel'], 'test-event', ['data' => 'value']);
+    }
+
+    public function testBroadcastPayloadDoesNotDuplicateSocketInData()
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->andReturnFalse();
+        $connection->shouldReceive('eval')->once()->withArgs(function ($script, $numKeys, $payload) {
+            $decoded = json_decode($payload, true);
+
+            // socket should be at top level only, not inside data
+            return $decoded['socket'] === 'test-socket'
+                && ! isset($decoded['data']['socket']);
+        });
+
+        $this->redis->shouldReceive('connection')->andReturn($connection);
+
+        $broadcaster = new RedisBroadcaster($this->container, $this->redis);
+        $broadcaster->broadcast(['test-channel'], 'test-event', ['message' => 'hello', 'socket' => 'test-socket']);
+    }
+
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
 
         $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
         $user->shouldReceive('getAuthIdentifier')->andReturn(42);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn($user);
-
-        $this->container->shouldReceive('make')
-            ->with('auth')
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn($user);
 
         return $request;
     }
@@ -168,12 +210,7 @@ class RedisBroadcasterTest extends TestCase
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn(null);
-
-        $this->container->shouldReceive('make')
-            ->with('auth')
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn(null);
 
         return $request;
     }

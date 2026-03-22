@@ -35,20 +35,19 @@ class RedisBroadcaster extends Broadcaster
      */
     public function auth(Request $request): mixed
     {
-        $channelName = $request->input('channel_name');
-        $normalizeChannelName = $this->normalizeChannelName(
-            str_replace($this->prefix, '', $channelName)
+        $channelName = $this->normalizeChannelName(
+            str_replace($this->prefix, '', $request->input('channel_name'))
         );
 
-        if (empty($channelName)
-            || ($this->isGuardedChannel($channelName) && ! $this->retrieveUser($normalizeChannelName))
+        if (empty($request->input('channel_name'))
+            || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
         ) {
             throw new AccessDeniedHttpException();
         }
 
         return parent::verifyUserCanAccessChannel(
             $request,
-            $normalizeChannelName
+            $channelName
         );
     }
 
@@ -63,7 +62,7 @@ class RedisBroadcaster extends Broadcaster
 
         $channelName = $this->normalizeChannelName($request->input('channel_name'));
 
-        $user = $this->retrieveUser($channelName);
+        $user = $this->retrieveUser($request, $channelName);
 
         $broadcastIdentifier = method_exists($user, 'getAuthIdentifierForBroadcasting')
             ? $user->getAuthIdentifierForBroadcasting()
@@ -88,19 +87,27 @@ class RedisBroadcaster extends Broadcaster
 
         $connection = $this->factory->connection($this->connection);
 
+        $socket = Arr::pull($payload, 'socket');
+
         $payload = json_encode([
             'event' => $event,
             'data' => $payload,
-            'socket' => Arr::pull($payload, 'socket'),
+            'socket' => $socket,
         ]);
 
         try {
-            $connection->eval(
-                $this->broadcastMultipleChannelsScript(),
-                0,
-                $payload,
-                ...$this->formatChannels($channels),
-            );
+            if ($connection->isCluster()) {
+                foreach ($this->formatChannels($channels) as $channel) {
+                    $connection->publish($channel, $payload);
+                }
+            } else {
+                $connection->eval(
+                    $this->broadcastMultipleChannelsScript(),
+                    0,
+                    $payload,
+                    ...$this->formatChannels($channels),
+                );
+            }
         } catch (ConnectionException|RedisException $e) {
             throw new BroadcastException(
                 sprintf('Redis error: %s.', $e->getMessage())
