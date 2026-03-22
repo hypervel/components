@@ -31,18 +31,17 @@ class AblyBroadcaster extends Broadcaster
      */
     public function auth(Request $request): mixed
     {
-        $channelName = $request->input('channel_name');
-        $normalizeChannelName = $this->normalizeChannelName($channelName);
+        $channelName = $this->normalizeChannelName($request->input('channel_name'));
 
-        if (empty($channelName)
-            || ($this->isGuardedChannel($channelName) && ! $this->retrieveUser($normalizeChannelName))
+        if (empty($request->input('channel_name'))
+            || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
         ) {
             throw new AccessDeniedHttpException();
         }
 
         return parent::verifyUserCanAccessChannel(
             $request,
-            $normalizeChannelName
+            $channelName
         );
     }
 
@@ -61,6 +60,7 @@ class AblyBroadcaster extends Broadcaster
         }
 
         $user = $this->retrieveUser(
+            $request,
             $this->normalizeChannelName($channelName)
         );
 
