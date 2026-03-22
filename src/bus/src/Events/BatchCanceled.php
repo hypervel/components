@@ -6,7 +6,7 @@ namespace Hypervel\Bus\Events;
 
 use Hypervel\Bus\Batch;
 
-class BatchDispatched
+class BatchCanceled
 {
     /**
      * Create a new event instance.
