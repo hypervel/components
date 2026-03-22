@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Config\Repository as Config;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\QueueRoutes;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
@@ -22,7 +24,11 @@ class BusDispatcherTest extends TestCase
 {
     public function testCommandsThatShouldQueueIsQueued()
     {
-        $container = m::mock(Container::class);
+        $container = new Container();
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -31,11 +37,17 @@ class BusDispatcherTest extends TestCase
         });
 
         $dispatcher->dispatch(m::mock(ShouldQueue::class));
+
+        Container::setInstance(null);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomHandler()
     {
-        $container = m::mock(Container::class);
+        $container = new Container();
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -44,11 +56,17 @@ class BusDispatcherTest extends TestCase
         });
 
         $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand());
+
+        Container::setInstance(null);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay()
     {
-        $container = m::mock(Container::class);
+        $container = new Container();
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('later')->once()->with(10, m::type(BusDispatcherTestSpecificQueueAndDelayCommand::class), '', 'foo');
@@ -57,12 +75,32 @@ class BusDispatcherTest extends TestCase
         });
 
         $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand());
+
+        Container::setInstance(null);
+    }
+
+    public function testCommandsAreDispatchedWithQueueRoute()
+    {
+        Container::setInstance($container = new Container());
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn('high-priority');
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+
+        $mock = m::mock(Queue::class);
+        $mock->shouldReceive('push')->once()->with(BusDispatcherQueueable::class, '', 'high-priority');
+
+        $dispatcher = new Dispatcher($container, function () use ($mock) {
+            return $mock;
+        });
+
+        $dispatcher->dispatch(new BusDispatcherQueueable());
+
+        Container::setInstance(null);
     }
 
     public function testDispatchNowShouldNeverQueue()
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('call')->once();
+        $container = new Container();
         $mock = m::mock(Queue::class);
         $mock->shouldReceive('push')->never();
         $dispatcher = new Dispatcher($container, function () use ($mock) {
@@ -74,11 +112,7 @@ class BusDispatcherTest extends TestCase
 
     public function testDispatcherCanDispatchStandAloneHandler()
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with(StandAloneHandler::class)
-            ->once()
-            ->andReturn(new StandAloneHandler());
+        $container = new Container();
         $mock = m::mock(Queue::class);
         $dispatcher = new Dispatcher($container, function () use ($mock) {
             return $mock;
@@ -93,7 +127,22 @@ class BusDispatcherTest extends TestCase
 
     public function testOnConnectionOnJobWhenDispatching()
     {
-        $container = m::mock(Container::class);
+        Container::setInstance($container = new Container());
+        $container->singleton('config', function () {
+            return new Config([
+                'queue' => [
+                    'default' => 'null',
+                    'connections' => [
+                        'null' => ['driver' => 'null'],
+                    ],
+                ],
+            ]);
+        });
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
+
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -104,6 +153,8 @@ class BusDispatcherTest extends TestCase
         $job = (new ShouldNotBeDispatched())->onConnection('null');
 
         $dispatcher->dispatch($job);
+
+        Container::setInstance(null);
     }
 }
 
@@ -138,6 +189,11 @@ class BusDispatcherTestSpecificQueueAndDelayCommand implements ShouldQueue
     public $queue = 'foo';
 
     public $delay = 10;
+}
+
+class BusDispatcherQueueable implements ShouldQueue
+{
+    use Queueable;
 }
 
 class StandAloneCommand
