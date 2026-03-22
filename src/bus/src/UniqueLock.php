@@ -16,7 +16,7 @@ class UniqueLock
      * Create a new unique lock manager instance.
      */
     public function __construct(
-        protected Cache $cache
+        protected Cache $cache,
     ) {
     }
 
