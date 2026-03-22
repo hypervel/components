@@ -8,6 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 
@@ -157,6 +158,16 @@ class Repository implements ArrayAccess, ConfigContract
         }
 
         return $value;
+    }
+
+    /**
+     * Get the specified configuration value as a Collection.
+     *
+     * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
+     */
+    public function collection(string $key, mixed $default = null): Collection
+    {
+        return new Collection($this->array($key, $default));
     }
 
     /**
