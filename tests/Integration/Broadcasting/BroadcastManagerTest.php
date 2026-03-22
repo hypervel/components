@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Broadcasting;
+namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Exception;
 use Hypervel\Broadcasting\BroadcastEvent;
@@ -13,6 +13,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
+use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
@@ -53,6 +54,40 @@ class BroadcastManagerTest extends TestCase
         Queue::assertPushed(BroadcastEvent::class);
     }
 
+    public function testEventsCanBeBroadcastUsingQueueRoutes()
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Queue::route(TestEvent::class, 'broadcast-queue', 'broadcast-connection');
+
+        Broadcast::queue(new TestEvent());
+        Bus::assertNotDispatched(BroadcastEvent::class);
+        Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
+    }
+
+    public function testEventsCanBeRescued()
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(new TestEventRescue());
+
+        Bus::assertNotDispatched(BroadcastEvent::class);
+        Queue::assertPushed(BroadcastEvent::class);
+    }
+
+    public function testNowEventsCanBeRescued()
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(new TestEventNowRescue());
+
+        Bus::assertDispatched(BroadcastEvent::class);
+        Queue::assertNotPushed(BroadcastEvent::class);
+    }
+
     public function testUniqueEventsCanBeBroadcast()
     {
         Bus::fake();
@@ -69,6 +104,34 @@ class BroadcastManagerTest extends TestCase
 
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
+    }
+
+    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromProperty()
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(new TestEventUniqueWithIdProperty());
+
+        Bus::assertNotDispatched(UniqueBroadcastEvent::class);
+        Queue::assertPushed(UniqueBroadcastEvent::class);
+
+        $lockKey = 'hypervel_unique_job:' . TestEventUniqueWithIdProperty::class . ':unique-id-property';
+        $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
+    }
+
+    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromMethod()
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(new TestEventUniqueWithIdMethod());
+
+        Bus::assertNotDispatched(UniqueBroadcastEvent::class);
+        Queue::assertPushed(UniqueBroadcastEvent::class);
+
+        $lockKey = 'hypervel_unique_job:' . TestEventUniqueWithIdMethod::class . ':unique-id-method';
+        $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
     public function testThrowExceptionWhenUnknownStoreIsUsed()
@@ -157,7 +220,7 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->routes();
     }
 
-    public function testExtendBindsCallbackToManager(): void
+    public function testCustomDriverClosureBoundObjectIsBroadcastManager(): void
     {
         $app = m::mock(Container::class);
         $broadcastManager = new BroadcastManager($app);
@@ -179,7 +242,7 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame($broadcastManager, $boundInstance);
     }
 
-    public function testDriverCreationFailureWrapsExceptionWithConnectionName(): void
+    public function testThrowExceptionWhenDriverCreationFails(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
@@ -231,6 +294,35 @@ class TestEventUnique implements ShouldBroadcast, ShouldBeUnique
      *
      * @return Channel[]|string[]
      */
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+class TestEventUniqueWithIdProperty extends TestEventUnique
+{
+    public string $uniqueId = 'unique-id-property';
+}
+
+class TestEventUniqueWithIdMethod extends TestEventUnique
+{
+    public function uniqueId(): string
+    {
+        return 'unique-id-method';
+    }
+}
+
+class TestEventRescue implements ShouldBroadcast, ShouldRescue
+{
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+class TestEventNowRescue implements ShouldBroadcastNow, ShouldRescue
+{
     public function broadcastOn(): array
     {
         return [];

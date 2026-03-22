@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Broadcasting;
+namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\PresenceChannel;
