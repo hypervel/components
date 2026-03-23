@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
 use Hypervel\Foundation\Vite;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Vite as ViteFacade;
 use Hypervel\Support\HtmlString;
 use Mockery;
@@ -17,6 +18,11 @@ trait InteractsWithContainer
      * The original Vite handler.
      */
     protected ?Vite $originalVite = null;
+
+    /**
+     * The original deferred callbacks collection.
+     */
+    protected ?DeferredCallbackCollection $originalDeferredCallbacksCollection = null;
 
     /**
      * Register an instance of an object in the container.
@@ -176,6 +182,44 @@ trait InteractsWithContainer
     {
         if ($this->originalVite) {
             $this->app->instance(Vite::class, $this->originalVite);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute deferred callbacks immediately.
+     */
+    protected function withoutDefer(): static
+    {
+        if ($this->originalDeferredCallbacksCollection === null) {
+            $this->originalDeferredCallbacksCollection = $this->app->make(DeferredCallbackCollection::class);
+        }
+
+        $this->app->forgetInstance(DeferredCallbackCollection::class);
+
+        $this->swap(DeferredCallbackCollection::class, new class extends DeferredCallbackCollection {
+            /**
+             * Set the callback with the given key.
+             */
+            public function offsetSet(mixed $offset, mixed $value): void
+            {
+                $value();
+            }
+        });
+
+        return $this;
+    }
+
+    /**
+     * Restore deferred callbacks.
+     */
+    protected function withDefer(): static
+    {
+        $this->app->forgetInstance(DeferredCallbackCollection::class);
+
+        if ($this->originalDeferredCallbacksCollection !== null) {
+            $this->app->instance(DeferredCallbackCollection::class, $this->originalDeferredCallbacksCollection);
         }
 
         return $this;
