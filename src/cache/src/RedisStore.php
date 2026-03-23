@@ -28,12 +28,15 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use RuntimeException;
 
-class RedisStore extends TaggableStore implements LockProvider
+class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     protected Redis $redis;
 
@@ -107,6 +110,11 @@ class RedisStore extends TaggableStore implements LockProvider
     private ?AllTagOperations $allTagOperations = null;
 
     /**
+     * The classes that should be allowed during unserialization.
+     */
+    protected array|bool|null $serializableClasses;
+
+    /**
      * Create a new Redis store.
      */
     public function __construct(
@@ -114,9 +122,11 @@ class RedisStore extends TaggableStore implements LockProvider
         string $prefix = '',
         string $connection = 'default',
         ?PoolFactory $poolFactory = null,
+        array|bool|null $serializableClasses = null,
     ) {
         $this->redis = $redis;
         $this->poolFactory = $poolFactory;
+        $this->serializableClasses = $serializableClasses;
         $this->setPrefix($prefix);
         $this->setConnection($connection);
     }
@@ -203,6 +213,19 @@ class RedisStore extends TaggableStore implements LockProvider
     }
 
     /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        return $this->getContext()->withConnection(
+            fn (RedisConnection $connection) => (bool) $connection->expire(
+                $this->prefix . $key,
+                (int) max(1, $seconds)
+            )
+        );
+    }
+
+    /**
      * Remove an item from the cache.
      */
     public function forget(string $key): bool
@@ -216,6 +239,22 @@ class RedisStore extends TaggableStore implements LockProvider
     public function flush(): bool
     {
         return $this->getFlushOperation()->execute();
+    }
+
+    /**
+     * Remove all locks from the store.
+     *
+     * @throws RuntimeException
+     */
+    public function flushLocks(): bool
+    {
+        if (! $this->hasSeparateLockStore()) {
+            throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
+        }
+
+        $this->lockConnection()->flushdb();
+
+        return true;
     }
 
     /**
@@ -292,6 +331,23 @@ class RedisStore extends TaggableStore implements LockProvider
     }
 
     /**
+     * Remove all expired tag set entries.
+     *
+     * Returns an array of snake_case stat keys with integer values,
+     * or null if no stats are available.
+     *
+     * @return null|array<string, int>
+     */
+    public function flushStaleTags(): ?array
+    {
+        if ($this->tagMode === TagMode::Any) {
+            return $this->anyTagOps()->prune()->execute();
+        }
+
+        return $this->allTagOps()->prune()->execute();
+    }
+
+    /**
      * Set the tag mode.
      */
     public function setTagMode(TagMode|string $mode): static
@@ -314,6 +370,17 @@ class RedisStore extends TaggableStore implements LockProvider
     }
 
     /**
+     * Pin a pool connection for the duration of a callback.
+     *
+     * All Redis operations inside the callback reuse the same connection,
+     * avoiding multiple pool checkouts.
+     */
+    public function withPinnedConnection(callable $callback): mixed
+    {
+        return $this->connection()->withPinnedConnection($callback);
+    }
+
+    /**
      * Get the Redis connection instance.
      */
     public function connection(): RedisProxy
@@ -327,6 +394,14 @@ class RedisStore extends TaggableStore implements LockProvider
     public function lockConnection(): RedisProxy
     {
         return $this->redis->connection($this->lockConnection ?? $this->connection);
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        return ($this->lockConnection ?? $this->connection) !== $this->connection;
     }
 
     /**
@@ -390,7 +465,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function getSerialization(): Serialization
     {
-        return $this->serialization ??= new Serialization();
+        return $this->serialization ??= new Serialization($this->serializableClasses);
     }
 
     /**

@@ -22,6 +22,14 @@ use Redis;
 class Serialization
 {
     /**
+     * Create a new serialization instance.
+     */
+    public function __construct(
+        protected array|bool|null $serializableClasses = null,
+    ) {
+    }
+
+    /**
      * Serialize a value for storage in Redis.
      *
      * When a serializer is configured on the connection, returns the raw value
@@ -121,6 +129,14 @@ class Serialization
      */
     private function phpUnserialize(mixed $value): mixed
     {
-        return is_numeric($value) ? $value : unserialize((string) $value);
+        if (is_numeric($value)) {
+            return $value;
+        }
+
+        if ($this->serializableClasses !== null) {
+            return unserialize((string) $value, ['allowed_classes' => $this->serializableClasses]);
+        }
+
+        return unserialize((string) $value);
     }
 }
