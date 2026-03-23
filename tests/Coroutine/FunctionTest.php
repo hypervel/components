@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Coroutine;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 
-use function Hypervel\Coroutine\defer;
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;
 
@@ -32,19 +32,19 @@ class FunctionTest extends TestCase
     {
         $channel = new Channel(10);
         parallel([function () use ($channel) {
-            defer(function () use ($channel) {
+            Coroutine::defer(function () use ($channel) {
                 $channel->push(0);
             });
-            defer(function () use ($channel) {
+            Coroutine::defer(function () use ($channel) {
                 $channel->push(1);
-                defer(function () use ($channel) {
+                Coroutine::defer(function () use ($channel) {
                     $channel->push(2);
                 });
-                defer(function () use ($channel) {
+                Coroutine::defer(function () use ($channel) {
                     $channel->push(3);
                 });
             });
-            defer(function () use ($channel) {
+            Coroutine::defer(function () use ($channel) {
                 $channel->push(4);
             });
             $channel->push(5);

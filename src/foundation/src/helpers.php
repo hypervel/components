@@ -23,6 +23,7 @@ use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Cookie\CookieJar;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
@@ -952,7 +953,7 @@ if (! function_exists('defer')) {
     function defer(callable $callback, ?string $name = null): void
     {
         if ($name === null) {
-            \Hypervel\Coroutine\defer($callback);
+            Coroutine::defer($callback);
             return;
         }
 
@@ -960,7 +961,7 @@ if (! function_exists('defer')) {
         // if we're outside a coroutine, Co::defer() fails before any
         // Context mutation occurs).
         if (! Context::has('__foundation.deferred_callbacks_registered')) {
-            \Hypervel\Coroutine\defer(function () {
+            Coroutine::defer(function () {
                 $callbacks = Context::get('__foundation.deferred_callbacks', []);
                 foreach ($callbacks as $deferred) {
                     $deferred();

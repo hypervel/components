@@ -14,7 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Throwable;
 
-use function Hypervel\Coroutine\defer;
 use function Hypervel\Coroutine\go;
 
 /**
@@ -65,7 +64,7 @@ class CoroutineTest extends TestCase
 
         $chan = new Channel(1);
         go(static function () use ($chan, $exception) {
-            defer(static function () use ($chan, $exception) {
+            Coroutine::defer(static function () use ($chan, $exception) {
                 try {
                     throw $exception;
                 } finally {

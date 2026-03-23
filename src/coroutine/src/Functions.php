@@ -41,10 +41,10 @@ function co(callable $callable): bool|int
     return $id > 0 ? $id : false;
 }
 
-function defer(callable $callable): void
-{
-    Coroutine::defer($callable);
-}
+// defer() wrapper was removed intentionally. Use Coroutine::defer() directly for
+// coroutine-exit cleanup. The global defer() helper in foundation provides Laravel-style
+// lifecycle-aware deferred callbacks — having two functions named "defer" with different
+// semantics caused import ambiguity bugs. Do not re-add this wrapper.
 
 function go(callable $callable): bool|int
 {
