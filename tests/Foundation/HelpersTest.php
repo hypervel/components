@@ -11,6 +11,8 @@ use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -315,71 +317,87 @@ class HelpersTest extends TestCase
         $this->assertSame($fake, $fake->toOthers());
     }
 
-    public function testDeferWithoutNameExecutesCallback()
+    public function testDeferReturnsDeferredCallbackWhenCallbackProvided()
+    {
+        $deferred = defer(fn () => null);
+
+        $this->assertInstanceOf(DeferredCallback::class, $deferred);
+    }
+
+    public function testDeferReturnsCollectionWhenCallbackIsNull()
+    {
+        $this->assertInstanceOf(DeferredCallbackCollection::class, defer());
+    }
+
+    public function testDeferWithoutNameQueuesCallbackUntilCollectionInvoked()
     {
         $executed = false;
-
-        \Swoole\Coroutine::create(function () use (&$executed) {
-            defer(function () use (&$executed) {
-                $executed = true;
-            });
+        defer(function () use (&$executed) {
+            $executed = true;
         });
+
+        $this->assertFalse($executed);
+
+        $this->app->make(DeferredCallbackCollection::class)->invoke();
 
         $this->assertTrue($executed);
     }
 
-    public function testDeferWithNameDeduplicatesCallbacks()
+    public function testDeferWithNameDeduplicatesCallbacksWhenCollectionInvoked()
     {
         $results = [];
 
-        \Swoole\Coroutine::create(function () use (&$results) {
-            defer(function () use (&$results) {
-                $results[] = 'first';
-            }, 'sync-metrics');
+        defer(function () use (&$results) {
+            $results[] = 'first';
+        }, 'sync-metrics');
 
-            defer(function () use (&$results) {
-                $results[] = 'second';
-            }, 'sync-metrics');
-        });
+        defer(function () use (&$results) {
+            $results[] = 'second';
+        }, 'sync-metrics');
+
+        $this->app->make(DeferredCallbackCollection::class)->invoke();
 
         $this->assertSame(['second'], $results);
     }
 
-    public function testDeferWithDifferentNamesRunsBoth()
+    public function testDeferWithDifferentNamesRunsBothWhenCollectionInvoked()
     {
         $results = [];
 
-        \Swoole\Coroutine::create(function () use (&$results) {
-            defer(function () use (&$results) {
-                $results[] = 'foo';
-            }, 'foo');
+        defer(function () use (&$results) {
+            $results[] = 'foo';
+        }, 'foo');
 
-            defer(function () use (&$results) {
-                $results[] = 'bar';
-            }, 'bar');
-        });
+        defer(function () use (&$results) {
+            $results[] = 'bar';
+        }, 'bar');
 
-        $this->assertCount(2, $results);
-        $this->assertContains('foo', $results);
-        $this->assertContains('bar', $results);
+        $this->app->make(DeferredCallbackCollection::class)->invoke();
+
+        $this->assertSame(['foo', 'bar'], $results);
     }
 
-    public function testDeferWithNamedAndUnnamedBothExecute()
+    public function testDeferWithNamedAndUnnamedBothExecuteWhenCollectionInvoked()
     {
         $results = [];
 
-        \Swoole\Coroutine::create(function () use (&$results) {
-            defer(function () use (&$results) {
-                $results[] = 'unnamed';
-            });
-
-            defer(function () use (&$results) {
-                $results[] = 'named';
-            }, 'my-name');
+        defer(function () use (&$results) {
+            $results[] = 'unnamed';
         });
 
-        $this->assertCount(2, $results);
-        $this->assertContains('unnamed', $results);
-        $this->assertContains('named', $results);
+        defer(function () use (&$results) {
+            $results[] = 'named';
+        }, 'my-name');
+
+        $this->app->make(DeferredCallbackCollection::class)->invoke();
+
+        $this->assertSame(['unnamed', 'named'], $results);
+    }
+
+    public function testDeferStoresAlwaysFlag()
+    {
+        $deferred = defer(fn () => null, always: true);
+
+        $this->assertTrue($deferred->always);
     }
 }
