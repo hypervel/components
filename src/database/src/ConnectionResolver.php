@@ -11,7 +11,6 @@ use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use UnitEnum;
 
-use function Hypervel\Coroutine\defer;
 use function Hypervel\Support\enum_value;
 
 /**
@@ -80,7 +79,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         } finally {
             // Schedule cleanup when coroutine ends
             if (Coroutine::inCoroutine()) {
-                defer(function () use ($pooledConnection, $contextKey) {
+                Coroutine::defer(function () use ($pooledConnection, $contextKey) {
                     Context::set($contextKey, null);
                     $pooledConnection->release();
                 });

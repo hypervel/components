@@ -7,7 +7,6 @@ namespace Hypervel\Console;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Signal;
 
-use function Hypervel\Coroutine\defer;
 use function Hypervel\Coroutine\parallel;
 
 class SignalRegistry
@@ -83,7 +82,7 @@ class SignalRegistry
         }
 
         $this->handling[$signo] = Coroutine::create(function () use ($signo) {
-            defer(fn () => posix_kill(posix_getpid(), $signo));
+            Coroutine::defer(fn () => posix_kill(posix_getpid(), $signo));
 
             while (true) {
                 if (Signal::wait($signo, $this->timeout)) {

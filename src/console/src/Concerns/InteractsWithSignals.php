@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Hypervel\Console\SignalRegistry;
-
-use function Hypervel\Coroutine\defer;
+use Hypervel\Coroutine\Coroutine;
 
 trait InteractsWithSignals
 {
@@ -22,7 +21,7 @@ trait InteractsWithSignals
     {
         if (! $this->signalRegistry) {
             $this->signalRegistry = new SignalRegistry();
-            defer(fn () => $this->signalRegistry->unregister());
+            Coroutine::defer(fn () => $this->signalRegistry->unregister());
         }
 
         $this->signalRegistry->register($signo, $callback);

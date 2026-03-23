@@ -13,6 +13,7 @@ use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Http\WritableConnection;
 use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
@@ -24,8 +25,6 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Throwable;
-
-use function Hypervel\Coroutine\defer;
 
 class Server implements OnRequestInterface, MiddlewareInitializerInterface
 {
@@ -110,7 +109,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             $response = new SymfonyResponse('Internal Server Error', 500);
         } finally {
             if (isset($request) && $this->option?->isEnableRequestLifecycle()) {
-                defer(fn () => $this->event?->dispatch(new RequestTerminated(
+                Coroutine::defer(fn () => $this->event?->dispatch(new RequestTerminated(
                     request: $request,
                     response: $response ?? null,
                     exception: $throwable ?? null,

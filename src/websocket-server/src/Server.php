@@ -16,6 +16,7 @@ use Hypervel\Contracts\Server\OnMessageInterface;
 use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Http\FdGetter;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\HttpServer\RequestBridge;
@@ -35,8 +36,6 @@ use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
-
-use function Hypervel\Coroutine\defer;
 
 class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
 {
@@ -188,7 +187,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
 
         Context::set(WsContext::FD, $fd);
-        defer(function () use ($fd) {
+        Coroutine::defer(function () use ($fd) {
             // Move those functions to defer, because onClose may throw exceptions
             FdCollector::del($fd);
             WsContext::release($fd);
@@ -268,7 +267,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     protected function deferOnOpen(Request $request, string $class, WebSocketServer $server, int $fd): void
     {
         $instance = $this->container->make($class);
-        defer(static function () use ($request, $instance, $server) {
+        Coroutine::defer(static function () use ($request, $instance, $server) {
             if ($instance instanceof OnOpenInterface) {
                 $instance->onOpen($server, $request);
             }

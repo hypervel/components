@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
@@ -121,7 +122,7 @@ class Redis implements FactoryContract, ConnectionContract
                     $connection->setDatabase((int) $arguments[0]);
                 }
                 Context::set($this->getContextKey(), $connection);
-                defer(function () {
+                Coroutine::defer(function () {
                     $this->releaseContextConnection();
                 });
             } else {

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Horizon;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Horizon;
@@ -57,7 +58,7 @@ abstract class IntegrationTestCase extends TestCase
     {
         $poolFactory = $this->app->make(PoolFactory::class);
 
-        defer(function () use ($poolFactory) {
+        Coroutine::defer(function () use ($poolFactory) {
             $pool = $poolFactory->getPool('default');
             $pool->flushOne(true);
 

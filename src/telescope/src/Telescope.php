@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
@@ -24,7 +25,6 @@ use Throwable;
 use function event;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
-use function Hypervel\Coroutine\defer;
 
 class Telescope
 {
@@ -283,7 +283,7 @@ class Telescope
         }
 
         if (! Context::get(static::HAS_STORED, false)) {
-            defer(function () {
+            Coroutine::defer(function () {
                 static::store(static::$store);
             });
             Context::set(static::HAS_STORED, true);
@@ -583,7 +583,7 @@ class Telescope
         }
 
         if (config('telescope.defer', true)) {
-            defer(fn () => static::executeStore($storage));
+            Coroutine::defer(fn () => static::executeStore($storage));
             return;
         }
 
