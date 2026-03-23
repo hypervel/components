@@ -10,6 +10,7 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Http\Middleware\TrimStrings;
@@ -339,6 +340,7 @@ class Middleware
     {
         $middleware = $this->global ?: array_values(array_filter([
             \Hypervel\Http\Middleware\ValidatePathEncoding::class,
+            InvokeDeferredCallbacks::class,
             $this->trustHosts ? \Hypervel\Http\Middleware\TrustHosts::class : null,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
