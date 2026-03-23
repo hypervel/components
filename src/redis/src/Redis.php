@@ -43,6 +43,14 @@ class Redis implements FactoryContract, ConnectionContract
     }
 
     /**
+     * Get the connection name.
+     */
+    public function getName(): string
+    {
+        return $this->poolName;
+    }
+
+    /**
      * Scan keys matching a pattern.
      * @param mixed $cursor
      */
@@ -256,17 +264,13 @@ class Redis implements FactoryContract, ConnectionContract
     }
 
     /**
-     * Execute a callback with serialization and compression temporarily disabled.
+     * Pin a pool connection in coroutine context for the duration of a callback.
      *
-     * Pins a pool connection in coroutine context so all Redis operations inside
-     * the callback use the same connection, disables phpredis serialization and
-     * compression on that connection, runs the callback, then restores settings
-     * and releases the connection.
-     *
-     * This is needed for rate limiter counters which must be stored as raw
-     * integers — phpredis serialization (e.g., igbinary) would corrupt them.
+     * All Redis operations inside the callback will reuse the same connection,
+     * avoiding multiple pool checkouts. Re-entrant: if a connection is already
+     * pinned, the callback runs on it without re-pinning.
      */
-    public function withoutSerializationOrCompression(callable $callback): mixed
+    public function withPinnedConnection(callable $callback): mixed
     {
         $contextKey = $this->getContextKey();
         $hadContextConnection = Context::has($contextKey);
@@ -277,13 +281,32 @@ class Redis implements FactoryContract, ConnectionContract
         }
 
         try {
-            return $connection->withoutSerializationOrCompression($callback);
+            return $callback();
         } finally {
             if (! $hadContextConnection) {
                 Context::set($contextKey, null);
                 $connection->release();
             }
         }
+    }
+
+    /**
+     * Execute a callback with serialization and compression temporarily disabled.
+     *
+     * Pins a pool connection and disables phpredis serialization and compression
+     * for the duration of the callback, then restores settings and releases.
+     *
+     * This is needed for rate limiter counters which must be stored as raw
+     * integers — phpredis serialization (e.g., igbinary) would corrupt them.
+     */
+    public function withoutSerializationOrCompression(callable $callback): mixed
+    {
+        return $this->withPinnedConnection(function () use ($callback) {
+            $contextKey = $this->getContextKey();
+            $connection = Context::get($contextKey);
+
+            return $connection->withoutSerializationOrCompression($callback);
+        });
     }
 
     /**
