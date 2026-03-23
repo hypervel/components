@@ -43,6 +43,11 @@ interface Store
     public function forever(string $key, mixed $value): bool;
 
     /**
+     * Set the expiration of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool;
+
+    /**
      * Remove an item from the cache.
      */
     public function forget(string $key): bool;
