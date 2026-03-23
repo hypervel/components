@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hypervel\Cache\Console\CacheTableCommand;
 use Hypervel\Cache\Console\ClearCommand;
+use Hypervel\Cache\Console\ForgetCommand;
 use Hypervel\Cache\Console\PruneDbExpiredCommand;
+use Hypervel\Cache\Console\PruneStaleTagsCommand;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
-use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
 use Hypervel\Framework\Events\BeforeServerStart;
 use Hypervel\Framework\Events\OnManagerStart;
 use Hypervel\Support\ServiceProvider;
@@ -34,8 +36,10 @@ class CacheServiceProvider extends ServiceProvider
 
         $this->commands([
             BenchmarkCommand::class,
+            CacheTableCommand::class,
             ClearCommand::class,
             DoctorCommand::class,
+            ForgetCommand::class,
             PruneDbExpiredCommand::class,
             PruneStaleTagsCommand::class,
         ]);
