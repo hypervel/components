@@ -1272,6 +1272,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'cache.store' => [
                 \Hypervel\Cache\Repository::class,
                 \Hypervel\Contracts\Cache\Repository::class,
+                \Psr\SimpleCache\CacheInterface::class,
             ],
             'config' => [
                 \Hypervel\Config\Repository::class,
