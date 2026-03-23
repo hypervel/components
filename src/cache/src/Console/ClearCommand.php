@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
+use BadMethodCallException;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
@@ -29,24 +30,65 @@ class ClearCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): ?int
+    public function handle(): int
     {
+        if ($this->option('locks')) {
+            return $this->clearLocks();
+        }
+
         $this->hypervel->make(Dispatcher::class)
             ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
 
-        if (! $this->cache()->getStore()->flush()) {
-            $this->error('Failed to clear cache. Make sure you have the appropriate permissions.');
-            return 1;
-        }
+        /** @phpstan-ignore method.notFound (flush() is on TaggedCache or via __call to the store) */
+        $successful = $this->cache()->flush();
 
         $this->flushRuntime();
+
+        if (! $successful) {
+            $this->components->error('Failed to clear cache. Make sure you have the appropriate permissions.');
+
+            return self::FAILURE;
+        }
 
         $this->hypervel->make(Dispatcher::class)
             ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
 
-        $this->info('Application cache cleared successfully.');
+        $this->components->info('Application cache cleared successfully.');
 
-        return 0;
+        return self::SUCCESS;
+    }
+
+    /**
+     * Clear all locks from the cache store.
+     */
+    protected function clearLocks(): int
+    {
+        if (! empty($this->tags())) {
+            $this->components->error('Cache tags cannot be used when clearing locks.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            /** @var \Hypervel\Cache\Repository $cache */
+            $cache = $this->cache();
+
+            $successful = $cache->flushLocks();
+        } catch (BadMethodCallException) {
+            $this->components->error('This cache store does not support clearing locks.');
+
+            return self::FAILURE;
+        }
+
+        if (! $successful) {
+            $this->components->error('Failed to clear cache locks. Make sure you have the appropriate permissions.');
+
+            return self::FAILURE;
+        }
+
+        $this->components->info('Application cache locks cleared successfully.');
+
+        return self::SUCCESS;
     }
 
     /**
@@ -67,7 +109,7 @@ class ClearCommand extends Command
     protected function flushRuntime(): void
     {
         $this->hypervel->make(Filesystem::class)
-            ->deleteDirectory(BASE_PATH . '/runtime/container');
+            ->deleteDirectory(base_path('runtime/container'));
     }
 
     /**
@@ -79,7 +121,7 @@ class ClearCommand extends Command
     }
 
     /**
-     *  Get the console command arguments.
+     * Get the console command arguments.
      */
     protected function getArguments(): array
     {
@@ -95,6 +137,7 @@ class ClearCommand extends Command
     {
         return [
             ['tags', null, InputOption::VALUE_OPTIONAL, 'The cache tags you would like to clear', null],
+            ['locks', null, InputOption::VALUE_NONE, 'Only clear cache locks'],
         ];
     }
 }
