@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Foundation\Vite;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -96,6 +97,34 @@ class InteractsWithContainerTest extends TestCase
 
         $this->assertSame([], app(Vite::class)->preloadedAssets());
         $this->assertSame($this, $instance);
+    }
+
+    public function testWithoutDefer()
+    {
+        $called = [];
+
+        defer(function () use (&$called) {
+            $called[] = 1;
+        });
+
+        $this->assertSame([], $called);
+
+        $instance = $this->withoutDefer();
+
+        defer(function () use (&$called) {
+            $called[] = 2;
+        });
+
+        $this->assertSame([2], $called);
+        $this->assertSame($this, $instance);
+
+        $this->withDefer();
+
+        $this->assertSame([2], $called);
+
+        $this->app->make(DeferredCallbackCollection::class)->invoke();
+
+        $this->assertSame([2, 1], $called);
     }
 
     public function testForgetMock()
