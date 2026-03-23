@@ -7,13 +7,15 @@ namespace Hypervel\Cache;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\QueryException;
 use InvalidArgumentException;
-
-use function optional;
+use Throwable;
 
 class DatabaseLock extends Lock implements RefreshableLock
 {
+    use DetectsConcurrencyErrors;
+
     /**
      * The database connection resolver.
      */
@@ -97,8 +99,8 @@ class DatabaseLock extends Lock implements RefreshableLock
             $acquired = $updated >= 1;
         }
 
-        if (random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
-            $connection->table($this->table)->where('expiration', '<=', $this->currentTime())->delete();
+        if (count($this->lottery) === 2 && random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
+            $this->pruneExpiredLocks();
         }
 
         return $acquired;
@@ -106,16 +108,26 @@ class DatabaseLock extends Lock implements RefreshableLock
 
     /**
      * Release the lock.
+     *
+     * @throws Throwable
      */
     public function release(): bool
     {
         if ($this->isOwnedByCurrentProcess()) {
-            $this->connection()->table($this->table)
-                ->where('key', $this->name)
-                ->where('owner', $this->owner)
-                ->delete();
+            try {
+                $this->connection()->table($this->table)
+                    ->where('key', $this->name)
+                    ->where('owner', $this->owner)
+                    ->delete();
 
-            return true;
+                return true;
+            } catch (Throwable $e) {
+                if ($this->causedByConcurrencyError($e)) {
+                    return true;
+                }
+
+                throw $e;
+            }
         }
 
         return false;
@@ -132,11 +144,32 @@ class DatabaseLock extends Lock implements RefreshableLock
     }
 
     /**
-     * Returns the owner value written into the driver for this lock.
+     * Delete locks that are past expiration.
+     *
+     * @throws Throwable
      */
-    protected function getCurrentOwner(): string
+    public function pruneExpiredLocks(): void
     {
-        return optional($this->connection()->table($this->table)->where('key', $this->name)->first())->owner ?? '';
+        try {
+            $this->connection()->table($this->table)
+                ->where('expiration', '<=', $this->currentTime())
+                ->delete();
+        } catch (Throwable $e) {
+            if (! $this->causedByConcurrencyError($e)) {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * Return the owner value written into the driver for this lock.
+     */
+    protected function getCurrentOwner(): ?string
+    {
+        return $this->connection()->table($this->table)
+            ->where('key', $this->name)
+            ->first()
+            ?->owner;
     }
 
     /**
@@ -199,5 +232,13 @@ class DatabaseLock extends Lock implements RefreshableLock
         }
 
         return (float) $remaining;
+    }
+
+    /**
+     * Get the name of the database connection being used to manage the lock.
+     */
+    public function getConnectionName(): string
+    {
+        return $this->connectionName;
     }
 }
