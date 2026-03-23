@@ -42,9 +42,9 @@ class CacheDatabaseStoreTest extends TestCase
             'expiration' => $now->copy()->subSeconds(10)->getTimestamp(),
         ]]));
 
-        // Second call for deletion of expired items
+        // Second call for deletion of expired items (includes flexible key cleanup)
         $table->shouldReceive('whereIn')->once()
-            ->with('key', ['prefixfoo'])
+            ->with('key', ['prefixfoo', 'prefixhypervel:cache:flexible:created:foo'])
             ->andReturn($table);
         $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once();
@@ -111,10 +111,10 @@ class CacheDatabaseStoreTest extends TestCase
             ],
         ]));
 
-        // Second call for deletion
+        // Second call for deletion (includes flexible key cleanup)
         $table->shouldReceive('whereIn')
             ->once()
-            ->with('key', ['prefixfoo'])
+            ->with('key', ['prefixfoo', 'prefixhypervel:cache:flexible:created:foo'])
             ->andReturn($table);
         $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once();
@@ -164,13 +164,13 @@ class CacheDatabaseStoreTest extends TestCase
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection());
 
-        // Insert
-        $table->shouldReceive('insert')->once()->with(m::on(function ($arg) {
+        // Insert (uses insertOrIgnore for atomicity)
+        $table->shouldReceive('insertOrIgnore')->once()->with(m::on(function ($arg) {
             return is_array($arg)
                 && $arg['key'] === 'prefixfoo'
                 && $arg['value'] === serialize('bar')
                 && is_int($arg['expiration']);
-        }))->andReturn(true);
+        }))->andReturn(1);
 
         $this->assertTrue($store->add('foo', 'bar', 10));
     }
@@ -272,7 +272,9 @@ class CacheDatabaseStoreTest extends TestCase
     public function testItemsCanBeForgotten()
     {
         [$store, $table] = $this->getStore();
-        $table->shouldReceive('where')->once()->with('key', '=', 'prefixfoo')->andReturn($table);
+        $table->shouldReceive('whereIn')->once()
+            ->with('key', ['prefixfoo', 'prefixhypervel:cache:flexible:created:foo'])
+            ->andReturn($table);
         $table->shouldReceive('delete')->once();
 
         $this->assertTrue($store->forget('foo'));
