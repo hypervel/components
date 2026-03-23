@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Support\Carbon;
 use InvalidArgumentException;
 
 class ArrayLock extends Lock implements RefreshableLock
@@ -79,10 +79,14 @@ class ArrayLock extends Lock implements RefreshableLock
     }
 
     /**
-     * Returns the owner value written into the driver for this lock.
+     * Return the owner value written into the driver for this lock.
      */
-    protected function getCurrentOwner(): string
+    protected function getCurrentOwner(): ?string
     {
+        if (! $this->exists()) {
+            return null;
+        }
+
         return $this->store->locks[$this->name]['owner'];
     }
 
