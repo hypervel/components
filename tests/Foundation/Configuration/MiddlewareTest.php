@@ -303,6 +303,7 @@ class MiddlewareTest extends TestCase
 
         $this->assertSame([
             \Hypervel\Http\Middleware\ValidatePathEncoding::class,
+            \Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
             \Hypervel\Http\Middleware\ValidatePostSize::class,
