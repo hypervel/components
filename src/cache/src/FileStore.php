@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Exception;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 
-class FileStore implements Store, LockProvider
+class FileStore implements CanFlushLocks, LockProvider, Store
 {
     use InteractsWithTime;
     use RetrievesMultipleKeys;
@@ -38,13 +40,23 @@ class FileStore implements Store, LockProvider
     protected ?int $filePermission;
 
     /**
+     * The classes that should be allowed during unserialization.
+     */
+    protected array|bool|null $serializableClasses;
+
+    /**
      * Create a new file cache store instance.
      */
-    public function __construct(Filesystem $files, string $directory, ?int $filePermission = null)
-    {
+    public function __construct(
+        Filesystem $files,
+        string $directory,
+        ?int $filePermission = null,
+        array|bool|null $serializableClasses = null,
+    ) {
         $this->files = $files;
         $this->directory = $directory;
         $this->filePermission = $filePermission;
+        $this->serializableClasses = $serializableClasses;
     }
 
     /**
@@ -147,8 +159,8 @@ class FileStore implements Store, LockProvider
         $this->ensureCacheDirectoryExists($this->lockDirectory ?? $this->directory);
 
         return new FileLock(
-            new static($this->files, $this->lockDirectory ?? $this->directory, $this->filePermission),
-            $name,
+            new static($this->files, $this->lockDirectory ?? $this->directory, $this->filePermission, $this->serializableClasses),
+            "file-store-lock:{$name}",
             $seconds,
             $owner
         );
@@ -163,12 +175,30 @@ class FileStore implements Store, LockProvider
     }
 
     /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        $payload = $this->getPayload($this->getPrefix() . $key);
+
+        if (is_null($payload['data'])) {
+            return false;
+        }
+
+        return $this->put($key, $payload['data'], $seconds);
+    }
+
+    /**
      * Remove an item from the cache.
      */
     public function forget(string $key): bool
     {
         if ($this->files->exists($file = $this->path($key))) {
-            return $this->files->delete($file);
+            return tap($this->files->delete($file), function ($forgotten) use ($key) {
+                if ($forgotten && $this->files->exists($file = $this->path("hypervel:cache:flexible:created:{$key}"))) {
+                    $this->files->delete($file);
+                }
+            });
         }
 
         return false;
@@ -195,6 +225,32 @@ class FileStore implements Store, LockProvider
     }
 
     /**
+     * Remove all locks from the store.
+     *
+     * @throws RuntimeException
+     */
+    public function flushLocks(): bool
+    {
+        if (! $this->hasSeparateLockStore()) {
+            throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
+        }
+
+        if (! $this->files->isDirectory($this->lockDirectory)) {
+            return false;
+        }
+
+        foreach ($this->files->directories($this->lockDirectory) as $lockDirectory) {
+            $deleted = $this->files->deleteDirectory($lockDirectory);
+
+            if (! $deleted || $this->files->exists($lockDirectory)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Get the Filesystem instance.
      */
     public function getFilesystem(): Filesystem
@@ -208,6 +264,16 @@ class FileStore implements Store, LockProvider
     public function getDirectory(): string
     {
         return $this->directory;
+    }
+
+    /**
+     * Set the working directory of the cache.
+     */
+    public function setDirectory(string $directory): static
+    {
+        $this->directory = $directory;
+
+        return $this;
     }
 
     /**
@@ -287,7 +353,7 @@ class FileStore implements Store, LockProvider
         }
 
         try {
-            $data = unserialize(substr($contents, 10));
+            $data = $this->unserialize(substr($contents, 10));
         } catch (Exception $e) {
             $this->forget($key);
 
@@ -300,6 +366,18 @@ class FileStore implements Store, LockProvider
         $time = $expire - $this->currentTime();
 
         return compact('data', 'time');
+    }
+
+    /**
+     * Unserialize the given value.
+     */
+    protected function unserialize(string $value): mixed
+    {
+        if ($this->serializableClasses !== null) {
+            return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
+        }
+
+        return unserialize($value);
     }
 
     /**
@@ -328,5 +406,13 @@ class FileStore implements Store, LockProvider
         $time = $this->availableAt($seconds);
 
         return $seconds === 0 || $time > 9999999999 ? 9999999999 : $time;
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        return $this->lockDirectory !== null && $this->lockDirectory !== $this->directory;
     }
 }
