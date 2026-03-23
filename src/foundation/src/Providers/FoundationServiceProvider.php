@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Providers;
 
 use Hypervel\Config\Repository;
+use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
@@ -85,7 +86,10 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Composer;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
@@ -149,6 +153,7 @@ class FoundationServiceProvider extends ServiceProvider
             $app->basePath()
         ));
 
+        $this->registerDeferHandler();
         $this->registerConsoleSchedule();
         $this->listenCommandException();
         $this->registerMaintenanceModeManager();
@@ -226,6 +231,28 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Schedule::class, function ($app) {
             return $app->make(ConsoleKernelContract::class)->resolveConsoleSchedule();
+        });
+    }
+
+    /**
+     * Register the defer lifecycle handlers.
+     */
+    protected function registerDeferHandler(): void
+    {
+        $this->app->scoped(DeferredCallbackCollection::class);
+
+        $this->app['events']->listen(function (CommandFinished $event) {
+            $this->app->make(DeferredCallbackCollection::class)
+                ->invokeWhen(fn (DeferredCallback $callback) => $this->app->runningInConsole() && ($event->exitCode === 0 || $callback->always));
+        });
+
+        $this->app['events']->listen(function (JobAttempted $event) {
+            if (in_array($event->connectionName, ['sync', 'deferred'], true)) {
+                return;
+            }
+
+            $this->app->make(DeferredCallbackCollection::class)
+                ->invokeWhen(fn (DeferredCallback $callback) => $event->successful() || $callback->always);
         });
     }
 
