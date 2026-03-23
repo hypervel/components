@@ -48,6 +48,9 @@
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4"
     },
+    "provide": {
+        "psr/simple-cache-implementation": "3.0"
+    },
     "suggest": {
         "hypervel/telescope": "Required for benchmark monitoring detection (^0.4)."
     },
