@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Redis\Redis;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -52,10 +53,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), 1, 'foo', $lock->owner())
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner')
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->release());
     }
@@ -76,10 +86,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), 1, 'foo', $lock->owner(), 10)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 10)
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->refresh());
     }
@@ -88,10 +107,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), 1, 'foo', $lock->owner(), 30)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 30)
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->refresh(30));
     }
@@ -100,10 +128,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), 1, 'foo', $lock->owner(), 10)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 10)
             ->andReturn(0);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertFalse($lock->refresh());
     }
