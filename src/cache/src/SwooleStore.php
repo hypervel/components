@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Carbon\Carbon;
 use Closure;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Carbon;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Swoole\Table;
@@ -153,6 +153,22 @@ class SwooleStore implements Store
     public function forever(string $key, mixed $value): bool
     {
         return $this->put($key, $value, static::ONE_YEAR);
+    }
+
+    /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        $record = $this->getRecord($key);
+
+        if ($this->recordIsFalseOrExpired($record)) {
+            return false;
+        }
+
+        $record['expiration'] = $this->getCurrentTimestamp() + $seconds;
+
+        return $this->table->set($key, $record);
     }
 
     /**
