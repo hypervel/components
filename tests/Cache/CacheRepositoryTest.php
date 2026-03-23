@@ -615,6 +615,82 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['default'], $repo->array('foo', ['default']));
     }
 
+    public function testRememberFiresEventsWithPinnableStore()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $store->shouldReceive('put')->once()->with('foo', 'bar', 10);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->times(4); // RetrievingKey, CacheMissed, WritingKey, KeyWritten
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->remember('foo', 10, fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testRememberForeverFiresEventsWithPinnableStore()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $store->shouldReceive('forever')->once()->with('foo', 'bar');
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->times(4); // RetrievingKey, CacheMissed, WritingKey, KeyWritten
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->rememberForever('foo', fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testRememberHitFiresEventsWithPinnableStore()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn('cached');
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->twice(); // RetrievingKey, CacheHit
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->remember('foo', 10, fn () => 'bar');
+
+        $this->assertSame('cached', $result);
+    }
+
+    public function testRememberWorksWithoutPinnableStore()
+    {
+        $store = m::mock(ArrayStore::class);
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $store->shouldReceive('put')->once()->with('foo', 'bar', 10);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->with(m::any())->andReturnNull();
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->remember('foo', 10, fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
     protected function getRepository()
     {
         $dispatcher = m::mock(Dispatcher::class);

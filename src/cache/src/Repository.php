@@ -6,7 +6,6 @@ namespace Hypervel\Cache;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -14,6 +13,9 @@ use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheLocksFlushed;
+use Hypervel\Cache\Events\CacheLocksFlushFailed;
+use Hypervel\Cache\Events\CacheLocksFlushing;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Events\KeyForgetFailed;
@@ -24,14 +26,18 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Contracts\Cache\CanFlushLocks;
+use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use UnitEnum;
 
+use function Hypervel\Support\defer;
 use function Hypervel\Support\enum_value;
 
 /**
@@ -71,26 +77,6 @@ class Repository implements ArrayAccess, CacheContract
     {
         $this->store = $store;
         $this->config = $config;
-    }
-
-    /**
-     * Handle dynamic calls into macros or pass missing methods to the store.
-     */
-    public function __call(string $method, array $parameters): mixed
-    {
-        if (static::hasMacro($method)) {
-            return $this->macroCall($method, $parameters);
-        }
-
-        return $this->store->{$method}(...$parameters);
-    }
-
-    /**
-     * Clone cache repository instance.
-     */
-    public function __clone()
-    {
-        $this->store = clone $this->store;
     }
 
     /**
@@ -154,7 +140,7 @@ class Repository implements ArrayAccess, CacheContract
 
         $values = $this->store->many(
             collect($keys)->map(function ($value, $key) {
-                return is_string($key) ? $key : $value;
+                return is_string($key) ? $key : enum_value($value);
             })->values()->all()
         );
 
@@ -168,7 +154,7 @@ class Repository implements ArrayAccess, CacheContract
         $defaults = [];
 
         foreach ($keys as $key) {
-            $defaults[$key] = $default;
+            $defaults[enum_value($key)] = $default;
         }
 
         return $this->many($defaults);
@@ -461,27 +447,26 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
-        // Use optimized single-connection path for RedisStore
-        if ($this->store instanceof RedisStore) {
-            return $this->store->remember(
-                $this->itemKey($key),
-                $this->getSeconds($ttl),
-                $callback
-            );
-        }
+        $remember = function () use ($key, $ttl, $callback) {
+            $value = $this->get($key);
 
-        $value = $this->get($key);
+            // If the item exists in the cache we will just return this immediately and if
+            // not we will execute the given Closure and cache the result of that for a
+            // given number of seconds so it's available for all subsequent requests.
+            if (! is_null($value)) {
+                return $value;
+            }
 
-        // If the item exists in the cache we will just return this immediately and if
-        // not we will execute the given Closure and cache the result of that for a
-        // given number of seconds so it's available for all subsequent requests.
-        if (! is_null($value)) {
+            $value = $callback();
+
+            $this->put($key, $value, value($ttl, $value));
+
             return $value;
-        }
+        };
 
-        $this->put($key, $value = $callback(), $ttl);
-
-        return $value;
+        return method_exists($this->store, 'withPinnedConnection')
+            ? $this->store->withPinnedConnection($remember)
+            : $remember();
     }
 
     /**
@@ -509,35 +494,107 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
-        // Use optimized single-connection path for RedisStore
-        if ($this->store instanceof RedisStore) {
-            [$value, $wasHit] = $this->store->rememberForever(
-                $this->itemKey($key),
-                $callback
-            );
+        $remember = function () use ($key, $callback) {
+            $value = $this->get($key);
 
-            if ($wasHit) {
-                $this->event(new CacheHit($this->getName(), $key, $value));
-            } else {
-                $this->event(new CacheMissed($this->getName(), $key));
-                $this->event(new KeyWritten($this->getName(), $key, $value));
+            // If the item exists in the cache we will just return this immediately
+            // and if not we will execute the given Closure and cache the result
+            // of that forever so it is available for all subsequent requests.
+            if (! is_null($value)) {
+                return $value;
             }
 
+            $this->forever($key, $value = $callback());
+
+            return $value;
+        };
+
+        return method_exists($this->store, 'withPinnedConnection')
+            ? $this->store->withPinnedConnection($remember)
+            : $remember();
+    }
+
+    /**
+     * Retrieve an item from the cache by key, refreshing it in the background if it is stale.
+     *
+     * @template TCacheValue
+     *
+     * @param array{ 0: DateInterval|DateTimeInterface|int, 1: DateInterval|DateTimeInterface|int } $ttl
+     * @param callable(): TCacheValue $callback
+     * @param null|array{ seconds?: int, owner?: string } $lock
+     * @return TCacheValue
+     */
+    public function flexible(UnitEnum|string $key, array $ttl, callable $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
+    {
+        $key = enum_value($key);
+
+        [
+            $key => $value,
+            "hypervel:cache:flexible:created:{$key}" => $created,
+        ] = $this->many([$key, "hypervel:cache:flexible:created:{$key}"]);
+
+        if (in_array(null, [$value, $created], true)) {
+            return tap(value($callback), fn ($value) => $this->putMany([
+                $key => $value,
+                "hypervel:cache:flexible:created:{$key}" => Carbon::now()->getTimestamp(),
+            ], $ttl[1]));
+        }
+
+        if (($created + $this->getSeconds($ttl[0])) > Carbon::now()->getTimestamp()) {
             return $value;
         }
 
-        $value = $this->get($key);
+        $refresh = function () use ($key, $ttl, $callback, $lock, $created) {
+            $this->store->lock( // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
+                "hypervel:cache:flexible:lock:{$key}",
+                $lock['seconds'] ?? 0,
+                $lock['owner'] ?? null,
+            )->get(function () use ($key, $callback, $created, $ttl) {
+                if ($created !== $this->get("hypervel:cache:flexible:created:{$key}")) {
+                    return;
+                }
 
-        // If the item exists in the cache we will just return this immediately
-        // and if not we will execute the given Closure and cache the result
-        // of that forever so it is available for all subsequent requests.
-        if (! is_null($value)) {
-            return $value;
-        }
+                $this->putMany([
+                    $key => value($callback),
+                    "hypervel:cache:flexible:created:{$key}" => Carbon::now()->getTimestamp(),
+                ], $ttl[1]);
+            });
+        };
 
-        $this->forever($key, $value = $callback());
+        defer($refresh, "hypervel:cache:flexible:{$key}", $alwaysDefer);
 
         return $value;
+    }
+
+    /**
+     * Set the expiration of a cached item; null TTL will retain the item forever.
+     */
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    {
+        $value = $this->get($key);
+
+        if (is_null($value)) {
+            return false;
+        }
+
+        return is_null($ttl)
+            ? $this->forever($key, $value)
+            : $this->store->touch($this->itemKey($key), $this->getSeconds($ttl));
+    }
+
+    /**
+     * Execute a callback while holding an atomic lock on a cache mutex to prevent overlapping calls.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
+     *
+     * @throws LockTimeoutException
+     */
+    public function withoutOverlapping(UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, ?string $owner = null): mixed
+    {
+        return $this->store->lock(enum_value($key), $lockFor, $owner)->block($waitFor, $callback); // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
     }
 
     /**
@@ -592,6 +649,32 @@ class Repository implements ArrayAccess, CacheContract
     }
 
     /**
+     * Flush all locks from the cache store.
+     *
+     * @throws BadMethodCallException
+     */
+    public function flushLocks(): bool
+    {
+        $store = $this->getStore();
+
+        if (! $this->supportsFlushingLocks()) {
+            throw new BadMethodCallException('This cache store does not support flushing locks.');
+        }
+
+        $this->event(new CacheLocksFlushing($this->getName()));
+
+        $result = $store->flushLocks(); // @phpstan-ignore method.notFound (flushLocks() is on CanFlushLocks, verified by supportsFlushingLocks() above)
+
+        if ($result) {
+            $this->event(new CacheLocksFlushed($this->getName()));
+        } else {
+            $this->event(new CacheLocksFlushFailed($this->getName()));
+        }
+
+        return $result;
+    }
+
+    /**
      * Begin executing a new tags operation if the store supports it.
      *
      * @throws BadMethodCallException
@@ -608,6 +691,8 @@ class Repository implements ArrayAccess, CacheContract
         /* @phpstan-ignore-next-line */
         $cache = $this->store->tags($names);
 
+        $cache->config = $this->config;
+
         if (! is_null($this->events)) {
             $cache->setEventDispatcher($this->events);
         }
@@ -621,6 +706,14 @@ class Repository implements ArrayAccess, CacheContract
     public function supportsTags(): bool
     {
         return method_exists($this->store, 'tags');
+    }
+
+    /**
+     * Determine if the current store supports flushing locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return $this->store instanceof CanFlushLocks;
     }
 
     /**
@@ -647,6 +740,16 @@ class Repository implements ArrayAccess, CacheContract
     public function getStore(): Store
     {
         return $this->store;
+    }
+
+    /**
+     * Set the cache store implementation.
+     */
+    public function setStore(Store $store): static
+    {
+        $this->store = $store;
+
+        return $this;
     }
 
     /**
@@ -769,7 +872,7 @@ class Repository implements ArrayAccess, CacheContract
 
         if ($duration instanceof DateTimeInterface) {
             $duration = (int) ceil(
-                Carbon::now()->diffInMilliseconds($duration) / 1000
+                Carbon::now()->diffInMilliseconds($duration, false) / 1000
             );
         }
 
@@ -790,5 +893,25 @@ class Repository implements ArrayAccess, CacheContract
     public static function flushState(): void
     {
         static::flushMacros();
+    }
+
+    /**
+     * Handle dynamic calls into macros or pass missing methods to the store.
+     */
+    public function __call(string $method, array $parameters): mixed
+    {
+        if (static::hasMacro($method)) {
+            return $this->macroCall($method, $parameters);
+        }
+
+        return $this->store->{$method}(...$parameters);
+    }
+
+    /**
+     * Clone cache repository instance.
+     */
+    public function __clone()
+    {
+        $this->store = clone $this->store;
     }
 }
