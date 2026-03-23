@@ -56,6 +56,18 @@ class StackStoreProxy implements Store
         return $this->store->put($key, $value, $this->ttl);
     }
 
+    /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        if (is_null($this->ttl) || $seconds < $this->ttl) {
+            return $this->store->touch($key, $seconds);
+        }
+
+        return $this->store->touch($key, $this->ttl);
+    }
+
     public function forget(string $key): bool
     {
         return $this->call(__FUNCTION__, func_get_args());
