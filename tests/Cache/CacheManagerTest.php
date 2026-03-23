@@ -390,6 +390,53 @@ class CacheManagerTest extends TestCase
         $this->assertSame(TagMode::All, $store->getTagMode());
     }
 
+    public function testSessionDriverResolvesSessionStore()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'session' => [
+                        'driver' => 'session',
+                        'key' => '_test_cache',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+
+        $session = m::mock(\Hypervel\Contracts\Session\Session::class);
+        $app->instance('session.store', $session);
+
+        $cacheManager = new CacheManager($app);
+
+        $repository = $cacheManager->store('session');
+        $store = $repository->getStore();
+
+        $this->assertInstanceOf(\Hypervel\Cache\SessionStore::class, $store);
+    }
+
+    public function testSessionDriverThrowsWhenSessionNotAvailable()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Session store requires session manager to be available in container.');
+
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'session' => [
+                        'driver' => 'session',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+
+        $cacheManager = new CacheManager($app);
+        $cacheManager->store('session');
+    }
+
     protected function getApp(array $userConfig): Container
     {
         $app = new Container();
