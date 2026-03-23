@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
@@ -23,7 +22,6 @@ use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Cookie\CookieJar;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
@@ -31,6 +29,8 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Log\LogManager;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
@@ -946,34 +946,10 @@ if (! function_exists('defer')) {
     /**
      * Defer execution of the given callback.
      *
-     * When a name is provided, only the last callback registered with that
-     * name will execute (named deduplication). Unnamed calls go directly
-     * to Coroutine::defer() with zero overhead.
+     * @return ($callback is null ? DeferredCallbackCollection : DeferredCallback)
      */
-    function defer(callable $callback, ?string $name = null): void
+    function defer(?callable $callback = null, ?string $name = null, bool $always = false): DeferredCallback|DeferredCallbackCollection
     {
-        if ($name === null) {
-            Coroutine::defer($callback);
-            return;
-        }
-
-        // Register the drain hook BEFORE writing to Context (fail-fast:
-        // if we're outside a coroutine, Co::defer() fails before any
-        // Context mutation occurs).
-        if (! Context::has('__foundation.deferred_callbacks_registered')) {
-            Coroutine::defer(function () {
-                $callbacks = Context::get('__foundation.deferred_callbacks', []);
-                foreach ($callbacks as $deferred) {
-                    $deferred();
-                }
-            });
-            Context::set('__foundation.deferred_callbacks_registered', true);
-        }
-
-        Context::override('__foundation.deferred_callbacks', function (?array $callbacks) use ($name, $callback) {
-            $callbacks ??= [];
-            $callbacks[$name] = $callback;
-            return $callbacks;
-        });
+        return \Hypervel\Support\defer($callback, $name, $always);
     }
 }
