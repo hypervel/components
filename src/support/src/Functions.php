@@ -7,6 +7,9 @@ namespace Hypervel\Support;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use DateTimeZone;
+use Hypervel\Container\Container;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Symfony\Component\Process\PhpExecutableFinder;
 use UnitEnum;
@@ -25,6 +28,25 @@ function php_binary(): string
 function artisan_binary(): string
 {
     return defined('ARTISAN_BINARY') ? ARTISAN_BINARY : 'artisan';
+}
+
+/**
+ * Defer execution of the given callback.
+ *
+ * @return ($callback is null ? DeferredCallbackCollection : DeferredCallback)
+ */
+function defer(?callable $callback = null, ?string $name = null, bool $always = false): DeferredCallback|DeferredCallbackCollection
+{
+    $callbacks = Container::getInstance()->make(DeferredCallbackCollection::class);
+
+    if ($callback === null) {
+        return $callbacks;
+    }
+
+    $deferred = new DeferredCallback($callback, $name, $always);
+    $callbacks[] = $deferred;
+
+    return $deferred;
 }
 
 /**
