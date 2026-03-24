@@ -98,6 +98,7 @@ class GeneratorCommandTest extends TestCase
         $reflection->setValue($this->app, 'App\\');
 
         $command = new GeneratorCommandStub();
+        $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')

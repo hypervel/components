@@ -34,6 +34,7 @@ class CommandMutexTest extends TestCase
                 ++$this->ran;
             }
         };
+        $this->command->setHypervel($this->app);
 
         $this->commandMutex = m::mock(CommandMutex::class);
 

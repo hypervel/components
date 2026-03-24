@@ -47,6 +47,7 @@ class DoctorCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput());
 
         $this->assertSame(1, $result);
@@ -98,6 +99,7 @@ class DoctorCommandTest extends TestCase
         // The command will fail at environment checks (Redis version check for 'any' mode)
         // but this tests that store detection works
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput([]), $output);
 
@@ -153,6 +155,7 @@ class DoctorCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput(['--store' => 'custom-redis']), $output);
 
@@ -198,6 +201,7 @@ class DoctorCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput(['--store' => 'redis']), $output);
 
@@ -223,6 +227,7 @@ class DoctorCommandTest extends TestCase
         $this->app->instance('config', $config);
 
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $result = $command->run(new ArrayInput([]), $output);
 
@@ -272,6 +277,7 @@ class DoctorCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
+        $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput([]), $output);
 

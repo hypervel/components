@@ -51,7 +51,9 @@ class CommandTest extends TestCase
         $application->shouldReceive('getHelperSet');
 
         /** @var FooExceptionCommand $command */
-        $command = new ClassInvoker(new FooExceptionCommand('foo'));
+        $instance = new FooExceptionCommand('foo');
+        $instance->setHypervel($this->app);
+        $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
         $input = m::mock(InputInterface::class);
@@ -61,14 +63,18 @@ class CommandTest extends TestCase
         $this->assertSame(1, $exitCode);
 
         /** @var FooExitCommand $command */
-        $command = new ClassInvoker(new FooExitCommand());
+        $instance = new FooExitCommand();
+        $instance->setHypervel($this->app);
+        $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
         $exitCode = $command->execute($input, $output);
         $this->assertSame(11, $exitCode);
 
         /** @var FooCommand $command */
-        $command = new ClassInvoker(new FooCommand());
+        $instance = new FooCommand();
+        $instance->setHypervel($this->app);
+        $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
         $exitCode = $command->execute($input, $output);
@@ -101,7 +107,9 @@ class CommandTest extends TestCase
         $application->shouldReceive('getHelperSet');
 
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $command = new ClassInvoker(new FooProhibitableCommand());
+        $instance = new FooProhibitableCommand();
+        $instance->setHypervel($this->app);
+        $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
         $input = m::mock(InputInterface::class);
@@ -113,6 +121,7 @@ class CommandTest extends TestCase
 
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $instance = new FooProhibitableCommand();
+        $instance->setHypervel($this->app);
         $instance->setApplication($application);
         $instance->setOutput($output);
         (fn () => $this->components = new Factory($output))->call($instance);
@@ -234,6 +243,8 @@ class CommandTest extends TestCase
                 ];
             }
         };
+
+        $command->setHypervel($this->app);
 
         $input = new ArrayInput([
             'argument-one' => 'test-first-argument',
@@ -358,6 +369,22 @@ class CommandTest extends TestCase
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
+    }
+
+    public function testCommandCanBeConstructedWithoutBootedApplication()
+    {
+        $command = new CommandTestStubCommand();
+
+        $this->assertSame('test:stub', $command->getName());
+    }
+
+    public function testAccessingApplicationBeforeInjectionThrows()
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The Hypervel application instance has not been set on this command.');
+
+        $command = new CommandTestStubCommand();
+        $command->getHypervel();
     }
 }
 

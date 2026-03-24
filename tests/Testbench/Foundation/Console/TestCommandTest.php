@@ -57,6 +57,7 @@ class TestCommandTest extends TestCase
     public function itBuildsPhpunitEnvironmentVariablesForPackageTests(): void
     {
         $command = new TestCommandHarness(['compact' => true, 'profile' => true]);
+        $command->setHypervel($this->app);
         $variables = $command->phpunitEnvironmentVariablesPublic();
 
         $this->assertSame('testing', $variables['APP_ENV']);
@@ -77,6 +78,7 @@ class TestCommandTest extends TestCase
             'drop-databases' => true,
             'without-databases' => true,
         ]);
+        $command->setHypervel($this->app);
 
         $arguments = $command->paratestArgumentsPublic([
             '--parallel',
