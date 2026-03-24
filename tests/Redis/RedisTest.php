@@ -11,6 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\Redis;
@@ -249,7 +250,7 @@ class RedisTest extends TestCase
 
     public function testReleasesConnectionWhenUnderlyingGetConnectionFails(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('shouldTransform')->andReturnSelf();
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('getConnection')
@@ -443,7 +444,7 @@ class RedisTest extends TestCase
 
     public function testWithConnectionDefaultsToTransformTrue(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')
@@ -461,7 +462,7 @@ class RedisTest extends TestCase
 
     public function testWithConnectionRespectsTransformFalse(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')
@@ -479,7 +480,7 @@ class RedisTest extends TestCase
 
     public function testWithConnectionRespectsTransformTrueExplicit(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')
@@ -740,12 +741,45 @@ class RedisTest extends TestCase
         $this->assertSame(42, $result);
     }
 
+    public function testIsClusterReturnsFalseForStandardConfig()
+    {
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('getConfig')->andReturn([
+            'host' => '127.0.0.1',
+            'port' => 6379,
+        ]);
+        $pool->shouldReceive('get')->never();
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $this->assertFalse($redis->isCluster());
+    }
+
+    public function testIsClusterReturnsTrueForClusterConfig()
+    {
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('getConfig')->andReturn([
+            'cluster' => ['enable' => true, 'seeds' => ['127.0.0.1:6379']],
+        ]);
+        $pool->shouldReceive('get')->never();
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $this->assertTrue($redis->isCluster());
+    }
+
     /**
      * Create a mock RedisConnection with standard expectations.
      */
     private function mockConnection(): m\MockInterface|RedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')->andReturnSelf();
@@ -787,7 +821,7 @@ class RedisTest extends TestCase
                 ->andReturn($returnValue);
         }
 
-        $mockRedisConnection = m::mock(RedisConnection::class);
+        $mockRedisConnection = m::mock(PhpRedisConnection::class);
         $mockRedisConnection->shouldReceive('shouldTransform')->andReturnSelf();
         $mockRedisConnection->shouldReceive('getConnection')->andReturn($mockRedisConnection);
         $mockRedisConnection->shouldReceive('getEventDispatcher')->andReturn($eventDispatcher);

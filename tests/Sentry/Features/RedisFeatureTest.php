@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -259,6 +260,6 @@ class RedisFeatureTest extends SentryTestCase
 
     private function createRedisConnection(string $name): RedisConnection
     {
-        return m::mock(RedisConnection::class);
+        return m::mock(PhpRedisConnection::class);
     }
 }

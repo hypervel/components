@@ -11,8 +11,11 @@ use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\LuaScriptException;
+use Hypervel\Redis\PhpRedisClusterConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Redis\Fixtures\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Log\LogLevel;
@@ -61,7 +64,7 @@ class RedisConnectionTest extends TestCase
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -89,7 +92,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(0)->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -115,7 +118,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(2)->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -137,7 +140,7 @@ class RedisConnectionTest extends TestCase
 
     public function testConnectionConfigMergesDefaults(): void
     {
-        $connection = new RedisConnectionStub(
+        $connection = new PhpRedisConnectionStub(
             $this->getContainer(),
             $this->getMockedPool(),
             [
@@ -225,11 +228,7 @@ class RedisConnectionTest extends TestCase
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('Connection reconnect failed');
 
-        new class($this->getContainer(), $this->getMockedPool(), ['cluster' => ['enable' => true, 'name' => 'mycluster', 'seeds' => [], 'read_timeout' => 1.0, 'persistent' => false], 'timeout' => 1.0]) extends RedisConnection {
-            protected function createRedis(array $config): Redis
-            {
-                throw new RuntimeException('createRedis should not be called for cluster config.');
-            }
+        new class($this->getContainer(), $this->getMockedPool(), ['cluster' => ['enable' => true, 'name' => 'mycluster', 'seeds' => [], 'read_timeout' => 1.0, 'persistent' => false], 'timeout' => 1.0]) extends PhpRedisClusterConnection {
         };
     }
 
@@ -305,7 +304,7 @@ class RedisConnectionTest extends TestCase
             ->with('foo')
             ->andReturn('bar');
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -342,7 +341,7 @@ class RedisConnectionTest extends TestCase
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
 
-        $connection = new class($container, $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($container, $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1173,11 +1172,7 @@ class RedisConnectionTest extends TestCase
 
     public function testIsClusterReturnsTrueForRedisCluster(): void
     {
-        $connection = $this->mockRedisConnection();
-
-        // Set a RedisCluster mock as the active connection
-        $clusterMock = m::mock(RedisCluster::class)->shouldIgnoreMissing();
-        $connection->setActiveConnection($clusterMock);
+        $connection = new PhpRedisClusterConnectionStub();
 
         $this->assertTrue($connection->isCluster());
     }
@@ -1375,7 +1370,7 @@ class RedisConnectionTest extends TestCase
             ->with('missing')
             ->andReturn(false);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1419,7 +1414,7 @@ class RedisConnectionTest extends TestCase
             ->with('key', 'value')
             ->andReturn(true);
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1496,7 +1491,7 @@ class RedisConnectionTest extends TestCase
         // C extension which tries a real connection. Instead, override callEval
         // to capture the arguments it receives after __call dispatches to it.
         $captured = [];
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1537,7 +1532,7 @@ class RedisConnectionTest extends TestCase
     public function testEvalReordersMultipleArguments()
     {
         $captured = [];
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1578,7 +1573,7 @@ class RedisConnectionTest extends TestCase
     public function testEvalWithNoKeysOrArguments()
     {
         $captured = [];
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1760,7 +1755,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['serializer' => Redis::SERIALIZER_PHP]], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['serializer' => Redis::SERIALIZER_PHP]], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1785,7 +1780,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(Redis::OPT_PREFIX, 'myapp:');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['prefix' => 'myapp:']], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['prefix' => 'myapp:']], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1810,7 +1805,7 @@ class RedisConnectionTest extends TestCase
         $this->expectException(\Hypervel\Redis\Exceptions\InvalidRedisOptionException::class);
         $this->expectExceptionMessage('The redis option key `bogus` is invalid.');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['bogus' => 'value']], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['bogus' => 'value']], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1837,7 +1832,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(Redis::OPT_SERIALIZER, Redis::SERIALIZER_JSON);
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => [Redis::OPT_SERIALIZER => Redis::SERIALIZER_JSON]], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => [Redis::OPT_SERIALIZER => Redis::SERIALIZER_JSON]], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1862,7 +1857,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with('secret');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => 'secret'], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => 'secret'], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1885,7 +1880,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldNotReceive('auth');
 
-        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => ''], $redis) extends RedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'password' => ''], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1916,14 +1911,14 @@ class RedisConnectionTest extends TestCase
         $this->assertNull($connection->client());
     }
 
-    public function testIsQueueingModeReturnsFalseForRedisCluster()
+    public function testClusterTransformFiresInAtomicMode()
     {
-        $connection = $this->mockRedisConnection(transform: true);
+        $connection = new PhpRedisClusterConnectionStub();
+        $connection->shouldTransform(true);
 
-        // RedisCluster doesn't have getMode() in the isQueueingMode check —
-        // the method returns false when connection is not Redis instance.
-        // This means transforms still fire for cluster connections during pipeline.
+        // In atomic mode, isQueueingMode() returns false, so transforms fire
         $clusterMock = m::mock(RedisCluster::class);
+        $clusterMock->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
         $clusterMock->shouldReceive('setNx')
             ->once()
             ->with('key', 'value')
@@ -1931,8 +1926,6 @@ class RedisConnectionTest extends TestCase
 
         $connection->setActiveConnection($clusterMock);
 
-        // With transform enabled on a cluster connection, callSetnx should fire
-        // (isQueueingMode returns false for non-Redis)
         $result = $connection->__call('setnx', ['key', 'value']);
 
         $this->assertSame(1, $result);
@@ -1947,7 +1940,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->andThrow(new RedisException('first failure'));
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             private bool $constructed = false;
 
             public function __construct(
@@ -2008,7 +2001,7 @@ class RedisConnectionTest extends TestCase
 
     protected function mockRedisConnection(?ContainerContract $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
     {
-        $connection = new RedisConnectionStub(
+        $connection = new PhpRedisConnectionStub(
             $container ?? $this->getContainer(),
             $pool ?? $this->getMockedPool(),
             $options

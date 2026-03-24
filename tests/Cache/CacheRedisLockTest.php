@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\RedisLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Redis;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -53,7 +53,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with([$lock->owner()])
@@ -86,7 +86,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with([$lock->owner()])
@@ -107,7 +107,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with([$lock->owner()])
@@ -128,7 +128,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with([$lock->owner()])

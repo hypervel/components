@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis\Events;
 
 use Exception;
 use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -21,7 +21,7 @@ class CommandExecutedTest extends TestCase
         $command = 'GET';
         $parameters = ['key1'];
         $time = 0.1;
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connectionName = 'default';
         $result = 'value1';
         $throwable = null;
@@ -49,7 +49,7 @@ class CommandExecutedTest extends TestCase
     {
         $command = 'GET';
         $parameters = ['key1'];
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $event = new CommandExecuted(
             $command,
             $parameters,
@@ -67,7 +67,7 @@ class CommandExecutedTest extends TestCase
     {
         $command = 'HMSET';
         $parameters = ['hash1', ['field1' => 'value1', 'field2' => 'value2']];
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $event = new CommandExecuted(
             $command,
             $parameters,
@@ -91,7 +91,7 @@ class CommandExecutedTest extends TestCase
                 'field2' => 'value2',
             ],
         ];
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $event = new CommandExecuted(
             $command,
             $parameters,
@@ -109,7 +109,7 @@ class CommandExecutedTest extends TestCase
     {
         $command = 'GET';
         $parameters = ['key1'];
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $throwable = new Exception('Test exception');
         $event = new CommandExecuted(
             $command,

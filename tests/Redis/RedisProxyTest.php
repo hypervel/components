@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Context\Context;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\Redis as HypervelRedis;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -74,12 +74,28 @@ class RedisProxyTest extends TestCase
         $this->assertFalse(Context::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
-    /**
-     * Create a mock RedisConnection with standard expectations.
-     */
-    private function mockConnection(): m\MockInterface|RedisConnection
+    public function testIsClusterReadsCorrectPoolConfig(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('getConfig')->andReturn([
+            'cluster' => ['enable' => true, 'seeds' => ['127.0.0.1:6379']],
+        ]);
+        $pool->shouldReceive('get')->never();
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('cache')->andReturn($pool);
+
+        $proxy = new RedisProxy($poolFactory, 'cache');
+
+        $this->assertTrue($proxy->isCluster());
+    }
+
+    /**
+     * Create a mock PhpRedisConnection with standard expectations.
+     */
+    private function mockConnection(): m\MockInterface|PhpRedisConnection
+    {
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')->andReturnSelf();

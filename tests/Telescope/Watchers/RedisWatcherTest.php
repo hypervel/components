@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -53,7 +53,7 @@ class RedisWatcherTest extends FeatureTestCase
                 'command',
                 ['foo', 'bar'],
                 0.0123,
-                m::mock(RedisConnection::class),
+                m::mock(PhpRedisConnection::class),
                 'connection',
                 'result',
                 null

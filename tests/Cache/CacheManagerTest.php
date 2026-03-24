@@ -15,9 +15,9 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Events\Dispatcher as Event;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -503,7 +503,7 @@ class CacheManagerTest extends TestCase
             ->andReturn('');
 
         // Mock RedisConnection
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('serialized')->andReturn(false);
         $connection->shouldReceive('client')->andReturn($redisClient);

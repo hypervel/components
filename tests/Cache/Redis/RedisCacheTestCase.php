@@ -7,13 +7,15 @@ namespace Hypervel\Tests\Cache\Redis;
 use Carbon\Carbon;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Redis\PhpRedisClusterConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
-use Hypervel\Tests\Redis\Fixtures\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Mockery as m;
 use Redis;
 use RedisCluster;
@@ -70,9 +72,9 @@ abstract class RedisCacheTestCase extends TestCase
      * unexpected fallthrough to real Redis connections when expectations
      * don't match.
      *
-     * @return m\MockInterface|RedisConnection connection with _mockClient property for setting expectations
+     * @return m\MockInterface|PhpRedisConnection connection with _mockClient property for setting expectations
      */
-    protected function mockConnection(): m\MockInterface|RedisConnection
+    protected function mockConnection(): m\MockInterface|PhpRedisConnection
     {
         // Anonymous mock - not bound to Redis extension class
         // This prevents fallthrough to real Redis when expectations don't match
@@ -90,11 +92,10 @@ abstract class RedisCacheTestCase extends TestCase
         $client->shouldReceive('pipeline')->andReturn($client)->byDefault();
         $client->shouldReceive('exec')->andReturn([])->byDefault();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
-        $connection->shouldReceive('isCluster')->andReturn(false)->byDefault();
         $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_NONE)
@@ -117,12 +118,13 @@ abstract class RedisCacheTestCase extends TestCase
     /**
      * Create a mock RedisConnection configured as a cluster connection.
      *
-     * The client mock is configured to pass instanceof RedisCluster checks
-     * which triggers cluster mode (sequential commands instead of pipelines).
+     * Uses PhpRedisClusterConnection which returns true from isCluster()
+     * by its class definition, triggering cluster mode (sequential commands
+     * instead of pipelines).
      *
-     * @return m\MockInterface|RedisConnection connection with _mockClient property for setting expectations
+     * @return m\MockInterface|PhpRedisClusterConnection connection with _mockClient property for setting expectations
      */
-    protected function mockClusterConnection(): m\MockInterface|RedisConnection
+    protected function mockClusterConnection(): m\MockInterface|PhpRedisClusterConnection
     {
         // Mock that identifies as RedisCluster for instanceof checks
         $client = m::mock(RedisCluster::class);
@@ -135,11 +137,10 @@ abstract class RedisCacheTestCase extends TestCase
             ->andReturn('')
             ->byDefault();
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
-        $connection->shouldReceive('isCluster')->andReturn(true)->byDefault();
         $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_NONE)
@@ -187,6 +188,9 @@ abstract class RedisCacheTestCase extends TestCase
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('withConnection')
             ->andReturnUsing(fn (callable $callback) => $callback($connection));
+        $redisProxy->shouldReceive('isCluster')
+            ->andReturn($connection instanceof PhpRedisClusterConnection)
+            ->byDefault();
 
         $redisFactory = m::mock(RedisFactory::class);
         $redisFactory->shouldReceive('connection')
@@ -274,7 +278,7 @@ abstract class RedisCacheTestCase extends TestCase
     /**
      * Create a RedisStore with a FakeRedisClient.
      *
-     * Uses RedisConnectionStub (which extends the real RedisConnection) with FakeRedisClient
+     * Uses PhpRedisConnectionStub (which extends PhpRedisConnection) with FakeRedisClient
      * injected as the underlying client. This allows proper reference parameter handling
      * (e.g., &$iterator in SCAN/HSCAN/ZSCAN operations) which Mockery cannot propagate.
      *
@@ -292,7 +296,7 @@ abstract class RedisCacheTestCase extends TestCase
         string $connectionName = 'default',
         ?string $tagMode = null,
     ): RedisStore {
-        $connection = new RedisConnectionStub();
+        $connection = new PhpRedisConnectionStub();
         $connection->setActiveConnection($fakeClient);
 
         // Register RedisFactory mock for StoreContext::withConnection()

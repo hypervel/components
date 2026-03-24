@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\RedisLock;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Redis;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -71,7 +71,7 @@ class RedisLockTest extends TestCase
 
     public function testReleaseUsesLuaScriptToAtomicallyCheckOwnership(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with(['owner123'])
@@ -93,7 +93,7 @@ class RedisLockTest extends TestCase
 
     public function testReleaseReturnsFalseWhenNotOwner(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->with(['owner123'])
@@ -146,7 +146,7 @@ class RedisLockTest extends TestCase
 
     public function testGetCallsAcquireAndExecutesCallbackOnSuccess(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->andReturn(['packed-owner']);
@@ -187,7 +187,7 @@ class RedisLockTest extends TestCase
 
     public function testGetReleasesLockAfterCallbackEvenOnException(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('pack')
             ->once()
             ->andReturn(['packed-owner']);

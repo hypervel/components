@@ -13,7 +13,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -76,7 +76,7 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -133,7 +133,7 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -180,7 +180,7 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -256,7 +256,7 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.2.4']);
                 return $callback($connection);
             });
