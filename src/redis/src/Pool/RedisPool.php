@@ -8,8 +8,9 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Redis\Frequency;
+use Hypervel\Redis\PhpRedisClusterConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConfig;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Arr;
 
 class RedisPool extends Pool
@@ -53,6 +54,10 @@ class RedisPool extends Pool
      */
     protected function createConnection(): ConnectionInterface
     {
-        return new RedisConnection($this->container, $this, $this->config);
+        if ($this->config['cluster']['enable'] ?? false) {
+            return new PhpRedisClusterConnection($this->container, $this, $this->config);
+        }
+
+        return new PhpRedisConnection($this->container, $this, $this->config);
     }
 }
