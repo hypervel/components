@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -236,9 +237,17 @@ trait InteractsWithRedis
      * This client has OPT_PREFIX set to the test prefix, so keys
      * are automatically prefixed when using this client.
      */
-    protected function redisClient(): \Redis
+    protected function redisClient(string $connectionName = 'default'): \Redis
     {
-        return Redis::client();
+        $client = $this->rawRedisClientWithoutPrefix($connectionName);
+        $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
+        $prefix = $connectionConfig['options']['prefix'] ?? '';
+
+        if (is_string($prefix) && $prefix !== '') {
+            $client->setOption(\Redis::OPT_PREFIX, $prefix);
+        }
+
+        return $client;
     }
 
     /**
@@ -247,20 +256,27 @@ trait InteractsWithRedis
      * Useful for verifying actual key names in Redis. Uses the per-worker
      * DB number for parallel safety.
      */
-    protected function rawRedisClientWithoutPrefix(): \Redis
+    protected function rawRedisClientWithoutPrefix(string $connectionName = 'default'): \Redis
     {
+        $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
         $client = new \Redis();
         $client->connect(
-            env('REDIS_HOST', '127.0.0.1'),
-            (int) env('REDIS_PORT', 6379)
+            (string) $connectionConfig['host'],
+            (int) $connectionConfig['port']
         );
 
-        $auth = env('REDIS_PASSWORD');
-        if ($auth) {
-            $client->auth($auth);
+        $password = $connectionConfig['password'] ?? null;
+        $username = $connectionConfig['username'] ?? null;
+
+        if (is_string($password) && $password !== '') {
+            $client->auth(
+                is_string($username) && $username !== ''
+                    ? [$username, $password]
+                    : $password
+            );
         }
 
-        $client->select($this->getParallelRedisDb());
+        $client->select((int) ($connectionConfig['database'] ?? 0));
 
         return $client;
     }
