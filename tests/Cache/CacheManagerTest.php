@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Redis\TagMode;
@@ -13,6 +14,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Events\Dispatcher as Event;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -71,6 +73,18 @@ class CacheManagerTest extends TestCase
         $driver = $cacheManager->store('my_store');
 
         $this->assertSame('bar', $driver->get('foo'));
+    }
+
+    public function testItCanBuildRepositories()
+    {
+        $app = $this->getApp([]);
+        $cacheManager = new CacheManager($app);
+
+        $arrayCache = $cacheManager->build(['driver' => 'array']);
+        $nullCache = $cacheManager->build(['driver' => 'null']);
+
+        $this->assertInstanceOf(ArrayStore::class, $arrayCache->getStore());
+        $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
     }
 
     public function testItMakesRepositoryWhenContainerHasNoDispatcher()
@@ -435,6 +449,36 @@ class CacheManagerTest extends TestCase
 
         $cacheManager = new CacheManager($app);
         $cacheManager->store('session');
+    }
+
+    public function testMakesRepositoryWithoutDispatcherWhenEventsDisabled()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'my_store' => [
+                        'driver' => 'array',
+                    ],
+                    'my_store_without_events' => [
+                        'driver' => 'array',
+                        'events' => false,
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $app->bind(Dispatcher::class, fn () => new Event());
+
+        $cacheManager = new CacheManager($app);
+
+        // The repository will have an event dispatcher
+        $repo = $cacheManager->store('my_store');
+        $this->assertNotNull($repo->getEventDispatcher());
+
+        // This repository will not have an event dispatcher as 'events' is false
+        $repoWithoutEvents = $cacheManager->store('my_store_without_events');
+        $this->assertNull($repoWithoutEvents->getEventDispatcher());
     }
 
     protected function getApp(array $userConfig): Container
