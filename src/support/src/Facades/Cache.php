@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Mockery;
+
 /**
  * @method static \Hypervel\Contracts\Cache\Repository store(string|null $name = null)
  * @method static \Hypervel\Contracts\Cache\Repository driver(string|null $driver = null)
@@ -63,6 +65,30 @@ namespace Hypervel\Support\Facades;
  */
 class Cache extends Facade
 {
+    /**
+     * Initiate a spy on the cache facade.
+     *
+     * Uses a partial spy on the real instance so that methods like `memo()`
+     * execute their real implementation while still recording calls.
+     */
+    public static function spy()
+    {
+        if (! static::isMock()) {
+            $class = static::getMockableClass();
+            $instance = static::getFacadeRoot();
+
+            if ($class && $instance) {
+                return tap(Mockery::spy($instance)->makePartial(), function ($spy) {
+                    static::swap($spy);
+                });
+            }
+
+            return tap($class ? Mockery::spy($class) : Mockery::spy(), function ($spy) {
+                static::swap($spy);
+            });
+        }
+    }
+
     protected static function getFacadeAccessor(): string
     {
         return 'cache';
