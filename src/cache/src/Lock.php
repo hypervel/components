@@ -7,6 +7,7 @@ namespace Hypervel\Cache;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 
 abstract class Lock implements LockContract
@@ -98,7 +99,7 @@ abstract class Lock implements LockContract
                 throw new LockTimeoutException();
             }
 
-            usleep($this->sleepMilliseconds * 1000);
+            Sleep::usleep($this->sleepMilliseconds * 1000);
         }
 
         if (is_callable($callback)) {
