@@ -36,7 +36,7 @@ enum UnitEnumNamedRateLimiter
  * @internal
  * @coversNothing
  */
-class RateLimiterEnumTest extends TestCase
+class RateLimiterTest extends TestCase
 {
     #[DataProvider('registerNamedRateLimiterDataProvider')]
     public function testRegisterNamedRateLimiter(mixed $name, string $expected): void
