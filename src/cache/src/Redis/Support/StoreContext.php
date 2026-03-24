@@ -146,9 +146,10 @@ class StoreContext
      */
     public function isCluster(): bool
     {
-        return $this->withConnection(
-            fn (RedisConnection $connection) => $connection->isCluster()
-        );
+        return Container::getInstance()
+            ->make(RedisFactory::class)
+            ->connection($this->connectionName)
+            ->isCluster();
     }
 
     /**

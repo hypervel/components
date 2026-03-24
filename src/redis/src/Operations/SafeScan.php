@@ -6,6 +6,7 @@ namespace Hypervel\Redis\Operations;
 
 use Generator;
 use Hypervel\Redis\PhpRedis;
+use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -100,7 +101,7 @@ final class SafeScan
         }
 
         // Route to cluster or standard implementation
-        if ($this->connection->isCluster()) {
+        if ($this->connection instanceof PhpRedisClusterConnection) {
             yield from $this->scanCluster($scanPattern, $count, $prefixLen);
         } else {
             yield from $this->scanStandard($scanPattern, $count, $prefixLen);
@@ -147,8 +148,8 @@ final class SafeScan
     private function scanCluster(string $scanPattern, int $count, int $prefixLen): Generator
     {
         // Get all master nodes in the cluster
-        // @phpstan-ignore method.notFound (RedisCluster-specific method, available when isCluster() is true)
-        $masters = $this->connection->_masters();
+        // @phpstan-ignore method.notFound (only called when $this->connection instanceof PhpRedisClusterConnection)
+        $masters = $this->connection->masters();
 
         foreach ($masters as $master) {
             // Each master node needs its own cursor

@@ -51,6 +51,16 @@ class Redis implements FactoryContract, ConnectionContract
     }
 
     /**
+     * Determine if this connection uses Redis Cluster.
+     */
+    public function isCluster(): bool
+    {
+        $config = $this->factory->getPool($this->poolName)->getConfig();
+
+        return $config['cluster']['enable'] ?? false;
+    }
+
+    /**
      * Scan keys matching a pattern.
      * @param mixed $cursor
      */
