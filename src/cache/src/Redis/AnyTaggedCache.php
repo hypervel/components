@@ -171,7 +171,7 @@ class AnyTaggedCache extends TaggedCache
 
         if ($result) {
             foreach ($values as $key => $value) {
-                $this->event(new KeyWritten(null, $key, $value, $seconds));
+                $this->event(new KeyWritten(null, (string) $key, $value, $seconds));
             }
         }
 
@@ -354,7 +354,7 @@ class AnyTaggedCache extends TaggedCache
         $result = true;
 
         foreach ($values as $key => $value) {
-            if (! $this->forever($key, $value)) {
+            if (! $this->forever((string) $key, $value)) {
                 $result = false;
             }
         }
