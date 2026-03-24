@@ -6,29 +6,29 @@ namespace Hypervel\Tests\Redis\Fixtures;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\PoolInterface;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\PhpRedisClusterConnection;
 use Mockery as m;
 use Redis;
 use RedisCluster;
 use RedisException;
 
-class RedisConnectionStub extends RedisConnection
+class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
 {
-    protected Redis|RedisCluster|null $redisConnection = null;
+    protected ?RedisCluster $redisConnection = null;
 
     /**
      * Flexible constructor for testing.
      *
      * Can be called with no arguments (for simple tests that inject via setActiveConnection()),
-     * or with container/pool/config for tests that need full RedisConnection behavior.
+     * or with container/pool/config for tests that need full behavior.
      */
     public function __construct(?Container $container = null, ?PoolInterface $pool = null, array $config = [])
     {
         if ($container !== null && $pool !== null) {
-            // Full initialization for tests that need it (e.g., RedisConnectionTest)
-            parent::__construct($container, $pool, $config);
+            // Call grandparent to merge config without reconnecting
+            \Hypervel\Redis\RedisConnection::__construct($container, $pool, $config);
         }
-        // Otherwise, skip parent constructor for simple tests
+        // Skip reconnect() — tests inject connections via setActiveConnection()
     }
 
     public function reconnect(): bool
@@ -47,10 +47,10 @@ class RedisConnectionStub extends RedisConnection
             return $this;
         }
 
-        // Use shouldIgnoreMissing() to prevent falling through to real Redis
-        // methods when expectations don't match (which causes "Redis server went away")
+        // Use shouldIgnoreMissing() to prevent falling through to real RedisCluster
+        // methods when expectations don't match
         $connection = $this->redisConnection
-            ?? m::mock(Redis::class)->shouldIgnoreMissing();
+            ?? m::mock(RedisCluster::class)->shouldIgnoreMissing();
 
         $this->connection = $connection;
 
