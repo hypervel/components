@@ -6,19 +6,23 @@ namespace Hypervel\Tests\Cache;
 
 use ArrayIterator;
 use BadMethodCallException;
-use Carbon\Carbon;
 use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\FileStore;
+use Hypervel\Cache\Lock;
+use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -432,6 +436,16 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame($store->getDefaultCacheTime(), $repo->getDefaultCacheTime());
     }
 
+    public function testFlushLocksDelegatesToStore()
+    {
+        $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('flushLocks')->once()->andReturn(true);
+
+        $repo = new Repository($flushable);
+
+        $this->assertTrue($repo->flushLocks());
+    }
+
     public function testTaggableRepositoriesSupportTags()
     {
         $taggable = m::mock(TaggableStore::class);
@@ -446,6 +460,168 @@ class CacheRepositoryTest extends TestCase
         $nonTaggableRepo = new Repository($nonTaggable);
 
         $this->assertFalse($nonTaggableRepo->supportsTags());
+    }
+
+    public function testFlushableLockRepositorySupportsFlushingLocks()
+    {
+        $flushable = m::mock(RedisStore::class);
+        $flushableRepo = new Repository($flushable);
+
+        $this->assertTrue($flushableRepo->supportsFlushingLocks());
+    }
+
+    public function testNonFlushableLockRepositoryDoesNotSupportFlushingLocks()
+    {
+        $nonFlushable = m::mock(NullStore::class);
+        $nonFlushableRepo = new Repository($nonFlushable);
+
+        $this->assertFalse($nonFlushableRepo->supportsFlushingLocks());
+    }
+
+    public function testItThrowsExceptionWhenStoreDoesNotSupportFlushingLocks()
+    {
+        $this->expectException(BadMethodCallException::class);
+
+        $nonFlushable = m::mock(NullStore::class);
+        $nonFlushableRepo = new Repository($nonFlushable);
+
+        $nonFlushableRepo->flushLocks();
+    }
+
+    public function testTouchWithNullTTLRemembersItemForever()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
+        $repo->getStore()->shouldReceive('forever')->once()->with('key', 'bar')->andReturn(true);
+        $this->assertTrue($repo->touch('key', null));
+    }
+
+    public function testTouchWithSecondsTtlCorrectlyProxiesToStore()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
+        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
+        $this->assertTrue($repo->touch('key', 60));
+    }
+
+    public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
+        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
+        $this->assertTrue($repo->touch('key', $now->addSeconds(60)));
+    }
+
+    public function testTouchWithDateIntervalTtlCorrectlyProxiesToStore()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
+        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
+        $this->assertTrue($repo->touch('key', DateInterval::createFromDateString('60 seconds')));
+    }
+
+    public function testAtomicExecutesCallbackAndReturnsResult()
+    {
+        $repo = new Repository(new ArrayStore());
+
+        $result = $repo->withoutOverlapping('foo', function () {
+            return 'bar';
+        });
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testAtomicPassesLockAndWaitSecondsToLock()
+    {
+        $store = m::mock(Store::class, LockProvider::class);
+        $repo = new Repository($store);
+        $lock = m::mock(Lock::class);
+
+        $store->shouldReceive('lock')->once()->with('foo', 30, null)->andReturn($lock);
+        $lock->shouldReceive('block')->once()->with(15, m::type('callable'))->andReturnUsing(function ($seconds, $callback) {
+            return $callback();
+        });
+
+        $result = $repo->withoutOverlapping('foo', function () {
+            return 'bar';
+        }, 30, 15);
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testAtomicPassesOwnerToLock()
+    {
+        $store = m::mock(Store::class, LockProvider::class);
+        $repo = new Repository($store);
+        $lock = m::mock(Lock::class);
+
+        $store->shouldReceive('lock')->once()->with('foo', 10, 'my-owner')->andReturn($lock);
+        $lock->shouldReceive('block')->once()->with(10, m::type('callable'))->andReturnUsing(function ($seconds, $callback) {
+            return $callback();
+        });
+
+        $result = $repo->withoutOverlapping('foo', function () {
+            return 'bar';
+        }, 10, 10, 'my-owner');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testAtomicThrowsOnLockTimeout()
+    {
+        $repo = new Repository(new ArrayStore());
+
+        $repo->getStore()->lock('foo', 10)->acquire();
+
+        $called = false;
+
+        try {
+            $repo->withoutOverlapping('foo', function () use (&$called) {
+                $called = true;
+            }, 10, 0);
+
+            $this->fail('Expected LockTimeoutException was not thrown.');
+        } catch (LockTimeoutException) {
+            $this->assertFalse($called);
+        }
+    }
+
+    public function testTaggedCacheWorksWithEnumKey()
+    {
+        $cache = (new Repository(new ArrayStore()))->tags('test-tag');
+
+        $cache->put(TestCacheKey::FOO, 5);
+        $this->assertSame(6, $cache->increment(TestCacheKey::FOO));
+        $this->assertSame(5, $cache->decrement(TestCacheKey::FOO));
+    }
+
+    public function testPutManyHandlesIntegerArrayKeys()
+    {
+        $repo = new Repository(new ArrayStore());
+
+        // Null TTL path (putManyForever)
+        $repo->putMany([2 => 'integer-value', 'a' => 'string-value']);
+
+        $this->assertSame('integer-value', $repo->get('2'));
+        $this->assertSame('string-value', $repo->get('a'));
+
+        // Finite TTL path (store->putMany via RetrievesMultipleKeys)
+        $repo->putMany([3 => 'another-int', 'b' => 'another-string'], 60);
+
+        $this->assertSame('another-int', $repo->get('3'));
+        $this->assertSame('another-string', $repo->get('b'));
+    }
+
+    public function testTaggedPutManyHandlesIntegerArrayKeys()
+    {
+        $repo = (new Repository(new ArrayStore()))->tags('test-tag');
+
+        $repo->putMany([2 => 'integer-value', 'a' => 'string-value']);
+
+        $this->assertSame('integer-value', $repo->get('2'));
+        $this->assertSame('string-value', $repo->get('a'));
     }
 
     public function testStringTypedGetter()
@@ -508,6 +684,16 @@ class CacheRepositoryTest extends TestCase
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(100);
 
         $this->assertSame(100, $repo->integer('foo', 100));
+    }
+
+    public function testItThrowsExceptionWhenGettingFloatStringAsInteger()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cache value for key [foo] must be an integer, string given.');
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('1.5');
+        $repo->integer('foo');
     }
 
     public function testFloatTypedGetter()
@@ -706,4 +892,9 @@ class CacheRepositoryTest extends TestCase
     {
         return '2030-07-25 12:13:14 UTC';
     }
+}
+
+enum TestCacheKey: string
+{
+    case FOO = 'foo';
 }
