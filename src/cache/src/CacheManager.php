@@ -155,7 +155,7 @@ class CacheManager implements FactoryContract
 
         $store = new DatabaseStore(
             $connectionResolver,
-            $config['connection'] ?? 'default',
+            $config['connection'] ?? null,
             $config['table'],
             $this->getPrefix($config),
             $config['lock_table'] ?? 'cache_locks',
