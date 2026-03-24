@@ -442,9 +442,9 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Set the cache key prefix.
      */
-    public function setPrefix(string $prefix): void
+    public function setPrefix(?string $prefix): void
     {
-        $this->prefix = $prefix;
+        $this->prefix = $prefix ?? '';
         $this->clearCachedInstances();
     }
 
