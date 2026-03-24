@@ -31,7 +31,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     /**
      * The connection name.
      */
-    protected string $connectionName;
+    protected ?string $connectionName;
 
     /**
      * The lock connection name.
@@ -73,7 +73,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function __construct(
         ConnectionResolverInterface $resolver,
-        string $connectionName,
+        ?string $connectionName,
         string $table,
         string $prefix = '',
         string $lockTable = 'cache_locks',
