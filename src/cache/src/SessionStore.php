@@ -44,7 +44,7 @@ class SessionStore implements Store
 
         $item = $this->session->get($this->itemKey($key));
 
-        $expiresAt = $item['expiresAt'] ?? 0;
+        $expiresAt = $item['expiresAt'] ?? 0.0;
 
         if ($this->isExpired($expiresAt)) {
             $this->forget($key);
@@ -60,7 +60,7 @@ class SessionStore implements Store
      */
     protected function isExpired(int|float $expiresAt): bool
     {
-        return $expiresAt !== 0 && (Carbon::now()->getPreciseTimestamp(3) / 1000) >= $expiresAt;
+        return $expiresAt > 0 && (Carbon::now()->getPreciseTimestamp(3) / 1000) >= $expiresAt;
     }
 
     /**
@@ -81,7 +81,7 @@ class SessionStore implements Store
      */
     protected function toTimestamp(int $seconds): float
     {
-        return $seconds > 0 ? (Carbon::now()->getPreciseTimestamp(3) / 1000) + $seconds : 0;
+        return $seconds > 0 ? (Carbon::now()->getPreciseTimestamp(3) / 1000) + $seconds : 0.0;
     }
 
     /**
