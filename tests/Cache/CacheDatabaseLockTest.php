@@ -285,6 +285,13 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
+    public function testGetConnectionNameReturnsConnectionName()
+    {
+        [$lock] = $this->getLock();
+
+        $this->assertSame('default', $lock->getConnectionName());
+    }
+
     /**
      * Get a DatabaseLock instance with mocked dependencies.
      */
