@@ -6,6 +6,7 @@ namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Redis\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Sleep;
 
 class DurationLimiter
 {
@@ -49,7 +50,7 @@ class DurationLimiter
                 throw new LimiterTimeoutException();
             }
 
-            usleep($sleep * 1000);
+            Sleep::usleep($sleep * 1000);
         }
 
         if (is_callable($callback)) {
