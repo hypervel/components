@@ -6,6 +6,7 @@ namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Redis\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Throwable;
 
@@ -44,7 +45,7 @@ class ConcurrencyLimiter
                 throw new LimiterTimeoutException();
             }
 
-            usleep($sleep * 1000);
+            Sleep::usleep($sleep * 1000);
         }
 
         if (is_callable($callback)) {
