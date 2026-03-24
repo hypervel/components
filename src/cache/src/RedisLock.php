@@ -32,7 +32,7 @@ class RedisLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         if ($this->seconds > 0) {
-            return $this->redis->set($this->name, $this->owner, ['EX' => $this->seconds, 'NX']) == true;
+            return $this->redis->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') == true;
         }
 
         return $this->redis->setnx($this->name, $this->owner) == true;
@@ -64,7 +64,7 @@ class RedisLock extends Lock implements RefreshableLock
     /**
      * Returns the owner value written into the driver for this lock.
      */
-    protected function getCurrentOwner(): string
+    protected function getCurrentOwner(): ?string
     {
         return $this->redis->get($this->name);
     }
