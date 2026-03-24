@@ -11,13 +11,13 @@ use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\View\Components\Factory;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
+use RuntimeException;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -104,7 +104,7 @@ class Command extends SymfonyCommand
     /**
      * The Hypervel application instance.
      */
-    protected ApplicationContract $hypervel;
+    protected ?ApplicationContract $hypervel = null;
 
     public function __construct(?string $name = null)
     {
@@ -147,9 +147,6 @@ class Command extends SymfonyCommand
         if (! isset($this->signature)) {
             $this->specifyParameters();
         }
-
-        /* @phpstan-ignore assign.propertyType */
-        $this->hypervel = Container::getInstance();
 
         if ($this instanceof Isolatable) {
             $this->configureIsolation();
@@ -396,9 +393,15 @@ class Command extends SymfonyCommand
 
     /**
      * Get the Hypervel application instance.
+     *
+     * @throws RuntimeException
      */
     public function getHypervel(): ApplicationContract
     {
+        if ($this->hypervel === null) {
+            throw new RuntimeException('The Hypervel application instance has not been set on this command.');
+        }
+
         return $this->hypervel;
     }
 
