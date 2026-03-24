@@ -51,19 +51,20 @@ class MemoizedStore implements LockProvider, Store
         [$memoized, $retrieved, $missing] = [[], [], []];
 
         foreach ($keys as $key) {
-            $prefixedKey = $this->prefix($key);
+            $stringKey = (string) $key;
+            $prefixedKey = $this->prefix($stringKey);
 
             if (array_key_exists($prefixedKey, $this->cache)) {
                 $memoized[$key] = $this->cache[$prefixedKey];
             } else {
-                $missing[] = $key;
+                $missing[] = $stringKey;
             }
         }
 
         if (count($missing) > 0) {
             $retrieved = tap($this->repository->many($missing), function ($values) {
                 foreach ($values as $key => $value) {
-                    $this->cache[$this->prefix($key)] = $value;
+                    $this->cache[$this->prefix((string) $key)] = $value;
                 }
             });
         }
@@ -97,7 +98,7 @@ class MemoizedStore implements LockProvider, Store
     public function putMany(array $values, int $seconds): bool
     {
         foreach ($values as $key => $value) {
-            unset($this->cache[$this->prefix($key)]);
+            unset($this->cache[$this->prefix((string) $key)]);
         }
 
         return $this->repository->putMany($values, $seconds);
