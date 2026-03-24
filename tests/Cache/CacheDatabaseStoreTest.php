@@ -8,7 +8,9 @@ use Carbon\Carbon;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -52,17 +54,31 @@ class CacheDatabaseStoreTest extends TestCase
         $this->assertNull($store->get('foo'));
     }
 
-    public function testItemsCanBeRetrievedFromDatabase()
+    public function testDecryptedValueIsReturnedWhenItemIsValid()
     {
         [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
-        $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
-            'key' => 'prefixfoo',
-            'value' => serialize('bar'),
-            'expiration' => 999999999999999,
-        ]]));
+        $table->shouldReceive('get')->once()->andReturn(new Collection([(object) ['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 999999999999999]]));
 
         $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testValueIsReturnedOnPostgres()
+    {
+        [$store, $table] = $this->getPostgresStore();
+        $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
+        $table->shouldReceive('get')->once()->andReturn(new Collection([(object) ['key' => 'prefixfoo', 'value' => base64_encode(serialize('bar')), 'expiration' => 999999999999999]]));
+
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testValueIsReturnedOnSqlite()
+    {
+        [$store, $table] = $this->getSqliteStore();
+        $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
+        $table->shouldReceive('get')->once()->andReturn(new Collection([(object) ['key' => 'prefixfoo', 'value' => base64_encode(serialize("\0bar\0")), 'expiration' => 999999999999999]]));
+
+        $this->assertSame("\0bar\0", $store->get('foo'));
     }
 
     public function testManyReturnsMultipleItems()
@@ -134,6 +150,39 @@ class CacheDatabaseStoreTest extends TestCase
         }), 'key')->andReturn(1);
 
         $result = $store->put('foo', 'bar', 10);
+        $this->assertTrue($result);
+    }
+
+    public function testValueIsUpserted()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
+        [$table] = $this->mockTable($store);
+        $store->expects($this->once())->method('getTime')->willReturn(1);
+        $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturnTrue();
+
+        $result = $store->put('foo', 'bar', 60);
+        $this->assertTrue($result);
+    }
+
+    public function testValueIsUpsertedOnPostgres()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getPostgresMocks())->getMock();
+        [$table] = $this->mockTable($store);
+        $store->expects($this->once())->method('getTime')->willReturn(1);
+        $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => base64_encode(serialize("\0")), 'expiration' => 61]], 'key')->andReturn(1);
+
+        $result = $store->put('foo', "\0", 60);
+        $this->assertTrue($result);
+    }
+
+    public function testValueIsUpsertedOnSqlite()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getSqliteMocks())->getMock();
+        [$table] = $this->mockTable($store);
+        $store->expects($this->once())->method('getTime')->willReturn(1);
+        $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => base64_encode(serialize("\0")), 'expiration' => 61]], 'key')->andReturn(1);
+
+        $result = $store->put('foo', "\0", 60);
         $this->assertTrue($result);
     }
 
@@ -253,6 +302,42 @@ class CacheDatabaseStoreTest extends TestCase
         $this->assertEquals(7, $store->decrement('foo', 3));
     }
 
+    public function testTouchExtendsTtl()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
+        [$table] = $this->mockTable($store);
+
+        $store->expects($this->once())->method('getTime')->willReturn(0);
+        $table->shouldReceive('where')->twice()->andReturn($table);
+        $table->shouldReceive('update')->once()->with(['expiration' => 60])->andReturn(1);
+
+        $this->assertTrue($store->touch('foo', 60));
+    }
+
+    public function testTouchExtendsTtlOnPostgres()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getPostgresMocks())->getMock();
+        [$table] = $this->mockTable($store);
+
+        $store->expects($this->once())->method('getTime')->willReturn(0);
+        $table->shouldReceive('where')->twice()->andReturn($table);
+        $table->shouldReceive('update')->once()->with(['expiration' => 60])->andReturn(1);
+
+        $this->assertTrue($store->touch('foo', 60));
+    }
+
+    public function testTouchExtendsTtlOnSqlite()
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getSqliteMocks())->getMock();
+        [$table] = $this->mockTable($store);
+
+        $store->expects($this->once())->method('getTime')->willReturn(0);
+        $table->shouldReceive('where')->twice()->andReturn($table);
+        $table->shouldReceive('update')->once()->with(['expiration' => 60])->andReturn(1);
+
+        $this->assertTrue($store->touch('foo', 60));
+    }
+
     public function testForeverCallsStoreItemWithReallyLongTime()
     {
         $store = $this->getMockBuilder(DatabaseStore::class)
@@ -269,23 +354,35 @@ class CacheDatabaseStoreTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testItemsCanBeForgotten()
+    public function testItemsMayBeRemovedFromCache()
     {
         [$store, $table] = $this->getStore();
-        $table->shouldReceive('whereIn')->once()
-            ->with('key', ['prefixfoo', 'prefixhypervel:cache:flexible:created:foo'])
-            ->andReturn($table);
+        $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo', 'prefixhypervel:cache:flexible:created:foo'])->andReturn($table);
         $table->shouldReceive('delete')->once();
 
-        $this->assertTrue($store->forget('foo'));
+        $store->forget('foo');
     }
 
-    public function testItemsCanBeFlushed()
+    public function testItemsMayBeFlushedFromCache()
     {
         [$store, $table] = $this->getStore();
-        $table->shouldReceive('delete')->once()->andReturn(1);
+        $table->shouldReceive('delete')->once()->andReturn(2);
 
         $result = $store->flush();
+        $this->assertTrue($result);
+    }
+
+    public function testLocksMayBeFlushedFromCache()
+    {
+        [$store, , , $resolver] = $this->getStore();
+        $lockConnection = m::mock(ConnectionInterface::class);
+        $lockTable = m::mock(Builder::class);
+        $resolver->shouldReceive('connection')->with('locks')->andReturn($lockConnection);
+        $lockConnection->shouldReceive('table')->once()->with('cache_locks')->andReturn($lockTable);
+        $lockTable->shouldReceive('delete')->once()->andReturn(2);
+
+        $store->setLockConnection('locks');
+        $result = $store->flushLocks();
         $this->assertTrue($result);
     }
 
@@ -324,12 +421,86 @@ class CacheDatabaseStoreTest extends TestCase
     }
 
     /**
+     * Get a DatabaseStore instance with a mocked Postgres connection.
+     */
+    protected function getPostgresStore(): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(PostgresConnection::class);
+        $table = m::mock(Builder::class);
+
+        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        $connection->shouldReceive('table')->with('table')->andReturn($table);
+
+        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
+
+        return [$store, $table, $connection, $resolver];
+    }
+
+    /**
+     * Get a DatabaseStore instance with a mocked SQLite connection.
+     */
+    protected function getSqliteStore(): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(SQLiteConnection::class);
+        $table = m::mock(Builder::class);
+
+        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        $connection->shouldReceive('table')->with('table')->andReturn($table);
+
+        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
+
+        return [$store, $table, $connection, $resolver];
+    }
+
+    /**
      * Get mock arguments for creating a DatabaseStore.
      */
     protected function getMocks(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->with('default')->andReturn(m::mock(ConnectionInterface::class));
 
         return [$resolver, 'default', 'table', 'prefix'];
+    }
+
+    /**
+     * Get mock arguments for creating a DatabaseStore with Postgres connection.
+     */
+    protected function getPostgresMocks(): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->with('default')->andReturn(m::mock(PostgresConnection::class));
+
+        return [$resolver, 'default', 'table', 'prefix'];
+    }
+
+    /**
+     * Get mock arguments for creating a DatabaseStore with SQLite connection.
+     */
+    protected function getSqliteMocks(): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->with('default')->andReturn(m::mock(SQLiteConnection::class));
+
+        return [$resolver, 'default', 'table', 'prefix'];
+    }
+
+    /**
+     * Set up a table mock on an already-created store.
+     *
+     * Used when the store is created via getMockBuilder (for stubbing methods like getTime)
+     * where we can't use the getStore() helper. Gets the connection from the store's
+     * resolver (which was set up by getMocks/getPostgresMocks/getSqliteMocks) and
+     * configures the table mock.
+     */
+    protected function mockTable(DatabaseStore $store): array
+    {
+        $table = m::mock(Builder::class);
+        $connection = $store->getConnection();
+        $connection->shouldReceive('table')->with('table')->andReturn($table);
+
+        return [$table];
     }
 }
