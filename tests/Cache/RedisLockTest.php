@@ -22,7 +22,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(true);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -35,7 +35,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(false);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -157,7 +157,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(true);
         $redis->shouldReceive('withConnection')
             ->once()
@@ -175,7 +175,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(false);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -210,5 +210,15 @@ class RedisLockTest extends TestCase
         $lock->get(function () {
             throw new RuntimeException('test exception');
         });
+    }
+
+    public function testGetConnectionNameReturnsConnectionName(): void
+    {
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('getName')->once()->andReturn('default');
+
+        $lock = new RedisLock($redis, 'lock:foo', 60);
+
+        $this->assertSame('default', $lock->getConnectionName());
     }
 }
