@@ -31,7 +31,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('set')
             ->once()
-            ->with('foo', m::type('string'), ['EX' => 10, 'NX'])
+            ->with('foo', m::type('string'), 'EX', 10, 'NX')
             ->andReturn(true);
 
         $this->assertTrue($lock->acquire());
