@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Console;
+namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Console\PruneStaleTagsCommand;
@@ -21,7 +21,7 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class PruneStaleTagsCommandTest extends TestCase
 {
-    public function testPruneCallsFlushStaleTagsOnStore(): void
+    public function testPruneCallsFlushStaleTagsOnStore()
     {
         $store = m::mock(RedisStore::class);
         $store->shouldReceive('flushStaleTags')
@@ -46,12 +46,13 @@ class PruneStaleTagsCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
+        $command->setHypervel($this->app);
         $result = $command->run(new ArrayInput([]), new NullOutput());
 
         $this->assertSame(0, $result);
     }
 
-    public function testPruneUsesSpecifiedStore(): void
+    public function testPruneUsesSpecifiedStore()
     {
         $store = m::mock(RedisStore::class);
         $store->shouldReceive('flushStaleTags')
@@ -76,12 +77,13 @@ class PruneStaleTagsCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
+        $command->setHypervel($this->app);
         $result = $command->run(new ArrayInput(['store' => 'custom-redis']), new NullOutput());
 
         $this->assertSame(0, $result);
     }
 
-    public function testPruneHandlesNonSupportedStoreGracefully(): void
+    public function testPruneHandlesNonSupportedStoreGracefully()
     {
         $nonRedisStore = m::mock(Store::class);
 
@@ -99,6 +101,7 @@ class PruneStaleTagsCommandTest extends TestCase
         $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
+        $command->setHypervel($this->app);
         $result = $command->run(new ArrayInput(['store' => 'file']), new NullOutput());
 
         $this->assertSame(0, $result);
