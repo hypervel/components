@@ -136,16 +136,16 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function many(array $keys): array
     {
-        $this->event(new RetrievingManyKeys($this->getName(), $keys));
+        $resolvedKeys = collect($keys)->map(function ($value, $key) {
+            return is_string($key) ? $key : (string) enum_value($value);
+        })->values()->all();
 
-        $values = $this->store->many(
-            collect($keys)->map(function ($value, $key) {
-                return is_string($key) ? $key : enum_value($value);
-            })->values()->all()
-        );
+        $this->event(new RetrievingManyKeys($this->getName(), $resolvedKeys));
+
+        $values = $this->store->many($resolvedKeys);
 
         return collect($values)->map(function ($value, $key) use ($keys) {
-            return $this->handleManyResult($keys, $key, $value);
+            return $this->handleManyResult($keys, (string) $key, $value);
         })->all();
     }
 
@@ -339,18 +339,23 @@ class Repository implements ArrayAccess, CacheContract
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            return $this->deleteMultiple(array_keys($values));
+            return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
-        $this->event(new WritingManyKeys($this->getName(), array_keys($values), array_values($values), $seconds));
+        $this->event(new WritingManyKeys(
+            $this->getName(),
+            array_map(static fn ($key) => (string) $key, array_keys($values)),
+            array_values($values),
+            $seconds
+        ));
 
         $result = $this->store->putMany($values, $seconds);
 
         foreach ($values as $key => $value) {
             if ($result) {
-                $this->event(new KeyWritten($this->getName(), $key, $value, $seconds));
+                $this->event(new KeyWritten($this->getName(), (string) $key, $value, $seconds));
             } else {
-                $this->event(new KeyWriteFailed($this->getName(), $key, $value, $seconds));
+                $this->event(new KeyWriteFailed($this->getName(), (string) $key, $value, $seconds));
             }
         }
 
@@ -524,7 +529,7 @@ class Repository implements ArrayAccess, CacheContract
      * @param null|array{ seconds?: int, owner?: string } $lock
      * @return TCacheValue
      */
-    public function flexible(UnitEnum|string $key, array $ttl, callable $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
+    public function flexible(UnitEnum|string $key, array $ttl, mixed $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
     {
         $key = enum_value($key);
 
@@ -847,7 +852,7 @@ class Repository implements ArrayAccess, CacheContract
         $result = true;
 
         foreach ($values as $key => $value) {
-            if (! $this->forever($key, $value)) {
+            if (! $this->forever((string) $key, $value)) {
                 $result = false;
             }
         }
