@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Console;
 
 use BadMethodCallException;
+use Hypervel\Cache\CacheManager;
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -28,6 +27,16 @@ class ClearCommand extends Command
     protected string $description = 'Flush the application cache';
 
     /**
+     * Create a new cache clear command instance.
+     */
+    public function __construct(
+        protected CacheManager $cache,
+        protected Filesystem $files,
+    ) {
+        parent::__construct();
+    }
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
@@ -36,8 +45,10 @@ class ClearCommand extends Command
             return $this->clearLocks();
         }
 
-        $this->hypervel->make(Dispatcher::class)
-            ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
+        $this->hypervel['events']->dispatch(
+            'cache:clearing',
+            [$this->argument('store'), $this->tags()]
+        );
 
         /** @phpstan-ignore method.notFound (flush() is on TaggedCache or via __call to the store) */
         $successful = $this->cache()->flush();
@@ -50,8 +61,10 @@ class ClearCommand extends Command
             return self::FAILURE;
         }
 
-        $this->hypervel->make(Dispatcher::class)
-            ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
+        $this->hypervel['events']->dispatch(
+            'cache:cleared',
+            [$this->argument('store'), $this->tags()]
+        );
 
         $this->components->info('Application cache cleared successfully.');
 
@@ -70,10 +83,8 @@ class ClearCommand extends Command
         }
 
         try {
-            /** @var \Hypervel\Cache\Repository $cache */
-            $cache = $this->cache();
-
-            $successful = $cache->flushLocks();
+            /** @phpstan-ignore method.notFound (flushLocks() is on the concrete Repository, not the contract) */
+            $successful = $this->cache()->flushLocks();
         } catch (BadMethodCallException) {
             $this->components->error('This cache store does not support clearing locks.');
 
@@ -96,20 +107,18 @@ class ClearCommand extends Command
      */
     protected function cache(): Repository
     {
-        $cache = $this->hypervel->make(CacheContract::class)
-            ->store($this->argument('store'));
+        $cache = $this->cache->store($this->argument('store'));
 
-        /** @var \Hypervel\Cache\Repository $cache */
+        /* @phpstan-ignore method.notFound (tags() is on TaggableStore, not the contract) */
         return empty($this->tags()) ? $cache : $cache->tags($this->tags());
     }
 
     /**
      * Flush the runtime cache directory.
      */
-    protected function flushRuntime(): void
+    public function flushRuntime(): void
     {
-        $this->hypervel->make(Filesystem::class)
-            ->deleteDirectory(base_path('runtime/container'));
+        $this->files->deleteDirectory(base_path('runtime/container'));
     }
 
     /**
