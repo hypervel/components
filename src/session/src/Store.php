@@ -53,8 +53,10 @@ class Store implements Session
     public function __construct(
         protected string $name,
         protected SessionHandlerInterface $handler,
+        ?string $id = null,
         protected string $serialization = 'php'
     ) {
+        $this->setId($id);
     }
 
     /**

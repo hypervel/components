@@ -832,14 +832,11 @@ class SessionStoreBackedEnumTest extends TestCase
 
     protected function getSession(string $serialization = 'php'): Store
     {
-        $store = new Store(
+        return new Store(
             'test-session',
             m::mock(SessionHandlerInterface::class),
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             $serialization
         );
-
-        $store->setId('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-
-        return $store;
     }
 }

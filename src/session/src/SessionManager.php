@@ -138,7 +138,7 @@ class SessionManager extends Manager implements Factory
             : new Store(
                 $this->config->get('session.cookie'),
                 $handler,
-                $this->config->get('session.serialization', 'php')
+                serialization: $this->config->get('session.serialization', 'php')
             );
     }
 
