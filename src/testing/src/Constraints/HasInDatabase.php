@@ -31,7 +31,9 @@ class HasInDatabase extends Constraint
      */
     public function matches($table): bool
     {
-        return $this->database->table($table)->where($this->data)->count() > 0;
+        return $this->database->table($table)
+            ->where($this->data)
+            ->exists();
     }
 
     /**
@@ -61,21 +63,21 @@ class HasInDatabase extends Constraint
 
         $similarResults = $query->where(
             array_key_first($this->data),
-            $this->data[array_key_first($this->data)]
-        )->limit($this->show)->get();
+            array_first($this->data),
+        )->select(array_keys($this->data))->limit($this->show)->get();
 
         if ($similarResults->isNotEmpty()) {
-            $description = 'Found similar results: ' . json_encode($similarResults, JSON_PRETTY_PRINT);
+            $description = 'Found similar results: ' . json_encode($similarResults, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         } else {
             $query = $this->database->table($table);
 
-            $results = $query->limit($this->show)->get();
+            $results = $query->select(array_keys($this->data))->limit($this->show)->get();
 
             if ($results->isEmpty()) {
-                return 'The table is empty.';
+                return 'The table is empty';
             }
 
-            $description = 'Found: ' . json_encode($results, JSON_PRETTY_PRINT);
+            $description = 'Found: ' . json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         }
 
         if ($query->count() > $this->show) {
