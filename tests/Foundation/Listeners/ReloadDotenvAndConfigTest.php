@@ -101,7 +101,7 @@ class ReloadDotenvAndConfigTest extends TestCase
 
     protected function createApp(): Application
     {
-        $app = new Application(__DIR__ . '/../Bootstrap/envs');
+        $app = new Application(__DIR__ . '/../Fixtures/envs');
 
         (new LoadConfiguration())->bootstrap($app);
 

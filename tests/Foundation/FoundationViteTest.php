@@ -722,7 +722,7 @@ class FoundationViteTest extends TestCase
 
     public function testItGeneratesPreloadDirectivesForJsAndCssImports()
     {
-        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/jetstream-manifest.json'));
+        $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/vite-manifest.json'));
         $buildDir = Str::random();
         $this->makeViteManifest($manifest, $buildDir);
 

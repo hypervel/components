@@ -45,6 +45,9 @@ class LoadEnvironmentVariablesTest extends TestCase
 
     protected function tearDown(): void
     {
+        unset($_ENV['FOO'], $_SERVER['FOO']);
+        putenv('FOO');
+
         DotenvManager::flushState();
         Env::flushState();
 
@@ -70,6 +73,32 @@ class LoadEnvironmentVariablesTest extends TestCase
         $_SERVER['argv'] = $this->originalArgv;
 
         parent::tearDown();
+    }
+
+    public function testCanLoad()
+    {
+        $this->expectOutputString('');
+
+        $app = new Application();
+        $app->useEnvironmentPath(__DIR__ . '/../Fixtures/envs');
+
+        (new LoadEnvironmentVariables())->bootstrap($app);
+
+        $this->assertSame('BAR', env('FOO'));
+        $this->assertSame('BAR', getenv('FOO'));
+        $this->assertSame('BAR', $_ENV['FOO']);
+        $this->assertSame('BAR', $_SERVER['FOO']);
+    }
+
+    public function testCanFailSilent()
+    {
+        $this->expectOutputString('');
+
+        $app = new Application();
+        $app->useEnvironmentPath(__DIR__ . '/../Fixtures/envs');
+        $app->loadEnvironmentFrom('BAD_FILE');
+
+        (new LoadEnvironmentVariables())->bootstrap($app);
     }
 
     public function testLoadsDefaultEnvFile()
@@ -147,7 +176,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         // so reload() can clean them up. Verify by reloading with a
         // different env file and checking the old keys are gone.
         DotenvManager::reload(
-            [__DIR__ . '/envs'],
+            [__DIR__ . '/../Fixtures/envs'],
             '.env.testing'
         );
 
@@ -157,7 +186,7 @@ class LoadEnvironmentVariablesTest extends TestCase
 
     public function testNoErrorWhenEnvFileMissing()
     {
-        $app = new Application(__DIR__ . '/envs/nonexistent');
+        $app = new Application(__DIR__ . '/../Fixtures/envs/nonexistent');
 
         // Should not throw — safeLoad handles missing files gracefully.
         (new LoadEnvironmentVariables())->bootstrap($app);
@@ -212,6 +241,6 @@ class LoadEnvironmentVariablesTest extends TestCase
 
     protected function createApp(): Application
     {
-        return new Application(__DIR__ . '/envs');
+        return new Application(__DIR__ . '/../Fixtures/envs');
     }
 }
