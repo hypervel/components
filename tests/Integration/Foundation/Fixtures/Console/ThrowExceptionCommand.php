@@ -9,7 +9,7 @@ use Hypervel\Console\Command;
 
 class ThrowExceptionCommand extends Command
 {
-    protected string $signature = 'throw-exception-command';
+    protected ?string $signature = 'throw-exception-command';
 
     public function handle(): void
     {

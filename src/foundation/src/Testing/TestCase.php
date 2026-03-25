@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -58,7 +59,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function createApplication(): ApplicationContract
     {
-        return require BASE_PATH . '/bootstrap/app.php';
+        return require Application::inferBasePath() . '/bootstrap/app.php';
     }
 
     /**

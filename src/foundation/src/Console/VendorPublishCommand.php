@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
@@ -50,13 +50,13 @@ class VendorPublishCommand extends Command
      * @param Filesystem $files the filesystem instance
      * @param null|string $provider the provider to publish
      * @param array $tags the tags to publish
-     * @param null|Carbon $publishedAt the time the command started
+     * @param null|CarbonInterface $publishedAt the time the command started
      */
     public function __construct(
         protected Filesystem $files,
         protected ?string $provider = null,
         protected array $tags = [],
-        protected ?Carbon $publishedAt = null,
+        protected ?CarbonInterface $publishedAt = null,
     ) {
         parent::__construct();
     }

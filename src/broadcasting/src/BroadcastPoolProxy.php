@@ -8,6 +8,7 @@ use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolProxy;
+use Hypervel\Support\Collection;
 
 class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 {
@@ -40,5 +41,13 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
         $this->__call(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get all of the registered channels.
+     */
+    public function getChannels(): Collection
+    {
+        return $this->__call(__FUNCTION__, func_get_args());
     }
 }
