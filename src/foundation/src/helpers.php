@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Container\Container;
@@ -31,9 +31,9 @@ use Hypervel\Log\LogManager;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
-use Hypervel\Support\Mix;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
@@ -500,25 +500,13 @@ if (! function_exists('method_field')) {
     }
 }
 
-if (! function_exists('mix')) {
-    /**
-     * Get the path to a versioned Mix file.
-     *
-     * @throws \RuntimeException
-     */
-    function mix(string $path, string $manifestDirectory = ''): HtmlString|string
-    {
-        return app(Mix::class)(...func_get_args());
-    }
-}
-
 if (! function_exists('now')) {
     /**
      * Create a new Carbon instance for the current time.
      */
-    function now(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
+    function now(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {
-        return Carbon::now(enum_value($tz));
+        return Date::now(enum_value($tz));
     }
 }
 
@@ -826,9 +814,9 @@ if (! function_exists('today')) {
     /**
      * Create a new Carbon instance for the current date.
      */
-    function today(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
+    function today(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {
-        return Carbon::today(enum_value($tz));
+        return Date::today(enum_value($tz));
     }
 }
 
