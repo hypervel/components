@@ -106,7 +106,7 @@ abstract class DevtoolGeneratorCommand extends GeneratorCommand
                 return rtrim($path, '/') . '/' . $className . '.php';
             }
 
-            return BASE_PATH . '/' . trim($path, '/') . '/' . $className . '.php';
+            return $this->hypervel->basePath(trim($path, '/') . '/' . $className . '.php');
         }
 
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);

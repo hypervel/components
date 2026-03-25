@@ -59,7 +59,7 @@ class BatchesTableCommand extends DevtoolGeneratorCommand
 
     protected function alreadyExists(string $rawName): bool
     {
-        return is_file(BASE_PATH . "/{$rawName}");
+        return is_file($this->hypervel->basePath($rawName));
     }
 
     protected function getArguments(): array
