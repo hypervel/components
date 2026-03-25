@@ -35,13 +35,6 @@ class RouteListCommandHelperTest extends TestCase
         });
     }
 
-    protected function tearDown(): void
-    {
-        RouteListCommand::resolveTerminalWidthUsing(null);
-
-        parent::tearDown();
-    }
-
     public function testDisplayRoutesForCli()
     {
         $this->router->get('/', function () {

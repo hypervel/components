@@ -434,6 +434,14 @@ class RouteListCommand extends Command
     }
 
     /**
+     * Flush the static state of the command.
+     */
+    public static function flushState(): void
+    {
+        static::$terminalWidthResolver = null;
+    }
+
+    /**
      * Get the console command options.
      */
     protected function getOptions(): array

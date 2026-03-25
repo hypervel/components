@@ -328,8 +328,16 @@ class ScheduleListCommand extends Command
     /**
      * Set a callback that should be used when resolving the terminal width.
      */
-    public static function resolveTerminalWidthUsing(?Closure $resolver)
+    public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
         static::$terminalWidthResolver = $resolver;
+    }
+
+    /**
+     * Flush the static state of the command.
+     */
+    public static function flushState(): void
+    {
+        static::$terminalWidthResolver = null;
     }
 }

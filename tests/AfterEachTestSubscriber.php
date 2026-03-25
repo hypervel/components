@@ -39,6 +39,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Bus\PendingBatch::flushState();
         \Hypervel\Cache\Repository::flushState();
         \Hypervel\Console\Application::forgetBootstrappers();
+        \Hypervel\Console\Commands\ScheduleListCommand::flushState();
         \Hypervel\Console\Scheduling\Event::flushState();
         \Hypervel\Container\BoundMethod::flushMethodRecipeCache();
         \Hypervel\Container\Container::setInstance(null);
@@ -73,7 +74,9 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Di\ReflectionManager::flushState();
         \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();
         \Hypervel\Foundation\Console\AboutCommand::flushState();
+        \Hypervel\Foundation\Console\ChannelListCommand::flushState();
         \Hypervel\Foundation\Console\CliDumper::resolveDumpSourceUsing(null);
+        \Hypervel\Foundation\Console\RouteListCommand::flushState();
         \Hypervel\Foundation\Events\DiscoverEvents::flushState();
         \Hypervel\Foundation\Http\FormRequest::flushState();
         \Hypervel\Foundation\Http\HtmlDumper::resolveDumpSourceUsing(null);
