@@ -17,10 +17,6 @@ class WatcherServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/watcher.php', 'watcher');
-
-        $this->commands([
-            WatchCommand::class,
-        ]);
     }
 
     /**
@@ -32,6 +28,10 @@ class WatcherServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../config/watcher.php' => $this->app->configPath('watcher.php'),
             ], 'watcher-config');
+
+            $this->commands([
+                WatchCommand::class,
+            ]);
         }
 
         $this->app->make('events')

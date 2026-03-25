@@ -106,7 +106,7 @@ class Watcher
             ];
 
             $process = proc_open(
-                command: $this->option->getBin() . ' ' . BASE_PATH . '/' . $this->option->getCommand(),
+                command: $this->option->getBin() . ' ' . base_path($this->option->getCommand()),
                 descriptor_spec: $descriptorSpec,
                 pipes: $pipes
             );
