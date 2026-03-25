@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Console;
+namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Console\ClosureCommand;
