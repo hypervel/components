@@ -21,6 +21,7 @@ use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Collection;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
+use Stringable;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
@@ -293,7 +294,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a GET request.
      */
-    public function get(string $uri, array $headers = []): TestResponse
+    public function get(Stringable|string $uri, array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -304,7 +305,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a GET request, expecting a JSON response.
      */
-    public function getJson(string $uri, array $headers = [], int $options = 0): TestResponse
+    public function getJson(Stringable|string $uri, array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('GET', $uri, [], $headers, $options);
     }
@@ -312,7 +313,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a POST request.
      */
-    public function post(string $uri, array $data = [], array $headers = []): TestResponse
+    public function post(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -323,7 +324,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a POST request, expecting a JSON response.
      */
-    public function postJson(string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function postJson(Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('POST', $uri, $data, $headers, $options);
     }
@@ -331,7 +332,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a PUT request.
      */
-    public function put(string $uri, array $data = [], array $headers = []): TestResponse
+    public function put(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -342,7 +343,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a PUT request, expecting a JSON response.
      */
-    public function putJson(string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function putJson(Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('PUT', $uri, $data, $headers, $options);
     }
@@ -350,7 +351,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a PATCH request.
      */
-    public function patch(string $uri, array $data = [], array $headers = []): TestResponse
+    public function patch(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -361,7 +362,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a PATCH request, expecting a JSON response.
      */
-    public function patchJson(string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function patchJson(Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('PATCH', $uri, $data, $headers, $options);
     }
@@ -369,7 +370,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a DELETE request.
      */
-    public function delete(string $uri, array $data = [], array $headers = []): TestResponse
+    public function delete(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -380,7 +381,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a DELETE request, expecting a JSON response.
      */
-    public function deleteJson(string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function deleteJson(Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('DELETE', $uri, $data, $headers, $options);
     }
@@ -388,7 +389,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with an OPTIONS request.
      */
-    public function options(string $uri, array $data = [], array $headers = []): TestResponse
+    public function options(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -399,7 +400,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with an OPTIONS request, expecting a JSON response.
      */
-    public function optionsJson(string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function optionsJson(Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         return $this->json('OPTIONS', $uri, $data, $headers, $options);
     }
@@ -407,7 +408,7 @@ trait MakesHttpRequests
     /**
      * Visit the given URI with a HEAD request.
      */
-    public function head(string $uri, array $headers = []): TestResponse
+    public function head(Stringable|string $uri, array $headers = []): TestResponse
     {
         $server = $this->transformHeadersToServerVars($headers);
         $cookies = $this->prepareCookiesForRequest();
@@ -418,7 +419,7 @@ trait MakesHttpRequests
     /**
      * Call the given URI with a JSON request.
      */
-    public function json(string $method, string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
+    public function json(string $method, Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
     {
         $files = $this->extractFilesFromDataArray($data);
 
@@ -451,7 +452,7 @@ trait MakesHttpRequests
      */
     public function call(
         string $method,
-        string $uri,
+        Stringable|string $uri,
         array $parameters = [],
         array $cookies = [],
         array $files = [],
@@ -535,8 +536,10 @@ trait MakesHttpRequests
     /**
      * Turn the given URI into a fully-qualified URL.
      */
-    protected function prepareUrlForRequest(string $uri): string
+    protected function prepareUrlForRequest(Stringable|string $uri): string
     {
+        $uri = (string) $uri;
+
         if (str_starts_with($uri, '/')) {
             $uri = substr($uri, 1);
         }
