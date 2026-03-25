@@ -33,10 +33,10 @@ class SanctumServiceProvider extends ServiceProvider
         $this->registerSanctumGuard();
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
+            $this->registerCommands();
         }
 
         $this->registerRoutes();
-        $this->registerCommands();
     }
 
     /**

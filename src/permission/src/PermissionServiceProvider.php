@@ -17,6 +17,10 @@ class PermissionServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
+
+            $this->commands([
+                ShowCommand::class,
+            ]);
         }
     }
 
@@ -31,10 +35,6 @@ class PermissionServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(Factory::class, PermissionManager::class);
-
-        $this->commands([
-            ShowCommand::class,
-        ]);
     }
 
     public function registerPublishing(): void

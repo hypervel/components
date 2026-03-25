@@ -100,9 +100,9 @@ class SentryServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
+            $this->registerCommands();
         }
 
-        $this->registerCommands();
         $this->registerCoroutineContextPropagation();
     }
 
