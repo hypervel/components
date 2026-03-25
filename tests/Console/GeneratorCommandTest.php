@@ -19,6 +19,7 @@ class GeneratorCommandTest extends TestCase
     public function testGetPathWithRelativePath()
     {
         $command = new GeneratorCommandStub();
+        $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -28,12 +29,13 @@ class GeneratorCommandTest extends TestCase
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
 
-        $this->assertSame(BASE_PATH . '/packages/my-package/src/MyClass.php', $path);
+        $this->assertSame($this->app->basePath('packages/my-package/src/MyClass.php'), $path);
     }
 
     public function testGetPathWithRelativePathWithTrailingSlash()
     {
         $command = new GeneratorCommandStub();
+        $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -43,7 +45,7 @@ class GeneratorCommandTest extends TestCase
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
 
-        $this->assertSame(BASE_PATH . '/packages/my-package/src/MyClass.php', $path);
+        $this->assertSame($this->app->basePath('packages/my-package/src/MyClass.php'), $path);
     }
 
     public function testGetPathWithAbsolutePath()
@@ -79,6 +81,7 @@ class GeneratorCommandTest extends TestCase
     public function testGetPathExtractsClassNameFromDeeplyNestedNamespace()
     {
         $command = new GeneratorCommandStub();
+        $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -88,7 +91,7 @@ class GeneratorCommandTest extends TestCase
 
         $path = $command->exposedGetPath('App\Http\Controllers\Api\V1\UserController');
 
-        $this->assertSame(BASE_PATH . '/src/Controllers/UserController.php', $path);
+        $this->assertSame($this->app->basePath('src/Controllers/UserController.php'), $path);
     }
 
     public function testGetPathDefaultUsesAppPath()

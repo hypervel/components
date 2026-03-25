@@ -9,7 +9,6 @@ use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
-use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -259,7 +258,9 @@ class Command extends SymfonyCommand
 
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
-        $callback = function () use ($method): int {
+        $exception = null;
+
+        $callback = function () use ($method, &$exception): int {
             try {
                 $this->eventDispatcher?->dispatch(new BeforeHandle($this));
                 /* @phpstan-ignore-next-line */
@@ -274,27 +275,16 @@ class Command extends SymfonyCommand
                 return $this->exitCode = static::FAILURE;
             } catch (PromptValidationException) {
                 // PromptValidationException is intentional control flow used by ConfiguresPrompts
-                // to signal validation failure during tests. It must not fall through to the
-                // Throwable handler below, which would render it as an error and dispatch
-                // FailToHandle — producing unwanted warning output.
+                // to signal validation failure during tests. It cannot propagate across the
+                // coroutine boundary, so it must be caught here and converted to a FAILURE exit code.
                 return $this->exitCode = static::FAILURE;
-            } catch (Throwable $exception) {
-                if (class_exists(ExitException::class) && $exception instanceof ExitException) {
-                    return $this->exitCode = (int) $exception->getStatus();
-                }
-
-                if (! $this->eventDispatcher) {
-                    throw $exception;
-                }
-
-                (new ErrorRenderer($this->input, $this->output))
-                    ->render($exception);
-
+            } catch (ExitException $e) {
+                return $this->exitCode = (int) $e->getStatus();
+            } catch (Throwable $e) {
+                $exception = $e;
                 $this->exitCode = self::FAILURE;
-
-                $this->eventDispatcher->dispatch(new FailToHandle($this, $exception));
             } finally {
-                $this->eventDispatcher?->dispatch(new AfterExecute($this, $exception ?? null));
+                $this->eventDispatcher?->dispatch(new AfterExecute($this, $exception));
 
                 // Release the isolation mutex if applicable
                 if ($this instanceof Isolatable && $this->option('isolated') !== false) {
@@ -309,6 +299,10 @@ class Command extends SymfonyCommand
             run($callback, $this->hookFlags);
         } else {
             $callback();
+        }
+
+        if ($exception) {
+            throw $exception;
         }
 
         return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;

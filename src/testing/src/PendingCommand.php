@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
-use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\PromptValidationException;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\TestCase;
@@ -349,15 +347,9 @@ class PendingCommand
 
         $mock = $this->mockConsoleOutput();
 
-        $exception = null;
-        $this->app->make(Dispatcher::class)
-            ->listen(FailToHandle::class, function ($event) use (&$exception) {
-                $exception = $event->getThrowable();
-            });
-
         try {
             $exitCode = $this->app
-                ->get(KernelContract::class)
+                ->make(KernelContract::class)
                 ->call($this->command, $this->parameters, $mock);
         } catch (NoMatchingExpectationException $e) {
             if ($e->getMethodName() === 'askQuestion') {
@@ -367,14 +359,6 @@ class PendingCommand
             throw $e;
         } catch (PromptValidationException) {
             $exitCode = Command::FAILURE;
-        }
-
-        if ($exception) {
-            if ($exception instanceof PromptValidationException) {
-                $exitCode = Command::FAILURE;
-            } else {
-                throw $exception;
-            }
         }
 
         if ($this->expectedExitCode !== null) {

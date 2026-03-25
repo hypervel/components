@@ -44,13 +44,12 @@ class CommandTest extends TestCase
         $this->assertSame(SWOOLE_HOOK_ALL | SWOOLE_HOOK_CURL, $command->getHookFlags());
     }
 
-    public function testExitCodeWhenThrowException()
+    public function testExceptionPropagatesFromExecute()
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
 
-        /** @var FooExceptionCommand $command */
         $instance = new FooExceptionCommand('foo');
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
@@ -59,8 +58,17 @@ class CommandTest extends TestCase
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')->andReturn(true);
 
-        $exitCode = $command->execute($input, $output);
-        $this->assertSame(1, $exitCode);
+        $this->expectException(RuntimeException::class);
+        $command->execute($input, $output);
+    }
+
+    public function testExitCodeFromExitExceptionAndNormalCommand()
+    {
+        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $application = m::mock(ConsoleApplication::class);
+        $application->shouldReceive('getHelperSet');
+        $input = m::mock(InputInterface::class);
+        $input->shouldReceive('getOption')->andReturn(true);
 
         /** @var FooExitCommand $command */
         $instance = new FooExitCommand();
@@ -96,9 +104,14 @@ class CommandTest extends TestCase
         $this->assertSame('foo', (fn () => $this->propertyFoo)->call($command));
     }
 
-    public function testExitCodeWhenThrowExceptionInCoroutine()
+    public function testExceptionPropagatesFromExecuteInCoroutine()
     {
-        $this->testExitCodeWhenThrowException();
+        $this->testExceptionPropagatesFromExecute();
+    }
+
+    public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine()
+    {
+        $this->testExitCodeFromExitExceptionAndNormalCommand();
     }
 
     public function testProhibitableCommand()

@@ -13,7 +13,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Foundation\Application;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -56,8 +56,6 @@ enum ScheduleTestCacheStoreIntEnum: int
  */
 class ScheduleTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected Container $container;
 
     protected EventMutex&MockInterface $eventMutex;
@@ -68,7 +66,7 @@ class ScheduleTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = $this->getApplication();
+        $this->container = new Application();
         Container::setInstance($this->container);
         $this->eventMutex = m::mock(EventMutex::class);
         $this->container->instance(EventMutex::class, $this->eventMutex);

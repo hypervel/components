@@ -12,9 +12,9 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
@@ -44,15 +44,13 @@ enum EventTestTimezoneUnitEnum
  */
 class EventTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected ?Container $container = null;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = $this->getApplication();
+        $this->container = new Application();
         Container::setInstance($this->container);
     }
 

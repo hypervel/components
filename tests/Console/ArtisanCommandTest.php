@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console;
 
-use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Contracts\Console\Kernel;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithPromptValidation;
@@ -315,26 +313,19 @@ class ArtisanCommandTest extends TestCase
     }
 
     /**
-     * PromptValidationException is intentional control flow, not an unexpected error.
-     * It must propagate directly to PendingCommand (which converts it to FAILURE),
-     * without being caught by Command's general Throwable handler — which would
-     * render error output and dispatch FailToHandle.
+     * PromptValidationException is intentional control flow for prompt validation failures.
+     * It should produce a FAILURE exit code and show the validation message, not render
+     * as an unhandled exception error.
      */
-    public function testPromptValidationExceptionDoesNotTriggerFailToHandleEvent(): void
+    public function testPromptValidationExceptionProducesFailureWithoutErrorOutput(): void
     {
         $this->app->make(Kernel::class)->registerCommand(new FakeCommandWithPromptValidation());
-
-        $failToHandleFired = false;
-        $this->app->make(Dispatcher::class)->listen(FailToHandle::class, function () use (&$failToHandleFired) {
-            $failToHandleFired = true;
-        });
 
         $this->artisan('fake-prompt-validation-test')
             ->expectsQuestion('What is your name?', '')
             ->expectsOutputToContain('Required!')
+            ->doesntExpectOutputToContain('PromptValidationException')
             ->assertFailed();
-
-        $this->assertFalse($failToHandleFired, 'FailToHandle should not be dispatched for PromptValidationException');
     }
 
     protected function registerSurveyCommand(): void

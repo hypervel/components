@@ -12,7 +12,6 @@ use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\CommandStarting;
-use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
@@ -79,7 +78,7 @@ class EventsTest extends TestCase
 
         $event = new BeforeHandle($command);
 
-        $this->assertSame($command, $event->getCommand());
+        $this->assertSame($command, $event->command);
     }
 
     public function testAfterHandleCarriesCommand()
@@ -88,18 +87,7 @@ class EventsTest extends TestCase
 
         $event = new AfterHandle($command);
 
-        $this->assertSame($command, $event->getCommand());
-    }
-
-    public function testFailToHandleCarriesCommandAndThrowable()
-    {
-        $command = m::mock(Command::class);
-        $throwable = new RuntimeException('Command failed');
-
-        $event = new FailToHandle($command, $throwable);
-
-        $this->assertSame($command, $event->getCommand());
-        $this->assertSame($throwable, $event->getThrowable());
+        $this->assertSame($command, $event->command);
     }
 
     public function testAfterExecuteCarriesCommandAndOptionalThrowable()
@@ -107,12 +95,12 @@ class EventsTest extends TestCase
         $command = m::mock(Command::class);
 
         $event = new AfterExecute($command);
-        $this->assertSame($command, $event->getCommand());
-        $this->assertNull($event->getThrowable());
+        $this->assertSame($command, $event->command);
+        $this->assertNull($event->throwable);
 
         $throwable = new RuntimeException('Execute failed');
         $eventWithThrowable = new AfterExecute($command, $throwable);
-        $this->assertSame($throwable, $eventWithThrowable->getThrowable());
+        $this->assertSame($throwable, $eventWithThrowable->throwable);
     }
 
     public function testScheduledTaskStartingCarriesTask()
