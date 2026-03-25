@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\ServiceProvider;
 
 class TranslationServiceProvider extends ServiceProvider
@@ -36,15 +35,11 @@ class TranslationServiceProvider extends ServiceProvider
     protected function registerLoader(): void
     {
         $this->app->singleton('translator.loader', function ($app) {
-            $langPath = $app instanceof ApplicationContract
-                ? $app->langPath()
-                : BASE_PATH . DIRECTORY_SEPARATOR . 'lang';
-
             return new FileLoader(
                 $app->make('files'),
                 [
                     dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lang',
-                    $langPath,
+                    $app->langPath(),
                 ]
             );
         });
