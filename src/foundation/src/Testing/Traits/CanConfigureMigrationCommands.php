@@ -12,14 +12,11 @@ trait CanConfigureMigrationCommands
     protected function migrateFreshUsing(): array
     {
         $seeder = $this->seeder();
-        $connection = $this->app
-            ->get('config')
-            ->get('database.default');
 
         return array_merge(
             [
                 '--drop-views' => $this->shouldDropViews(),
-                '--database' => $connection,
+                '--drop-types' => $this->shouldDropTypes(),
             ],
             $seeder ? ['--seeder' => $seeder] : ['--seed' => $this->shouldSeed()]
         );
@@ -31,6 +28,14 @@ trait CanConfigureMigrationCommands
     protected function shouldDropViews(): bool
     {
         return property_exists($this, 'dropViews') ? $this->dropViews : false;
+    }
+
+    /**
+     * Determine if types should be dropped when refreshing the database.
+     */
+    protected function shouldDropTypes(): bool
+    {
+        return property_exists($this, 'dropTypes') ? $this->dropTypes : false;
     }
 
     /**
