@@ -316,6 +316,8 @@ Run the package's tests first, then the full suite. Circular dependency errors o
 
 It's safe to have the same provider listed in **both** `registerBaseServiceProviders()` and `extra.hypervel.providers` in `composer.json`. `Application::register()` deduplicates — `getProvider()` checks `$serviceProviders` by class name and returns the existing instance without re-registering. The `extra.hypervel.providers` entry ensures apps that install the package standalone (outside the components monorepo) still auto-discover the provider.
 
+**No deferred providers:** Providers run once at worker startup with no per-request cost, so deferral serves no purpose. When porting a Laravel provider that implements `DeferrableProvider`, drop the interface and `provides()` method.
+
 **Packages with existing service providers:** Some packages already have service providers (e.g., `MailServiceProvider`, `NotificationServiceProvider`, `PermissionServiceProvider`). Add the ConfigProvider's dependency bindings to the existing provider's `register()` method rather than creating a new one.
 
 **Packages with listeners:** Listeners registered via the `listeners` config key must be converted from Hyperf's `ListenerInterface` pattern to Laravel-style and registered in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below for the full conversion process.
