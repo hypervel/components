@@ -21,7 +21,9 @@ use Hypervel\Support\Facades\Log;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\Process\PhpProcess;
 use Throwable;
 
 /**
@@ -287,5 +289,37 @@ class ExceptionHandlerTest extends TestCase
         $recordedLogs = Log::getLogger()->getHandlers()[0]->getRecords();
         $this->assertCount(1, $recordedLogs);
         $this->assertStringContainsString('a really (truncated...)', $recordedLogs[0]['message']);
+    }
+
+    #[DataProvider('exitCodesProvider')]
+    public function testItReturnsNonZeroExitCodesForUncaughtExceptions($providers, $successful)
+    {
+        $basePath = static::applicationBasePath();
+        $providers = json_encode($providers);
+
+        $process = new PhpProcess(<<<EOF
+<?php
+
+require 'vendor/autoload.php';
+
+\$app = Hypervel\\Testbench\\Foundation\\Application::create(basePath: '{$basePath}', options: ['extra' => ['providers' => {$providers}]]);
+\$app->singleton('Hypervel\\Contracts\\Debug\\ExceptionHandler', 'Hypervel\\Foundation\\Exceptions\\Handler');
+
+\$kernel = \$app[Hypervel\\Contracts\\Console\\Kernel::class];
+
+return \$kernel->call('throw-exception-command');
+EOF, __DIR__ . '/../../../', ['APP_RUNNING_IN_CONSOLE' => true]);
+
+        $process->run();
+
+        $this->assertSame($successful, $process->isSuccessful());
+    }
+
+    public static function exitCodesProvider(): array
+    {
+        return [
+            'Throw exception' => [[Fixtures\Providers\ThrowUncaughtExceptionServiceProvider::class], false],
+            'Do not throw exception' => [[Fixtures\Providers\ThrowExceptionServiceProvider::class], true],
+        ];
     }
 }

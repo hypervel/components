@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
@@ -28,6 +29,18 @@ class AboutCommandTest extends TestCase
             ], $output['environment']);
 
             $this->assertArrayHasKey('runtime_proxy', $output['cache']);
+        });
+    }
+
+    #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/Fixtures/compiled-views')]
+    public function testItRespectsCustomPathForCompiledViews()
+    {
+        $process = remote('about --json', ['APP_ENV' => 'local'])->mustRun();
+
+        tap(json_decode($process->getOutput(), true), static function (array $output) {
+            Assert::assertArraySubset([
+                'views' => true,
+            ], $output['cache']);
         });
     }
 

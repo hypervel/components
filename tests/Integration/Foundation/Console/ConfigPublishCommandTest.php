@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Foundation\Console\ConfigPublishCommand;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
@@ -128,6 +129,33 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->artisan('config:publish', ['name' => $name, '--force' => true])
             ->assertSuccessful()
             ->expectsOutputToContain("Published '{$name}' configuration file.");
+    }
+
+    public function testItCanPublishConfigFilesWhenConfiguredWithDontMergeFrameworkConfiguration()
+    {
+        foreach ([
+            'app', 'auth', 'broadcasting', 'cache', 'cors',
+            'database', 'filesystems', 'hashing', 'logging',
+            'mail', 'queue', 'session', 'view',
+        ] as $file) {
+            $this->preserveConfigFile($file);
+        }
+
+        $this->artisan('config:publish', ['--all' => true, '--force' => true])->assertOk();
+
+        foreach ([
+            'app', 'auth', 'broadcasting', 'cache', 'cors',
+            'database', 'filesystems', 'hashing', 'logging',
+            'mail', 'queue', 'session', 'view',
+        ] as $file) {
+            $this->assertFilenameExists("config/{$file}.php");
+            $this->assertStringContainsString(
+                file_get_contents($this->baseConfigPath . "/{$file}.php"),
+                file_get_contents(config_path("{$file}.php"))
+            );
+        }
+
+        $this->assertSame(config('app.providers'), ServiceProvider::defaultProviders()->toArray());
     }
 
     public function testItFailsWithUnrecognizedConfigFile()
