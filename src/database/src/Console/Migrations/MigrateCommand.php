@@ -244,23 +244,19 @@ class MigrateCommand extends BaseCommand implements Isolatable
         // Build a one-off admin connection from a copied config with the database
         // changed to the server default. This avoids mutating process-global config
         // which would race with other coroutines in Swoole's long-lived workers.
-        $adminConfig['database'] = match ($connection->getDriverName()) {
-            'mysql', 'mariadb' => null,
-            'pgsql' => 'postgres',
+        [$adminDatabase, $createSql] = match ($connection->getDriverName()) {
+            'mysql', 'mariadb' => [null, "CREATE DATABASE IF NOT EXISTS `{$connection->getDatabaseName()}`"],
+            'pgsql' => ['postgres', 'CREATE DATABASE "' . $connection->getDatabaseName() . '"'],
             default => throw new RuntimeException("Unsupported driver [{$connection->getDriverName()}] for database creation."),
         };
+
+        $adminConfig['database'] = $adminDatabase;
 
         $factory = $this->hypervel->make(ConnectionFactory::class);
         $adminConnection = $factory->make($adminConfig, $connection->getName());
 
         try {
-            return $adminConnection->unprepared(
-                match ($connection->getDriverName()) {
-                    'mysql', 'mariadb' => "CREATE DATABASE IF NOT EXISTS `{$connection->getDatabaseName()}`",
-                    'pgsql' => 'CREATE DATABASE "' . $connection->getDatabaseName() . '"',
-                    default => throw new RuntimeException("Unsupported driver [{$connection->getDriverName()}] for database creation."),
-                }
-            );
+            return $adminConnection->unprepared($createSql);
         } finally {
             $adminConnection->disconnect();
         }
