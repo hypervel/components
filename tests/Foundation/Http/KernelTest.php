@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
+use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Foundation\Http\Kernel;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -16,9 +20,7 @@ use Mockery as m;
  */
 class KernelTest extends TestCase
 {
-    use HasMockedApplication;
-
-    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware(): void
+    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -37,7 +39,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterWithArrayOfMiddleware(): void
+    public function testAddToMiddlewarePriorityAfterWithArrayOfMiddleware()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -57,7 +59,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterWhenExistingNotFound(): void
+    public function testAddToMiddlewarePriorityAfterWhenExistingNotFound()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -75,7 +77,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterDoesNotAddDuplicates(): void
+    public function testAddToMiddlewarePriorityAfterDoesNotAddDuplicates()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -94,7 +96,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeWithSingleMiddleware(): void
+    public function testAddToMiddlewarePriorityBeforeWithSingleMiddleware()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -113,7 +115,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeWithArrayOfMiddleware(): void
+    public function testAddToMiddlewarePriorityBeforeWithArrayOfMiddleware()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -133,7 +135,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeWhenExistingNotFound(): void
+    public function testAddToMiddlewarePriorityBeforeWhenExistingNotFound()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -152,7 +154,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeDoesNotAddDuplicates(): void
+    public function testAddToMiddlewarePriorityBeforeDoesNotAddDuplicates()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -171,7 +173,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeAtBeginning(): void
+    public function testAddToMiddlewarePriorityBeforeAtBeginning()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -188,7 +190,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterAtEnd(): void
+    public function testAddToMiddlewarePriorityAfterAtEnd()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -205,7 +207,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityReturnsSelf(): void
+    public function testAddToMiddlewarePriorityReturnsSelf()
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority(['middleware_a']);
@@ -217,10 +219,51 @@ class KernelTest extends TestCase
         $this->assertSame($kernel, $result);
     }
 
+    public function testItTriggersTerminatingEvent()
+    {
+        $called = [];
+        $app = new Application();
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $kernel = new Kernel($app, new Router($events, $app));
+        $app->instance('terminating-middleware', new class($called) {
+            public function __construct(private &$called)
+            {
+            }
+
+            public function handle($request, $next)
+            {
+                return $next($request);
+            }
+
+            public function terminate($request, $response): void
+            {
+                $this->called[] = 'terminating middleware';
+            }
+        });
+        $kernel->setGlobalMiddleware([
+            'terminating-middleware',
+        ]);
+        $events->listen(function (Terminating $terminating) use (&$called) {
+            $called[] = 'terminating event';
+        });
+        $app->terminating(function () use (&$called) {
+            $called[] = 'terminating callback';
+        });
+
+        $kernel->terminate(new Request(), new Response());
+
+        $this->assertSame([
+            'terminating event',
+            'terminating middleware',
+            'terminating callback',
+        ], $called);
+    }
+
     protected function getKernel(): Kernel
     {
         return new Kernel(
-            $this->getApplication(),
+            new Application(),
             m::mock(Router::class),
         );
     }

@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Console\Kernel;
+use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -97,5 +100,27 @@ class KernelTest extends TestCase
 
         $method = new ReflectionMethod($kernel, 'renderException');
         $method->invoke($kernel, $output, $exception);
+    }
+
+    public function testItDispatchesTerminatingEvent()
+    {
+        $called = [];
+        $app = new Application();
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $kernel = new Kernel($app, $events);
+        $events->listen(function (Terminating $terminating) use (&$called) {
+            $called[] = 'terminating event';
+        });
+        $app->terminating(function () use (&$called) {
+            $called[] = 'terminating callback';
+        });
+
+        $kernel->terminate(new StringInput('tinker'), 0);
+
+        $this->assertSame([
+            'terminating event',
+            'terminating callback',
+        ], $called);
     }
 }

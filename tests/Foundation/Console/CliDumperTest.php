@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\CliDumper;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use stdClass;
@@ -20,8 +20,6 @@ use Symfony\Component\VarDumper\Cloner\VarCloner;
  */
 class CliDumperTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected $config;
 
     protected $container;
@@ -32,9 +30,8 @@ class CliDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = $this->getApplication([
-            'config' => fn () => $this->config,
-        ]);
+        $this->container = new Application();
+        $this->container->singleton('config', fn () => $this->config);
 
         CliDumper::resolveDumpSourceUsing(function () {
             return [
@@ -223,6 +220,23 @@ class CliDumperTest extends TestCase
         $output = $this->dump('string');
 
         $expected = "\"string\"\n";
+
+        $this->assertSame($expected, $output);
+    }
+
+    public function testUnresolvableLine()
+    {
+        CliDumper::resolveDumpSourceUsing(function () {
+            return [
+                '/my-work-directory/resources/views/welcome.blade.php',
+                'resources/views/welcome.blade.php',
+                null,
+            ];
+        });
+
+        $output = $this->dump('hey from view');
+
+        $expected = "\"hey from view\" // resources/views/welcome.blade.php\n";
 
         $this->assertSame($expected, $output);
     }

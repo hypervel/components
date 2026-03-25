@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use stdClass;
@@ -20,8 +20,6 @@ use Symfony\Component\VarDumper\Cloner\VarCloner;
  */
 class HtmlDumperTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected $config;
 
     protected $container;
@@ -32,9 +30,8 @@ class HtmlDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = $this->getApplication([
-            'config' => fn () => $this->config,
-        ]);
+        $this->container = new Application();
+        $this->container->singleton('config', fn () => $this->config);
 
         HtmlDumper::resolveDumpSourceUsing(function () {
             return [
