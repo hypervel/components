@@ -22,6 +22,7 @@ use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Http\RedirectResponse;
@@ -34,7 +35,6 @@ use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\Assert;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
@@ -59,9 +59,8 @@ use const UPLOAD_ERR_NO_FILE;
  * @internal
  * @coversNothing
  */
-class FoundationExceptionHandlerTest extends TestCase
+class FoundationExceptionsHandlerTest extends TestCase
 {
-    use HasMockedApplication;
     use InteractsWithExceptionHandling;
 
     protected $config;
@@ -81,11 +80,10 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->viewFactory = m::mock(ViewFactory::class);
         $this->request = m::mock(Request::class);
-        $this->container = $this->getApplication([
-            'config' => fn () => $this->config,
-            'view' => fn () => $this->viewFactory,
-            Request::class => fn () => $this->request,
-        ]);
+        $this->container = new Application();
+        $this->container->singleton('config', fn () => $this->config);
+        $this->container->singleton('view', fn () => $this->viewFactory);
+        $this->container->singleton(Request::class, fn () => $this->request);
 
         $this->container->instance(ResponseFactoryContract::class, new ResponseFactory(
             $this->viewFactory,
