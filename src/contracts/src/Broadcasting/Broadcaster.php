@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Broadcasting;
 
 use Hypervel\Http\Request;
+use Hypervel\Support\Collection;
 
 interface Broadcaster
 {
@@ -22,4 +23,9 @@ interface Broadcaster
      * Broadcast the given event.
      */
     public function broadcast(array $channels, string $event, array $payload = []): void;
+
+    /**
+     * Get all of the registered channels.
+     */
+    public function getChannels(): Collection;
 }

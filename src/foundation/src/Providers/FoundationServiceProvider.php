@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Providers;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\CommandFinished;
-use Hypervel\Console\Events\FailToHandle;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container;
@@ -21,6 +20,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CastMakeCommand;
+use Hypervel\Foundation\Console\ChannelListCommand;
 use Hypervel\Foundation\Console\ChannelMakeCommand;
 use Hypervel\Foundation\Console\ClassMakeCommand;
 use Hypervel\Foundation\Console\ClearCompiledCommand;
@@ -47,7 +47,7 @@ use Hypervel\Foundation\Console\InterfaceMakeCommand;
 use Hypervel\Foundation\Console\InvokeSerializedClosureCommand;
 use Hypervel\Foundation\Console\JobMakeCommand;
 use Hypervel\Foundation\Console\JobMiddlewareMakeCommand;
-use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Console\LangPublishCommand;
 use Hypervel\Foundation\Console\ListenerMakeCommand;
 use Hypervel\Foundation\Console\MailMakeCommand;
 use Hypervel\Foundation\Console\ModelMakeCommand;
@@ -95,27 +95,17 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Validation\ValidationException;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
-use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
 {
     protected Repository $config;
 
-    protected ConsoleOutputInterface $output;
-
     public function __construct(protected ApplicationContract $app)
     {
         $this->config = $app->make('config');
-        $this->output = new ConsoleOutput();
-
-        if ($app->hasDebugModeEnabled()) {
-            $this->output->setVerbosity(ConsoleOutputInterface::VERBOSITY_VERBOSE);
-        }
     }
 
     public function boot(): void
@@ -155,7 +145,6 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->registerDeferHandler();
         $this->registerConsoleSchedule();
-        $this->listenCommandException();
         $this->registerMaintenanceModeManager();
         $this->registerRequestValidation();
         $this->registerRequestSignatureValidation();
@@ -168,6 +157,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->commands([
             AboutCommand::class,
             CastMakeCommand::class,
+            ChannelListCommand::class,
             ChannelMakeCommand::class,
             ClearCompiledCommand::class,
             ClassMakeCommand::class,
@@ -193,6 +183,7 @@ class FoundationServiceProvider extends ServiceProvider
             InvokeSerializedClosureCommand::class,
             JobMakeCommand::class,
             JobMiddlewareMakeCommand::class,
+            LangPublishCommand::class,
             ListenerMakeCommand::class,
             MailMakeCommand::class,
             ModelMakeCommand::class,
@@ -254,37 +245,6 @@ class FoundationServiceProvider extends ServiceProvider
             $this->app->make(DeferredCallbackCollection::class)
                 ->invokeWhen(fn (DeferredCallback $callback) => $event->successful() || $callback->always);
         });
-    }
-
-    protected function listenCommandException(): void
-    {
-        $this->app->make(Dispatcher::class)
-            ->listen(FailToHandle::class, function ($event) {
-                // During tests, PendingCommand handles command exceptions itself
-                // (capturing via its own FailToHandle listener and re-throwing).
-                // Rendering here would produce duplicate, unwanted output to stdout.
-                if ($this->app->runningUnitTests()) {
-                    return;
-                }
-
-                if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
-                    /** @var \Hypervel\Console\Application $artisan */
-                    $artisan = $this->app->make(ConsoleKernel::class)->getArtisan();
-                    $artisan->renderThrowable($throwable, $this->output);
-                }
-            });
-    }
-
-    protected function isConsoleKernelCall(Throwable $exception): bool
-    {
-        foreach ($exception->getTrace() as $trace) {
-            if (($trace['class'] ?? null) === ConsoleKernel::class
-                && ($trace['function'] ?? null) === 'call') { // @phpstan-ignore nullCoalesce.offset (defensive backtrace handling)
-                return true;
-            }
-        }
-
-        return false;
     }
 
     protected function setDatabaseConnection(): void
