@@ -41,7 +41,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * The base path for the Hypervel installation.
      */
-    protected string $basePath = '';
+    protected ?string $basePath = null;
 
     /**
      * The path to the bootstrap directory.
@@ -156,13 +156,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected array $loadedProviders = [];
 
     /**
-     * The deferred services and their providers.
-     *
-     * @var array<string, string>
-     */
-    protected array $deferredServices = [];
-
-    /**
      * The application namespace.
      */
     protected ?string $namespace;
@@ -170,7 +163,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function __construct(?string $basePath = null)
     {
         $this->checkEnvironment();
-        $this->setBasePath($basePath ?: '');
+
+        if ($basePath) {
+            $this->setBasePath($basePath);
+        }
 
         $this->registerBaseBindings();
         $this->registerBaseServiceProviders();
@@ -563,7 +559,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Get the path to the environment file directory.
      */
-    public function environmentPath(): string
+    public function environmentPath(): ?string
     {
         return $this->environmentPath ?: $this->basePath;
     }
@@ -622,14 +618,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function getCachedConfigPath(): string
     {
         return $this->normalizeCachePath('APP_CONFIG_CACHE', 'cache/config.php');
-    }
-
-    /**
-     * Get the path to the cached services.php file.
-     */
-    public function getCachedServicesPath(): string
-    {
-        return $this->normalizeCachePath('APP_SERVICES_CACHE', 'cache/services.php');
     }
 
     /**
@@ -701,7 +689,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Join the given paths together.
      */
-    public function joinPaths(string $basePath, string $path = ''): string
+    public function joinPaths(?string $basePath, string $path = ''): string
     {
         return join_paths($basePath, $path);
     }
@@ -876,8 +864,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
         $providers->splice(1, 0, [$discovered]);
 
-        (new ProviderRepository($this, new Filesystem(), $this->getCachedServicesPath()))
-            ->load($providers->collapse()->unique()->all());
+        foreach ($providers->collapse()->unique() as $provider) {
+            $this->register($provider);
+        }
 
         $this->fireAppCallbacks($this->registeredCallbacks);
     }
@@ -1053,46 +1042,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
         }
 
         $provider->callBootedCallbacks();
-    }
-
-    /**
-     * Load and boot all of the remaining deferred providers.
-     */
-    public function loadDeferredProviders(): void
-    {
-        foreach ($this->deferredServices as $service => $provider) {
-            $this->loadDeferredProvider($service);
-        }
-
-        $this->deferredServices = [];
-    }
-
-    /**
-     * Load the provider for a deferred service.
-     */
-    public function loadDeferredProvider(string $service): void
-    {
-        if (! $this->isDeferredService($service)) {
-            return;
-        }
-
-        $provider = $this->deferredServices[$service];
-
-        if (! isset($this->loadedProviders[$provider])) {
-            $this->registerDeferredProvider($provider, $service);
-        }
-    }
-
-    /**
-     * Register a deferred provider and service.
-     */
-    public function registerDeferredProvider(string $provider, ?string $service = null): void
-    {
-        if ($service) {
-            unset($this->deferredServices[$service]);
-        }
-
-        $this->register(new $provider($this));
     }
 
     /**
@@ -1383,76 +1332,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
-     * Get the application's deferred services.
-     *
-     * @return array<string, string>
-     */
-    public function getDeferredServices(): array
-    {
-        return $this->deferredServices;
-    }
-
-    /**
-     * Set the application's deferred services.
-     *
-     * @param array<string, string> $services
-     */
-    public function setDeferredServices(array $services): void
-    {
-        $this->deferredServices = $services;
-    }
-
-    /**
-     * Determine if the given service is a deferred service.
-     */
-    public function isDeferredService(string $service): bool
-    {
-        return isset($this->deferredServices[$service]);
-    }
-
-    /**
-     * Add an array of services to the application's deferred services.
-     *
-     * Registers placeholder bindings for each deferred service so the
-     * container can resolve them lazily without hot-path overhead on
-     * every make()/resolve() call.
-     *
-     * @param array<string, string> $services
-     */
-    public function addDeferredServices(array $services): void
-    {
-        $this->deferredServices = array_merge($this->deferredServices, $services);
-
-        foreach ($services as $service => $provider) {
-            if (! isset($this->bindings[$service])) {
-                $this->bind($service, function ($app) use ($service) {
-                    $app->loadDeferredProvider($service);
-
-                    // The provider has now registered its real binding (or instance).
-                    // Hand off to the real registration for this first resolution.
-                    if (isset($app->instances[$service])) {
-                        return $app->instances[$service];
-                    }
-
-                    return $app->build($app->getConcrete($service));
-                });
-            }
-        }
-    }
-
-    /**
-     * Remove an array of services from the application's deferred services.
-     *
-     * @param array<int, string> $services
-     */
-    public function removeDeferredServices(array $services): void
-    {
-        foreach ($services as $service) {
-            unset($this->deferredServices[$service]);
-        }
-    }
-
-    /**
      * Flush the container of all bindings and resolved instances.
      */
     public function flush(): void
@@ -1460,7 +1339,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
         parent::flush();
 
         $this->loadedProviders = [];
-        $this->deferredServices = [];
         $this->bootedCallbacks = [];
         $this->bootingCallbacks = [];
         $this->reboundCallbacks = [];

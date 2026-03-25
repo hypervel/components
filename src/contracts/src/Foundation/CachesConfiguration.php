@@ -15,9 +15,4 @@ interface CachesConfiguration
      * Get the path to the configuration cache file.
      */
     public function getCachedConfigPath(): string;
-
-    /**
-     * Get the path to the cached services.php file.
-     */
-    public function getCachedServicesPath(): string;
 }
