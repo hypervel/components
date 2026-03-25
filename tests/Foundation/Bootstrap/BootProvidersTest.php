@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -15,11 +15,9 @@ use Hypervel\Tests\TestCase;
  */
 class BootProvidersTest extends TestCase
 {
-    use HasMockedApplication;
-
     public function testBoot()
     {
-        $app = $this->getApplication();
+        $app = new Application();
         $app->register(ApplicationBasicServiceProviderStub::class);
 
         (new BootProviders())->bootstrap($app);

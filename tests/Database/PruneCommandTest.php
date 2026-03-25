@@ -15,6 +15,7 @@ use Hypervel\Database\Events\ModelsPruned;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -54,17 +55,13 @@ class PruneCommandTest extends TestCase
 
     public function testPrunableModelAndExceptWithEachOther()
     {
-        // Hypervel's Command catches exceptions and renders them via the error handler,
-        // so the InvalidArgumentException doesn't propagate. Check the output instead.
-        $output = $this->artisan([
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The --models and --except options cannot be combined.');
+
+        $this->artisan([
             '--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
             '--except' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
         ]);
-
-        $this->assertStringContainsString(
-            'The --models and --except options cannot be combined.',
-            $output->fetch(),
-        );
     }
 
     public function testPrunableModelWithPrunableRecords()

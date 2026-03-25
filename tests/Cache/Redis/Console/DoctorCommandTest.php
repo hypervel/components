@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Console;
 
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Testbench\TestCase;
@@ -154,7 +155,21 @@ class DoctorCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
+        // Skip functional checks — this test only verifies store routing
+        $command = new class extends DoctorCommand {
+            protected function getFunctionalChecks(): array
+            {
+                return [];
+            }
+
+            protected function cleanup(DoctorContext $context, bool $silent = false): void
+            {
+            }
+
+            protected function runCleanupVerification(DoctorContext $context): void
+            {
+            }
+        };
         $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput(['--store' => 'custom-redis']), $output);
@@ -200,7 +215,21 @@ class DoctorCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
+        // Skip functional checks — this test only verifies tag mode display
+        $command = new class extends DoctorCommand {
+            protected function getFunctionalChecks(): array
+            {
+                return [];
+            }
+
+            protected function cleanup(DoctorContext $context, bool $silent = false): void
+            {
+            }
+
+            protected function runCleanupVerification(DoctorContext $context): void
+            {
+            }
+        };
         $command->setHypervel($this->app);
         $output = new BufferedOutput();
         $command->run(new ArrayInput(['--store' => 'redis']), $output);

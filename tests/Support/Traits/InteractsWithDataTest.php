@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support\Traits;
 
 use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\InteractsWithData;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
 
 enum InteractsWithDataTestStringEnum: string
@@ -35,13 +35,11 @@ enum InteractsWithDataTestUnitEnum
  */
 class InteractsWithDataTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        Container::setInstance($this->getApplication());
+        Container::setInstance(new Application());
     }
 
     public function testDateReturnsNullWhenKeyIsNotFilled(): void

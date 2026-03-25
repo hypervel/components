@@ -69,7 +69,8 @@ class ClearCommandTest extends TestCase
         $this->cacheManager->shouldReceive('store')->once()->with('bar')->andThrow(InvalidArgumentException::class);
         $this->cacheRepository->shouldReceive('flush')->never();
 
-        $this->assertSame(1, $this->runCommand($this->command, ['store' => 'bar']));
+        $this->expectException(InvalidArgumentException::class);
+        $this->runCommand($this->command, ['store' => 'bar']);
     }
 
     public function testClearWithTagsOption()

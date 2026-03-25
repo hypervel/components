@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\PackageManifest;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -17,8 +17,6 @@ use Mockery as m;
  */
 class RegisterFacadesTest extends TestCase
 {
-    use HasMockedApplication;
-
     public function testRegisterAliases()
     {
         $config = m::mock(Repository::class);
@@ -36,10 +34,9 @@ class RegisterFacadesTest extends TestCase
                 'TestAlias' => 'TestClass',
             ]);
 
-        $app = $this->getApplication([
-            'config' => fn () => $config,
-            PackageManifest::class => fn () => $manifest,
-        ]);
+        $app = new Application();
+        $app->singleton('config', fn () => $config);
+        $app->singleton(PackageManifest::class, fn () => $manifest);
 
         $bootstrapper = $this->createPartialMock(
             RegisterFacades::class,

@@ -12,9 +12,9 @@ use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
@@ -34,8 +34,6 @@ use stdClass;
  */
 class ViewFactoryTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected function tearDown(): void
     {
         m::close();
@@ -65,7 +63,7 @@ class ViewFactoryTest extends TestCase
 
     private function createEventDispatcher()
     {
-        return new EventDispatcher($this->getApplication());
+        return new EventDispatcher(new Application());
     }
 
     public function testExistsPassesAndFailsViews()
