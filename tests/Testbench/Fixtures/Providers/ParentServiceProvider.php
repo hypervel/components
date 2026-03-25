@@ -10,7 +10,6 @@ class ParentServiceProvider extends AggregateServiceProvider
 {
     protected array $providers = [
         ChildServiceProvider::class,
-        DeferredChildServiceProvider::class,
     ];
 
     public function register(): void

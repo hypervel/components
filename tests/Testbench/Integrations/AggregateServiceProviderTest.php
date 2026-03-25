@@ -29,10 +29,8 @@ class AggregateServiceProviderTest extends TestCase
     {
         $this->assertTrue($this->app->bound('parent.loaded'));
         $this->assertTrue($this->app->bound('child.loaded'));
-        $this->assertTrue($this->app->bound('child.deferred.loaded'));
 
         $this->assertTrue($this->app->make('parent.loaded'));
         $this->assertTrue($this->app->make('child.loaded'));
-        $this->assertTrue($this->app->make('child.deferred.loaded'));
     }
 }

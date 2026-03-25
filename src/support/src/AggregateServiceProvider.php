@@ -31,22 +31,4 @@ class AggregateServiceProvider extends ServiceProvider
             $this->instances[] = $this->app->register($provider);
         }
     }
-
-    /**
-     * Get the services provided by the provider.
-     *
-     * @return array<int, string>
-     */
-    public function provides(): array
-    {
-        $provides = [];
-
-        foreach ($this->providers as $provider) {
-            $instance = $this->app->resolveProvider($provider);
-
-            $provides = array_merge($provides, $instance->provides());
-        }
-
-        return $provides;
-    }
 }

@@ -9,7 +9,6 @@ use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
-use Hypervel\Contracts\Support\DeferrableProvider;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Di\Aop\AspectCollector;
@@ -542,24 +541,6 @@ return [
         }
 
         return $key;
-    }
-
-    /**
-     * Get the services provided by the provider.
-     *
-     * @return array<int, string>
-     */
-    public function provides(): array
-    {
-        return [];
-    }
-
-    /**
-     * Determine if the provider is deferred.
-     */
-    public function isDeferred(): bool
-    {
-        return $this instanceof DeferrableProvider;
     }
 
     /**

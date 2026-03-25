@@ -25,14 +25,10 @@ class ClearCompiledCommand extends Command
      */
     public function handle(): void
     {
-        if (is_file($servicesPath = $this->hypervel->getCachedServicesPath())) {
-            @unlink($servicesPath);
-        }
-
         if (is_file($packagesPath = $this->hypervel->getCachedPackagesPath())) {
             @unlink($packagesPath);
         }
 
-        $this->components->info('Compiled services and packages files removed successfully.');
+        $this->components->info('Compiled packages file removed successfully.');
     }
 }
