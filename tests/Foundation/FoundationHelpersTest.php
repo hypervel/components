@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation;
+namespace Hypervel\Tests\Foundation\FoundationHelpersTest;
 
 use Carbon\Carbon;
 use DateTimeZone;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Defer\DeferredCallback;
@@ -19,19 +20,19 @@ use Mockery as m;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
-enum HelpersTestStringEnum: string
+enum StringEnum: string
 {
     case UTC = 'UTC';
     case NewYork = 'America/New_York';
 }
 
-enum HelpersTestIntEnum: int
+enum IntEnum: int
 {
     case One = 1;
     case Two = 2;
 }
 
-enum HelpersTestUnitEnum
+enum UnitEnum
 {
     case UTC;
     case EST;
@@ -41,16 +42,16 @@ enum HelpersTestUnitEnum
  * @internal
  * @coversNothing
  */
-class HelpersTest extends TestCase
+class FoundationHelpersTest extends TestCase
 {
-    public function testNowReturnsCarbon(): void
+    public function testNowReturnsCarbon()
     {
         $result = now();
 
         $this->assertInstanceOf(Carbon::class, $result);
     }
 
-    public function testNowWithStringTimezone(): void
+    public function testNowWithStringTimezone()
     {
         $result = now('America/New_York');
 
@@ -58,7 +59,7 @@ class HelpersTest extends TestCase
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithDateTimeZone(): void
+    public function testNowWithDateTimeZone()
     {
         $tz = new DateTimeZone('America/New_York');
         $result = now($tz);
@@ -67,39 +68,39 @@ class HelpersTest extends TestCase
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithStringBackedEnum(): void
+    public function testNowWithStringBackedEnum()
     {
-        $result = now(HelpersTestStringEnum::NewYork);
+        $result = now(StringEnum::NewYork);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithUnitEnum(): void
+    public function testNowWithUnitEnum()
     {
-        $result = now(HelpersTestUnitEnum::UTC);
+        $result = now(UnitEnum::UTC);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('UTC', $result->timezone->getName());
     }
 
-    public function testNowWithIntBackedEnum(): void
+    public function testNowWithIntBackedEnum()
     {
         // Int-backed enum returns int, Carbon interprets as UTC offset
-        $result = now(HelpersTestIntEnum::One);
+        $result = now(IntEnum::One);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('+01:00', $result->timezone->getName());
     }
 
-    public function testNowWithNull(): void
+    public function testNowWithNull()
     {
         $result = now(null);
 
         $this->assertInstanceOf(Carbon::class, $result);
     }
 
-    public function testTodayReturnsCarbon(): void
+    public function testTodayReturnsCarbon()
     {
         $result = today();
 
@@ -107,7 +108,7 @@ class HelpersTest extends TestCase
         $this->assertEquals('00:00:00', $result->format('H:i:s'));
     }
 
-    public function testTodayWithStringTimezone(): void
+    public function testTodayWithStringTimezone()
     {
         $result = today('America/New_York');
 
@@ -116,7 +117,7 @@ class HelpersTest extends TestCase
         $this->assertEquals('00:00:00', $result->format('H:i:s'));
     }
 
-    public function testTodayWithDateTimeZone(): void
+    public function testTodayWithDateTimeZone()
     {
         $tz = new DateTimeZone('America/New_York');
         $result = today($tz);
@@ -125,32 +126,32 @@ class HelpersTest extends TestCase
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testTodayWithStringBackedEnum(): void
+    public function testTodayWithStringBackedEnum()
     {
-        $result = today(HelpersTestStringEnum::NewYork);
+        $result = today(StringEnum::NewYork);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testTodayWithUnitEnum(): void
+    public function testTodayWithUnitEnum()
     {
-        $result = today(HelpersTestUnitEnum::UTC);
+        $result = today(UnitEnum::UTC);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('UTC', $result->timezone->getName());
     }
 
-    public function testTodayWithIntBackedEnum(): void
+    public function testTodayWithIntBackedEnum()
     {
         // Int-backed enum returns int, Carbon interprets as UTC offset
-        $result = today(HelpersTestIntEnum::One);
+        $result = today(IntEnum::One);
 
         $this->assertInstanceOf(Carbon::class, $result);
         $this->assertEquals('+01:00', $result->timezone->getName());
     }
 
-    public function testTodayWithNull(): void
+    public function testTodayWithNull()
     {
         $result = today(null);
 
@@ -180,6 +181,15 @@ class HelpersTest extends TestCase
         // cache('baz', 'default') gets with default
         $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
+    }
+
+    public function testEvents()
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $this->app->instance('events', $dispatcher);
+
+        $dispatcher->shouldReceive('dispatch')->once()->with('test.event', ['payload'], false)->andReturn('foo');
+        $this->assertSame('foo', event('test.event', ['payload'], false));
     }
 
     public function testEventHelperReturnsArrayForNormalDispatch()
