@@ -150,7 +150,7 @@ class AboutCommand extends Command
             'Config' => static::format($this->hypervel->configurationIsCached(), console: $formatCachedStatus),
             'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
             'Routes' => static::format($this->hypervel->routesAreCached(), console: $formatCachedStatus),
-            'Runtime Proxy' => static::format($this->hasPhpFiles($this->hypervel->basePath('runtime/container'), 'cache'), console: $formatCachedStatus),
+            'AOP Proxies' => static::format($this->hasPhpFiles($this->hypervel->storagePath('framework/aop'), 'cache'), console: $formatCachedStatus),
             'Views' => static::format($this->hasPhpFiles(config('view.compiled')), console: $formatCachedStatus),
         ]);
 

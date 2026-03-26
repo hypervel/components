@@ -53,7 +53,7 @@ class ClearCommand extends Command
         /** @phpstan-ignore method.notFound (flush() is on TaggedCache or via __call to the store) */
         $successful = $this->cache()->flush();
 
-        $this->flushRuntime();
+        $this->flushProxies();
 
         if (! $successful) {
             $this->components->error('Failed to clear cache. Make sure you have the appropriate permissions.');
@@ -114,11 +114,11 @@ class ClearCommand extends Command
     }
 
     /**
-     * Flush the runtime cache directory.
+     * Flush the AOP proxy cache directory.
      */
-    public function flushRuntime(): void
+    public function flushProxies(): void
     {
-        $this->files->deleteDirectory(base_path('runtime/container'));
+        $this->files->deleteDirectory(storage_path('framework/aop'));
     }
 
     /**
