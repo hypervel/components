@@ -22,7 +22,7 @@ class StartSessionTest extends TestCase
 
         $this->assertSame('/', $config['path']);
         $this->assertSame('', $config['domain']);
-        $this->assertFalse($config['secure']);
+        $this->assertNull($config['secure']);
         $this->assertTrue($config['http_only']);
         $this->assertNull($config['same_site']);
         $this->assertFalse($config['partitioned']);
