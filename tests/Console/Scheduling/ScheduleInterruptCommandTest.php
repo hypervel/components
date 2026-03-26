@@ -46,6 +46,12 @@ class ScheduleInterruptCommandTest extends TestCase
             ->assertFailed();
     }
 
+    public function testInterruptCommandRejectsDecimalMinutes()
+    {
+        $this->artisan('schedule:interrupt', ['--minutes' => '1.5'])
+            ->assertFailed();
+    }
+
     public function testInterruptCommandAcceptsCustomMinutes()
     {
         $cache = m::mock(CacheFactory::class);

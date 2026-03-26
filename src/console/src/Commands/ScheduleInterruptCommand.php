@@ -40,10 +40,10 @@ class ScheduleInterruptCommand extends Command
      */
     public function handle(): int
     {
-        $minutes = (int) $this->option('minutes');
+        $minutes = filter_var($this->option('minutes'), FILTER_VALIDATE_INT);
 
-        if ($minutes < 1) {
-            $this->components->error('The --minutes option must be at least 1.');
+        if ($minutes === false || $minutes < 1) {
+            $this->components->error('The --minutes option must be an integer of at least 1.');
 
             return self::FAILURE;
         }
