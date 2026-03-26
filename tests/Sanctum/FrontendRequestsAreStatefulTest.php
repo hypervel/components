@@ -132,10 +132,10 @@ class FrontendRequestsAreStatefulTest extends TestCase
             return $cookie->getName() === 'XSRF-TOKEN';
         })->firstOrFail();
         $sessionCookie = $cookies->where(function ($cookie) {
-            return $cookie->getName() === 'testing_session';
+            return $cookie->getName() === 'hypervel_session';
         })->firstOrFail();
 
-        $this->withCookie('testing_session', $sessionCookie->getValue())
+        $this->withCookie('hypervel_session', $sessionCookie->getValue())
             ->postJson('/sanctum/api/password', [], [
                 'origin' => config('app.url'),
                 'X-CSRF-TOKEN' => $csrfToken->getValue(),

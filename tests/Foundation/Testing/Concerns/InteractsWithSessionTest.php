@@ -30,6 +30,7 @@ class InteractsWithSessionTest extends TestCase
         // Use cache driver which has strict type hints on sessionId
         // This tests that startSession() properly initializes a session ID
         $this->app->make('config')->set('session.driver', 'redis');
+        $this->app->make('config')->set('session.store', null);
 
         $this->withSession(['cache_test' => 'value']);
 
