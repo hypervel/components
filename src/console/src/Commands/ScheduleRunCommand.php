@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Commands;
 
+use Carbon\CarbonInterface;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
@@ -65,7 +66,7 @@ class ScheduleRunCommand extends Command
     /**
      * The timestamp this scheduler command started running.
      */
-    protected ?Carbon $startedAt = null;
+    protected ?CarbonInterface $startedAt = null;
 
     /**
      * Check if any events ran.
@@ -80,7 +81,7 @@ class ScheduleRunCommand extends Command
     /**
      * Last time the stopped state was checked.
      */
-    protected ?Carbon $lastChecked = null;
+    protected ?CarbonInterface $lastChecked = null;
 
     /**
      * The concurrent instance.
@@ -214,7 +215,7 @@ class ScheduleRunCommand extends Command
         }
     }
 
-    protected function runEvents(Collection $events, Carbon $startedAt): void
+    protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
         foreach ($events as $event) {
             if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
@@ -246,7 +247,7 @@ class ScheduleRunCommand extends Command
     /**
      * Run the given single server event.
      */
-    protected function runSingleServerEvent(Event $event, Carbon $startedAt): void
+    protected function runSingleServerEvent(Event $event, CarbonInterface $startedAt): void
     {
         if ($this->schedule->serverShouldRun($event, $startedAt)) {
             $this->runEvent($event);

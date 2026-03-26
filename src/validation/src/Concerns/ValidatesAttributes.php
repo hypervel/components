@@ -21,9 +21,9 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -277,7 +277,7 @@ trait ValidatesAttributes
     protected function getDateTime(DateTimeInterface|string $value): ?DateTime
     {
         try {
-            return @Carbon::parse($value);
+            return @Date::parse($value) ?: null; // @phpstan-ignore ternary.alwaysTrue (Date::parse() PHPDoc claims non-null but can fail at runtime)
         } catch (Exception) {
         }
 

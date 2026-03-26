@@ -6,8 +6,8 @@ namespace Hypervel\Queue\Failed;
 
 use Closure;
 use DateTimeInterface;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Throwable;
 
 class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider
@@ -32,7 +32,7 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
 
             $jobs = $this->read();
 
-            $failedAt = Carbon::now();
+            $failedAt = Date::now();
 
             array_unshift($jobs, [
                 'id' => $id,
@@ -98,7 +98,7 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
      */
     public function flush(?int $hours = null): void
     {
-        $this->prune(Carbon::now()->subHours($hours ?: 0));
+        $this->prune(Date::now()->subHours($hours ?: 0));
     }
 
     /**

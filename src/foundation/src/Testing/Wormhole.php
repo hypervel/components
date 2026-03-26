@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Carbon\Carbon;
 use DateTimeInterface;
+use Hypervel\Support\Carbon;
 
 class Wormhole
 {

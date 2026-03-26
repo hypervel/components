@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Traits;
 
 use BackedEnum;
+use Carbon\CarbonInterface;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
@@ -236,7 +236,7 @@ trait InteractsWithData
      *
      * @throws \Carbon\Exceptions\InvalidFormatException
      */
-    public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?Carbon
+    public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?CarbonInterface
     {
         $tz = enum_value($tz);
 

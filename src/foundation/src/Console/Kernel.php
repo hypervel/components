@@ -24,7 +24,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
-use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
@@ -152,7 +151,7 @@ class Kernel implements KernelContract
      */
     public function handle(InputInterface $input, ?OutputInterface $output = null): mixed
     {
-        $this->commandStartedAt = Date::now();
+        $this->commandStartedAt = Carbon::now();
 
         try {
             if (in_array($input->getFirstArgument(), ['env:encrypt', 'env:decrypt'], true)) {
@@ -189,7 +188,7 @@ class Kernel implements KernelContract
         );
 
         foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-            $end ??= Date::now();
+            $end ??= Carbon::now();
 
             if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
                 $handler($this->commandStartedAt, $input, $status);

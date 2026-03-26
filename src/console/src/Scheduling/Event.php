@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Scheduling;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Closure;
 use Cron\CronExpression;
 use DateTimeInterface;
@@ -74,7 +74,7 @@ class Event
      *
      * Utilized by sub-minute repeated events.
      */
-    public ?Carbon $lastChecked = null;
+    public ?CarbonInterface $lastChecked = null;
 
     /**
      * The exit status code of the command.
@@ -681,7 +681,7 @@ class Event
     /**
      * Determine the next due date for an event.
      */
-    public function nextRunDate(DateTimeInterface|string $currentTime = 'now', int $nth = 0, bool $allowCurrentDate = false): Carbon
+    public function nextRunDate(DateTimeInterface|string $currentTime = 'now', int $nth = 0, bool $allowCurrentDate = false): CarbonInterface
     {
         return Date::instance((new CronExpression($this->getExpression()))
             ->getNextRunDate($currentTime, $nth, $allowCurrentDate, $this->timezone));

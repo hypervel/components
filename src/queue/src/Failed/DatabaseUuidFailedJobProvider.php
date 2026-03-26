@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Failed;
 use DateTimeInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
 use Throwable;
 
 class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider
@@ -33,7 +33,7 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
             'queue' => $queue,
             'payload' => $payload,
             'exception' => (string) mb_convert_encoding((string) $exception, 'UTF-8'),
-            'failed_at' => Carbon::now(),
+            'failed_at' => Date::now(),
         ]);
 
         return $uuid;
@@ -91,7 +91,7 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
     public function flush(?int $hours = null): void
     {
         $this->getTable()->when($hours, function ($query, $hours) {
-            $query->where('failed_at', '<=', Carbon::now()->subHours($hours));
+            $query->where('failed_at', '<=', Date::now()->subHours($hours));
         })->delete();
     }
 

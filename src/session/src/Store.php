@@ -9,6 +9,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -662,7 +663,7 @@ class Store implements Session
      */
     public function passwordConfirmed(): void
     {
-        $this->put('auth.password_confirmed_at', time());
+        $this->put('auth.password_confirmed_at', Date::now()->unix());
     }
 
     /**
