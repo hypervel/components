@@ -215,14 +215,14 @@ class StartSession
      * Extracted as an extension point so subclasses can provide dynamic
      * cookie settings without duplicating the rest of addCookieToResponse.
      *
-     * @return array{path: string, domain: string, secure: bool, http_only: bool, same_site: ?string, partitioned: bool}
+     * @return array{path: string, domain: string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
     protected function getSessionCookieConfig(array $config): array
     {
         return [
             'path' => $config['path'] ?? '/',
             'domain' => $config['domain'] ?? '',
-            'secure' => $config['secure'] ?? false,
+            'secure' => $config['secure'] ?? null,
             'http_only' => $config['http_only'] ?? true,
             'same_site' => $config['same_site'] ?? null,
             'partitioned' => $config['partitioned'] ?? false,
