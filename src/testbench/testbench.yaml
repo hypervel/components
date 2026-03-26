@@ -26,6 +26,6 @@ purge:
     # Do not purge composer.json — needed by PackageManifest::packagesToIgnore().
     - .env
   directories:
-    - runtime
     - public/build
     - public/vendor/*
+    - storage/framework/aop
