@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Session\CacheBasedSessionHandler;
+use Hypervel\Support\Facades\Session as SessionFacade;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -27,10 +29,16 @@ class InteractsWithSessionTest extends TestCase
 
     public function testWithSessionWorksWithCacheDriver(): void
     {
-        // Use cache driver which has strict type hints on sessionId
-        // This tests that startSession() properly initializes a session ID
-        $this->app->make('config')->set('session.driver', 'redis');
-        $this->app->make('config')->set('session.store', null);
+        // Use a cache-based session driver to test that startSession()
+        // properly initializes a session ID with strict type hints
+        SessionFacade::extend('array-cache', function ($app): CacheBasedSessionHandler {
+            return new CacheBasedSessionHandler(
+                clone $app->make('cache')->store('array'),
+                $app->make('config')->get('session.lifetime')
+            );
+        });
+
+        $this->app->make('config')->set('session.driver', 'array-cache');
 
         $this->withSession(['cache_test' => 'value']);
 
