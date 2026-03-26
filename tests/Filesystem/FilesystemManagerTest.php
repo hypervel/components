@@ -15,7 +15,6 @@ use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
-use TypeError;
 
 enum FilesystemTestStringBackedDisk: string
 {
@@ -239,11 +238,11 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
-    public function testDiskWithIntBackedEnumThrowsTypeError(): void
+    public function testDiskWithIntBackedEnumResolvesAsString(): void
     {
         $container = $this->getContainer([
             'disks' => [
-                'local' => [
+                '1' => [
                     'driver' => 'local',
                     'root' => __DIR__ . '/tmp',
                 ],
@@ -251,9 +250,10 @@ class FilesystemManagerTest extends TestCase
         ]);
         $filesystem = new FilesystemManager($container);
 
-        // Int-backed enum causes TypeError because get() expects string
-        $this->expectException(TypeError::class);
-        $filesystem->disk(FilesystemTestIntBackedDisk::Local);
+        // Int-backed enum value is cast to string for disk resolution
+        $disk = $filesystem->disk(FilesystemTestIntBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
     public function testDriveAcceptsStringBackedEnum(): void
