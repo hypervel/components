@@ -16,7 +16,7 @@ class ScheduleInterruptCommand extends Command
      * The console signature name.
      */
     protected ?string $signature = 'schedule:interrupt
-        {--minutes=1 : TTL in minutes for the interrupt signal}
+        {--minutes=1 : TTL in minutes for the interrupt signal (minimum 1)}
     ';
 
     /**
@@ -38,15 +38,25 @@ class ScheduleInterruptCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
+        $minutes = (int) $this->option('minutes');
+
+        if ($minutes < 1) {
+            $this->components->error('The --minutes option must be at least 1.');
+
+            return self::FAILURE;
+        }
+
         /* @phpstan-ignore-next-line */
         $this->cache->put(
             'hypervel:schedule:interrupt',
             true,
-            Date::now()->addMinutes((int) $this->option('minutes'))
+            Date::now()->addMinutes($minutes)
         );
 
         $this->components->info('Broadcasting schedule interrupt signal.');
+
+        return self::SUCCESS;
     }
 }
