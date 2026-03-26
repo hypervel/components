@@ -8,7 +8,6 @@ use Hypervel\Devtool\Generator\BatchesTableCommand;
 use Hypervel\Devtool\Generator\NotificationTableCommand;
 use Hypervel\Devtool\Generator\QueueFailedTableCommand;
 use Hypervel\Devtool\Generator\QueueTableCommand;
-use Hypervel\Devtool\Generator\SessionTableCommand;
 use Hypervel\Support\ServiceProvider;
 
 class DevtoolServiceProvider extends ServiceProvider
@@ -23,7 +22,6 @@ class DevtoolServiceProvider extends ServiceProvider
             NotificationTableCommand::class,
             QueueFailedTableCommand::class,
             QueueTableCommand::class,
-            SessionTableCommand::class,
         ]);
     }
 }
