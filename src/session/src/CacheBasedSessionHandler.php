@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Hypervel\Contracts\Cache\Repository as RepositoryContract;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use SessionHandlerInterface;
 
 class CacheBasedSessionHandler implements SessionHandlerInterface
@@ -13,13 +12,11 @@ class CacheBasedSessionHandler implements SessionHandlerInterface
     /**
      * Create a new cache driven handler instance.
      *
-     * @param CacheContract $cache the cache factory instance
-     * @param null|string $store the store name of connection
+     * @param CacheContract $cache the cache repository instance
      * @param int $minutes the number of minutes to store the data in the cache
      */
     public function __construct(
         protected CacheContract $cache,
-        protected ?string $store,
         protected int $minutes
     ) {
     }
@@ -36,17 +33,17 @@ class CacheBasedSessionHandler implements SessionHandlerInterface
 
     public function read(string $sessionId): string
     {
-        return $this->getStore()->get($sessionId, '');
+        return $this->cache->get($sessionId, '');
     }
 
     public function write(string $sessionId, string $data): bool
     {
-        return $this->getStore()->put($sessionId, $data, $this->minutes * 60);
+        return $this->cache->put($sessionId, $data, $this->minutes * 60);
     }
 
     public function destroy(string $sessionId): bool
     {
-        return $this->getStore()->forget($sessionId);
+        return $this->cache->forget($sessionId);
     }
 
     public function gc(int $lifetime): int
@@ -54,13 +51,11 @@ class CacheBasedSessionHandler implements SessionHandlerInterface
         return 0;
     }
 
+    /**
+     * Get the underlying cache repository.
+     */
     public function getCache(): CacheContract
     {
         return $this->cache;
-    }
-
-    public function getStore(): RepositoryContract
-    {
-        return $this->cache->store($this->store);
     }
 }

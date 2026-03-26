@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Http\Request;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 
@@ -60,7 +58,6 @@ class SessionManager extends Manager implements Factory
     {
         return $this->buildSession(new CookieSessionHandler(
             $this->container->make('cookie'),
-            $this->container->make(Request::class),
             $this->config->get('session.lifetime'),
             $this->config->get('session.expire_on_close')
         ));
@@ -113,7 +110,19 @@ class SessionManager extends Manager implements Factory
     {
         $handler = $this->createCacheHandler('redis');
 
+        $handler->getCache()->getStore()->setConnection( // @phpstan-ignore method.notFound (RedisStore::setConnection — always Redis here)
+            $this->config->get('session.connection')
+        );
+
         return $this->buildSession($handler);
+    }
+
+    /**
+     * Create an instance of a cache driven driver.
+     */
+    protected function createCacheBased(string $driver): Store
+    {
+        return $this->buildSession($this->createCacheHandler($driver));
     }
 
     /**
@@ -121,9 +130,10 @@ class SessionManager extends Manager implements Factory
      */
     protected function createCacheHandler(string $driver): CacheBasedSessionHandler
     {
+        $store = $this->config->get('session.store') ?: $driver;
+
         return new CacheBasedSessionHandler(
-            $this->container->make(CacheContract::class),
-            $this->config->get('session.store') ?: $driver,
+            clone $this->container->make('cache')->store($store),
             $this->config->get('session.lifetime')
         );
     }
@@ -138,7 +148,8 @@ class SessionManager extends Manager implements Factory
             : new Store(
                 $this->config->get('session.cookie'),
                 $handler,
-                serialization: $this->config->get('session.serialization', 'php')
+                null,
+                $this->config->get('session.serialization', 'php')
             );
     }
 
@@ -151,6 +162,7 @@ class SessionManager extends Manager implements Factory
             $this->config->get('session.cookie'),
             $handler,
             $this->container->make(Encrypter::class),
+            null,
             $this->config->get('session.serialization', 'php'),
         );
     }

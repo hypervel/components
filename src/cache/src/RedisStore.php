@@ -407,9 +407,9 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Specify the name of the connection that should be used to store data.
      */
-    public function setConnection(string $connection): void
+    public function setConnection(?string $connection): void
     {
-        $this->connection = $connection;
+        $this->connection = $connection ?? 'default';
         $this->clearCachedInstances();
     }
 

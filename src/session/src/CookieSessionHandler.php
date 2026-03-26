@@ -14,16 +14,19 @@ class CookieSessionHandler implements SessionHandlerInterface
     use InteractsWithTime;
 
     /**
+     * The request instance.
+     */
+    protected Request $request;
+
+    /**
      * Create a new cookie driven handler instance.
      *
      * @param CookieJar $cookie the cookie jar instance
-     * @param Request $request the request instance
      * @param int $minutes the number of minutes the session should be valid
      * @param bool $expireOnClose indicates whether the session should be expired when the browser closes
      */
     public function __construct(
         protected CookieJar $cookie,
-        protected Request $request,
         protected int $minutes,
         protected bool $expireOnClose = false
     ) {
