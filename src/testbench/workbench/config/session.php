@@ -21,7 +21,7 @@ return [
 
     'lottery' => [0, 2],
 
-    'cookie' => 'testing_session',
+    'cookie' => 'hypervel_session',
 
     'path' => env('SESSION_PATH', '/'),
 
