@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Carbon\Carbon;
 use Closure;
 use Countable;
 use DateTime;
@@ -24,6 +23,7 @@ use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Carbon;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Stringable;
 use Hypervel\Translation\ArrayLoader;

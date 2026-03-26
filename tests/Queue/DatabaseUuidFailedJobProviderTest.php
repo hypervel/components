@@ -124,6 +124,22 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertEmpty($this->provider->all());
     }
 
+    public function testPruningFailedJobsWithRelativeHoursAndMinutes()
+    {
+        Carbon::setTestNow(Carbon::create(2025, 8, 24, 12, 30, 0));
+
+        $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException());
+        $this->provider->log('connection-2', 'queue-2', json_encode(['uuid' => 'uuid-2']), new RuntimeException());
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 12, 30, 0));
+
+        $this->assertCount(2, $this->provider->all());
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 13, 0, 0));
+
+        $this->assertEmpty($this->provider->all());
+    }
+
     public function testJobsCanBeCounted()
     {
         $this->assertSame(0, $this->provider->count());

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use stdClass;
