@@ -39,7 +39,19 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     }
 
     /**
+     * Determine if temporary upload URLs can be generated.
+     */
+    public function providesTemporaryUploadUrls(): bool
+    {
+        return $this->temporaryUploadUrlCallback || (
+            $this->shouldServeSignedUrls && $this->urlGeneratorResolver instanceof Closure
+        );
+    }
+
+    /**
      * Get a temporary URL for the file at the given path.
+     *
+     * @throws RuntimeException
      */
     public function temporaryUrl(string $path, DateTimeInterface $expiration, array $options = []): string
     {
@@ -66,9 +78,39 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     }
 
     /**
-     * Specify the name of the disk the adapter is managing.
+     * Get a temporary upload URL for the file at the given path.
      *
-     * @return $this
+     * @throws RuntimeException
+     */
+    public function temporaryUploadUrl(string $path, DateTimeInterface $expiration, array $options = []): array|string
+    {
+        if ($this->temporaryUploadUrlCallback) {
+            return $this->temporaryUploadUrlCallback->bindTo($this, static::class)(
+                $path,
+                $expiration,
+                $options
+            );
+        }
+
+        if (! $this->providesTemporaryUploadUrls()) {
+            throw new RuntimeException('This driver does not support creating temporary upload URLs.');
+        }
+
+        $url = call_user_func($this->urlGeneratorResolver);
+
+        return [
+            'url' => $url->to($url->temporarySignedRoute(
+                'storage.' . $this->disk . '.upload',
+                $expiration,
+                ['path' => $path, 'upload' => true],
+                absolute: false
+            )),
+            'headers' => [],
+        ];
+    }
+
+    /**
+     * Specify the name of the disk the adapter is managing.
      */
     public function diskName(string $disk): static
     {
@@ -79,8 +121,6 @@ class LocalFilesystemAdapter extends FilesystemAdapter
 
     /**
      * Indicate that signed URLs should serve the corresponding files.
-     *
-     * @return $this
      */
     public function shouldServeSignedUrls(bool $serve = true, ?Closure $urlGeneratorResolver = null): static
     {
