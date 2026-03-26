@@ -37,6 +37,15 @@ class ArraySessionHandlerTest extends TestCase
         $this->assertTrue($handler->close());
     }
 
+    public function testReadDataFromSession()
+    {
+        $handler = new ArraySessionHandler(10);
+
+        $handler->write('foo', 'bar');
+
+        $this->assertSame('bar', $handler->read('foo'));
+    }
+
     public function testReadDataFromAlmostExpiredSession()
     {
         $handler = new ArraySessionHandler(10);
@@ -82,6 +91,8 @@ class ArraySessionHandlerTest extends TestCase
     public function testDestroySession()
     {
         $handler = new ArraySessionHandler(10);
+
+        $this->assertTrue($handler->destroy('foo'));
 
         $handler->write('foo', 'bar');
 
