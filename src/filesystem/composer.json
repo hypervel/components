@@ -58,7 +58,8 @@
         "league/flysystem-google-cloud-storage": "Required to use the Flysystem Google Cloud Storage driver (^3.25.1).",
         "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.25.1).",
         "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.25.1).",
-        "symfony/filesystem": "Required to use relative symbolic links (^8.0)."
+        "symfony/filesystem": "Required to use relative symbolic links (^8.0).",
+        "symfony/mime": "Required to enable support for guessing extensions (^8.0)."
     },
     "config": {
         "sort-packages": true
