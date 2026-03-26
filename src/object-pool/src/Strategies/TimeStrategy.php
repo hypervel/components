@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Strategies;
 
-use Hypervel\Support\Carbon;
 use DateTime;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Contracts\TimeStrategy as TimeStrategyContract;
+use Hypervel\Support\Carbon;
 
 class TimeStrategy implements TimeStrategyContract
 {

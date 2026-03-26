@@ -6,9 +6,9 @@ namespace Hypervel\JWT;
 
 use Carbon\CarbonInterface;
 use Hypervel\JWT\Contracts\BlacklistContract;
-use Hypervel\Support\Facades\Date;
 use Hypervel\JWT\Contracts\StorageContract;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Support\Facades\Date;
 
 class Blacklist implements BlacklistContract
 {
