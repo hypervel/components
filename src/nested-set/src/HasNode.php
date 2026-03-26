@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
@@ -522,7 +522,7 @@ trait HasNode
     /**
      * Restore the descendants.
      */
-    protected function restoreDescendants(Carbon|string $deletedAt): void
+    protected function restoreDescendants(CarbonInterface|string $deletedAt): void
     {
         $this->descendants()
             ->where($this->getDeletedAtColumn(), '>=', $deletedAt)

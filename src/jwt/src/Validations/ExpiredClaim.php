@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Validations;
 
-use Carbon\Carbon;
 use Hypervel\JWT\Exceptions\TokenExpiredException;
+use Hypervel\Support\Facades\Date;
 
 class ExpiredClaim extends AbstractValidation
 {
@@ -15,7 +15,7 @@ class ExpiredClaim extends AbstractValidation
             return;
         }
 
-        if (Carbon::now() > $this->timestamp($exp)->addSeconds($this->config['leeway'] ?? 0)) {
+        if (Date::now() > $this->timestamp($exp)->addSeconds($this->config['leeway'] ?? 0)) {
             throw new TokenExpiredException('Token has expired');
         }
     }

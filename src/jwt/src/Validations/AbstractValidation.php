@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Validations;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Hypervel\JWT\Contracts\ValidationContract;
+use Hypervel\Support\Facades\Date;
 
 abstract class AbstractValidation implements ValidationContract
 {
@@ -16,8 +17,8 @@ abstract class AbstractValidation implements ValidationContract
 
     abstract public function validate(array $payload): void;
 
-    protected function timestamp(int $timestamp): Carbon
+    protected function timestamp(int $timestamp): CarbonInterface
     {
-        return Carbon::createFromTimestamp($timestamp);
+        return Date::createFromTimestamp($timestamp);
     }
 }

@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Hypervel\JWT\Contracts\BlacklistContract;
+use Hypervel\Support\Facades\Date;
 use Hypervel\JWT\Contracts\StorageContract;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 
@@ -113,7 +114,7 @@ class Blacklist implements BlacklistContract
      */
     protected function getGraceTimestamp(): int
     {
-        return Carbon::now()->addSeconds($this->gracePeriod)->getTimestamp();
+        return Date::now()->addSeconds($this->gracePeriod)->getTimestamp();
     }
 
     /**
@@ -180,8 +181,8 @@ class Blacklist implements BlacklistContract
         return $this->refreshTTL;
     }
 
-    protected function timestamp(int $timestamp): Carbon
+    protected function timestamp(int $timestamp): CarbonInterface
     {
-        return Carbon::createFromTimestamp($timestamp);
+        return Date::createFromTimestamp($timestamp);
     }
 }

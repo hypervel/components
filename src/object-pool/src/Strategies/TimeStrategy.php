@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Strategies;
 
-use Carbon\Carbon;
+use Hypervel\Support\Carbon;
 use DateTime;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;

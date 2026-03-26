@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Carbon\Carbon;
+use Hypervel\Support\Carbon;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
