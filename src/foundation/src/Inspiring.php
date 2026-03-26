@@ -47,12 +47,6 @@ class Inspiring
 {
     /**
      * Get an inspiring quote.
-     *
-     * Taylor & Dayle made this commit from Jungfraujoch. (11,333 ft.)
-     *
-     * May McGinnis always control the board. #LaraconUS2015
-     *
-     * RIP Charlie - Feb 6, 2018
      */
     public static function quote(): string
     {
@@ -105,7 +99,6 @@ class Inspiring
             'Always remember that you are absolutely unique. Just like everyone else. - Margaret Mead',
             'You must be the change you wish to see in the world. - Mahatma Gandhi',
             'It always seems impossible until it is done. - Nelson Mandela',
-            'We must ship. - Taylor Otwell',
         ]);
     }
 
