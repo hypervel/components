@@ -35,7 +35,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Filesystem\Filesystem
+ * @mixin \Hypervel\Contracts\Filesystem\Filesystem
  * @mixin \Hypervel\Filesystem\FilesystemAdapter
  */
 class FilesystemManager implements FactoryContract
@@ -83,7 +83,8 @@ class FilesystemManager implements FactoryContract
      */
     public function disk(UnitEnum|string|null $name = null): Filesystem
     {
-        $name = enum_value($name) ?: $this->getDefaultDriver();
+        $name = enum_value($name);
+        $name = $name === null ? $this->getDefaultDriver() : (string) $name;
 
         return $this->disks[$name] = $this->get($name);
     }
@@ -215,7 +216,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config));
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
     }
 
     /**
@@ -235,7 +236,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new SftpAdapter($provider, $root, $visibility);
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
     }
 
     /**
@@ -274,10 +275,10 @@ class FilesystemManager implements FactoryContract
 
         if (! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
-        }
 
-        if (! empty($config['token'])) {
-            $config['credentials']['token'] = $config['token'];
+            if (! empty($config['token'])) {
+                $config['credentials']['token'] = $config['token'];
+            }
         }
 
         return Arr::except($config, ['token']);
@@ -315,6 +316,9 @@ class FilesystemManager implements FactoryContract
         );
     }
 
+    /**
+     * Format the given GCS configuration with the default options.
+     */
     protected function formatGcsConfig(array $config): array
     {
         // Google's SDK expects camelCase keys, but we can use snake_case in the config.
@@ -329,6 +333,9 @@ class FilesystemManager implements FactoryContract
         return $config;
     }
 
+    /**
+     * Create a Google Cloud Storage client instance.
+     */
     protected function createGcsClient(array $config): GcsClient
     {
         $options = [];
@@ -354,6 +361,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create a scoped driver.
+     *
+     * @throws InvalidArgumentException
      */
     public function createScopedDriver(array $config): Filesystem
     {
@@ -367,10 +376,23 @@ class FilesystemManager implements FactoryContract
         return $this->build(tap(
             is_string($config['disk']) ? $this->getConfig($config['disk']) : $config['disk'],
             function (&$parent) use ($config) {
-                $parent['prefix'] = $config['prefix'];
+                if (empty($parent['prefix'])) {
+                    $parent['prefix'] = $config['prefix'];
+                } else {
+                    $separator = $parent['directory_separator'] ?? DIRECTORY_SEPARATOR;
+
+                    $parentPrefix = rtrim($parent['prefix'], $separator);
+                    $scopedPrefix = ltrim($config['prefix'], $separator);
+
+                    $parent['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
+                }
 
                 if (isset($config['visibility'])) {
                     $parent['visibility'] = $config['visibility'];
+                }
+
+                if (isset($config['throw'])) {
+                    $parent['throw'] = $config['throw'];
                 }
             }
         ));
@@ -381,7 +403,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function createFlysystem(FlysystemAdapter $adapter, array $config): FilesystemOperator
     {
-        if (($config['read-only'] ?? false) === true) {
+        if ($config['read-only'] ?? false) {
             /* @phpstan-ignore-next-line */
             $adapter = new ReadOnlyFilesystemAdapter($adapter);
         }
@@ -389,6 +411,10 @@ class FilesystemManager implements FactoryContract
         if (! empty($config['prefix'])) {
             /* @phpstan-ignore-next-line */
             $adapter = new PathPrefixedAdapter($adapter, $config['prefix']);
+        }
+
+        if (str_contains($config['endpoint'] ?? '', 'r2.cloudflarestorage.com')) {
+            $config['retain_visibility'] = false;
         }
 
         return new Flysystem($adapter, Arr::only($config, [
@@ -403,8 +429,6 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Set the given disk instance.
-     *
-     * @return $this
      */
     public function set(string $name, mixed $disk): static
     {
@@ -442,8 +466,6 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Unset the given disk instances.
-     *
-     * @return $this
      */
     public function forgetDisk(array|string $disk): static
     {
@@ -466,8 +488,6 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
-     *
-     * @return $this
      */
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
@@ -475,7 +495,7 @@ class FilesystemManager implements FactoryContract
             $this->addPoolable($driver);
         }
 
-        $this->customCreators[$driver] = $callback;
+        $this->customCreators[$driver] = $callback->bindTo($this, $this);
 
         return $this;
     }
