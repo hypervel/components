@@ -80,8 +80,6 @@ class LockableFile
 
     /**
      * Write to the file.
-     *
-     * @return $this
      */
     public function write(string $contents): static
     {
@@ -94,8 +92,6 @@ class LockableFile
 
     /**
      * Truncate the file.
-     *
-     * @return $this
      */
     public function truncate(): static
     {
@@ -148,8 +144,6 @@ class LockableFile
 
     /**
      * Release the lock on the file.
-     *
-     * @return $this
      */
     public function releaseLock(): static
     {
