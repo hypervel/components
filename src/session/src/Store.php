@@ -6,14 +6,18 @@ namespace Hypervel\Session;
 
 use Closure;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Uri;
 use Hypervel\Support\ViewErrorBag;
+use RuntimeException;
 use SessionHandlerInterface;
 use stdClass;
 use UnitEnum;
@@ -43,6 +47,11 @@ class Store implements Session
      * Context key for the session ID.
      */
     public const ID_CONTEXT_KEY = '__session.store.id';
+
+    /**
+     * The length of session ID strings.
+     */
+    protected const SESSION_ID_LENGTH = 40;
 
     /**
      * Create a new session instance.
@@ -463,6 +472,14 @@ class Store implements Session
     }
 
     /**
+     * Get the session cache instance.
+     */
+    public function cache(): CacheRepository
+    {
+        return Cache::store('session');
+    }
+
+    /**
      * Remove an item from the session, returning its value.
      */
     public function remove(UnitEnum|string $key): mixed
@@ -597,7 +614,7 @@ class Store implements Session
      */
     public function isValidId(?string $id): bool
     {
-        return is_string($id) && ctype_alnum($id) && strlen($id) === 40;
+        return is_string($id) && ctype_alnum($id) && strlen($id) === self::SESSION_ID_LENGTH;
     }
 
     /**
@@ -605,7 +622,7 @@ class Store implements Session
      */
     protected function generateSessionId(): string
     {
-        return Str::random(40);
+        return Str::random(self::SESSION_ID_LENGTH);
     }
 
     /**
@@ -631,7 +648,7 @@ class Store implements Session
      */
     public function regenerateToken(): void
     {
-        $this->put('_token', Str::random(40));
+        $this->put('_token', Str::random(self::SESSION_ID_LENGTH));
     }
 
     /**
@@ -640,6 +657,20 @@ class Store implements Session
     public function hasPreviousUri(): bool
     {
         return ! is_null($this->previousUrl());
+    }
+
+    /**
+     * Get the previous URL from the session as a URI instance.
+     *
+     * @throws RuntimeException
+     */
+    public function previousUri(): Uri
+    {
+        if ($previousUrl = $this->previousUrl()) {
+            return Uri::of($previousUrl);
+        }
+
+        throw new RuntimeException('Unable to generate URI instance for previous URL. No previous URL detected.');
     }
 
     /**
@@ -656,6 +687,22 @@ class Store implements Session
     public function setPreviousUrl(string $url): void
     {
         $this->put('_previous.url', $url);
+    }
+
+    /**
+     * Get the previous route name from the session.
+     */
+    public function previousRoute(): ?string
+    {
+        return $this->get('_previous.route');
+    }
+
+    /**
+     * Set the "previous" route name in the session.
+     */
+    public function setPreviousRoute(?string $route): void
+    {
+        $this->put('_previous.route', $route);
     }
 
     /**
