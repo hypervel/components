@@ -28,7 +28,7 @@ class AboutCommandTest extends TestCase
                 'debug_mode' => true,
             ], $output['environment']);
 
-            $this->assertArrayHasKey('runtime_proxy', $output['cache']);
+            $this->assertArrayHasKey('aop_proxies', $output['cache']);
         });
     }
 

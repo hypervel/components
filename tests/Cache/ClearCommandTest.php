@@ -95,12 +95,12 @@ class ClearCommandTest extends TestCase
         $this->runCommand($this->command, ['store' => 'redis', '--tags' => 'foo']);
     }
 
-    public function testClearWillFlushRuntimeDirectory()
+    public function testClearWillFlushAopProxyDirectory()
     {
         $this->cacheManager->shouldReceive('store')->once()->with(null)->andReturn($this->cacheRepository);
         $this->cacheRepository->shouldReceive('flush')->once();
 
-        $this->files->shouldReceive('deleteDirectory')->with(base_path('runtime/container'))->once();
+        $this->files->shouldReceive('deleteDirectory')->with(storage_path('framework/aop'))->once();
 
         $this->runCommand($this->command);
     }

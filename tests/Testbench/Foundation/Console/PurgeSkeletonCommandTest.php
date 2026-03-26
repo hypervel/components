@@ -80,7 +80,7 @@ class PurgeSkeletonCommandTest extends TestCase
         $sessionFile = $this->app->storagePath(join_paths('framework', 'sessions', 'session.txt'));
         $purgeFile = $this->app->basePath('purge-me.txt');
         $purgeWildcardFile = $this->app->basePath('purge-test.log');
-        $runtimeDirectory = $this->app->basePath('runtime');
+        $aopDirectory = $this->app->storagePath(join_paths('framework', 'aop'));
         $buildDirectory = $this->app->basePath(join_paths('public', 'build'));
         $vendorDirectory = $this->app->basePath(join_paths('public', 'vendor', 'package'));
         $purgeDirectory = $this->app->basePath('purge-dir');
@@ -98,7 +98,7 @@ class PurgeSkeletonCommandTest extends TestCase
         $this->writeFile($sessionFile, 'session');
         $this->writeFile($purgeFile, 'purge');
         $this->writeFile($purgeWildcardFile, 'purge-wildcard');
-        $this->writeFile(join_paths($runtimeDirectory, 'runtime.txt'), 'runtime');
+        $this->writeFile(join_paths($aopDirectory, 'Proxy_Class.proxy.php'), '<?php');
         $this->writeFile(join_paths($buildDirectory, 'manifest.json'), '{}');
         $this->writeFile(join_paths($vendorDirectory, 'asset.txt'), 'vendor');
         $this->writeFile(join_paths($purgeDirectory, 'file.txt'), 'purge-directory');
@@ -128,7 +128,7 @@ class PurgeSkeletonCommandTest extends TestCase
         $this->assertFileDoesNotExist($sessionFile);
         $this->assertFileDoesNotExist($purgeFile);
         $this->assertFileDoesNotExist($purgeWildcardFile);
-        $this->assertDirectoryDoesNotExist($runtimeDirectory);
+        $this->assertDirectoryDoesNotExist($aopDirectory);
         $this->assertDirectoryDoesNotExist($buildDirectory);
         $this->assertDirectoryDoesNotExist($vendorDirectory);
         $this->assertDirectoryDoesNotExist($purgeDirectory);
@@ -137,7 +137,7 @@ class PurgeSkeletonCommandTest extends TestCase
     }
 
     /**
-     * Write a file into the runtime application.
+     * Write a file into the disposable testbench application.
      */
     private function writeFile(string $path, string $contents): void
     {
@@ -146,7 +146,7 @@ class PurgeSkeletonCommandTest extends TestCase
     }
 
     /**
-     * Remove every runtime artifact this test creates inside the shared worker skeleton.
+     * Remove every artifact this test creates inside the shared worker skeleton.
      */
     private function cleanUpPurgeSkeletonArtifacts(): void
     {
@@ -156,7 +156,7 @@ class PurgeSkeletonCommandTest extends TestCase
     }
 
     /**
-     * Get every runtime path that this test may create.
+     * Get every path that this test may create.
      *
      * @return array<int, string>
      */
@@ -174,7 +174,7 @@ class PurgeSkeletonCommandTest extends TestCase
             $this->app->storagePath(join_paths('framework', 'sessions', 'session.txt')),
             $this->app->basePath('purge-me.txt'),
             $this->app->basePath('purge-test.log'),
-            $this->app->basePath('runtime'),
+            $this->app->storagePath(join_paths('framework', 'aop')),
             $this->app->basePath(join_paths('public', 'build')),
             $this->app->basePath(join_paths('public', 'vendor', 'package')),
             $this->app->basePath('purge-dir'),
