@@ -18,11 +18,11 @@ class EncryptedStore extends Store
     /**
      * Create a new session instance.
      */
-    public function __construct(string $name, SessionHandlerInterface $handler, EncrypterContract $encrypter, string $serialization = 'php')
+    public function __construct(string $name, SessionHandlerInterface $handler, EncrypterContract $encrypter, ?string $id = null, string $serialization = 'php')
     {
         $this->encrypter = $encrypter;
 
-        parent::__construct($name, $handler, $serialization);
+        parent::__construct($name, $handler, $id, $serialization);
     }
 
     /**
