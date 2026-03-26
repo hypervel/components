@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 /**
- * @property null|CarbonImmutable $read_at
+ * @property null|CarbonInterface $read_at
  */
 class DatabaseNotification extends Model
 {
