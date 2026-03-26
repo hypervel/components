@@ -22,9 +22,8 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->registerCommands();
-
         if ($this->app->runningInConsole()) {
+            $this->registerCommands();
             $this->registerPublishing();
         }
 

@@ -82,23 +82,30 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                Console\ClearCommand::class,
+                Console\ClearMetricsCommand::class,
+                Console\ContinueCommand::class,
+                Console\ContinueSupervisorCommand::class,
+                Console\ForgetFailedCommand::class,
+                Console\HorizonCommand::class,
+                Console\InstallCommand::class,
+                Console\ListCommand::class,
+                Console\PauseCommand::class,
+                Console\PauseSupervisorCommand::class,
+                Console\PurgeCommand::class,
+                Console\SupervisorCommand::class,
+                Console\SupervisorStatusCommand::class,
+                Console\TerminateCommand::class,
+                Console\TimeoutCommand::class,
+                Console\WorkCommand::class,
+            ]);
+
+            $this->reloads('horizon:terminate', 'queue');
+        }
+
         $this->commands([
-            Console\ClearCommand::class,
-            Console\ClearMetricsCommand::class,
-            Console\ContinueCommand::class,
-            Console\ContinueSupervisorCommand::class,
-            Console\ForgetFailedCommand::class,
-            Console\HorizonCommand::class,
-            Console\InstallCommand::class,
-            Console\ListCommand::class,
-            Console\PauseCommand::class,
-            Console\PauseSupervisorCommand::class,
-            Console\PurgeCommand::class,
-            Console\SupervisorCommand::class,
-            Console\SupervisorStatusCommand::class,
-            Console\TerminateCommand::class,
-            Console\TimeoutCommand::class,
-            Console\WorkCommand::class,
             Console\SnapshotCommand::class,
             Console\StatusCommand::class,
             Console\SupervisorsCommand::class,
