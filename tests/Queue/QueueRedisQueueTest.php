@@ -109,7 +109,9 @@ class QueueRedisQueueTest extends TestCase
         $queue->expects($this->once())->method('availableAt')->with(1)->willReturn(2);
 
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('zadd')->once()->with(
+        $redisProxy->shouldReceive('eval')->once()->with(
+            LuaScripts::later(),
+            1,
             'queues:default:delayed',
             2,
             json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])
@@ -132,17 +134,19 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->expects($this->once())->method('availableAt')->with($date)->willReturn(2);
+        $queue->expects($this->once())->method('availableAt')->with($date)->willReturn(5);
 
         $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('zadd')->once()->with(
+        $redisProxy->shouldReceive('eval')->once()->with(
+            LuaScripts::later(),
+            1,
             'queues:default:delayed',
-            2,
-            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 0])
+            5,
+            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 5])
         );
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
-        $queue->later($date, 'foo', ['data']);
+        $queue->later($date->addSeconds(5), 'foo', ['data']);
         $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
