@@ -11,6 +11,12 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Collection;
@@ -20,6 +26,7 @@ class SendQueuedNotifications implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
+    use ReadsQueueAttributes;
     use SerializesModels;
 
     /**
@@ -58,6 +65,11 @@ class SendQueuedNotifications implements ShouldQueue
     public bool $shouldBeEncrypted = false;
 
     /**
+     * Indicates if the job should be deleted when models are missing.
+     */
+    public bool $deleteWhenMissingModels = false;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(mixed $notifiables, mixed $notification, ?array $channels = null)
@@ -65,9 +77,10 @@ class SendQueuedNotifications implements ShouldQueue
         $this->channels = $channels;
         $this->notification = $notification;
         $this->notifiables = $this->wrapNotifiables($notifiables);
-        $this->tries = property_exists($notification, 'tries') ? $notification->tries : null;
-        $this->timeout = property_exists($notification, 'timeout') ? $notification->timeout : null;
-        $this->maxExceptions = property_exists($notification, 'maxExceptions') ? $notification->maxExceptions : null;
+        $this->tries = $this->getAttributeValue($notification, Tries::class, 'tries');
+        $this->timeout = $this->getAttributeValue($notification, Timeout::class, 'timeout');
+        $this->maxExceptions = $this->getAttributeValue($notification, MaxExceptions::class, 'maxExceptions');
+        $this->deleteWhenMissingModels = $this->getAttributeValue($notification, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
 
         if ($notification instanceof ShouldQueueAfterCommit) {
             $this->afterCommit = true;
@@ -124,11 +137,13 @@ class SendQueuedNotifications implements ShouldQueue
      */
     public function backoff(): mixed
     {
-        if (! method_exists($this->notification, 'backoff') && ! isset($this->notification->backoff)) {
-            return null;
+        $backoff = $this->getAttributeValue($this->notification, Backoff::class, 'backoff');
+
+        if (method_exists($this->notification, 'backoff')) {
+            $backoff = $this->notification->backoff();
         }
 
-        return $this->notification->backoff ?? $this->notification->backoff();
+        return $backoff;
     }
 
     /**
