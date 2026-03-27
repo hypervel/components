@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Filesystem;
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Engine\Http\Writable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Testing\FakeWritableConnection;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
@@ -637,14 +637,36 @@ class FilesystemAdapterTest extends TestCase
         $this->assertEquals('a5c3556d', $filesystemAdapter->checksum('path.txt', ['checksum_algo' => 'crc32']));
     }
 
-    protected function mockResponse(): FakeWritable
+    public function testStreamStopsOnFailedWrite()
+    {
+        // Create a large file that requires multiple chunks (64 KiB each)
+        $content = str_repeat('x', 256 * 1024); // 256 KiB = 4 chunks
+        $this->filesystem->write('large.txt', $content);
+
+        $writable = new FailAfterFirstWriteConnection();
+        $container = new Container();
+        $container->instance(Request::class, Request::create('/test', 'GET'));
+        $response = new Response();
+        $response->setConnection($writable);
+        $container->instance(Response::class, $response);
+        Container::setInstance($container);
+
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $files->response('large.txt');
+
+        // First write succeeds, second write fails and breaks the loop.
+        // Without the fix, all 4 chunks would be attempted.
+        $this->assertSame(2, $writable->writeCount);
+    }
+
+    protected function mockResponse(): FakeWritableConnection
     {
         $container = new Container();
 
         $request = Request::create('/test', 'GET');
         $container->instance(Request::class, $request);
 
-        $writable = new FakeWritable(new FakeSwooleResponse());
+        $writable = new FakeWritableConnection();
         $response = new Response();
         $response->setConnection($writable);
         $container->instance(Response::class, $response);
@@ -655,42 +677,15 @@ class FilesystemAdapterTest extends TestCase
     }
 }
 
-class FakeSwooleResponse
+class FailAfterFirstWriteConnection implements \Hypervel\Contracts\Engine\Http\Writable
 {
-    public array $headers = [];
+    public int $writeCount = 0;
 
-    public int $statusCode = 200;
+    private readonly \Hypervel\Testing\FakeSwooleSocket $socket;
 
-    public function header(string $name, string $value): void
+    public function __construct()
     {
-        $this->headers[$name] = $value;
-    }
-
-    public function cookie(
-        string $name,
-        string $value = '',
-        int $expires = 0,
-        string $path = '/',
-        string $domain = '',
-        bool $secure = false,
-        bool $httponly = false,
-        string $samesite = '',
-    ): void {
-    }
-
-    public function status(int $code): void
-    {
-        $this->statusCode = $code;
-    }
-}
-
-class FakeWritable implements Writable
-{
-    public string $written = '';
-
-    public function __construct(
-        private readonly FakeSwooleResponse $socket,
-    ) {
+        $this->socket = new \Hypervel\Testing\FakeSwooleSocket();
     }
 
     public function getSocket(): mixed
@@ -700,9 +695,9 @@ class FakeWritable implements Writable
 
     public function write(string $data): bool
     {
-        $this->written .= $data;
+        ++$this->writeCount;
 
-        return true;
+        return $this->writeCount <= 1;
     }
 
     public function end(): ?bool
