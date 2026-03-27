@@ -22,7 +22,7 @@ class WithoutOverlapping
     /**
      * The prefix of the lock key.
      */
-    public string $prefix = 'laravel-queue-overlap:';
+    public string $prefix = 'hypervel-queue-overlap:';
 
     /**
      * Share the key across different jobs.
@@ -126,8 +126,14 @@ class WithoutOverlapping
      */
     public function getLockKey(mixed $job): string
     {
-        return $this->shareKey
-            ? $this->prefix . $this->key
-            : $this->prefix . get_class($job) . ':' . $this->key;
+        if ($this->shareKey) {
+            return $this->prefix . $this->key;
+        }
+
+        $jobName = method_exists($job, 'displayName')
+            ? $job->displayName()
+            : get_class($job);
+
+        return $this->prefix . $jobName . ':' . $this->key;
     }
 }

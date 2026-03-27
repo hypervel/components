@@ -44,7 +44,7 @@ class RateLimited
         $this->limiter = Container::getInstance()
             ->make(RateLimiter::class);
 
-        $this->limiterName = enum_value($limiterName);
+        $this->limiterName = (string) enum_value($limiterName);
     }
 
     /**
