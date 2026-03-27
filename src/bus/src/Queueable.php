@@ -283,7 +283,7 @@ trait Queueable
     /**
      * Invoke all of the chain's failed job callbacks.
      */
-    public function invokeChainCatchCallbacks(Throwable $e): void
+    public function invokeChainCatchCallbacks(?Throwable $e): void
     {
         (new Collection($this->chainCatchCallbacks))->each(function ($callback) use ($e) {
             $callback($e);
