@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Queue\Exceptions;
+namespace Hypervel\Queue;
 
 use InvalidArgumentException;
 
