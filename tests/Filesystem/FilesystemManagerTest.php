@@ -13,6 +13,7 @@ use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
+use League\Flysystem\UnableToReadFile;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
 
@@ -129,6 +130,39 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCanBuildScopedDiskFromScopedDisk()
+    {
+        try {
+            $container = $this->getContainer([
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => 'root-to-be-scoped',
+                    ],
+                    'scoped-from-root' => [
+                        'driver' => 'scoped',
+                        'disk' => 'local',
+                        'prefix' => 'scoped-from-root-prefix',
+                    ],
+                ],
+            ]);
+            $filesystem = new FilesystemManager($container);
+
+            $root = $filesystem->disk('local');
+            $nestedScoped = $filesystem->build([
+                'driver' => 'scoped',
+                'disk' => 'scoped-from-root',
+                'prefix' => 'nested-scoped-prefix',
+            ]);
+
+            $nestedScoped->put('dirname/filename.txt', 'file content');
+            $this->assertEquals('file content', $root->get('scoped-from-root-prefix/nested-scoped-prefix/dirname/filename.txt'));
+            $root->deleteDirectory('scoped-from-root-prefix');
+        } finally {
+            rmdir(__DIR__ . '/../../root-to-be-scoped');
+        }
+    }
+
     #[RequiresOperatingSystem('Linux|Darwin')]
     public function testCanBuildScopedDisksWithVisibility()
     {
@@ -162,6 +196,34 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCanBuildScopedDisksWithThrow()
+    {
+        try {
+            $container = $this->getContainer([
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => 'to-be-scoped',
+                        'throw' => false,
+                    ],
+                ],
+            ]);
+            $filesystem = new FilesystemManager($container);
+
+            $scoped = $filesystem->build([
+                'driver' => 'scoped',
+                'disk' => 'local',
+                'prefix' => 'path-prefix',
+                'throw' => true,
+            ]);
+
+            $this->expectException(UnableToReadFile::class);
+            $scoped->get('dirname/filename.txt');
+        } finally {
+            rmdir(__DIR__ . '/../../to-be-scoped');
+        }
+    }
+
     public function testCanBuildInlineScopedDisks()
     {
         try {
@@ -185,6 +247,20 @@ class FilesystemManagerTest extends TestCase
             rmdir(__DIR__ . '/../../to-be-scoped/path-prefix');
             rmdir(__DIR__ . '/../../to-be-scoped');
         }
+    }
+
+    public function testCustomDriverClosureBoundObjectIsFilesystemManager()
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]);
+        $manager = new FilesystemManager($container);
+        $manager->extend(__CLASS__, fn () => $this);
+        $this->assertSame($manager, $manager->disk(__CLASS__));
     }
 
     public function testPoolableDriver()
