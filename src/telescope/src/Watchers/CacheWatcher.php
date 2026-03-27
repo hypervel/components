@@ -10,6 +10,7 @@ use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Queue\Worker;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -147,7 +148,7 @@ class CacheWatcher extends Watcher
     private function shouldIgnore(mixed $event): bool
     {
         return Str::is([
-            'illuminate:queue:restart',
+            Worker::RESTART_SIGNAL_CACHE_KEY,
             'telescope:*',
         ], $event->key);
     }
