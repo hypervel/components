@@ -19,10 +19,14 @@ use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
-use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
+use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\WorkerStarting;
+use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
+use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -61,6 +65,19 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+    }
+
+    public function testJobPoppingEvent()
+    {
+        $worker = $this->getWorker('default', ['queue' => [$job = new WorkerFakeJob()]]);
+        $worker->runNextJob('default', 'queue', new WorkerOptions());
+        $this->assertTrue($job->fired);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) {
+            return $event instanceof JobPopping
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue';
+        }))->once();
     }
 
     public function testWorkerCanMonitorTimeoutJobs()
@@ -127,6 +144,24 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
 
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+    }
+
+    public function testWorkerMemoryExceededWhenMemoryIsZero()
+    {
+        $worker = new Worker(...$this->workerDependencies());
+        $this->assertFalse($worker->memoryExceeded(0));
+    }
+
+    public function testWorkerMemoryExceededWhenMemoryGreaterThanZero()
+    {
+        $worker = new Worker(...$this->workerDependencies());
+        $this->assertTrue($worker->memoryExceeded(1));
+    }
+
+    public function testWorkerMemoryExceededWhenMemoryIsNegative()
+    {
+        $worker = new Worker(...$this->workerDependencies());
+        $this->assertFalse($worker->memoryExceeded(-1));
     }
 
     public function testJobCanBeFiredBasedOnPriority()
@@ -401,6 +436,66 @@ class QueueWorkerTest extends TestCase
         Worker::popUsing('myworker', null);
     }
 
+    public function testWorkerStartingIsDispatched()
+    {
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+
+        $worker = $this->getWorker('default', ['queue' => [
+            $firstJob = new WorkerFakeJob(),
+            $secondJob = new WorkerFakeJob(),
+        ]]);
+
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->assertTrue($firstJob->fired);
+        $this->assertTrue($secondJob->fired);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerStarting::class))->once();
+    }
+
+    public function testWorkerStoppingIsDispatched()
+    {
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+
+        $worker = $this->getWorker('default', ['queue' => [
+            $firstJob = new WorkerFakeJob(),
+            $secondJob = new WorkerFakeJob(),
+        ]]);
+
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->assertTrue($firstJob->fired);
+        $this->assertTrue($secondJob->fired);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
+            return $event instanceof WorkerStopping
+                && $event->status === 0
+                && $event->workerOptions === $workerOptions
+                && $event->reason === WorkerStopReason::QueueEmpty;
+        }));
+    }
+
+    public function testJobReleasedEvent()
+    {
+        $e = new RuntimeException();
+
+        $job = new WorkerFakeJob(function () use ($e) {
+            throw $e;
+        });
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($job) {
+            return $event instanceof JobReleasedAfterException
+                && $event->connectionName === 'default'
+                && $event->job === $job
+                && $event->backoff === 10;
+        }))->once();
+    }
+
     /**
      * Helpers...
      * @param mixed $connectionName
@@ -451,9 +546,9 @@ class InsomniacWorker extends Worker
         $this->sleptFor = $seconds;
     }
 
-    public function stop(int $status = 0, ?WorkerOptions $options = null): int
+    public function stop(int $status = 0, ?WorkerOptions $options = null, ?WorkerStopReason $reason = null): int
     {
-        return $status;
+        return parent::stop($status, $options, $reason);
     }
 
     public function daemonShouldRun(WorkerOptions $options, string $connectionName, string $queue): bool
@@ -461,7 +556,7 @@ class InsomniacWorker extends Worker
         return ! ($this->isDownForMaintenance)();
     }
 
-    public function memoryExceeded(int $memoryLimit): bool
+    public function memoryExceeded(float $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
     }
