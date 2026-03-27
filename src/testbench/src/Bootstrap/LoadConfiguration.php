@@ -90,6 +90,18 @@ class LoadConfiguration extends BaseLoadConfiguration
 
         if ($repository->get('database.default') === 'sqlite' && is_string($sqliteDatabase) && ! is_file($sqliteDatabase)) {
             $repository->set('database.default', 'testing');
+            $this->rewriteQueueDatabaseConnection($repository, 'queue.batching.database');
+            $this->rewriteQueueDatabaseConnection($repository, 'queue.failed.database');
+        }
+    }
+
+    /**
+     * Rewrite queue database settings when testbench swaps the default DB connection.
+     */
+    protected function rewriteQueueDatabaseConnection(RepositoryContract $repository, string $key): void
+    {
+        if ($repository->get($key) === 'sqlite') {
+            $repository->set($key, 'testing');
         }
     }
 }
