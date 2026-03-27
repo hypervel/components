@@ -59,7 +59,7 @@ class Filesystem
      *
      * @throws FileNotFoundException
      */
-    public function json(string $path, int $flags = 0, bool $lock = false): array
+    public function json(string $path, int $flags = 0, bool $lock = false): mixed
     {
         return json_decode($this->get($path, $lock), true, 512, $flags);
     }
@@ -175,7 +175,7 @@ class Filesystem
     {
         if ($lock) {
             return $this->atomic($path, function ($path) use ($contents) {
-                $handle = fopen($path, 'w+');
+                $handle = fopen($path, 'c+');
                 if ($handle) {
                     $wouldBlock = false;
                     flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
@@ -184,7 +184,12 @@ class Filesystem
                         flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
                     }
                     try {
-                        return fwrite($handle, $contents);
+                        ftruncate($handle, 0);
+                        rewind($handle);
+
+                        return is_resource($contents)
+                            ? stream_copy_to_stream($contents, $handle)
+                            : fwrite($handle, $contents);
                     } finally {
                         flock($handle, LOCK_UN);
                         fclose($handle);
