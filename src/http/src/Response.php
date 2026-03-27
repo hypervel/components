@@ -30,6 +30,14 @@ class Response extends SymfonyResponse
     private bool $streamed = false;
 
     /**
+     * Whether the response body should be sent.
+     *
+     * Set to false for HEAD requests so that direct streaming sends
+     * headers/status but skips the body callback.
+     */
+    private bool $sendBody = true;
+
+    /**
      * The writable connection for direct Swoole streaming.
      */
     protected ?Writable $connection = null;
@@ -144,6 +152,27 @@ class Response extends SymfonyResponse
     }
 
     /**
+     * Suppress the response body.
+     *
+     * Used for HEAD requests to send headers/status without body content.
+     * Direct streaming via stream() will skip the body callback.
+     */
+    public function withoutBody(): static
+    {
+        $this->sendBody = false;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the response body should be sent.
+     */
+    public function shouldSendBody(): bool
+    {
+        return $this->sendBody;
+    }
+
+    /**
      * Set the writable connection for direct Swoole streaming.
      */
     public function setConnection(Writable $connection): static
@@ -217,9 +246,13 @@ class Response extends SymfonyResponse
         // must not re-send even if the callback throws after partial writes.
         $this->markStreamed();
 
-        $output = new StreamOutput($connection);
-        if (! is_null($result = $callback($output))) {
-            $output->write($result);
+        // Skip body output for HEAD requests — headers and status are sent,
+        // but the callback is not invoked.
+        if ($this->shouldSendBody()) {
+            $output = new StreamOutput($connection);
+            if (! is_null($result = $callback($output))) {
+                $output->write($result);
+            }
         }
 
         return $this;
