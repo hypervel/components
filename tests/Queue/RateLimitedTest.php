@@ -10,7 +10,6 @@ use Hypervel\Queue\Middleware\RateLimited;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
-use TypeError;
 
 enum RateLimitedTestStringEnum: string
 {
@@ -60,13 +59,13 @@ class RateLimitedTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testConstructorWithIntBackedEnumThrowsTypeError(): void
+    public function testConstructorAcceptsIntBackedEnum(): void
     {
         $this->mockRateLimiter();
 
-        $this->expectException(TypeError::class);
-
         new RateLimited(RateLimitedTestIntEnum::Primary);
+
+        $this->assertTrue(true);
     }
 
     public function testDontReleaseSetsShouldReleaseToFalse(): void
