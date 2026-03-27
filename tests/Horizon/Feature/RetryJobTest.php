@@ -99,7 +99,7 @@ class RetryJobTest extends IntegrationTestCase
                 'id' => '1',
                 'displayName' => 'foo',
                 'retryUntil' => now()->addMinute(3)->timestamp,
-                'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+                'job' => 'Hypervel\Queue\CallQueuedHandler@call',
                 'data' => [
                     'commandName' => Jobs\ConditionallyFailingJob::class,
                     'command' => serialize($job),

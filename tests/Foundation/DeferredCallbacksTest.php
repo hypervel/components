@@ -109,7 +109,7 @@ class DeferredCallbacksTest extends TestCase
         $job->shouldReceive('hasFailed')->andReturnFalse();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('database', $job, false)
+            new \Hypervel\Queue\Events\JobAttempted('database', $job, null)
         );
 
         $this->assertSame(['job'], DeferredCallbacksTestState::$calls);
@@ -130,7 +130,7 @@ class DeferredCallbacksTest extends TestCase
         $failedJob->shouldReceive('hasFailed')->andReturnTrue();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('database', $failedJob, false)
+            new \Hypervel\Queue\Events\JobAttempted('database', $failedJob, null)
         );
 
         $this->assertSame(['always'], DeferredCallbacksTestState::$calls);
@@ -145,7 +145,7 @@ class DeferredCallbacksTest extends TestCase
         $syncJob->shouldReceive('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('sync', $syncJob, false)
+            new \Hypervel\Queue\Events\JobAttempted('sync', $syncJob, null)
         );
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
