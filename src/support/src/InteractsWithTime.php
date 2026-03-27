@@ -25,7 +25,7 @@ trait InteractsWithTime
     /**
      * Get the "available at" UNIX timestamp.
      */
-    protected function availableAt(DateInterval|DateTimeInterface|int $delay = 0): int
+    protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int
     {
         $delay = $this->parseDateInterval($delay);
 
@@ -37,8 +37,12 @@ trait InteractsWithTime
     /**
      * If the given value is an interval, convert it to a DateTime instance.
      */
-    protected function parseDateInterval(DateInterval|DateTimeInterface|int $delay): DateTimeInterface|int
+    protected function parseDateInterval(DateInterval|DateTimeInterface|int|null $delay): DateTimeInterface|int
     {
+        if (is_null($delay)) {
+            return 0;
+        }
+
         if ($delay instanceof DateInterval) {
             $delay = Carbon::now()->add($delay);
         }
