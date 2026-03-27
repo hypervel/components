@@ -272,6 +272,48 @@ class ServerTest extends TestCase
         $this->assertInstanceOf(Server::class, $server);
     }
 
+    public function testOnRequestHandlesMalformedMethodOverrideAfterOverrideEnabled()
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+
+        // Simulate a prior request having enabled method override (static flag persists in Swoole workers).
+        // Save and restore the state since it's a process-global static.
+        $reflection = new ReflectionProperty(Request::class, 'httpMethodParameterOverride');
+        $previousState = $reflection->getValue();
+        Request::enableHttpMethodParameterOverride();
+
+        try {
+            $kernel = m::mock(KernelContract::class);
+            $kernel->shouldReceive('handle')
+                ->once()
+                ->andReturn(new Response('Bad Request', 400));
+            $kernel->shouldReceive('terminate')->once();
+
+            $container = m::mock(Container::class);
+            $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+
+            $server = new Server($container);
+            $this->setKernel($server, $kernel);
+            $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
+
+            // Raw POST with malicious _method override — should not throw before kernel
+            $swooleRequest = $this->createSwooleRequest(method: 'post');
+            $swooleRequest->post = ['_method' => '__construct'];
+
+            $swooleResponse = m::mock(SwooleResponse::class);
+            $swooleResponse->shouldReceive('status')->once()->with(400);
+            $swooleResponse->shouldReceive('header')->withAnyArgs();
+            $swooleResponse->shouldReceive('end')->once();
+
+            // Should not throw SuspiciousOperationException — the raw method
+            // decision uses $swooleRequest->server['request_method'], not
+            // $request->getMethod() which triggers the override.
+            $server->onRequest($swooleRequest, $swooleResponse);
+        } finally {
+            $reflection->setValue(null, $previousState);
+        }
+    }
+
     public function testConstructorSkipsEventDispatcherWhenNotAvailable()
     {
         $container = m::mock(Container::class);
