@@ -14,6 +14,11 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class ListFailedCommand extends Command
 {
     /**
+     * The console command name.
+     */
+    protected ?string $name = 'queue:failed';
+
+    /**
      * The console command signature.
      */
     protected ?string $signature = 'queue:failed';
@@ -31,10 +36,12 @@ class ListFailedCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         if (count($jobs = $this->getFailedJobs()) === 0) {
-            return $this->info('No failed jobs found.');
+            $this->components->info('No failed jobs found.');
+
+            return;
         }
 
         $this->newLine();
@@ -98,6 +105,11 @@ class ListFailedCommand extends Command
      */
     protected function displayFailedJobs(array $jobs): void
     {
-        $this->table($this->headers, $jobs);
+        Collection::make($jobs)->each(
+            fn (array $job) => $this->components->twoColumnDetail(
+                sprintf('<fg=gray>%s</> %s</>', $job[4], $job[0]),
+                sprintf('<fg=gray>%s@%s</> %s', $job[1], $job[2], $job[3])
+            ),
+        );
     }
 }

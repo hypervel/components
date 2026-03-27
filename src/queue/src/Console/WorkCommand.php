@@ -87,6 +87,10 @@ class WorkCommand extends Command
      */
     public function handle(): ?int
     {
+        if ($this->downForMaintenance() && $this->option('once')) {
+            return $this->worker->sleep($this->option('sleep'));
+        }
+
         // We'll listen to the processed and failed events so we can write information
         // to the console as jobs are processed, which will let the developer watch
         // which jobs are coming through a queue and be informed on its progress.
@@ -119,7 +123,7 @@ class WorkCommand extends Command
     {
         return $this->worker
             ->setName($this->option('name'))
-            ->setCache($this->cache)
+            ->setCache($this->cache->store())
             ->{$this->option('once') ? 'runNextJob' : 'daemon'}(
                 $connection,
                 $queue,
@@ -141,7 +145,7 @@ class WorkCommand extends Command
         return new WorkerOptions(
             $this->option('name'),
             (int) max($this->option('backoff'), $this->option('delay')),
-            (int) $this->option('memory'),
+            (float) $this->option('memory'),
             (int) $this->option('timeout'),
             (int) $this->option('sleep'),
             (int) $this->option('tries'),
@@ -319,6 +323,14 @@ class WorkCommand extends Command
             "queue.connections.{$connection}.queue",
             'default'
         );
+    }
+
+    /**
+     * Determine if the worker should run in maintenance mode.
+     */
+    protected function downForMaintenance(): bool
+    {
+        return $this->option('force') ? false : $this->hypervel->isDownForMaintenance();
     }
 
     /**

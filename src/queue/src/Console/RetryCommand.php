@@ -9,11 +9,8 @@ use DateTimeInterface;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -35,40 +32,34 @@ class RetryCommand extends Command
     protected string $description = 'Retry a failed queue job';
 
     /**
-     * Create a new queue restart command.
-     */
-    public function __construct(
-        protected FailedJobProviderInterface $failer
-    ) {
-        parent::__construct();
-    }
-
-    /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $jobsFound = count($ids = $this->getJobIds()) > 0;
 
         if ($jobsFound) {
-            $this->info('Pushing failed queue jobs back onto the queue.');
+            $this->components->info('Pushing failed queue jobs back onto the queue.');
         }
 
+        /** @var FailedJobProviderInterface $failer */
+        $failer = $this->hypervel->make('queue.failer');
+
         foreach ($ids as $id) {
-            $job = $this->failer->find($id);
+            $job = $failer->find($id);
 
             if (is_null($job)) {
-                $this->error("Unable to find failed job with ID [{$id}].");
+                $this->components->error("Unable to find failed job with ID [{$id}].");
             } else {
                 $this->hypervel->make(Dispatcher::class)->dispatch(new JobRetryRequested($job));
 
-                $this->retryJob($job);
+                $this->components->task($id, fn () => $this->retryJob($job));
 
-                $this->failer->forget($id);
+                $failer->forget($id);
             }
         }
 
-        $jobsFound ? $this->newLine() : $this->info('No retryable jobs found.');
+        $jobsFound ? $this->newLine() : $this->components->info('No retryable jobs found.');
     }
 
     /**
@@ -79,10 +70,10 @@ class RetryCommand extends Command
         $ids = (array) $this->argument('id');
 
         if (count($ids) === 1 && $ids[0] === 'all') {
-            // @phpstan-ignore function.alreadyNarrowedType (@method PHPDoc is optional, not required)
-            return method_exists($this->failer, 'ids')
-                ? $this->failer->ids()
-                : Arr::pluck($this->failer->all(), 'id');
+            /** @var FailedJobProviderInterface $failer */
+            $failer = $this->hypervel->make('queue.failer');
+
+            return $failer->ids();
         }
 
         if ($queue = $this->option('queue')) {
@@ -101,16 +92,13 @@ class RetryCommand extends Command
      */
     protected function getJobIdsByQueue(string $queue): array
     {
-        // @phpstan-ignore function.alreadyNarrowedType (@method PHPDoc is optional, not required)
-        $ids = method_exists($this->failer, 'ids')
-            ? $this->failer->ids($queue)
-            : Collection::make($this->failer->all())
-                ->where('queue', $queue)
-                ->pluck('id')
-                ->toArray();
+        /** @var FailedJobProviderInterface $failer */
+        $failer = $this->hypervel->make('queue.failer');
+
+        $ids = $failer->ids($queue);
 
         if (count($ids) === 0) {
-            $this->error("Unable to find failed jobs for queue [{$queue}].");
+            $this->components->error("Unable to find failed jobs for queue [{$queue}].");
         }
 
         return $ids;
@@ -137,7 +125,7 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $this->hypervel->make(QueueFactory::class)->connection($job->connection)->pushRaw(
+        $this->hypervel->make('queue')->connection($job->connection)->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),
             $job->queue
         );
