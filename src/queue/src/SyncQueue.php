@@ -6,10 +6,13 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
@@ -63,7 +66,7 @@ class SyncQueue extends Queue implements QueueContract
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
     {
-        return 0;
+        return null;
     }
 
     /**
@@ -76,6 +79,14 @@ class SyncQueue extends Queue implements QueueContract
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
+            if ($job instanceof ShouldBeUnique) {
+                $this->container->make('db.transactions')->addCallbackForRollback(
+                    function () use ($job) {
+                        (new UniqueLock($this->container->make(Cache::class)))->release($job);
+                    }
+                );
+            }
+
             return $this->container->make('db.transactions')
                 ->addCallback(
                     fn () => $this->executeJob($job, $data, $queue)
@@ -101,7 +112,11 @@ class SyncQueue extends Queue implements QueueContract
 
             $this->raiseAfterJobEvent($queueJob);
         } catch (Throwable $e) {
+            $exceptionOccurred = $e;
+
             $this->handleException($queueJob, $e);
+        } finally {
+            $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
         }
 
         return 0;
@@ -138,6 +153,17 @@ class SyncQueue extends Queue implements QueueContract
     }
 
     /**
+     * Raise the job attempted event.
+     */
+    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null): void
+    {
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->make(Dispatcher::class)
+                ->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred));
+        }
+    }
+
+    /**
      * Raise the exception occurred queue job event.
      */
     protected function raiseExceptionOccurredJobEvent(JobContract $job, Throwable $e): void
@@ -158,9 +184,6 @@ class SyncQueue extends Queue implements QueueContract
         $this->raiseExceptionOccurredJobEvent($queueJob, $e);
 
         $queueJob->fail($e);
-
-        $this->container->make(ExceptionHandler::class)
-            ->report($e);
 
         throw $e;
     }
