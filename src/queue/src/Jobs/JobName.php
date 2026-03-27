@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Support\Str;
 
 class JobName
@@ -14,14 +13,7 @@ class JobName
      */
     public static function parse(string $job): array
     {
-        $result = Str::parseCallback($job, 'fire');
-
-        // Make CallQueuedHandler compatible with Laravel's Queue
-        if ($result[0] === 'Illuminate\Queue\CallQueuedHandler') {
-            $result[0] = CallQueuedHandler::class;
-        }
-
-        return $result;
+        return Str::parseCallback($job, 'fire');
     }
 
     /**
