@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine;
 use Throwable;
 
-class CoroutineQueue extends SyncQueue
+class DeferredQueue extends SyncQueue
 {
     /**
      * The exception callback that should be used for handling uncaught exceptions in defer.
@@ -21,23 +21,22 @@ class CoroutineQueue extends SyncQueue
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        if (
-            $this->shouldDispatchAfterCommit($job)
+        if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
             return $this->container->make('db.transactions')
                 ->addCallback(
-                    fn () => $this->executeJob($job, $data, $queue)
+                    fn () => $this->deferJob($job, $data, $queue)
                 );
         }
 
-        $this->executeJob($job, $data, $queue);
+        $this->deferJob($job, $data, $queue);
 
         return null;
     }
 
     /**
-     * Set the exception callback for the defer queue.
+     * Set the exception callback for the deferred queue.
      */
     public function setExceptionCallback(?callable $callback): static
     {
@@ -47,20 +46,18 @@ class CoroutineQueue extends SyncQueue
     }
 
     /**
-     * Defer a new job onto the queue.
+     * Defer a new job onto the deferred queue.
      */
-    protected function executeJob(object|string $job, mixed $data = '', ?string $queue = null): int
+    protected function deferJob(object|string $job, mixed $data = '', ?string $queue = null): void
     {
-        Coroutine::create(function () use ($job, $data, $queue) {
+        Coroutine::defer(function () use ($job, $data, $queue) {
             try {
-                parent::executeJob($job, $data, $queue);
+                $this->executeJob($job, $data, $queue);
             } catch (Throwable $e) {
                 if ($this->exceptionCallback) {
                     ($this->exceptionCallback)($e);
                 }
             }
         });
-
-        return 0;
     }
 }

@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Connectors;
 
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Queue\CoroutineQueue;
+use Hypervel\Queue\BackgroundQueue;
 
-class CoroutineConnector implements ConnectorInterface
+class BackgroundConnector implements ConnectorInterface
 {
     /**
      * Establish a queue connection.
      */
     public function connect(array $config): Queue
     {
-        return new CoroutineQueue($config['after_commit'] ?? false);
+        return new BackgroundQueue($config['after_commit'] ?? false);
     }
 }
