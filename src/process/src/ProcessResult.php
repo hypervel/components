@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Symfony\Component\Process\Process;
 

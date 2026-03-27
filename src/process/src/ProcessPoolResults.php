@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use ArrayAccess;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 use Hypervel\Support\Collection;
 
 class ProcessPoolResults implements ArrayAccess
@@ -12,7 +13,7 @@ class ProcessPoolResults implements ArrayAccess
     /**
      * Create a new process pool result set.
      *
-     * @param array<int, ProcessResult> $results the results of the processes
+     * @param array<int|string, ProcessResultContract> $results the results of the processes
      */
     public function __construct(protected array $results = [])
     {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Process\Contracts;
+namespace Hypervel\Contracts\Process;
 
 interface ProcessResult
 {

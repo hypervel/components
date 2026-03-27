@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Process\Contracts;
+namespace Hypervel\Contracts\Process;
 
 interface InvokedProcess
 {
@@ -10,6 +10,11 @@ interface InvokedProcess
      * Get the process ID if the process is still running.
      */
     public function id(): ?int;
+
+    /**
+     * Get the command line for the process.
+     */
+    public function command(): string;
 
     /**
      * Send a signal to the process.
@@ -45,4 +50,9 @@ interface InvokedProcess
      * Wait for the process to finish.
      */
     public function wait(?callable $output = null): ProcessResult;
+
+    /**
+     * Wait until the given callback returns true.
+     */
+    public function waitUntil(?callable $output = null): ProcessResult;
 }
