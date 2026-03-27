@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\Batchable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
@@ -108,6 +109,36 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
+    public function testPushIncludesBatchIdInPayloadForBatchableJob()
+    {
+        $uuid = Str::uuid()->toString();
+
+        Str::createUuidsUsing(fn () => $uuid);
+
+        $job = (new MyBatchableJob())->withBatchId('test-batch-id');
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer($container = m::spy(Container::class));
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
+            $payload = json_decode($array['payload'], true);
+            $this->assertSame('test-batch-id', $payload['data']['batchId']);
+
+            return 1;
+        });
+
+        $queue->push($job, ['data']);
+
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+    }
+
     public function testFailureToCreatePayloadFromObject()
     {
         $this->expectException('InvalidArgumentException');
@@ -200,6 +231,11 @@ class MyTestJob
     }
 }
 
+class MyBatchableJob
+{
+    use Batchable;
+}
+
 class TestDatabaseQueue extends DatabaseQueue
 {
     public function __construct(
@@ -218,7 +254,7 @@ class TestDatabaseQueue extends DatabaseQueue
         return $this->currentTime;
     }
 
-    protected function availableAt(DateInterval|DateTimeInterface|int $delay = 0): int
+    protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int
     {
         return $this->availableAt ?? parent::availableAt($delay);
     }
