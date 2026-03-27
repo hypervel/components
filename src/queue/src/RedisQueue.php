@@ -29,7 +29,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      * @param Redis $redis the Redis factory implementation
      * @param string $default the connection name
      * @param null|string $connection the connection name
-     * @param int $retryAfter the expiration time of a job
+     * @param null|int $retryAfter the expiration time of a job
      * @param null|int $blockFor the maximum number of seconds to block for a job
      * @param int $migrationBatchSize The batch size to use when migrating delayed / expired jobs onto the primary queue. Negative values are infinite.
      */
@@ -37,7 +37,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
         protected Redis $redis,
         protected string $default = 'default',
         protected ?string $connection = null,
-        protected int $retryAfter = 60,
+        protected ?int $retryAfter = 60,
         protected ?int $blockFor = null,
         protected ?bool $dispatchAfterCommit = false,
         protected int $migrationBatchSize = -1
@@ -173,10 +173,12 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function laterRaw(DateInterval|DateTimeInterface|int $delay, string $payload, ?string $queue = null): mixed
     {
-        $this->getConnection()->zadd(
+        $this->getConnection()->eval(
+            LuaScripts::later(),
+            1,
             $this->getQueue($queue) . ':delayed',
             $this->availableAt($delay),
-            $payload
+            $payload,
         );
 
         return json_decode($payload, true)['id'] ?? null;
@@ -232,7 +234,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     protected function migrate(string $queue): void
     {
         $this->migrateExpiredJobs($queue . ':delayed', $queue);
-        $this->migrateExpiredJobs($queue . ':reserved', $queue);
+
+        if (! is_null($this->retryAfter)) {
+            $this->migrateExpiredJobs($queue . ':reserved', $queue);
+        }
     }
 
     /**
@@ -308,7 +313,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(string $queue): int
+    public function clear(?string $queue): int
     {
         $queue = $this->getQueue($queue);
 
