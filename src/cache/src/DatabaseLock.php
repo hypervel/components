@@ -24,7 +24,7 @@ class DatabaseLock extends Lock implements RefreshableLock
     /**
      * The connection name.
      */
-    protected string $connectionName;
+    protected ?string $connectionName;
 
     /**
      * The database table name.
@@ -46,7 +46,7 @@ class DatabaseLock extends Lock implements RefreshableLock
      */
     public function __construct(
         ConnectionResolverInterface $resolver,
-        string $connectionName,
+        ?string $connectionName,
         string $name,
         string $table,
         int $seconds,
