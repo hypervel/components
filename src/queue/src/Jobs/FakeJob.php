@@ -36,7 +36,7 @@ class FakeJob extends Job
      */
     public function getJobId(): string
     {
-        return (string) Str::uuid();
+        return once(fn () => (string) Str::uuid());
     }
 
     /**
