@@ -17,6 +17,11 @@ interface Monitor
     public function failing(mixed $callback): void;
 
     /**
+     * Register a callback to be executed when a daemon queue is starting.
+     */
+    public function starting(mixed $callback): void;
+
+    /**
      * Register a callback to be executed when a daemon queue is stopping.
      */
     public function stopping(mixed $callback): void;
