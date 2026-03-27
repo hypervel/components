@@ -15,6 +15,7 @@ use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -568,7 +569,7 @@ class TestResponse implements ArrayAccess
     public function assertStreamed(): static
     {
         PHPUnit::withResponse($this)->assertTrue(
-            $this->baseResponse instanceof StreamedResponse || $this->baseResponse instanceof StreamedJsonResponse, // @phpstan-ignore instanceof.alwaysFalse
+            $this->isStreamedResponse(),
             'Expected the response to be streamed, but it wasn\'t.'
         );
 
@@ -581,7 +582,7 @@ class TestResponse implements ArrayAccess
     public function assertNotStreamed(): static
     {
         PHPUnit::withResponse($this)->assertTrue(
-            ! $this->baseResponse instanceof StreamedResponse && ! $this->baseResponse instanceof StreamedJsonResponse, // @phpstan-ignore instanceof.alwaysFalse
+            ! $this->isStreamedResponse(),
             'Response was unexpectedly streamed.'
         );
 
@@ -1052,8 +1053,7 @@ class TestResponse implements ArrayAccess
      */
     public function decodeResponseJson(): AssertableJsonString
     {
-        if ($this->baseResponse instanceof StreamedResponse
-            || $this->baseResponse instanceof StreamedJsonResponse) { // @phpstan-ignore instanceof.alwaysFalse
+        if ($this->isStreamedResponse()) {
             $testJson = new AssertableJsonString($this->streamedContent());
         } else {
             $testJson = new AssertableJsonString($this->getContent());
@@ -1610,10 +1610,21 @@ class TestResponse implements ArrayAccess
             return $this->streamedContent;
         }
 
-        if (! $this->baseResponse instanceof StreamedResponse
-            && ! $this->baseResponse instanceof StreamedJsonResponse) { // @phpstan-ignore instanceof.alwaysFalse
+        if (! $this->isStreamedResponse()) {
             PHPUnit::withResponse($this)->fail('The response is not a streamed response.');
         }
+
+        // Hypervel's direct Swoole streaming path writes to a FakeWritableConnection
+        // in test mode. Read the captured content from it instead of output buffering.
+        if ($this->baseResponse instanceof HypervelResponse && $this->baseResponse->isStreamed()) {
+            $connection = $this->baseResponse->getConnection();
+
+            if ($connection instanceof FakeWritableConnection) {
+                return $this->streamedContent = $connection->getWrittenContent();
+            }
+        }
+
+        $level = ob_get_level();
 
         ob_start(function (string $buffer): string {
             $this->streamedContent .= $buffer;
@@ -1621,11 +1632,28 @@ class TestResponse implements ArrayAccess
             return '';
         });
 
-        $this->sendContent();
-
-        ob_end_clean();
+        try {
+            $this->sendContent();
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
+        }
 
         return $this->streamedContent;
+    }
+
+    /**
+     * Determine if the response is a streamed response.
+     *
+     * Covers both Symfony's StreamedResponse/StreamedJsonResponse and
+     * Hypervel's direct Swoole streaming via Response::stream().
+     */
+    protected function isStreamedResponse(): bool
+    {
+        return $this->baseResponse instanceof StreamedResponse
+            || $this->baseResponse instanceof StreamedJsonResponse // @phpstan-ignore instanceof.alwaysFalse
+            || ($this->baseResponse instanceof HypervelResponse && $this->baseResponse->isStreamed());
     }
 
     /**
