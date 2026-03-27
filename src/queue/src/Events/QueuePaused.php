@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Events;
 
-class QueueBusy
+use DateInterval;
+use DateTimeInterface;
+
+class QueuePaused
 {
     /**
      * Create a new event instance.
      */
     public function __construct(
-        public string $connectionName,
+        public string $connection,
         public string $queue,
-        public int $size,
+        public DateInterval|DateTimeInterface|int|null $ttl = null,
     ) {
     }
 }
