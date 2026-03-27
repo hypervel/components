@@ -5,24 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
+use DateInterval;
+use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Contracts\Redis\Factory as Redis;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\ConnectorInterface;
-use Hypervel\Queue\Connectors\CoroutineConnector;
-use Hypervel\Queue\Connectors\DatabaseConnector;
-use Hypervel\Queue\Connectors\DeferConnector;
-use Hypervel\Queue\Connectors\FailoverConnector;
-use Hypervel\Queue\Connectors\NullConnector;
-use Hypervel\Queue\Connectors\RedisConnector;
-use Hypervel\Queue\Connectors\SqsConnector;
-use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 
@@ -60,7 +51,6 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __construct(
         protected Container $app
     ) {
-        $this->registerConnectors();
     }
 
     /**
@@ -109,6 +99,15 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Register an event listener for the daemon queue starting.
+     */
+    public function starting(mixed $callback): void
+    {
+        $this->app->make(Dispatcher::class)
+            ->listen(Events\WorkerStarting::class, $callback);
+    }
+
+    /**
      * Register an event listener for the daemon queue stopping.
      */
     public function stopping(mixed $callback): void
@@ -125,6 +124,67 @@ class QueueManager implements FactoryContract, MonitorContract
     public function route(array|string $class, ?string $queue = null, ?string $connection = null): void
     {
         $this->queueRoutes()->set($class, $queue, $connection);
+    }
+
+    /**
+     * Pause a queue by its connection and name.
+     */
+    public function pause(string $connection, string $queue): void
+    {
+        $this->app->make('cache')
+            ->store()
+            ->forever("hypervel:queue:paused:{$connection}:{$queue}", true);
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new Events\QueuePaused($connection, $queue)
+        );
+    }
+
+    /**
+     * Pause a queue by its connection and name for a given amount of time.
+     */
+    public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
+    {
+        $this->app->make('cache')
+            ->store()
+            ->put("hypervel:queue:paused:{$connection}:{$queue}", true, $ttl);
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new Events\QueuePaused($connection, $queue, $ttl)
+        );
+    }
+
+    /**
+     * Resume a paused queue by its connection and name.
+     */
+    public function resume(string $connection, string $queue): void
+    {
+        $this->app->make('cache')
+            ->store()
+            ->forget("hypervel:queue:paused:{$connection}:{$queue}");
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new Events\QueueResumed($connection, $queue)
+        );
+    }
+
+    /**
+     * Determine if a queue is paused.
+     */
+    public function isPaused(string $connection, string $queue): bool
+    {
+        return (bool) $this->app->make('cache')
+            ->store()
+            ->get("hypervel:queue:paused:{$connection}:{$queue}", false);
+    }
+
+    /**
+     * Indicate that queue workers should not poll for restart or pause signals.
+     */
+    public function withoutInterruptionPolling(): void
+    {
+        Worker::$restartable = false;
+        Worker::$pausable = false;
     }
 
     /**
@@ -276,118 +336,5 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __call(string $method, array $parameters)
     {
         return $this->connection()->{$method}(...$parameters);
-    }
-
-    /**
-     * Register the connectors on the queue manager.
-     */
-    protected function registerConnectors(): void
-    {
-        $this->registerNullConnector();
-        $this->registerSyncConnector();
-        $this->registerDatabaseConnector();
-        $this->registerRedisConnector();
-        $this->registerBeanstalkdConnector();
-        $this->registerSqsConnector();
-        $this->registerDeferConnector();
-        $this->registerCoroutineConnector();
-        $this->registerFailoverConnector();
-    }
-
-    /**
-     * Register the Null queue connector.
-     */
-    protected function registerNullConnector(): void
-    {
-        $this->addConnector('null', function () {
-            return new NullConnector();
-        });
-    }
-
-    /**
-     * Register the Sync queue connector.
-     */
-    protected function registerSyncConnector(): void
-    {
-        $this->addConnector('sync', function () {
-            return new SyncConnector();
-        });
-    }
-
-    /**
-     * Register the database queue connector.
-     */
-    protected function registerDatabaseConnector(): void
-    {
-        $this->addConnector('database', function () {
-            return new DatabaseConnector(
-                $this->app->make(ConnectionResolverInterface::class)
-            );
-        });
-    }
-
-    /**
-     * Register the Redis queue connector.
-     */
-    protected function registerRedisConnector(): void
-    {
-        $this->addConnector('redis', function () {
-            return new RedisConnector(
-                $this->app->make(Redis::class)
-            );
-        });
-    }
-
-    /**
-     * Register the Beanstalkd queue connector.
-     */
-    protected function registerBeanstalkdConnector(): void
-    {
-        $this->addConnector('beanstalkd', function () {
-            return new BeanstalkdConnector();
-        });
-    }
-
-    /**
-     * Register the Amazon SQS queue connector.
-     */
-    protected function registerSqsConnector(): void
-    {
-        $this->addConnector('sqs', function () {
-            return new SqsConnector();
-        });
-    }
-
-    /**
-     * Register the Coroutine defer queue connector.
-     */
-    protected function registerDeferConnector(): void
-    {
-        $this->addConnector('defer', function () {
-            return new DeferConnector();
-        });
-    }
-
-    /**
-     * Register the Coroutine queue connector.
-     */
-    protected function registerCoroutineConnector(): void
-    {
-        $this->addConnector('coroutine', function () {
-            return new CoroutineConnector();
-        });
-    }
-
-    /**
-     * Register the Failover queue connector.
-     */
-    protected function registerFailoverConnector(): void
-    {
-        $this->addConnector('failover', function () {
-            return new FailoverConnector(
-                $this,
-                $this->app->make(Dispatcher::class)
-            );
-        });
     }
 }
