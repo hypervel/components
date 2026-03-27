@@ -1290,6 +1290,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Http\Request::class,
                 \Symfony\Component\HttpFoundation\Request::class,
             ],
+            \Hypervel\Http\Response::class => [
+                \Symfony\Component\HttpFoundation\Response::class,
+            ],
             'router' => [
                 \Hypervel\Routing\Router::class,
                 \Hypervel\Contracts\Routing\Registrar::class,
