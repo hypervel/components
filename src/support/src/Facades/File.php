@@ -8,7 +8,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool exists(string $path)
  * @method static bool missing(string $path)
  * @method static string get(string $path, bool $lock = false)
- * @method static array json(string $path, int $flags = 0, bool $lock = false)
+ * @method static mixed json(string $path, int $flags = 0, bool $lock = false)
  * @method static string sharedGet(string $path)
  * @method static mixed getRequire(string $path, array $data = [])
  * @method static mixed requireOnce(string $path, array $data = [])
