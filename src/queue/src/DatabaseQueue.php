@@ -46,7 +46,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function size(?string $queue = null): int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->count();
     }
@@ -56,7 +56,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function pendingSize(?string $queue = null): int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->whereNull('reserved_at')
             ->where('available_at', '<=', $this->currentTime())
@@ -68,7 +68,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function delayedSize(?string $queue = null): int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->whereNull('reserved_at')
             ->where('available_at', '>', $this->currentTime())
@@ -80,7 +80,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function reservedSize(?string $queue = null): int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->whereNotNull('reserved_at')
             ->count();
@@ -91,7 +91,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->whereNull('reserved_at')
             ->where('available_at', '<=', $this->currentTime())
@@ -148,7 +148,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 
         $now = $this->availableAt();
 
-        return $this->connection()->table($this->table)->insert(Collection::make((array) $jobs)->map(
+        return $this->getDatabase()->table($this->table)->insert(Collection::make((array) $jobs)->map(
             function ($job) use ($queue, $data, $now) {
                 return $this->buildDatabaseRecord(
                     $queue,
@@ -172,7 +172,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function pushToDatabase(?string $queue, string $payload, DateInterval|DateTimeInterface|int $delay = 0, int $attempts = 0): mixed
     {
-        return $this->connection()->table($this->table)->insertGetId($this->buildDatabaseRecord(
+        return $this->getDatabase()->table($this->table)->insertGetId($this->buildDatabaseRecord(
             $this->getQueue($queue),
             $payload,
             $this->availableAt($delay),
@@ -204,7 +204,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         $queue = $this->getQueue($queue);
 
-        return $this->connection()->transaction(function () use ($queue) {
+        return $this->getDatabase()->transaction(function () use ($queue) {
             if ($job = $this->getNextAvailableJob($queue)) {
                 return $this->marshalJob($queue, $job);
             }
@@ -216,7 +216,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function getNextAvailableJob(?string $queue): ?DatabaseJobRecord
     {
-        $job = $this->connection()->table($this->table)
+        $job = $this->getDatabase()->table($this->table)
             ->lock($this->getLockForPopping())
             ->where('queue', $this->getQueue($queue))
             ->where(function ($query) {
@@ -235,9 +235,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     protected function getLockForPopping(): bool|string
     {
         /* @phpstan-ignore-next-line */
-        $databaseEngine = $this->connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $databaseEngine = $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
         /* @phpstan-ignore-next-line */
-        $databaseVersion = $this->connection()->getConfig('version') ?? $this->connection()->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
+        $databaseVersion = $this->getDatabase()->getConfig('version') ?? $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
 
         if (Str::of($databaseVersion)->contains('MariaDB')) {
             $databaseEngine = 'mariadb';
@@ -306,7 +306,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function markJobAsReserved(DatabaseJobRecord $job): DatabaseJobRecord
     {
-        $this->connection()->table($this->table)->where('id', $job->id)->update([
+        $this->getDatabase()->table($this->table)->where('id', $job->id)->update([
             'reserved_at' => $job->touch(),
             'attempts' => $job->increment(),
         ]);
@@ -321,9 +321,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function deleteReserved(string $queue, string $id): void
     {
-        $this->connection()->transaction(function () use ($id) {
-            if ($this->connection()->table($this->table)->lockForUpdate()->find($id)) {
-                $this->connection()->table($this->table)->where('id', $id)->delete();
+        $this->getDatabase()->transaction(function () use ($id) {
+            if ($this->getDatabase()->table($this->table)->lockForUpdate()->find($id)) {
+                $this->getDatabase()->table($this->table)->where('id', $id)->delete();
             }
         });
     }
@@ -333,9 +333,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function deleteAndRelease(string $queue, DatabaseJob $job, int $delay): void
     {
-        $this->connection()->transaction(function () use ($queue, $job, $delay) {
-            if ($this->connection()->table($this->table)->lockForUpdate()->find($job->getJobId())) {
-                $this->connection()->table($this->table)->where('id', $job->getJobId())->delete();
+        $this->getDatabase()->transaction(function () use ($queue, $job, $delay) {
+            if ($this->getDatabase()->table($this->table)->lockForUpdate()->find($job->getJobId())) {
+                $this->getDatabase()->table($this->table)->where('id', $job->getJobId())->delete();
             }
 
             $this->release($queue, $job->getJobRecord(), $delay);
@@ -345,9 +345,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(string $queue): int
+    public function clear(?string $queue): int
     {
-        return $this->connection()->table($this->table)
+        return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
             ->delete();
     }
@@ -363,18 +363,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the underlying database connection.
      */
-    public function connection(): ConnectionInterface
+    public function getDatabase(): ConnectionInterface
     {
         return $this->resolver->connection($this->connection);
-    }
-
-    /**
-     * Set the connection name to be used.
-     */
-    public function setConnection(?string $connection): static
-    {
-        $this->connection = $connection;
-
-        return $this;
     }
 }
