@@ -40,7 +40,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalkJob()->shouldReceive('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
         $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
-        $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid');
+        $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
         $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
 
@@ -85,7 +85,7 @@ class QueueBeanstalkdJobTest extends TestCase
 
 class BeanstalkdJobTestFailedTest
 {
-    public function failed(array $data)
+    public function failed(array $data, Exception $exception, string $uuid, BeanstalkdJob $job)
     {
     }
 }
