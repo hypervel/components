@@ -262,6 +262,162 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
+    public function testQueueingModeReshapesSetArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('set')
+            ->once()
+            ->with('key', 'value', ['NX', 'EX' => 600])
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('set', ['key', 'value', 'EX', 600, 'NX']);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testQueueingModeReshapesHmsetArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('hMSet')
+            ->once()
+            ->with('hash', ['field1' => 'value1', 'field2' => 'value2'])
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('hmset', ['hash', 'field1', 'value1', 'field2', 'value2']);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testQueueingModeReshapesLremArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('lRem')
+            ->once()
+            ->with('list', 'value', 2)
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('lrem', ['list', 2, 'value']);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testQueueingModeReshapesZaddArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('zAdd')
+            ->once()
+            ->with('sortedset', ['NX', 'CH'], 1.0, 'member1', 2.0, 'member2')
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('zadd', ['sortedset', 'NX', 'CH', 1.0, 'member1', 2.0, 'member2']);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testQueueingModeReshapesZrangebyscoreArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('zRangeByScore')
+            ->once()
+            ->with('sortedset', '1', '5', ['limit' => [0, 10]])
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('zrangebyscore', ['sortedset', '1', '5', ['limit' => ['offset' => 0, 'count' => 10]]]);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testQueueingModeReshapesZinterstoreArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('zinterstore')
+            ->once()
+            ->with('output', ['set1', 'set2'], [1, 2], 'max')
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('zinterstore', ['output', ['set1', 'set2'], ['weights' => [1, 2], 'aggregate' => 'max']]);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testPrepareEvalShapesArgumentsForQueueingMode()
+    {
+        $connection = new class extends PhpRedisConnectionStub {
+            public function prepareEvalForTest(mixed ...$arguments): array
+            {
+                return $this->prepareEval(...$arguments);
+            }
+        };
+
+        $this->assertSame(
+            ['eval', ['return redis.call("GET", KEYS[1])', ['mykey', 'myarg'], 1]],
+            $connection->prepareEvalForTest('return redis.call("GET", KEYS[1])', 1, 'mykey', 'myarg'),
+        );
+    }
+
+    public function testPrepareEvalshaFallsBackToEvalForQueueingMode()
+    {
+        $connection = new class extends PhpRedisConnectionStub {
+            public function prepareEvalshaForTest(mixed ...$arguments): array
+            {
+                return $this->prepareEvalsha(...$arguments);
+            }
+        };
+
+        $this->assertSame(
+            ['eval', ['return redis.call("GET", KEYS[1])', ['mykey'], 1]],
+            $connection->prepareEvalshaForTest('return redis.call("GET", KEYS[1])', 1, 'mykey'),
+        );
+    }
+
+    public function testQueueingModeReshapesExecuteRawArgumentsButPreservesRawQueuedReturn()
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('rawCommand')
+            ->once()
+            ->with('CUSTOM', 'arg1', 'arg2')
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('executeRaw', [['CUSTOM', 'arg1', 'arg2']]);
+
+        $this->assertSame($redis, $result);
+    }
+
     public function testTransformDisabledSetUsesNativeSignatureWithoutInspectingMode(): void
     {
         $connection = $this->mockRedisConnection(transform: false);
