@@ -323,6 +323,50 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertSame($id, $redis->get($valueKey));
     }
 
+    public function testOpenPipelineReshapesWrapperSetArguments(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'pipeline_wrapper_set_' . uniqid();
+        $pipeline = $redis->pipeline();
+
+        $redis->set($key, 'value', 'EX', 600, 'NX');
+
+        $this->assertSame([true], $pipeline->exec());
+        $this->assertSame('value', $redis->get($key));
+    }
+
+    public function testOpenPipelineReshapesWrapperEvalArguments(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'pipeline_wrapper_eval_' . uniqid();
+        $redis->set($key, 'value');
+
+        $pipeline = $redis->pipeline();
+
+        $redis->eval('return redis.call("GET", KEYS[1])', 1, $key);
+
+        $this->assertSame(['value'], $pipeline->exec());
+    }
+
+    public function testOpenPipelineReshapesWrapperEvalshaArguments(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'pipeline_wrapper_evalsha_' . uniqid();
+        $redis->set($key, 'value');
+
+        $pipeline = $redis->pipeline();
+
+        $redis->evalsha('return redis.call("GET", KEYS[1])', 1, $key);
+
+        $this->assertSame(['value'], $pipeline->exec());
+    }
+
     public function testSelectIsolationAcrossCoroutines(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
