@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace %NAMESPACE%;
 
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Queue\Queueable;
+use Hypervel\Foundation\Queue\Queueable;
 
 class %CLASS% implements ShouldQueue
 {
