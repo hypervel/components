@@ -84,7 +84,7 @@ class BatchFake extends Batch
     /**
      * Record that a job within the batch failed to finish successfully, executing any callbacks if necessary.
      */
-    public function recordFailedJob(string $jobId, Throwable $e): void
+    public function recordFailedJob(string $jobId, ?Throwable $e): void
     {
     }
 
