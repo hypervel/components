@@ -10,8 +10,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
-use Hypervel\Queue\Exceptions\ManuallyFailedException;
-use Hypervel\Queue\Exceptions\TimeoutExceededException;
+use Hypervel\Queue\ManuallyFailedException;
+use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
 use Throwable;
 
@@ -169,6 +169,12 @@ abstract class Job implements JobContract
             }
         }
 
+        if ($this->shouldRollBackDatabaseTransaction($e)) {
+            $this->container->make('db')
+                ->connection($this->container->make('config')->get('queue.failed.database'))
+                ->rollBack(toLevel: 0);
+        }
+
         try {
             // If the job has failed, we will delete it, call the "failed" method and then call
             // an event indicating the job has failed so it can be logged if needed. This is
@@ -187,6 +193,17 @@ abstract class Job implements JobContract
     }
 
     /**
+     * Determine if the current database transaction should be rolled back to level zero.
+     */
+    protected function shouldRollBackDatabaseTransaction(?Throwable $e): bool
+    {
+        return $e instanceof TimeoutExceededException
+            && $this->container->make('config')->get('queue.failed.database')
+            && in_array($this->container->make('config')->get('queue.failed.driver'), ['database', 'database-uuids'])
+            && $this->container->has('db');
+    }
+
+    /**
      * Process an exception that caused the job to fail.
      */
     protected function failed(?Throwable $e): void
@@ -196,7 +213,7 @@ abstract class Job implements JobContract
         [$class, $method] = JobName::parse($payload['job']);
 
         if (method_exists($this->instance = $this->resolve($class), 'failed')) {
-            $this->instance->failed($payload['data'], $e, $payload['uuid'] ?? '');
+            $this->instance->failed($payload['data'], $e, $payload['uuid'] ?? '', $this);
         }
     }
 
