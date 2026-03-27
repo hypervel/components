@@ -445,6 +445,10 @@ class FilesystemTest extends TestCase
 
     public function testIsWritable()
     {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('Permission checks are unreliable when running as root.');
+        }
+
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem();
         @chmod($this->tempDir . '/foo.txt', 0444);
@@ -460,6 +464,8 @@ class FilesystemTest extends TestCase
         // chmod is noneffective on Windows
         if (DIRECTORY_SEPARATOR === '\\') {
             $this->assertTrue($files->isReadable($this->tempDir . '/foo.txt'));
+        } elseif (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('Permission checks are unreliable when running as root.');
         } else {
             @chmod($this->tempDir . '/foo.txt', 0000);
             $this->assertFalse($files->isReadable($this->tempDir . '/foo.txt'));
