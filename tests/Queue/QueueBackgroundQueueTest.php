@@ -10,7 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Queue\CoroutineQueue;
+use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Tests\TestCase;
@@ -22,75 +22,75 @@ use function Hypervel\Coroutine\run;
  * @internal
  * @coversNothing
  */
-class QueueCoroutineQueueTest extends TestCase
+class QueueBackgroundQueueTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testPushShouldCoroutine()
+    public function testPushShouldRunInBackground()
     {
-        unset($_SERVER['__coroutine.test']);
+        unset($_SERVER['__background.test']);
 
-        $coroutine = new CoroutineQueue();
-        $coroutine->setConnectionName('coroutine');
+        $background = new BackgroundQueue();
+        $background->setConnectionName('background');
         $container = $this->getContainer();
-        $coroutine->setContainer($container);
-        $coroutine->setConnectionName('coroutine');
+        $background->setContainer($container);
+        $background->setConnectionName('background');
 
-        run(fn () => $coroutine->push(CoroutineQueueTestHandler::class, ['foo' => 'bar']));
+        run(fn () => $background->push(BackgroundQueueTestHandler::class, ['foo' => 'bar']));
 
-        $this->assertInstanceOf(SyncJob::class, $_SERVER['__coroutine.test'][0]);
-        $this->assertEquals(['foo' => 'bar'], $_SERVER['__coroutine.test'][1]);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.test'][0]);
+        $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.test'][1]);
     }
 
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
-        unset($_SERVER['__coroutine.failed']);
+        unset($_SERVER['__background.failed']);
 
         $result = null;
 
-        $coroutine = new CoroutineQueue();
-        $coroutine->setExceptionCallback(function ($exception) use (&$result) {
+        $background = new BackgroundQueue();
+        $background->setExceptionCallback(function ($exception) use (&$result) {
             $result = $exception;
         });
-        $coroutine->setConnectionName('coroutine');
+        $background->setConnectionName('background');
         $container = $this->getContainer();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->times(3);
+        $events->shouldReceive('dispatch')->times(4);
         $container->instance(Dispatcher::class, $events);
-        $coroutine->setContainer($container);
+        $background->setContainer($container);
 
-        run(function () use ($coroutine) {
-            $coroutine->push(FailingCoroutineQueueTestHandler::class, ['foo' => 'bar']);
+        run(function () use ($background) {
+            $background->push(FailingBackgroundQueueTestHandler::class, ['foo' => 'bar']);
         });
 
         $this->assertInstanceOf(Exception::class, $result);
-        $this->assertTrue($_SERVER['__coroutine.failed']);
+        $this->assertTrue($_SERVER['__background.failed']);
     }
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $coroutine = new CoroutineQueue();
-        $coroutine->setConnectionName('coroutine');
+        $background = new BackgroundQueue();
+        $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
-        $coroutine->setContainer($container);
-        run(fn () => $coroutine->push(new CoroutineQueueAfterCommitJob()));
+        $background->setContainer($container);
+        run(fn () => $background->push(new BackgroundQueueAfterCommitJob()));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $coroutine = new CoroutineQueue();
-        $coroutine->setConnectionName('coroutine');
+        $background = new BackgroundQueue();
+        $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
-        $coroutine->setContainer($container);
-        run(fn () => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));
+        $background->setContainer($container);
+        run(fn () => $background->push(new BackgroundQueueAfterCommitInterfaceJob()));
     }
 
     protected function getContainer(): Container
@@ -99,7 +99,7 @@ class QueueCoroutineQueueTest extends TestCase
     }
 }
 
-class CoroutineQueueTestEntity implements QueueableEntity
+class BackgroundQueueTestEntity implements QueueableEntity
 {
     public function getQueueableId(): mixed
     {
@@ -117,15 +117,15 @@ class CoroutineQueueTestEntity implements QueueableEntity
     }
 }
 
-class CoroutineQueueTestHandler
+class BackgroundQueueTestHandler
 {
     public function fire($job, $data)
     {
-        $_SERVER['__coroutine.test'] = func_get_args();
+        $_SERVER['__background.test'] = func_get_args();
     }
 }
 
-class FailingCoroutineQueueTestHandler
+class FailingBackgroundQueueTestHandler
 {
     public function fire($job, $data)
     {
@@ -134,11 +134,11 @@ class FailingCoroutineQueueTestHandler
 
     public function failed()
     {
-        $_SERVER['__coroutine.failed'] = true;
+        $_SERVER['__background.failed'] = true;
     }
 }
 
-class CoroutineQueueAfterCommitJob
+class BackgroundQueueAfterCommitJob
 {
     use InteractsWithQueue;
 
@@ -149,7 +149,7 @@ class CoroutineQueueAfterCommitJob
     }
 }
 
-class CoroutineQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
+class BackgroundQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
 {
     use InteractsWithQueue;
 

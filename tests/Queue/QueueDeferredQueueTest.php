@@ -10,7 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Queue\DeferQueue;
+use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Tests\TestCase;
@@ -22,75 +22,75 @@ use function Hypervel\Coroutine\run;
  * @internal
  * @coversNothing
  */
-class QueueDeferQueueTest extends TestCase
+class QueueDeferredQueueTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
     public function testPushShouldDefer()
     {
-        unset($_SERVER['__defer.test']);
+        unset($_SERVER['__deferred.test']);
 
-        $defer = new DeferQueue();
-        $defer->setConnectionName('defer');
+        $deferred = new DeferredQueue();
+        $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $defer->setContainer($container);
-        $defer->setConnectionName('defer');
+        $deferred->setContainer($container);
+        $deferred->setConnectionName('deferred');
 
-        run(fn () => $defer->push(DeferQueueTestHandler::class, ['foo' => 'bar']));
+        run(fn () => $deferred->push(DeferredQueueTestHandler::class, ['foo' => 'bar']));
 
-        $this->assertInstanceOf(SyncJob::class, $_SERVER['__defer.test'][0]);
-        $this->assertEquals(['foo' => 'bar'], $_SERVER['__defer.test'][1]);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.test'][0]);
+        $this->assertEquals(['foo' => 'bar'], $_SERVER['__deferred.test'][1]);
     }
 
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
-        unset($_SERVER['__defer.failed']);
+        unset($_SERVER['__deferred.failed']);
 
         $result = null;
 
-        $defer = new DeferQueue();
-        $defer->setExceptionCallback(function ($exception) use (&$result) {
+        $deferred = new DeferredQueue();
+        $deferred->setExceptionCallback(function ($exception) use (&$result) {
             $result = $exception;
         });
-        $defer->setConnectionName('defer');
+        $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->times(3);
+        $events->shouldReceive('dispatch')->times(4);
         $container->instance(Dispatcher::class, $events);
-        $defer->setContainer($container);
+        $deferred->setContainer($container);
 
-        run(function () use ($defer) {
-            $defer->push(FailingDeferQueueTestHandler::class, ['foo' => 'bar']);
+        run(function () use ($deferred) {
+            $deferred->push(FailingDeferredQueueTestHandler::class, ['foo' => 'bar']);
         });
 
         $this->assertInstanceOf(Exception::class, $result);
-        $this->assertTrue($_SERVER['__defer.failed']);
+        $this->assertTrue($_SERVER['__deferred.failed']);
     }
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $defer = new DeferQueue();
-        $defer->setConnectionName('defer');
+        $deferred = new DeferredQueue();
+        $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
-        $defer->setContainer($container);
-        run(fn () => $defer->push(new DeferQueueAfterCommitJob()));
+        $deferred->setContainer($container);
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitJob()));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $defer = new DeferQueue();
-        $defer->setConnectionName('defer');
+        $deferred = new DeferredQueue();
+        $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
-        $defer->setContainer($container);
-        run(fn () => $defer->push(new DeferQueueAfterCommitInterfaceJob()));
+        $deferred->setContainer($container);
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceJob()));
     }
 
     protected function getContainer(): Container
@@ -99,7 +99,7 @@ class QueueDeferQueueTest extends TestCase
     }
 }
 
-class DeferQueueTestEntity implements QueueableEntity
+class DeferredQueueTestEntity implements QueueableEntity
 {
     public function getQueueableId(): mixed
     {
@@ -117,15 +117,15 @@ class DeferQueueTestEntity implements QueueableEntity
     }
 }
 
-class DeferQueueTestHandler
+class DeferredQueueTestHandler
 {
     public function fire($job, $data)
     {
-        $_SERVER['__defer.test'] = func_get_args();
+        $_SERVER['__deferred.test'] = func_get_args();
     }
 }
 
-class FailingDeferQueueTestHandler
+class FailingDeferredQueueTestHandler
 {
     public function fire($job, $data)
     {
@@ -134,11 +134,11 @@ class FailingDeferQueueTestHandler
 
     public function failed()
     {
-        $_SERVER['__defer.failed'] = true;
+        $_SERVER['__deferred.failed'] = true;
     }
 }
 
-class DeferQueueAfterCommitJob
+class DeferredQueueAfterCommitJob
 {
     use InteractsWithQueue;
 
@@ -149,7 +149,7 @@ class DeferQueueAfterCommitJob
     }
 }
 
-class DeferQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
+class DeferredQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
 {
     use InteractsWithQueue;
 
