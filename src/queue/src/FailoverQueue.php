@@ -16,6 +16,13 @@ use Throwable;
 class FailoverQueue extends Queue implements QueueContract
 {
     /**
+     * The queues which failed on the last action.
+     *
+     * @var list<string>
+     */
+    protected array $failingQueues = [];
+
+    /**
      * Create a new failover queue instance.
      */
     public function __construct(
@@ -72,19 +79,7 @@ class FailoverQueue extends Queue implements QueueContract
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        $lastException = null;
-
-        foreach ($this->connections as $connection) {
-            try {
-                return $this->manager->connection($connection)->push($job, $data, $queue);
-            } catch (Throwable $e) {
-                $lastException = $e;
-
-                $this->events->dispatch(new QueueFailedOver($connection, $job));
-            }
-        }
-
-        throw $lastException ?? new RuntimeException('All failover queue connections failed.');
+        return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
     /**
@@ -92,17 +87,7 @@ class FailoverQueue extends Queue implements QueueContract
      */
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        $lastException = null;
-
-        foreach ($this->connections as $connection) {
-            try {
-                return $this->manager->connection($connection)->pushRaw($payload, $queue, $options);
-            } catch (Throwable $e) {
-                $lastException = $e;
-            }
-        }
-
-        throw $lastException ?? new RuntimeException('All failover queue connections failed.');
+        return $this->attemptOnAllConnections(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -110,26 +95,44 @@ class FailoverQueue extends Queue implements QueueContract
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        $lastException = null;
-
-        foreach ($this->connections as $connection) {
-            try {
-                return $this->manager->connection($connection)->later($delay, $job, $data, $queue);
-            } catch (Throwable $e) {
-                $lastException = $e;
-
-                $this->events->dispatch(new QueueFailedOver($connection, $job));
-            }
-        }
-
-        throw $lastException ?? new RuntimeException('All failover queue connections failed.');
+        return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    public function pop(?string $queue = null): ?JobContract
     {
         return $this->manager->connection($this->connections[0])->pop($queue);
+    }
+
+    /**
+     * Attempt the given method on all connections.
+     *
+     * @throws Throwable
+     */
+    protected function attemptOnAllConnections(string $method, array $arguments, object|string|null $job = null): mixed
+    {
+        [$lastException, $failedQueues] = [null, []];
+
+        try {
+            foreach ($this->connections as $connection) {
+                try {
+                    return $this->manager->connection($connection)->{$method}(...$arguments);
+                } catch (Throwable $e) {
+                    $lastException = $e;
+
+                    $failedQueues[] = $connection;
+
+                    if ($job !== null && ! in_array($connection, $this->failingQueues)) {
+                        $this->events->dispatch(new QueueFailedOver($connection, $job, $e));
+                    }
+                }
+            }
+        } finally {
+            $this->failingQueues = $failedQueues;
+        }
+
+        throw $lastException ?? new RuntimeException('All failover queue connections failed.');
     }
 }
