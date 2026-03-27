@@ -81,6 +81,12 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
 
+            // Capture the raw transport method before any Symfony method-override
+            // processing. This avoids SuspiciousOperationException from malformed
+            // _method overrides and ensures HEAD body suppression uses the actual
+            // HTTP method, not the application-level override.
+            $rawMethod = strtoupper($swooleRequest->server['request_method'] ?? 'GET');
+
             // Convert Swoole request to HttpFoundation and store in coroutine context
             // so request() helper, RequestContext::get(), and container aliases all
             // resolve the current request for this coroutine.
@@ -93,6 +99,9 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             // reach it via ResponseContext::get()->getConnection()->getSocket().
             $response = new Response();
             $response->setConnection(new WritableConnection($swooleResponse));
+            if ($rawMethod === 'HEAD') {
+                $response->withoutBody();
+            }
             ResponseContext::set($response);
 
             $this->option?->isEnableRequestLifecycle() && $this->event?->dispatch(new RequestReceived(
@@ -129,7 +138,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
                 ResponseBridge::send(
                     $response,
                     $swooleResponse,
-                    withBody: ! isset($request) || $request->getMethod() !== 'HEAD'
+                    withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD'
                 );
             }
 
