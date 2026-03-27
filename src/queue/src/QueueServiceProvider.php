@@ -7,18 +7,34 @@ namespace Hypervel\Queue;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Queue\Connectors\BackgroundConnector;
+use Hypervel\Queue\Connectors\BeanstalkdConnector;
+use Hypervel\Queue\Connectors\DatabaseConnector;
+use Hypervel\Queue\Connectors\DeferredConnector;
+use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Connectors\NullConnector;
+use Hypervel\Queue\Connectors\RedisConnector;
+use Hypervel\Queue\Connectors\SqsConnector;
+use Hypervel\Queue\Connectors\SyncConnector;
+use Hypervel\Queue\Console\BatchesTableCommand;
 use Hypervel\Queue\Console\ClearCommand;
+use Hypervel\Queue\Console\FailedTableCommand;
 use Hypervel\Queue\Console\FlushFailedCommand;
 use Hypervel\Queue\Console\ForgetFailedCommand;
 use Hypervel\Queue\Console\ListenCommand;
 use Hypervel\Queue\Console\ListFailedCommand;
 use Hypervel\Queue\Console\MonitorCommand;
+use Hypervel\Queue\Console\PauseCommand;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Queue\Console\PruneFailedJobsCommand;
 use Hypervel\Queue\Console\RestartCommand;
+use Hypervel\Queue\Console\ResumeCommand;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
+use Hypervel\Queue\Console\TableCommand;
 use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
@@ -49,17 +65,22 @@ class QueueServiceProvider extends ServiceProvider
         $this->registerFailedJobServices();
 
         $this->commands([
+            BatchesTableCommand::class,
             ClearCommand::class,
+            FailedTableCommand::class,
             FlushFailedCommand::class,
             ForgetFailedCommand::class,
             ListenCommand::class,
             ListFailedCommand::class,
             MonitorCommand::class,
+            PauseCommand::class,
             PruneBatchesCommand::class,
             PruneFailedJobsCommand::class,
             RestartCommand::class,
+            ResumeCommand::class,
             RetryBatchCommand::class,
             RetryCommand::class,
+            TableCommand::class,
             WorkCommand::class,
         ]);
     }
@@ -92,7 +113,9 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerManager(): void
     {
         $this->app->singleton('queue', function ($app) {
-            $manager = new QueueManager($app);
+            $manager = tap(new QueueManager($app), function ($manager) {
+                $this->registerConnectors($manager);
+            });
 
             if (! $app->has(ExceptionHandler::class)) {
                 return $manager;
@@ -100,7 +123,7 @@ class QueueServiceProvider extends ServiceProvider
 
             $reportHandler = fn (Throwable $e) => $app->make(ExceptionHandler::class)->report($e);
 
-            foreach (['coroutine', 'defer'] as $connector) {
+            foreach (['background', 'deferred'] as $connector) {
                 try {
                     $manager->connection($connector)
                         ->setExceptionCallback($reportHandler); // @phpstan-ignore method.notFound (setExceptionCallback is on concrete Queue, not contract)
@@ -122,6 +145,95 @@ class QueueServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register the connectors on the queue manager.
+     */
+    public function registerConnectors(QueueManager $manager): void
+    {
+        foreach (['Null', 'Sync', 'Deferred', 'Background', 'Failover', 'Database', 'Redis', 'Beanstalkd', 'Sqs'] as $connector) {
+            $this->{"register{$connector}Connector"}($manager);
+        }
+    }
+
+    /**
+     * Register the Null queue connector.
+     */
+    protected function registerNullConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('null', fn () => new NullConnector());
+    }
+
+    /**
+     * Register the Sync queue connector.
+     */
+    protected function registerSyncConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('sync', fn () => new SyncConnector());
+    }
+
+    /**
+     * Register the Deferred queue connector.
+     */
+    protected function registerDeferredConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('deferred', fn () => new DeferredConnector());
+    }
+
+    /**
+     * Register the Background queue connector.
+     */
+    protected function registerBackgroundConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('background', fn () => new BackgroundConnector());
+    }
+
+    /**
+     * Register the Failover queue connector.
+     */
+    protected function registerFailoverConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('failover', fn () => new FailoverConnector(
+            $this->app->make('queue'),
+            $this->app->make(EventDispatcher::class),
+        ));
+    }
+
+    /**
+     * Register the database queue connector.
+     */
+    protected function registerDatabaseConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('database', fn () => new DatabaseConnector(
+            $this->app->make(ConnectionResolverInterface::class),
+        ));
+    }
+
+    /**
+     * Register the Redis queue connector.
+     */
+    protected function registerRedisConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('redis', fn () => new RedisConnector(
+            $this->app->make(Redis::class),
+        ));
+    }
+
+    /**
+     * Register the Beanstalkd queue connector.
+     */
+    protected function registerBeanstalkdConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('beanstalkd', fn () => new BeanstalkdConnector());
+    }
+
+    /**
+     * Register the Amazon SQS queue connector.
+     */
+    protected function registerSqsConnector(QueueManager $manager): void
+    {
+        $manager->addConnector('sqs', fn () => new SqsConnector());
+    }
+
+    /**
      * Register the queue worker.
      */
     protected function registerWorker(): void
@@ -131,7 +243,7 @@ class QueueServiceProvider extends ServiceProvider
                 $app['queue'],
                 $app['events'],
                 $app->make(ExceptionHandler::class),
-                fn () => false,
+                fn () => $app->isDownForMaintenance(),
             );
         });
     }
