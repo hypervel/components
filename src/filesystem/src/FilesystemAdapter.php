@@ -278,7 +278,6 @@ class FilesystemAdapter implements CloudFilesystemContract
         $response = $container->make(Response::class);
 
         $headers['Content-Type'] ??= $this->mimeType($path);
-        $fileSize = $this->size($path);
 
         if (! array_key_exists('Content-Disposition', $headers)) {
             $filename = $name ?? basename($path);
@@ -297,7 +296,10 @@ class FilesystemAdapter implements CloudFilesystemContract
         // Apply all headers to the response before range processing so that
         // If-Range validation can check ETag/Last-Modified on the response.
         foreach ($headers as $key => $value) {
-            $response->headers->set($key, $value);
+            $response->headers->set(
+                $key,
+                is_string($value) || is_array($value) || is_null($value) ? $value : (string) $value
+            );
         }
 
         // Range-specific headers that will be added during range processing
@@ -312,6 +314,8 @@ class FilesystemAdapter implements CloudFilesystemContract
             $ifRange = $request->headers->get('If-Range');
 
             if ($ifRange === null || $this->hasValidIfRangeHeader($response, $ifRange)) {
+                $fileSize = $this->size($path);
+
                 [$start, $end] = static::validateRangeHeaders(
                     $request->headers->get('Range'),
                     $fileSize
@@ -320,8 +324,7 @@ class FilesystemAdapter implements CloudFilesystemContract
                 $response->setStatusCode(206);
 
                 $rangeEnd = $end !== null ? $end : '*';
-                $totalSize = $fileSize;
-                $rangeHeaders['Content-Range'] = sprintf('bytes %d-%s/%s', $start, $rangeEnd, $totalSize);
+                $rangeHeaders['Content-Range'] = sprintf('bytes %d-%s/%s', $start, $rangeEnd, $fileSize);
 
                 $stream = $this->readStreamRange($path, $start, $end);
             }
