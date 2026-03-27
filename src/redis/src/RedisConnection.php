@@ -395,11 +395,27 @@ abstract class RedisConnection extends BaseConnection
             return $this->callSubscribe($name, $arguments);
         }
 
-        if ($this->shouldTransform && ! $this->isQueueingMode()) {
-            $method = 'call' . ucfirst($name);
-            if (method_exists($this, $method)) {
-                return $this->{$method}(...$arguments);
+        if (! $this->shouldTransform) {
+            return $this->connection->{$name}(...$arguments);
+        }
+
+        // In MULTI/PIPELINE mode, only reshape arguments for phpredis —
+        // skip return-value normalization to preserve queueing semantics.
+        if ($this->isQueueingMode()) {
+            $prepareMethod = 'prepare' . ucfirst($name);
+
+            if (method_exists($this, $prepareMethod)) {
+                [$method, $args] = $this->{$prepareMethod}(...$arguments);
+                return $this->connection->{$method}(...$args);
             }
+
+            return $this->connection->{$name}(...$arguments);
+        }
+
+        $callMethod = 'call' . ucfirst($name);
+
+        if (method_exists($this, $callMethod)) {
+            return $this->{$callMethod}(...$arguments);
         }
 
         return $this->connection->{$name}(...$arguments);
@@ -586,15 +602,28 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Prepare arguments for the set command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareSet(mixed ...$arguments): array
+    {
+        [$key, $value] = $arguments;
+        $expireResolution = $arguments[2] ?? null;
+        $expireTTL = $arguments[3] ?? null;
+        $flag = $arguments[4] ?? null;
+
+        return ['set', [$key, $value, is_string($expireResolution) ? [$flag, $expireResolution => $expireTTL] : $expireResolution]];
+    }
+
+    /**
      * Set the string value in the argument as the value of the key.
      */
     protected function callSet(string $key, mixed $value, ?string $expireResolution = null, ?int $expireTTL = null, ?string $flag = null): bool
     {
-        return $this->connection->set(
-            $key,
-            $value,
-            $expireResolution ? [$flag, $expireResolution => $expireTTL] : null,
-        );
+        [$method, $args] = $this->prepareSet($key, $value, $expireResolution, $expireTTL, $flag);
+
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -606,17 +635,48 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Prepare arguments for the hmget command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareHmget(mixed ...$arguments): array
+    {
+        $key = array_shift($arguments);
+        $dictionary = count($arguments) === 1 ? $arguments[0] : $arguments;
+
+        return ['hMGet', [$key, $dictionary]];
+    }
+
+    /**
      * Get the value of the given hash fields.
      */
     protected function callHmget(string $key, mixed ...$dictionary): array
     {
-        if (count($dictionary) === 1) {
-            $dictionary = $dictionary[0];
-        }
+        [$method, $args] = $this->prepareHmget($key, ...$dictionary);
 
         return array_values(
-            $this->connection->hMGet($key, $dictionary)
+            $this->connection->{$method}(...$args)
         );
+    }
+
+    /**
+     * Prepare arguments for the hmset command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareHmset(mixed ...$arguments): array
+    {
+        $key = array_shift($arguments);
+
+        if (count($arguments) === 1) {
+            $dictionary = $arguments[0];
+        } else {
+            $input = new Collection($arguments);
+
+            $dictionary = $input->nth(2)->combine($input->nth(2, 1))->toArray();
+        }
+
+        return ['hMSet', [$key, $dictionary]];
     }
 
     /**
@@ -624,15 +684,9 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callHmset(string $key, mixed ...$dictionary): bool
     {
-        if (count($dictionary) === 1) {
-            $dictionary = $dictionary[0];
-        } else {
-            $input = new Collection($dictionary);
+        [$method, $args] = $this->prepareHmset($key, ...$dictionary);
 
-            $dictionary = $input->nth(2)->combine($input->nth(2, 1))->toArray();
-        }
-
-        return $this->connection->hMSet($key, $dictionary);
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -644,11 +698,25 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Prepare arguments for the lrem command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareLrem(mixed ...$arguments): array
+    {
+        [$key, $count, $value] = $arguments;
+
+        return ['lRem', [$key, $value, $count]];
+    }
+
+    /**
      * Removes the first count occurrences of the value element from the list.
      */
     protected function callLrem(string $key, int $count, mixed $value): false|int
     {
-        return $this->connection->lRem($key, $value, $count);
+        [$method, $args] = $this->prepareLrem($key, $count, $value);
+
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -687,10 +755,15 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
-     * Add one or more members to a sorted set or update its score if it already exists.
+     * Prepare arguments for the zadd command.
+     *
+     * @return array{string, array<int, mixed>}
      */
-    protected function callZadd(string $key, mixed ...$dictionary): int
+    protected function prepareZadd(mixed ...$arguments): array
     {
+        $key = array_shift($arguments);
+        $dictionary = $arguments;
+
         if (is_array(end($dictionary))) {
             foreach (array_pop($dictionary) as $member => $score) {
                 $dictionary[] = $score;
@@ -708,11 +781,37 @@ abstract class RedisConnection extends BaseConnection
             }
         }
 
-        return $this->connection->zAdd(
-            $key,
-            $options,
-            ...array_values($dictionary)
-        );
+        return ['zAdd', [$key, $options, ...array_values($dictionary)]];
+    }
+
+    /**
+     * Add one or more members to a sorted set or update its score if it already exists.
+     */
+    protected function callZadd(string $key, mixed ...$dictionary): int
+    {
+        [$method, $args] = $this->prepareZadd($key, ...$dictionary);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zrangebyscore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZrangebyscore(mixed ...$arguments): array
+    {
+        [$key, $min, $max] = $arguments;
+        $options = $arguments[3] ?? [];
+
+        if (isset($options['limit']) && ! array_is_list($options['limit'])) {
+            $options['limit'] = [
+                $options['limit']['offset'],
+                $options['limit']['count'],
+            ];
+        }
+
+        return ['zRangeByScore', [$key, $min, $max, $options]];
     }
 
     /**
@@ -720,6 +819,21 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callZrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
     {
+        [$method, $args] = $this->prepareZrangebyscore($key, $min, $max, $options);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zrevrangebyscore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZrevrangebyscore(mixed ...$arguments): array
+    {
+        [$key, $min, $max] = $arguments;
+        $options = $arguments[3] ?? [];
+
         if (isset($options['limit']) && ! array_is_list($options['limit'])) {
             $options['limit'] = [
                 $options['limit']['offset'],
@@ -727,7 +841,7 @@ abstract class RedisConnection extends BaseConnection
             ];
         }
 
-        return $this->connection->zRangeByScore($key, $min, $max, $options);
+        return ['zRevRangeByScore', [$key, $min, $max, $options]];
     }
 
     /**
@@ -735,14 +849,22 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callZrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
     {
-        if (isset($options['limit']) && ! array_is_list($options['limit'])) {
-            $options['limit'] = [
-                $options['limit']['offset'],
-                $options['limit']['count'],
-            ];
-        }
+        [$method, $args] = $this->prepareZrevrangebyscore($key, $min, $max, $options);
 
-        return $this->connection->zRevRangeByScore($key, $min, $max, $options);
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zinterstore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZinterstore(mixed ...$arguments): array
+    {
+        [$output, $keys] = $arguments;
+        $options = $arguments[2] ?? [];
+
+        return ['zinterstore', [$output, $keys, $options['weights'] ?? null, $options['aggregate'] ?? 'sum']];
     }
 
     /**
@@ -750,12 +872,22 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callZinterstore(string $output, array $keys, array $options = []): int
     {
-        return $this->connection->zinterstore(
-            $output,
-            $keys,
-            $options['weights'] ?? null,
-            $options['aggregate'] ?? 'sum',
-        );
+        [$method, $args] = $this->prepareZinterstore($output, $keys, $options);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zunionstore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZunionstore(mixed ...$arguments): array
+    {
+        [$output, $keys] = $arguments;
+        $options = $arguments[2] ?? [];
+
+        return ['zunionstore', [$output, $keys, $options['weights'] ?? null, $options['aggregate'] ?? 'sum']];
     }
 
     /**
@@ -763,12 +895,9 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callZunionstore(string $output, array $keys, array $options = []): int
     {
-        return $this->connection->zunionstore(
-            $output,
-            $keys,
-            $options['weights'] ?? null,
-            $options['aggregate'] ?? 'sum',
-        );
+        [$method, $args] = $this->prepareZunionstore($output, $keys, $options);
+
+        return $this->connection->{$method}(...$args);
     }
 
     protected function getScanOptions(array $arguments): array
@@ -896,11 +1025,44 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Prepare arguments for the eval command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareEval(mixed ...$arguments): array
+    {
+        $script = $arguments[0];
+        $numberOfKeys = $arguments[1];
+        $args = array_slice($arguments, 2);
+
+        return ['eval', [$script, $args, $numberOfKeys]];
+    }
+
+    /**
      * Evaluate a script and return its result.
      */
     protected function callEval(string $script, int $numberOfKeys, mixed ...$arguments): mixed
     {
-        return $this->connection->eval($script, $arguments, $numberOfKeys);
+        [$method, $args] = $this->prepareEval($script, $numberOfKeys, ...$arguments);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the evalsha command.
+     *
+     * Falls back to eval in MULTI/PIPELINE mode because script('load')
+     * cannot execute synchronously while the connection is queueing.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareEvalsha(mixed ...$arguments): array
+    {
+        $script = $arguments[0];
+        $numkeys = $arguments[1];
+        $args = array_slice($arguments, 2);
+
+        return ['eval', [$script, $args, $numkeys]];
     }
 
     /**
@@ -916,11 +1078,23 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Prepare arguments for the executeRaw command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareExecuteRaw(mixed ...$arguments): array
+    {
+        return ['rawCommand', $arguments[0]];
+    }
+
+    /**
      * Execute a raw command.
      */
     protected function callExecuteRaw(array $parameters): mixed
     {
-        return $this->connection->rawCommand(...$parameters);
+        [$method, $args] = $this->prepareExecuteRaw($parameters);
+
+        return $this->connection->{$method}(...$args);
     }
 
     /**
