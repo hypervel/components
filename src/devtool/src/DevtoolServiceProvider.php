@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool;
 
-use Hypervel\Devtool\Generator\BatchesTableCommand;
 use Hypervel\Devtool\Generator\NotificationTableCommand;
-use Hypervel\Devtool\Generator\QueueFailedTableCommand;
-use Hypervel\Devtool\Generator\QueueTableCommand;
 use Hypervel\Support\ServiceProvider;
 
 class DevtoolServiceProvider extends ServiceProvider
@@ -18,10 +15,7 @@ class DevtoolServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->commands([
-            BatchesTableCommand::class,
             NotificationTableCommand::class,
-            QueueFailedTableCommand::class,
-            QueueTableCommand::class,
         ]);
     }
 }
