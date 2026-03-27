@@ -11,10 +11,10 @@ class WorkerOptions
      *
      * @param string $name the name of the worker
      * @param int|int[] $backoff
-     * @param int $memory the number of seconds to wait before retrying a job that encountered an uncaught exception
-     * @param int $timeout the maximum amount of RAM the worker may consume
+     * @param float $memory the maximum amount of RAM the worker may consume
+     * @param int $timeout the maximum number of seconds a child worker may run
      * @param int $sleep the number of seconds to wait in between polling the queue
-     * @param int $maxTries the number of seconds to rest between jobs
+     * @param int $maxTries the maximum number of times a job may be attempted
      * @param bool $force indicates if the worker should run in maintenance mode
      * @param bool $stopWhenEmpty indicates if the worker should stop when the queue is empty
      * @param int $maxJobs the maximum number of jobs to run
@@ -25,7 +25,7 @@ class WorkerOptions
     public function __construct(
         public string $name = 'default',
         public array|int $backoff = 0,
-        public int $memory = 128,
+        public float $memory = 128,
         public int $timeout = 60,
         public int $sleep = 3,
         public int $maxTries = 1,
