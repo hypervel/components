@@ -12,7 +12,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\ModelIdentifier;
-use Hypervel\Support\Collection;
+use Hypervel\Support\Collection as SupportCollection;
 
 trait SerializesAndRestoresModelIdentifiers
 {
@@ -63,7 +63,7 @@ trait SerializesAndRestoresModelIdentifiers
     /**
      * Restore a queueable collection instance.
      */
-    protected function restoreCollection(ModelIdentifier $value): Collection
+    protected function restoreCollection(ModelIdentifier $value): EloquentCollection
     {
         if (! $value->class || count($value->id) === 0) {
             return ! is_null($value->collectionClass ?? null)
@@ -71,6 +71,7 @@ trait SerializesAndRestoresModelIdentifiers
                 : new EloquentCollection();
         }
 
+        /** @var EloquentCollection<int, Model> $collection */
         $collection = $this->getQueryForModelRestoration(
             (new $value->class())->setConnection($value->connection),
             $value->id
@@ -85,13 +86,17 @@ trait SerializesAndRestoresModelIdentifiers
         /* @phpstan-ignore-next-line */
         $collection = $collection->keyBy->getKey();
 
+        /** @var class-string<EloquentCollection<int, Model>> $collectionClass */
         $collectionClass = get_class($collection);
 
-        return new $collectionClass(
-            Collection::make($value->id)->map(function ($id) use ($collection) {
+        /** @var EloquentCollection<int, Model> $restoredCollection */
+        $restoredCollection = new $collectionClass(
+            SupportCollection::make($value->id)->map(function ($id) use ($collection) {
                 return $collection[$id] ?? null;
             })->filter()
         );
+
+        return $restoredCollection->loadMissing($value->relations ?? []);
     }
 
     /**
@@ -99,10 +104,13 @@ trait SerializesAndRestoresModelIdentifiers
      */
     public function restoreModel(ModelIdentifier $value): Model
     {
-        return $this->getQueryForModelRestoration(
-            (new $value->class())->setConnection($value->connection),
+        /** @var Model $model */
+        $model = $this->getQueryForModelRestoration(
+            (new ($value->getClass()))->setConnection($value->connection),
             $value->id
-        )->useWritePdo()->firstOrFail()->load($value->relations ?? []);
+        )->useWritePdo()->firstOrFail();
+
+        return $model->loadMissing($value->relations ?? []);
     }
 
     /**
