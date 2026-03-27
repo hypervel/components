@@ -338,7 +338,9 @@ class FilesystemAdapter implements CloudFilesystemContract
                 if (! $content = fread($stream, $chunkSize)) {
                     continue;
                 }
-                $output->write($content);
+                if (! $output->write($content)) {
+                    break;
+                }
             }
 
             fclose($stream);
