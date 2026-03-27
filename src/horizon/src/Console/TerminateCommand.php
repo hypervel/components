@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Queue\Worker;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -62,6 +63,6 @@ class TerminateCommand extends Command
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 
         $this->hypervel->make(CacheFactory::class)
-            ->store()->forever('illuminate:queue:restart', $this->currentTime());
+            ->store()->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
     }
 }
