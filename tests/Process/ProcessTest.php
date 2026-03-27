@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Process;
 
-use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Contracts\Process\ProcessResult;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Process\Factory;
@@ -812,6 +812,72 @@ class ProcessTest extends TestCase
         $factory->fake();
 
         $factory->assertNothingRan();
+    }
+
+    public function testFakedPoolCanBeStopped()
+    {
+        $factory = new Factory();
+
+        $factory->fake([
+            '*' => $factory->describe()
+                ->output('output')
+                ->runsFor(iterations: 10),
+        ]);
+
+        $pool = $factory->pool(function ($pool) {
+            return [
+                $pool->command('ls -la'),
+                $pool->command('cat foo'),
+            ];
+        })->start();
+
+        $this->assertCount(2, $pool->running());
+
+        $result = $pool->stop();
+
+        $this->assertInstanceOf(\Hypervel\Support\Collection::class, $result);
+        $this->assertCount(0, $pool->running());
+    }
+
+    public function testFakeInvokedProcessCommand()
+    {
+        $factory = new Factory();
+
+        $factory->fake([
+            '*' => $factory->result('output'),
+        ]);
+
+        $process = $factory->start('ls -la');
+
+        $this->assertSame('ls -la', $process->command());
+    }
+
+    public function testFakeInvokedProcessWaitUntil()
+    {
+        $factory = new Factory();
+
+        $factory->fake(function () use ($factory) {
+            return $factory->describe()
+                ->output('LINE 1')
+                ->output('LINE 2')
+                ->output('LINE 3')
+                ->runsFor(iterations: 3);
+        });
+
+        $process = $factory->start('my-command');
+
+        $collected = [];
+
+        $result = $process->waitUntil(function ($type, $buffer) use (&$collected) {
+            $collected[] = $buffer;
+
+            return str_contains($buffer, 'LINE 2');
+        });
+
+        $this->assertInstanceOf(ProcessResult::class, $result);
+        $this->assertCount(2, $collected);
+        $this->assertSame("LINE 1\n", $collected[0]);
+        $this->assertSame("LINE 2\n", $collected[1]);
     }
 
     protected function ls(): string
