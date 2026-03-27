@@ -24,7 +24,6 @@ use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
-use Hypervel\Queue\Exceptions\InvalidPayloadException;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -146,7 +145,7 @@ abstract class Queue
         $payload = $this->withCreatePayloadHooks($queue, [
             'uuid' => (string) Str::uuid(),
             'displayName' => $this->getDisplayName($job),
-            'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+            'job' => 'Hypervel\Queue\CallQueuedHandler@call',
             'maxTries' => $this->getJobTries($job),
             'maxExceptions' => $this->getAttributeValue($job, MaxExceptions::class, 'maxExceptions'),
             'failOnTimeout' => $this->getAttributeValue($job, FailOnTimeout::class, 'failOnTimeout') ?? false,
