@@ -7,9 +7,11 @@ namespace Hypervel\Foundation\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\ChainedBatch;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
 use UnitEnum;
@@ -69,6 +71,44 @@ class PendingChain
     public function onQueue(UnitEnum|string|null $queue): static
     {
         $this->queue = enum_value($queue);
+
+        return $this;
+    }
+
+    /**
+     * Prepend a job to the chain.
+     */
+    public function prepend(mixed $job): static
+    {
+        $jobs = ChainedBatch::prepareNestedBatches(
+            Collection::wrap($job)
+        );
+
+        if ($this->job) {
+            array_unshift($this->chain, $this->job);
+        }
+
+        $this->job = $jobs->shift();
+
+        array_unshift($this->chain, ...$jobs->toArray());
+
+        return $this;
+    }
+
+    /**
+     * Append a job to the chain.
+     */
+    public function append(mixed $job): static
+    {
+        $jobs = ChainedBatch::prepareNestedBatches(
+            Collection::wrap($job)
+        );
+
+        if (! $this->job) {
+            $this->job = $jobs->shift();
+        }
+
+        array_push($this->chain, ...$jobs->toArray());
 
         return $this;
     }
