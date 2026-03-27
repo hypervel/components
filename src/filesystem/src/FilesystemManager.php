@@ -73,7 +73,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function drive(UnitEnum|string|null $name = null): Filesystem
+    public function drive(UnitEnum|string|null $name = null): mixed
     {
         return $this->disk($name);
     }
@@ -81,7 +81,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): Filesystem
+    public function disk(UnitEnum|string|null $name = null): mixed
     {
         $name = enum_value($name);
         $name = $name === null ? $this->getDefaultDriver() : (string) $name;
@@ -103,7 +103,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): Filesystem
+    public function build(array|string $config): mixed
     {
         return $this->resolve('ondemand', is_array($config) ? $config : [
             'driver' => 'local',
@@ -114,7 +114,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): Filesystem
+    protected function get(string $name): mixed
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -124,7 +124,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): Filesystem
+    protected function resolve(string $name, ?array $config = null): mixed
     {
         $config ??= $this->getConfig($name);
 
@@ -166,7 +166,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): Filesystem
+    protected function callCustomCreator(array $config): mixed
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }

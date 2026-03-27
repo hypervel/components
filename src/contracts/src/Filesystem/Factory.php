@@ -9,5 +9,5 @@ interface Factory
     /**
      * Get a filesystem implementation.
      */
-    public function disk(?string $name = null): Filesystem;
+    public function disk(?string $name = null): mixed;
 }
