@@ -1212,8 +1212,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Auth\Factory::class,
             ],
             'auth.driver' => [\Hypervel\Contracts\Auth\Guard::class],
-            'auth.password' => [\Hypervel\Auth\Passwords\PasswordBrokerManager::class, \Hypervel\Contracts\Auth\PasswordBrokerFactory::class],
-            'auth.password.broker' => [\Hypervel\Auth\Passwords\PasswordBroker::class, \Hypervel\Contracts\Auth\PasswordBroker::class],
+            'auth.password' => [
+                \Hypervel\Auth\Passwords\PasswordBrokerManager::class,
+                \Hypervel\Contracts\Auth\PasswordBrokerFactory::class,
+            ],
+            'auth.password.broker' => [
+                \Hypervel\Auth\Passwords\PasswordBroker::class,
+                \Hypervel\Contracts\Auth\PasswordBroker::class,
+            ],
             'cache' => [
                 \Hypervel\Cache\CacheManager::class,
                 \Hypervel\Contracts\Cache\Factory::class,
@@ -1252,7 +1258,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ],
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
             'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
-            'hash' => [\Hypervel\Hashing\HashManager::class, \Hypervel\Contracts\Hashing\Hasher::class],
+            'hash' => [
+                \Hypervel\Hashing\HashManager::class,
+                \Hypervel\Contracts\Hashing\Hasher::class,
+            ],
             'hash.driver' => [],
             'jwt' => [
                 \Hypervel\JWT\JWTManager::class,
@@ -1267,9 +1276,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Mail\Factory::class,
             ],
             'mailer' => [
+                \Hypervel\Mail\Mailer::class,
                 \Hypervel\Contracts\Mail\Mailer::class,
+                \Hypervel\Contracts\Mail\MailQueue::class,
             ],
-            \Hypervel\Database\Migrations\Migrator::class => ['migrator'],
+            'migrator' => [\Hypervel\Database\Migrations\Migrator::class],
             'queue' => [
                 \Hypervel\Queue\QueueManager::class,
                 \Hypervel\Contracts\Queue\Factory::class,
@@ -1290,6 +1301,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Http\Request::class,
                 \Symfony\Component\HttpFoundation\Request::class,
             ],
+            // Ensures Symfony Response type-hints resolve to the coroutine-local response via ResponseContext.
             \Hypervel\Http\Response::class => [
                 \Symfony\Component\HttpFoundation\Response::class,
             ],
@@ -1310,7 +1322,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Validation\Factory::class,
             ],
             'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
-            'view' => [\Hypervel\View\Factory::class, \Hypervel\Contracts\View\Factory::class],
+            'view' => [
+                \Hypervel\View\Factory::class,
+                \Hypervel\Contracts\View\Factory::class,
+            ],
             'view.engine.resolver' => [\Hypervel\View\Engines\EngineResolver::class],
             'view.finder' => [\Hypervel\View\ViewFinderInterface::class],
             'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
@@ -1318,7 +1333,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Session\SessionManager::class,
                 \Hypervel\Contracts\Session\Factory::class,
             ],
-            'session.store' => [\Hypervel\Contracts\Session\Session::class],
+            'session.store' => [
+                \Hypervel\Session\Store::class,
+                \Hypervel\Contracts\Session\Session::class,
+            ],
             'translator' => [
                 \Hypervel\Translation\Translator::class,
                 \Hypervel\Contracts\Translation\Translator::class,

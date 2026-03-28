@@ -31,6 +31,7 @@ use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\ServiceProvider;
@@ -47,7 +48,7 @@ class DatabaseServiceProvider extends ServiceProvider
 
         $this->app->singleton(ConnectionResolverInterface::class, fn ($app) => $app->make(ConnectionResolver::class));
 
-        $this->app->singleton(MigrationRepositoryInterface::class, function ($app) {
+        $this->app->singleton('migration.repository', function ($app) {
             $migrations = $app->make('config')->get('database.migrations', 'migrations');
 
             $table = is_array($migrations)
@@ -57,6 +58,16 @@ class DatabaseServiceProvider extends ServiceProvider
             return new DatabaseMigrationRepository(
                 $app->make(ConnectionResolverInterface::class),
                 $table,
+            );
+        });
+
+        $this->app->alias('migration.repository', MigrationRepositoryInterface::class);
+
+        $this->app->singleton('migrator', function ($app) {
+            return new Migrator(
+                $app->make('migration.repository'),
+                $app->make('db'),
+                $app->make('files'),
             );
         });
 
