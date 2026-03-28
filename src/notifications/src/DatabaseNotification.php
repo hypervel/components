@@ -6,6 +6,7 @@ namespace Hypervel\Notifications;
 
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\HasCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 
@@ -14,6 +15,14 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
  */
 class DatabaseNotification extends Model
 {
+    /** @use HasCollection<DatabaseNotificationCollection> */
+    use HasCollection;
+
+    /**
+     * The type of collection that should be used for the model.
+     */
+    protected static string $collectionClass = DatabaseNotificationCollection::class;
+
     /**
      * The "type" of the primary key ID.
      */
