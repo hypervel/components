@@ -89,6 +89,16 @@ class NotificationMailMessageTest extends TestCase
         $message->cc(['test@example.com', 'Test' => 'test@example.com']);
 
         $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->cc);
+
+        $message = new MailMessage();
+        $message->cc('test@example.com', 'Test')
+            ->cc(['test@example.com', 'test2@example.com']);
+
+        $this->assertSame([
+            ['test@example.com', 'Test'],
+            ['test@example.com', null],
+            ['test2@example.com', null],
+        ], $message->cc);
     }
 
     public function testBccIsSetCorrectly()
@@ -108,6 +118,16 @@ class NotificationMailMessageTest extends TestCase
         $message->bcc(['test@example.com', 'Test' => 'test@example.com']);
 
         $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->bcc);
+
+        $message = new MailMessage();
+        $message->bcc('test@example.com', 'Test')
+            ->bcc(['test@example.com', 'test2@example.com']);
+
+        $this->assertSame([
+            ['test@example.com', 'Test'],
+            ['test@example.com', null],
+            ['test2@example.com', null],
+        ], $message->bcc);
     }
 
     public function testReplyToIsSetCorrectly()
@@ -127,6 +147,16 @@ class NotificationMailMessageTest extends TestCase
         $message->replyTo(['test@example.com', 'Test' => 'test@example.com']);
 
         $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->replyTo);
+
+        $message = new MailMessage();
+        $message->replyTo('test@example.com', 'Test')
+            ->replyTo(['test@example.com', 'test2@example.com']);
+
+        $this->assertSame([
+            ['test@example.com', 'Test'],
+            ['test@example.com', null],
+            ['test2@example.com', null],
+        ], $message->replyTo);
     }
 
     public function testMetadataIsSetCorrectly()
