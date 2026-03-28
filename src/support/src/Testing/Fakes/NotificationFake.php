@@ -8,6 +8,7 @@ use Closure;
 use Exception;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Contracts\Notifications\Factory as NotificationFactory;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Support\Collection;
@@ -30,6 +31,11 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      * Locale used when sending notifications.
      */
     public ?string $locale = null;
+
+    /**
+     * Indicates if notifications should be serialized and restored when pushed to the queue.
+     */
+    protected bool $serializeAndRestore = false;
 
     /**
      * Assert if a notification was sent on-demand based on a truth-test callback.
@@ -162,7 +168,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
         }
 
         PHPUnit::assertEmpty(
-            $this->notifications[get_class($notifiable)][$notifiable->getKey()] ?? [],
+            $this->notifications[get_class($notifiable)][$notifiable->getKey() ?? ''] ?? [],
             'Notifications were sent unexpectedly.',
         );
     }
@@ -179,7 +185,11 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
         PHPUnit::assertSame(
             $expectedCount,
             $actualCount,
-            "Expected [{$notification}] to be sent {$expectedCount} times, but was sent {$actualCount} times."
+            sprintf(
+                "Expected [{$notification}] to be sent {$expectedCount} %s, but was sent {$actualCount} %s.",
+                Str::plural('time', $expectedCount),
+                Str::plural('time', $actualCount)
+            )
         );
     }
 
@@ -228,7 +238,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     protected function notificationsFor(mixed $notifiable, string $notification): array
     {
-        return $this->notifications[get_class($notifiable)][$notifiable->getKey()][$notification] ?? [];
+        return $this->notifications[get_class($notifiable)][(string) $notifiable->getKey()][$notification] ?? [];
     }
 
     /**
@@ -266,9 +276,10 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
                 continue;
             }
 
-            // TODO: support queable in the future
-            $this->notifications[get_class($notifiable)][$notifiable->getKey()][get_class($notification)][] = [
-                'notification' => $notification,
+            $this->notifications[get_class($notifiable)][(string) $notifiable->getKey()][get_class($notification)][] = [
+                'notification' => $this->serializeAndRestore && $notification instanceof ShouldQueue
+                    ? $this->serializeAndRestoreNotification($notification)
+                    : $notification,
                 'channels' => $notifiableChannels,
                 'notifiable' => $notifiable,
                 'locale' => $notification->locale ?? $this->locale ?? value(function () use ($notifiable) {
@@ -296,6 +307,24 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
         $this->locale = $locale;
 
         return $this;
+    }
+
+    /**
+     * Specify if notification should be serialized and restored when being "pushed" to the queue.
+     */
+    public function serializeAndRestore(bool $serializeAndRestore = true): static
+    {
+        $this->serializeAndRestore = $serializeAndRestore;
+
+        return $this;
+    }
+
+    /**
+     * Serialize and unserialize the notification to simulate the queueing process.
+     */
+    protected function serializeAndRestoreNotification(mixed $notification): mixed
+    {
+        return unserialize(serialize($notification));
     }
 
     /**
