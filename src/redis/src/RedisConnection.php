@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use BadMethodCallException;
 use Generator;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -15,7 +16,6 @@ use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Psr\Log\LogLevel;
 use Redis;
@@ -1098,57 +1098,23 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
-     * Execute a subscribe or psubscribe command.
+     * Reject subscribe/psubscribe on raw pooled connections.
      *
-     * WARNING: phpredis subscribe/psubscribe blocks the calling coroutine for
-     * the lifetime of the subscription. This holds a connection pool slot until
-     * the subscription ends. Always run in a dedicated coroutine and be mindful
-     * of pool size when using multiple subscribers.
+     * Pub/sub requires a dedicated, long-lived connection that is incompatible
+     * with connection pooling. Use the coroutine-native subscriber instead:
      *
-     * @TODO Explore non-blocking alternatives such as Swoole\Coroutine\Redis
-     *       or a channel-based subscriber that doesn't hold a pool connection.
+     *     Redis::subscribe($channels, $callback);
+     *     Redis::psubscribe($channels, $callback);
+     *     $subscriber = Redis::subscriber();
+     *
+     * @throws BadMethodCallException
      */
-    protected function callSubscribe(string $name, array $arguments): mixed
+    protected function callSubscribe(string $name, array $arguments): never
     {
-        $timeout = $this->connection->getOption(Redis::OPT_READ_TIMEOUT);
-
-        // Set the read timeout to -1 to avoid connection timeout.
-        $this->connection->setOption(Redis::OPT_READ_TIMEOUT, -1);
-
-        try {
-            return $this->connection->{$name}(
-                ...$this->getSubscribeArguments($name, $arguments)
-            );
-        } finally {
-            // Restore the read timeout to the original value before
-            // returning to the connection pool.
-            $this->connection->setOption(Redis::OPT_READ_TIMEOUT, $timeout);
-        }
-    }
-
-    /**
-     * Build the arguments for a subscribe or psubscribe call.
-     *
-     * Wraps the user callback to reorder phpredis's callback arguments
-     * from ($redis, $channel, $message) to Laravel's ($message, $channel).
-     * For psubscribe, phpredis sends ($redis, $pattern, $channel, $message).
-     */
-    protected function getSubscribeArguments(string $name, array $arguments): array
-    {
-        $channels = Arr::wrap($arguments[0]);
-        $callback = $arguments[1];
-
-        if ($name === 'subscribe') {
-            return [
-                $channels,
-                fn ($redis, $channel, $message) => $callback($message, $channel),
-            ];
-        }
-
-        return [
-            $channels,
-            fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
-        ];
+        throw new BadMethodCallException(
+            "Cannot call {$name}() on a pooled RedisConnection. "
+            . 'Use Redis::subscribe(), Redis::psubscribe(), or Redis::subscriber() instead.'
+        );
     }
 
     /**

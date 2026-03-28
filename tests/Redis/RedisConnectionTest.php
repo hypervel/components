@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use BadMethodCallException;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
@@ -1767,140 +1768,24 @@ class RedisConnectionTest extends TestCase
         $this->assertSame([], $captured['arguments']);
     }
 
-    public function testSubscribeWrapsCallbackArgumentOrder()
+    public function testSubscribeThrowsOnPooledConnection()
     {
         $connection = $this->mockRedisConnection();
-        $redis = m::mock(Redis::class);
 
-        $redis->shouldReceive('getOption')
-            ->with(Redis::OPT_READ_TIMEOUT)
-            ->once()
-            ->andReturn(30.0);
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, -1)
-            ->once();
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, 30.0)
-            ->once();
-
-        // Capture the wrapped callback that subscribe receives
-        $capturedCallback = null;
-        $redis->shouldReceive('subscribe')
-            ->once()
-            ->with(['channel1'], m::on(function ($callback) use (&$capturedCallback) {
-                $capturedCallback = $callback;
-
-                return true;
-            }))
-            ->andReturnTrue();
-
-        $connection->setActiveConnection($redis);
-
-        // User provides callback expecting ($message, $channel)
-        $receivedArgs = [];
-        $userCallback = function ($message, $channel) use (&$receivedArgs) {
-            $receivedArgs = ['message' => $message, 'channel' => $channel];
-        };
-
-        $connection->__call('subscribe', [['channel1'], $userCallback]);
-
-        // Simulate phpredis calling the wrapped callback with ($redis, $channel, $message)
-        $this->assertNotNull($capturedCallback);
-        $capturedCallback($redis, 'channel1', 'hello');
-
-        $this->assertSame('hello', $receivedArgs['message']);
-        $this->assertSame('channel1', $receivedArgs['channel']);
-    }
-
-    public function testPsubscribeWrapsCallbackArgumentOrder()
-    {
-        $connection = $this->mockRedisConnection();
-        $redis = m::mock(Redis::class);
-
-        $redis->shouldReceive('getOption')
-            ->with(Redis::OPT_READ_TIMEOUT)
-            ->once()
-            ->andReturn(30.0);
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, -1)
-            ->once();
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, 30.0)
-            ->once();
-
-        $capturedCallback = null;
-        $redis->shouldReceive('psubscribe')
-            ->once()
-            ->with(['channel:*'], m::on(function ($callback) use (&$capturedCallback) {
-                $capturedCallback = $callback;
-
-                return true;
-            }))
-            ->andReturnTrue();
-
-        $connection->setActiveConnection($redis);
-
-        $receivedArgs = [];
-        $userCallback = function ($message, $channel) use (&$receivedArgs) {
-            $receivedArgs = ['message' => $message, 'channel' => $channel];
-        };
-
-        $connection->__call('psubscribe', [['channel:*'], $userCallback]);
-
-        // Simulate phpredis calling the wrapped callback with ($redis, $pattern, $channel, $message)
-        $this->assertNotNull($capturedCallback);
-        $capturedCallback($redis, 'channel:*', 'channel:1', 'world');
-
-        $this->assertSame('world', $receivedArgs['message']);
-        $this->assertSame('channel:1', $receivedArgs['channel']);
-    }
-
-    public function testSubscribeRestoresReadTimeoutOnException()
-    {
-        $connection = $this->mockRedisConnection();
-        $redis = m::mock(Redis::class);
-
-        $redis->shouldReceive('getOption')
-            ->with(Redis::OPT_READ_TIMEOUT)
-            ->once()
-            ->andReturn(60.0);
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, -1)
-            ->once();
-        // Should restore even when subscribe throws
-        $redis->shouldReceive('setOption')
-            ->with(Redis::OPT_READ_TIMEOUT, 60.0)
-            ->once();
-
-        $redis->shouldReceive('subscribe')
-            ->once()
-            ->andThrow(new RedisException('Subscribe failed'));
-
-        $connection->setActiveConnection($redis);
-
-        $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Subscribe failed');
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot call subscribe() on a pooled RedisConnection.');
 
         $connection->__call('subscribe', [['channel1'], function () {}]);
     }
 
-    public function testSubscribeWrapsStringChannelAsArray()
+    public function testPsubscribeThrowsOnPooledConnection()
     {
         $connection = $this->mockRedisConnection();
-        $redis = m::mock(Redis::class);
 
-        $redis->shouldReceive('getOption')->andReturn(0);
-        $redis->shouldReceive('setOption')->twice();
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot call psubscribe() on a pooled RedisConnection.');
 
-        // Verify that a string channel gets wrapped in an array
-        $redis->shouldReceive('subscribe')
-            ->once()
-            ->with(['single-channel'], m::type('Closure'))
-            ->andReturnTrue();
-
-        $connection->setActiveConnection($redis);
-
-        $connection->__call('subscribe', ['single-channel', function () {}]);
+        $connection->__call('psubscribe', [['channel:*'], function () {}]);
     }
 
     public function testReconnectSetsSerializerOption()
