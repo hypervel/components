@@ -16,7 +16,6 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use RuntimeException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 
@@ -36,10 +35,6 @@ class MailChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?SentMessage
     {
-        if (! method_exists($notification, 'toMail')) {
-            throw new RuntimeException('Notification is missing `toMail` method.');
-        }
-
         /* @phpstan-ignore-next-line */
         $message = $notification->toMail($notifiable);
 
