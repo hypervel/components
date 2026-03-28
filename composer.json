@@ -44,7 +44,6 @@
             "Hypervel\\Database\\": "src/database/src/",
             "Hypervel\\Coroutine\\": "src/coroutine/src/",
             "Hypervel\\Di\\": "src/di/src/",
-            "Hypervel\\Devtool\\": "src/devtool/src/",
             "Hypervel\\Encryption\\": "src/encryption/src/",
             "Hypervel\\Events\\": "src/events/src/",
             "Hypervel\\Filesystem\\": "src/filesystem/src/",
@@ -197,7 +196,6 @@
         "hypervel/coroutine": "self.version",
         "hypervel/database": "self.version",
         "hypervel/di": "self.version",
-        "hypervel/devtool": "self.version",
         "hypervel/encryption": "self.version",
         "hypervel/engine": "self.version",
         "hypervel/events": "self.version",
@@ -337,7 +335,6 @@
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider",
                 "Hypervel\\Watcher\\WatcherServiceProvider",
-                "Hypervel\\Devtool\\DevtoolServiceProvider",
                 "Hypervel\\View\\ViewServiceProvider"
             ]
         },
