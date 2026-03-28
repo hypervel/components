@@ -1199,14 +1199,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected function registerCoreContainerAliases(): void
     {
         foreach ([
-            \Psr\Container\ContainerInterface::class => [
-                'app',
-                \Hypervel\Contracts\Container\Container::class,
-                \Hypervel\Container\Container::class,
-                \Hypervel\Contracts\Foundation\Application::class,
+            'app' => [
                 \Hypervel\Foundation\Application::class,
+                \Hypervel\Contracts\Foundation\Application::class,
+                \Hypervel\Container\Container::class,
+                \Hypervel\Contracts\Container\Container::class,
+                \Psr\Container\ContainerInterface::class,
             ],
-            \Hypervel\Contracts\Console\Kernel::class => ['artisan'],
             'auth' => [
                 \Hypervel\Auth\AuthManager::class,
                 \Hypervel\Contracts\Auth\Factory::class,
@@ -1261,11 +1260,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ],
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
             'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
-            'hash' => [
-                \Hypervel\Hashing\HashManager::class,
-                \Hypervel\Contracts\Hashing\Hasher::class,
-            ],
-            'hash.driver' => [],
+            'hash' => [\Hypervel\Hashing\HashManager::class],
+            'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
             'jwt' => [
                 \Hypervel\JWT\JWTManager::class,
                 \Hypervel\JWT\Contracts\ManagerContract::class,
