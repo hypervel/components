@@ -9,7 +9,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -77,9 +76,9 @@ class Manager
 
         // Bind a simple non-pooled resolver for Capsule use.
         // This is required because DatabaseManager delegates connection
-        // resolution to ConnectionResolverInterface.
+        // resolution to the internal 'db.resolver' binding.
         $this->container->instance(
-            ConnectionResolverInterface::class,
+            'db.resolver',
             new SimpleConnectionResolver($this->manager)
         );
     }

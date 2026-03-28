@@ -46,7 +46,7 @@ class DatabaseServiceProvider extends ServiceProvider
         $this->registerConnectionServices();
         $this->registerFakerGenerator();
 
-        $this->app->singleton(ConnectionResolverInterface::class, fn ($app) => $app->make(ConnectionResolver::class));
+        $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
             $migrations = $app->make('config')->get('database.migrations', 'migrations');
@@ -56,7 +56,7 @@ class DatabaseServiceProvider extends ServiceProvider
                 : $migrations;
 
             return new DatabaseMigrationRepository(
-                $app->make(ConnectionResolverInterface::class),
+                $app->make('db'),
                 $table,
             );
         });
@@ -149,7 +149,7 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Model::setConnectionResolver($this->app->make(ConnectionResolverInterface::class));
+        Model::setConnectionResolver($this->app->make('db'));
         Model::setEventDispatcher($this->app['events']);
 
         $events = $this->app->make('events');

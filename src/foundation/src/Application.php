@@ -1239,7 +1239,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cookie\QueueingFactory::class,
             ],
             'composer' => [\Hypervel\Support\Composer::class],
-            'db' => [\Hypervel\Database\DatabaseManager::class],
+            'db' => [
+                \Hypervel\Database\DatabaseManager::class,
+                \Hypervel\Database\ConnectionResolverInterface::class,
+            ],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
             'encrypter' => [

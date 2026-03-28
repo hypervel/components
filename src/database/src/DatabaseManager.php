@@ -85,7 +85,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        return $this->app->make(ConnectionResolverInterface::class)
+        return $this->app->make('db.resolver')
             ->connection(enum_value($name) ?? $this->getDefaultConnection());
     }
 
@@ -252,7 +252,7 @@ class DatabaseManager implements ConnectionResolverInterface
         unset($this->connections[$name]);
 
         // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db.resolver');
         if ($resolver instanceof FlushableConnectionResolver) {
             $resolver->flush($name);
         }
