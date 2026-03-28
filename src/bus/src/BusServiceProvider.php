@@ -8,7 +8,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher as QueueingDispatcherContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Support\ServiceProvider;
 
 class BusServiceProvider extends ServiceProvider
@@ -49,7 +48,7 @@ class BusServiceProvider extends ServiceProvider
         $this->app->singleton(DatabaseBatchRepository::class, function ($app) {
             return new DatabaseBatchRepository(
                 $app->make(BatchFactory::class),
-                $app->make(ConnectionResolverInterface::class),
+                $app->make('db'),
                 $app->make('config')->get('queue.batching.table', 'job_batches'),
                 $app->make('config')->get('queue.batching.database'),
             );

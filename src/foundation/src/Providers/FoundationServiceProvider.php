@@ -16,7 +16,6 @@ use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Console\CastMakeCommand;
@@ -250,7 +249,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setDatabaseConnection(): void
     {
         $connection = $this->config->get('database.default', 'mysql');
-        $this->app->make(ConnectionResolverInterface::class)
+        $this->app->make('db')
             ->setDefaultConnection($connection);
     }
 

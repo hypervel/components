@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Support\ServiceProvider;
 
@@ -46,7 +45,7 @@ class ValidationServiceProvider extends ServiceProvider
     protected function registerPresenceVerifier(): void
     {
         $this->app->singleton('validation.presence', function ($app) {
-            return new DatabasePresenceVerifier($app->make(ConnectionResolverInterface::class));
+            return new DatabasePresenceVerifier($app->make('db'));
         });
     }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Session;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
@@ -95,7 +94,7 @@ class SessionManager extends Manager implements Factory
         $lifetime = $this->config->get('session.lifetime');
 
         return $this->buildSession(new DatabaseSessionHandler(
-            $this->container->make(ConnectionResolverInterface::class),
+            $this->container->make('db'),
             $this->config->get('session.connection'),
             $table,
             $lifetime,

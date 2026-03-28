@@ -9,7 +9,6 @@ use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Connectors\BackgroundConnector;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
@@ -203,7 +202,7 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerDatabaseConnector(QueueManager $manager): void
     {
         $manager->addConnector('database', fn () => new DatabaseConnector(
-            $this->app->make(ConnectionResolverInterface::class),
+            $this->app->make('db'),
         ));
     }
 
@@ -288,7 +287,7 @@ class QueueServiceProvider extends ServiceProvider
 
             if (isset($config['driver']) && $config['driver'] === 'database-uuids') {
                 return new DatabaseUuidFailedJobProvider(
-                    $app->make(ConnectionResolverInterface::class),
+                    $app->make('db'),
                     $config['table'],
                     $config['database'],
                 );
@@ -296,7 +295,7 @@ class QueueServiceProvider extends ServiceProvider
 
             if (isset($config['table'])) {
                 return new DatabaseFailedJobProvider(
-                    $app->make(ConnectionResolverInterface::class),
+                    $app->make('db'),
                     $config['table'],
                     $config['database'],
                 );
