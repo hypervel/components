@@ -30,7 +30,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\MigrationCreator;
-use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Framework\Events\BeforeWorkerStart;
@@ -60,8 +59,6 @@ class DatabaseServiceProvider extends ServiceProvider
                 $table,
             );
         });
-
-        $this->app->alias('migration.repository', MigrationRepositoryInterface::class);
 
         $this->app->singleton('migrator', function ($app) {
             return new Migrator(

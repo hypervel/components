@@ -19,7 +19,7 @@ class TranslationServiceProvider extends ServiceProvider
             $config = $app->make('config');
 
             $trans = new Translator(
-                $app->make('translator.loader'),
+                $app->make('translation.loader'),
                 $config->get('app.locale', 'en')
             );
 
@@ -34,7 +34,7 @@ class TranslationServiceProvider extends ServiceProvider
      */
     protected function registerLoader(): void
     {
-        $this->app->singleton('translator.loader', function ($app) {
+        $this->app->singleton('translation.loader', function ($app) {
             return new FileLoader(
                 $app->make('files'),
                 [

@@ -1279,6 +1279,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Mail\Mailer::class,
                 \Hypervel\Contracts\Mail\MailQueue::class,
             ],
+            'migration.creator' => [\Hypervel\Database\Migrations\MigrationCreator::class],
+            'migration.repository' => [
+                \Hypervel\Database\Migrations\DatabaseMigrationRepository::class,
+                \Hypervel\Database\Migrations\MigrationRepositoryInterface::class,
+            ],
             'migrator' => [\Hypervel\Database\Migrations\Migrator::class],
             'queue' => [
                 \Hypervel\Queue\QueueManager::class,
@@ -1328,10 +1333,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'view.engine.resolver' => [\Hypervel\View\Engines\EngineResolver::class],
             'view.finder' => [\Hypervel\View\ViewFinderInterface::class],
             'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
-            'session' => [
-                \Hypervel\Session\SessionManager::class,
-                \Hypervel\Contracts\Session\Factory::class,
-            ],
+            'session' => [\Hypervel\Session\SessionManager::class],
             'session.store' => [
                 \Hypervel\Session\Store::class,
                 \Hypervel\Contracts\Session\Session::class,
@@ -1340,7 +1342,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Translation\Translator::class,
                 \Hypervel\Contracts\Translation\Translator::class,
             ],
-            'translator.loader' => [
+            'translation.loader' => [
                 \Hypervel\Translation\FileLoader::class,
                 \Hypervel\Contracts\Translation\Loader::class,
             ],

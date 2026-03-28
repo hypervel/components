@@ -49,7 +49,7 @@ $config->set('queue', [
 $app->register(HorizonServiceProvider::class);
 
 /** @var Worker $worker */
-$worker = $app->make(Worker::class);
+$worker = $app->make('queue.worker');
 
 // Pause the worker if needed...
 if (in_array('--paused', $_SERVER['argv'])) {
