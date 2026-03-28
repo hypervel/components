@@ -9,7 +9,6 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
@@ -520,8 +519,8 @@ trait CreatesApplication
         // exhaustion. Only for test cases — remote subprocesses (e.g. queue:work) need
         // the real pool-based resolver for proper coroutine lifecycle.
         if ($this->isRunningTestCase()) {
-            $app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
-            Model::setConnectionResolver($app->make(ConnectionResolverInterface::class));
+            $app->singleton('db.resolver', DatabaseConnectionResolver::class);
+            Model::setConnectionResolver($app->make('db'));
         }
 
         $app->make(KernelContract::class)->bootstrap();
