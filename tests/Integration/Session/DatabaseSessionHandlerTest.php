@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Session;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Http\Request;
 use Hypervel\Session\DatabaseSessionHandler;
 use Hypervel\Support\Carbon;
@@ -26,7 +25,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
             'HTTP_USER_AGENT' => 'Test/1.0',
         ]));
 
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1);
         $handler->setContainer($this->app);
@@ -71,7 +70,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
 
     public function testGarbageCollector()
     {
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
 
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
@@ -94,7 +93,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
 
     public function testDestroy()
     {
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
         $handler1 = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
         $handler2 = clone $handler1;
@@ -115,7 +114,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
 
     public function testItCanWorkWithoutContainer()
     {
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1);
 

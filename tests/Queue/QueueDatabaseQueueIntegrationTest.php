@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;
@@ -32,7 +31,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         parent::setUp();
 
         $this->queue = new DatabaseQueue(
-            $this->app->make(ConnectionResolverInterface::class),
+            $this->app->make('db'),
             null,
             'jobs'
         );
@@ -53,7 +52,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     protected function connection(): ConnectionInterface
     {
         return $this->app
-            ->get(ConnectionResolverInterface::class)
+            ->make('db')
             ->connection();
     }
 

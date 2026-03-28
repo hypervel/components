@@ -33,7 +33,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         parent::setUp();
 
         $this->provider = new DatabaseFailedJobProvider(
-            $this->resolver = $this->app->make(ConnectionResolverInterface::class),
+            $this->resolver = $this->app->make('db'),
             'failed_jobs'
         );
     }

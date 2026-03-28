@@ -246,7 +246,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $manager = $this->app->make(DatabaseManager::class);
 
         /** @var ConnectionResolverInterface $resolver */
-        $resolver = $this->app->make(ConnectionResolverInterface::class);
+        $resolver = $this->app->make('db.resolver');
 
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = 'sqlite';

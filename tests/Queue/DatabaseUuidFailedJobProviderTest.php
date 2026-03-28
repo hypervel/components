@@ -31,7 +31,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         parent::setUp();
 
         $this->provider = new DatabaseUuidFailedJobProvider(
-            $this->resolver = $this->app->make(ConnectionResolverInterface::class),
+            $this->resolver = $this->app->make('db'),
             'failed_jobs'
         );
     }

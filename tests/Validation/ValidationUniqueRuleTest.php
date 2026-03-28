@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
@@ -187,7 +186,7 @@ class ValidationUniqueRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->make(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
