@@ -46,6 +46,10 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveQueueFromQueueRoute(object $queueable)
+ * @method static \Hypervel\Support\Testing\Fakes\NotificationFake serializeAndRestore(bool $serializeAndRestore = true)
  *
  * @see \Hypervel\Notifications\ChannelManager
  * @see \Hypervel\Support\Testing\Fakes\NotificationFake
