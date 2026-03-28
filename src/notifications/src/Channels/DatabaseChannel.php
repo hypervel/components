@@ -31,7 +31,9 @@ class DatabaseChannel
                 ? $notification->databaseType($notifiable) // @phpstan-ignore-line
                 : get_class($notification),
             'data' => $this->getData($notifiable, $notification),
-            'read_at' => null,
+            'read_at' => method_exists($notification, 'initialDatabaseReadAtValue')
+                ? $notification->initialDatabaseReadAtValue($notifiable) // @phpstan-ignore-line
+                : null,
         ];
     }
 
