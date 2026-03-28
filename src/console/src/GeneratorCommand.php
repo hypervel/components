@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
 
 abstract class GeneratorCommand extends Command implements PromptsForMissingInput
@@ -135,7 +136,34 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             $this->addTestOptions(); /* @phpstan-ignore-line */
         }
 
+        $this->addPathAndNamespaceOptions();
+
         $this->files = $files;
+    }
+
+    /**
+     * Add the --target-path and --target-namespace options to the command definition.
+     *
+     * Added via getDefinition() rather than getOptions() so they are always
+     * available regardless of whether a subclass overrides getOptions().
+     */
+    protected function addPathAndNamespaceOptions(): void
+    {
+        $definition = $this->getDefinition();
+
+        $definition->addOption(new InputOption(
+            'target-path',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'The location where the file should be created'
+        ));
+
+        $definition->addOption(new InputOption(
+            'target-namespace',
+            'N',
+            InputOption::VALUE_OPTIONAL,
+            'The namespace for the class'
+        ));
     }
 
     /**
@@ -204,6 +232,12 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         $name = ltrim($name, '\/');
 
         $name = str_replace('/', '\\', $name);
+
+        $targetNamespace = $this->option('target-namespace');
+
+        if (! empty($targetNamespace)) {
+            return $targetNamespace . '\\' . $name;
+        }
 
         $rootNamespace = $this->rootNamespace();
 
@@ -289,6 +323,16 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function getPath(string $name): string
     {
+        if ($targetPath = $this->option('target-path')) {
+            $className = Str::afterLast($name, '\\');
+
+            if (str_starts_with($targetPath, '/')) {
+                return rtrim($targetPath, '/') . '/' . $className . '.php';
+            }
+
+            return $this->hypervel->basePath(trim($targetPath, '/') . '/' . $className . '.php');
+        }
+
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
 
         return $this->hypervel->path() . '/' . str_replace('\\', '/', $name) . '.php';

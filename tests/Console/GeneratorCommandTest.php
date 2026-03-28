@@ -23,7 +23,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn('packages/my-package/src');
         $command->setTestInput($input);
 
@@ -39,7 +39,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn('packages/my-package/src/');
         $command->setTestInput($input);
 
@@ -54,7 +54,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn('/tmp/custom-path');
         $command->setTestInput($input);
 
@@ -69,7 +69,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn('/tmp/custom-path/');
         $command->setTestInput($input);
 
@@ -85,7 +85,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn('src/Controllers');
         $command->setTestInput($input);
 
@@ -105,7 +105,7 @@ class GeneratorCommandTest extends TestCase
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('path')
+            ->with('target-path')
             ->andReturn(null);
         $command->setTestInput($input);
 
@@ -115,35 +115,25 @@ class GeneratorCommandTest extends TestCase
         $this->assertSame($appPath . '/Http/Controllers/UserController.php', $path);
     }
 
-    public function testPathOptionIsRegistered()
+    public function testTargetPathOptionIsRegistered()
     {
         $command = new GeneratorCommandStub();
 
         $definition = $command->getDefinition();
 
-        $this->assertTrue($definition->hasOption('path'));
-        $this->assertFalse($definition->getOption('path')->isValueRequired());
-        $this->assertNull($definition->getOption('path')->getDefault());
+        $this->assertTrue($definition->hasOption('target-path'));
+        $this->assertFalse($definition->getOption('target-path')->isValueRequired());
+        $this->assertNull($definition->getOption('target-path')->getDefault());
     }
 
-    public function testForceOptionIsRegistered()
+    public function testTargetNamespaceOptionIsRegistered()
     {
         $command = new GeneratorCommandStub();
 
         $definition = $command->getDefinition();
 
-        $this->assertTrue($definition->hasOption('force'));
-        $this->assertFalse($definition->getOption('force')->acceptValue());
-    }
-
-    public function testNamespaceOptionIsRegistered()
-    {
-        $command = new GeneratorCommandStub();
-
-        $definition = $command->getDefinition();
-
-        $this->assertTrue($definition->hasOption('namespace'));
-        $this->assertNull($definition->getOption('namespace')->getDefault());
+        $this->assertTrue($definition->hasOption('target-namespace'));
+        $this->assertNull($definition->getOption('target-namespace')->getDefault());
     }
 
     public function testIsReservedNameReturnsTrueForReservedWords()
@@ -222,7 +212,7 @@ PHP;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('namespace')
+            ->with('target-namespace')
             ->andReturn(null);
         $command->setTestInput($input);
 
@@ -235,20 +225,20 @@ PHP;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('namespace')
+            ->with('target-namespace')
             ->andReturn(null);
         $command->setTestInput($input);
 
         $this->assertSame('App\Http\Controllers\UserController', $command->exposedQualifyClass('Http/Controllers/UserController'));
     }
 
-    public function testQualifyClassUsesCustomNamespaceOption()
+    public function testQualifyClassUsesCustomTargetNamespaceOption()
     {
         $command = new GeneratorCommandStub();
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
-            ->with('namespace')
+            ->with('target-namespace')
             ->andReturn('Custom\Namespace');
         $command->setTestInput($input);
 

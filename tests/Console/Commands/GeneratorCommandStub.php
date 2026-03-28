@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Commands;
 
-use Hypervel\Devtool\Generator\DevtoolGeneratorCommand;
+use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
 
-class GeneratorCommandStub extends DevtoolGeneratorCommand
+class GeneratorCommandStub extends GeneratorCommand
 {
     protected ?string $name = 'make:test-stub';
 
