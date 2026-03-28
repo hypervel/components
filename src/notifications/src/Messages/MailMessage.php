@@ -157,10 +157,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the "reply to" address of the message.
      */
-    public function replyTo(array|string $address, ?string $name = null): static
+    public function replyTo(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->replyTo += $this->parseAddresses($address);
+            $this->replyTo = array_merge($this->replyTo, $this->parseAddresses($address));
         } else {
             $this->replyTo[] = [$address, $name];
         }
@@ -171,10 +171,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the cc address for the mail message.
      */
-    public function cc(array|string $address, ?string $name = null): static
+    public function cc(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->cc += $this->parseAddresses($address);
+            $this->cc = array_merge($this->cc, $this->parseAddresses($address));
         } else {
             $this->cc[] = [$address, $name];
         }
@@ -185,10 +185,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the bcc address for the mail message.
      */
-    public function bcc(array|string $address, ?string $name = null): static
+    public function bcc(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->bcc += $this->parseAddresses($address);
+            $this->bcc = array_merge($this->bcc, $this->parseAddresses($address));
         } else {
             $this->bcc[] = [$address, $name];
         }
