@@ -16,12 +16,15 @@ use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Manager;
-use Hypervel\Support\Str;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {
     use HasPoolProxy;
+    use Macroable;
+    use ResolvesQueueRoutes;
 
     /**
      * Context key for the per-request default channel override.
@@ -131,38 +134,26 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createDriver(string $driver): mixed
     {
-        $poolConfig = $this->getPoolConfig($driver);
         $hasPool = in_array($driver, $this->poolables);
-        if (isset($this->customCreators[$driver])) {
+        $poolConfig = $this->getPoolConfig($driver);
+
+        try {
             if ($hasPool) {
                 return $this->createPoolProxy(
                     $driver,
-                    fn () => $this->callCustomCreator($driver),
+                    fn () => parent::createDriver($driver),
                     $poolConfig
                 );
             }
-            return $this->callCustomCreator($driver);
-        }
 
-        $method = 'create' . Str::studly($driver) . 'Driver';
-
-        if (! method_exists($this, $method)) {
+            return parent::createDriver($driver);
+        } catch (InvalidArgumentException $e) {
             if (class_exists($driver)) {
                 return $this->container->make($driver);
             }
 
-            throw new InvalidArgumentException("Driver [{$driver}] is not supported.");
+            throw $e;
         }
-
-        if ($hasPool) {
-            return $this->createPoolProxy(
-                $driver,
-                fn () => $this->{$method}(),
-                $poolConfig
-            );
-        }
-
-        return $this->{$method}();
     }
 
     /**
