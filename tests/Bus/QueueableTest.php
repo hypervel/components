@@ -140,13 +140,7 @@ class QueueableTest extends TestCase
         $this->assertNull($job->deduplicator);
     }
 
-    public function testWithDeduplicatorRejectsNonClosureCallable()
-    {
-        $this->expectException(TypeError::class);
-
-        $job = new FakeJob();
-        $job->withDeduplicator('strlen');
-    }
+    // REMOVED: testWithDeduplicatorRejectsNonClosureCallable - withDeduplicator() now accepts array|callable|null to match Laravel, which includes string callables
 
     public function testPrependToChainWithMultipleJobs()
     {

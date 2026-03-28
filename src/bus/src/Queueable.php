@@ -35,14 +35,16 @@ trait Queueable
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public ?string $messageGroup = null;
+    public array|string|int|null $messageGroup = null;
 
     /**
      * The deduplicator callback the job should use to generate the deduplication ID.
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     *
+     * @var null|array|callable
      */
-    public ?SerializableClosure $deduplicator = null;
+    public mixed $deduplicator = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -104,7 +106,7 @@ trait Queueable
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public function onGroup(UnitEnum|string|null $group): static
+    public function onGroup(array|UnitEnum|string|int|null $group): static
     {
         $this->messageGroup = enum_value($group);
 
@@ -116,7 +118,7 @@ trait Queueable
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
      */
-    public function withDeduplicator(Closure|SerializableClosure|null $deduplicator): static
+    public function withDeduplicator(array|callable|null $deduplicator): static
     {
         $this->deduplicator = $deduplicator instanceof Closure
             ? new SerializableClosure($deduplicator)
