@@ -16,6 +16,8 @@ use Sentry\SentrySdk;
 use Sentry\Severity;
 use Sentry\State\Scope;
 
+use function Hypervel\Support\defer;
+
 abstract class ModelViolationReporter
 {
     use ResolvesEventOrigin;
@@ -49,9 +51,9 @@ abstract class ModelViolationReporter
         $origin = $this->resolveEventOrigin();
 
         if ($this->reportAfterResponse) {
-            app()->terminating(function () use ($model, $property, $origin) {
+            defer(function () use ($model, $property, $origin) {
                 $this->report($model, $property, $origin);
-            });
+            }, always: true);
         } else {
             $this->report($model, $property, $origin);
         }
