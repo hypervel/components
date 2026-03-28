@@ -14,9 +14,7 @@ use Throwable;
 use function Hypervel\Coroutine\parallel;
 
 /**
- * Tests real concurrency with coroutine-based parallel operations.
- *
- * Uses Hypervel's coroutine system instead of Laravel's process-based Concurrency.
+ * Tests Redis atomicity under concurrent coroutine operations.
  */
 final class ConcurrencyCheck implements CheckInterface
 {
