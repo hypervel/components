@@ -7,7 +7,6 @@ namespace Hypervel\Database\Listeners;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 
 /**
@@ -34,7 +33,7 @@ class UnsetContextInTaskWorkerListener
             return;
         }
 
-        $connectionResolver = $this->container->make(ConnectionResolverInterface::class);
+        $connectionResolver = $this->container->make('db.resolver');
         $connections = (array) $this->config->get('database.connections', []);
 
         foreach (array_keys($connections) as $name) {
