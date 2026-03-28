@@ -61,10 +61,13 @@ trait ProxyTrait
 
     /**
      * Create a new AOP pipeline instance.
+     *
+     * Must be `new` — Pipeline is mutable and auto-singletoning it would
+     * share state across concurrent coroutines.
      */
     protected static function makePipeline(): Pipeline
     {
-        return Container::getInstance()->make(Pipeline::class);
+        return new Pipeline(Container::getInstance());
     }
 
     /**

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Di\Aop;
 
 use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\Aop\Pipeline;
+use Hypervel\Di\Aop\ProxyTrait;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Di\Stub\Aspect\GetNameAspect;
 use Hypervel\Tests\Di\Stub\Aspect\GetParamsAspect;
@@ -112,5 +114,23 @@ class ProxyTraitTest extends TestCase
 
         $obj = new ProxyTraitObject();
         $this->assertSame(2, $obj->incr());
+    }
+
+    public function testMakePipelineReturnsFreshInstances()
+    {
+        $stub = new class {
+            use ProxyTrait;
+
+            public static function getPipeline(): Pipeline
+            {
+                return self::makePipeline();
+            }
+        };
+
+        $first = $stub::getPipeline();
+        $second = $stub::getPipeline();
+
+        $this->assertInstanceOf(Pipeline::class, $first);
+        $this->assertNotSame($first, $second);
     }
 }
