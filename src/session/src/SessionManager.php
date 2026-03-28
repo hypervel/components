@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Contracts\Session\Factory;
-use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
@@ -14,16 +12,8 @@ use SessionHandlerInterface;
 /**
  * @mixin \Hypervel\Session\Store
  */
-class SessionManager extends Manager implements Factory
+class SessionManager extends Manager
 {
-    /**
-     * Get a session store instance by name.
-     */
-    public function store(?string $name = null): SessionContract
-    {
-        return $this->driver($name);
-    }
-
     /**
      * Call a custom driver creator.
      */
