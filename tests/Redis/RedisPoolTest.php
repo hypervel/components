@@ -62,6 +62,7 @@ class RedisPoolTest extends TestCase
 
         $container = $this->mockContainerWithRedisConfig($connectionConfig);
         $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $pool = new TestRedisPool($container, 'default');
 

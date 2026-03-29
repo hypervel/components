@@ -21,7 +21,7 @@ class EventTest extends TestCase
     public function testBeforeProcessHandleHoldsProcessAndIndex()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->andReturn(false);
         $process = new class($container) extends AbstractProcess {
             public string $name = 'test-process';
 
@@ -40,7 +40,7 @@ class EventTest extends TestCase
     public function testAfterProcessHandleHoldsProcessAndIndex()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->andReturn(false);
         $process = new class($container) extends AbstractProcess {
             public function handle(): void
             {

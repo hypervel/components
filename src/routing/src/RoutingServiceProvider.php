@@ -204,7 +204,7 @@ class RoutingServiceProvider extends ServiceProvider
     protected function registerCurrentRouteBinding(): void
     {
         $this->app->bind(Route::class, function ($app) {
-            return $app->make(Router::class)->current();
+            return $app->make('router')->current();
         });
     }
 }

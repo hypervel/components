@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Closure;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -65,7 +64,7 @@ class QueueFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
         $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
         $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
 

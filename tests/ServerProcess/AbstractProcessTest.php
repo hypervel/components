@@ -40,6 +40,7 @@ class AbstractProcessTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $process = new FooProcess($container);
         $server = m::mock(Server::class);
@@ -51,6 +52,7 @@ class AbstractProcessTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $process = new FooProcess($container);
 
@@ -63,7 +65,7 @@ class AbstractProcessTest extends TestCase
     public function testBindCreatesProcessAndAddsToServer()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $process = new FooProcess($container);
 
@@ -85,7 +87,7 @@ class AbstractProcessTest extends TestCase
     public function testBindCreatesMultipleProcessesWhenNumsGreaterThanOne()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $process = new FooProcess($container);
         $process->nums = 3;
@@ -110,8 +112,8 @@ class AbstractProcessTest extends TestCase
         });
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturn($dispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
 
         $process = new FooProcess($container);
 
@@ -141,8 +143,8 @@ class AbstractProcessTest extends TestCase
         });
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturn($dispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
 
         $process = new FooProcess($container);
         $process->nums = 2;
@@ -171,7 +173,7 @@ class AbstractProcessTest extends TestCase
         $handler->shouldReceive('report')->once();
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(true);
         $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
@@ -200,7 +202,7 @@ class AbstractProcessTest extends TestCase
     public function testLogThrowableSilentlyIgnoresWhenNoExceptionHandler()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(false);
 
         $process = new class($container) extends AbstractProcess {
@@ -231,8 +233,8 @@ class AbstractProcessTest extends TestCase
     {
         $dispatcher = m::mock(DispatcherContract::class);
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturn($dispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
 
         $process = new FooProcess($container);
 
@@ -244,7 +246,7 @@ class AbstractProcessTest extends TestCase
     public function testConstructorSetsEventToNullWhenNotAvailable()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $process = new FooProcess($container);
 

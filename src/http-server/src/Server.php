@@ -39,8 +39,8 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
     public function __construct(
         protected Container $container,
     ) {
-        if ($this->container->has(EventDispatcherContract::class)) {
-            $this->event = $this->container->make(EventDispatcherContract::class);
+        if ($this->container->bound('events')) {
+            $this->event = $this->container->make('events');
         }
     }
 
@@ -64,7 +64,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         // Compile routes and pre-warm all static caches for HTTP serving
         // performance. Runs in the main process before fork — workers
         // inherit via copy-on-write. Idempotent if WS server already ran.
-        $this->container->make(\Hypervel\Routing\Router::class)->compileAndWarm();
+        $this->container->make('router')->compileAndWarm();
 
         $this->initOption();
     }

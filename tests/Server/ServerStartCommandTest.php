@@ -66,9 +66,9 @@ class ServerStartCommandTest extends TestCase
         $logger = m::mock(StdoutLoggerInterface::class);
 
         $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(DispatcherContract::class, $dispatcher);
+        $this->app->instance('events', $dispatcher);
         $this->app->instance(StdoutLoggerInterface::class, $logger);
-        $this->app->instance(Repository::class, $config);
+        $this->app->instance('config', $config);
 
         $command = new ServerStartCommand($this->app);
 

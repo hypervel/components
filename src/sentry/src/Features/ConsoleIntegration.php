@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Hypervel\Console\Events as ConsoleEvents;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Sentry\Integrations\Integration;
 use Sentry\Breadcrumb;
 use Sentry\State\Scope;
@@ -23,7 +22,7 @@ class ConsoleIntegration extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
 
         $dispatcher->listen(ConsoleEvents\CommandStarting::class, [$this, 'commandStarting']);
         $dispatcher->listen(ConsoleEvents\CommandFinished::class, [$this, 'commandFinished']);

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
@@ -271,7 +270,7 @@ class SentryServiceProvider extends ServiceProvider
 
         try {
             /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */
-            $dispatcher = $this->app->make(Dispatcher::class);
+            $dispatcher = $this->app->make('events');
 
             $handler->subscribe($dispatcher);
 
@@ -347,7 +346,7 @@ class SentryServiceProvider extends ServiceProvider
 
         try {
             /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */
-            $dispatcher = $this->app->make(Dispatcher::class);
+            $dispatcher = $this->app->make('events');
 
             $handler->subscribe($dispatcher);
         } catch (BindingResolutionException) {
@@ -492,7 +491,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerLogChannels(): void
     {
-        $config = $this->app->make(Repository::class);
+        $config = $this->app->make('config');
 
         $logChannels = $config->get('logging.channels', []);
 

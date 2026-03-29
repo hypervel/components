@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Cache\CacheManager;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -217,7 +216,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function getCache(): CacheRepository
     {
-        $cacheManager = Container::getInstance()->make(CacheManager::class);
+        $cacheManager = Container::getInstance()->make('cache');
         $store = config('sanctum.cache.store');
         return $store ? $cacheManager->store($store) : $cacheManager->store();
     }

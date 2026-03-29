@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Testbench\Foundation\Console;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Config\Repository;
-use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
@@ -56,13 +55,11 @@ class ServeCommandTest extends TestCase
         $config = m::mock(Repository::class);
         $config->shouldReceive('get')->once()->with('server', [])->andReturn(['http' => ['port' => 9501]]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
 
         $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(DispatcherContract::class, $dispatcher);
         $this->app->instance(StdoutLoggerInterface::class, $logger);
-        $this->app->instance(Repository::class, $config);
+        $this->app->instance('config', $config);
 
         $startedEvents = [];
         $endedEvents = [];

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Facades\Route;
@@ -157,7 +156,7 @@ class HorizonServiceProvider extends ServiceProvider
         $this->callAfterResolving(QueueManager::class, function (QueueManager $manager) {
             $manager->addConnector('redis', function () {
                 return new RedisConnector(
-                    $this->app->make(Redis::class)
+                    $this->app['redis']
                 );
             });
         });

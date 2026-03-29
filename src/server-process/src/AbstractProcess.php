@@ -46,8 +46,8 @@ abstract class AbstractProcess implements ProcessInterface
 
     public function __construct(protected Container $container)
     {
-        if ($container->has(DispatcherContract::class)) {
-            $this->event = $container->make(DispatcherContract::class);
+        if ($container->bound('events')) {
+            $this->event = $container->make('events');
         }
     }
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
@@ -34,7 +33,7 @@ class RedisFeature extends Feature
             $config->set("database.redis.{$connection}.event.enable", true);
         }
 
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
     }
 

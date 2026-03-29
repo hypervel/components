@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
@@ -29,7 +28,7 @@ class NotificationsFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
         if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
         }

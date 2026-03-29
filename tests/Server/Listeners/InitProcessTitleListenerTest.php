@@ -6,9 +6,7 @@ namespace Hypervel\Tests\Server\Listeners;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\Server\Fixtures\DemoProcess;
 use Hypervel\Tests\Server\Fixtures\InitProcessTitleListenerStub;
@@ -26,6 +24,7 @@ class InitProcessTitleListenerTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(m::any())->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $listener = new InitProcessTitleListenerStub($container);
         $process = new DemoProcess($container);
@@ -43,9 +42,9 @@ class InitProcessTitleListenerTest extends TestCase
     {
         $name = 'hyperf-skeleton.' . uniqid();
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
-        $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
+        $container->shouldReceive('has')->with('config')->andReturn(true);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldReceive('make')->with('config')->andReturn(new ConfigRepository([
             'app' => ['name' => $name],
         ]));
 
@@ -65,9 +64,9 @@ class InitProcessTitleListenerTest extends TestCase
     {
         $name = 'hyperf-skeleton.' . uniqid();
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(Repository::class)->andReturn(true);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
-        $container->shouldReceive('make')->with(Repository::class)->andReturn(new ConfigRepository([
+        $container->shouldReceive('has')->with('config')->andReturn(true);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldReceive('make')->with('config')->andReturn(new ConfigRepository([
             'app' => ['name' => $name],
         ]));
 

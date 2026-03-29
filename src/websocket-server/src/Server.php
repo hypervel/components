@@ -21,7 +21,6 @@ use Hypervel\Engine\Http\FdGetter;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
-use Hypervel\Routing\Router;
 use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
@@ -74,7 +73,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         // Compile routes and pre-warm all static caches. WS handshake
         // routes through the Router, so this benefits WS performance too.
         // Idempotent if HTTP server already ran.
-        $this->container->make(\Hypervel\Routing\Router::class)->compileAndWarm();
+        $this->container->make('router')->compileAndWarm();
 
         $this->coreMiddleware = new CoreMiddleware($this->container);
 
@@ -115,7 +114,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             // dispatchToCallback() performs the full Router context lifecycle
             // (findRoute, context setup, RouteMatched event, middleware pipeline)
             // but calls our handshake handler instead of the route's controller.
-            $router = $this->container->make(Router::class);
+            $router = $this->container->make('router');
             $httpResponse = $router->dispatchToCallback(
                 $httpRequest,
                 fn (HttpRequest $req) => $this->coreMiddleware->handleHandshake($req)

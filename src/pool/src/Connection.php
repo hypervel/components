@@ -32,8 +32,8 @@ abstract class Connection implements ConnectionInterface
         protected Container $container,
         protected PoolInterface $pool
     ) {
-        if ($this->container->has(Dispatcher::class)) {
-            $this->dispatcher = $this->container->make(Dispatcher::class);
+        if ($this->container->bound('events')) {
+            $this->dispatcher = $this->container->make('events');
         }
 
         if ($this->container->has(StdoutLoggerInterface::class)) {

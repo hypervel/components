@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use GuzzleHttp\Psr7\Uri;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
@@ -36,7 +35,7 @@ class HttpClientIntegration extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
         $factory = $this->container->make(Factory::class);
 
         if ($this->isTracingFeatureEnabled(self::FEATURE_KEY)) {

@@ -52,9 +52,9 @@ class ServerTest extends TestCase
         $serverFactory->shouldReceive('getConfig')->andReturn(null);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
         $container->shouldReceive('make')->with(KernelContract::class)->andReturn($kernel);
-        $container->shouldReceive('make')->with(Router::class)->andReturn($router);
+        $container->shouldReceive('make')->with('router')->andReturn($router);
         $container->shouldReceive('make')->with(ServerFactory::class)->andReturn($serverFactory);
 
         $server = new Server($container);
@@ -75,7 +75,7 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate')->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -109,7 +109,7 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate')->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -137,7 +137,7 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate')->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -163,7 +163,7 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate')->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -197,8 +197,8 @@ class ServerTest extends TestCase
             });
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(EventDispatcherContract::class)->andReturn($eventDispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -231,8 +231,8 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate');
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(EventDispatcherContract::class)->andReturn($eventDispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -250,7 +250,7 @@ class ServerTest extends TestCase
     public function testSetAndGetServerName()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         $server = new Server($container);
         $result = $server->setServerName('custom');
@@ -264,8 +264,8 @@ class ServerTest extends TestCase
         $eventDispatcher = m::mock(EventDispatcherContract::class);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(EventDispatcherContract::class)->andReturn($eventDispatcher);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
 
         // Should not throw — event dispatcher is resolved
         $server = new Server($container);
@@ -290,7 +290,7 @@ class ServerTest extends TestCase
             $kernel->shouldReceive('terminate')->once();
 
             $container = m::mock(Container::class);
-            $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
+            $container->shouldReceive('bound')->with('events')->andReturn(false);
 
             $server = new Server($container);
             $this->setKernel($server, $kernel);
@@ -317,8 +317,8 @@ class ServerTest extends TestCase
     public function testConstructorSkipsEventDispatcherWhenNotAvailable()
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(EventDispatcherContract::class)->andReturn(false);
-        $container->shouldNotReceive('make')->with(EventDispatcherContract::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldNotReceive('make')->with('events');
 
         $server = new Server($container);
         $this->assertInstanceOf(Server::class, $server);

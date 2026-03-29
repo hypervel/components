@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT;
 
-use Hypervel\Contracts\Cache\Factory as CacheManager;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
@@ -23,7 +22,7 @@ class JWTServiceProvider extends ServiceProvider
 
             $storageClass = $config->get('jwt.providers.storage');
             $storage = match ($storageClass) {
-                TaggedCache::class => new TaggedCache($app->make(CacheManager::class)->store()),
+                TaggedCache::class => new TaggedCache($app['cache']->store()),
                 default => $app->make($storageClass),
             };
 

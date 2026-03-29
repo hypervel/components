@@ -8,7 +8,6 @@ use BackedEnum;
 use Hypervel\Context\ParentContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
@@ -674,7 +673,7 @@ trait MakesHttpRequests
         Request $request,
         ?\Symfony\Component\HttpFoundation\Response $response = null
     ): void {
-        if (! $this->app->has(EventDispatcherContract::class)) {
+        if (! $this->app->bound('events')) {
             return;
         }
 
@@ -693,7 +692,7 @@ trait MakesHttpRequests
             return;
         }
 
-        $this->app->make(EventDispatcherContract::class)->dispatch(new $eventClass(
+        $this->app['events']->dispatch(new $eventClass(
             request: $request,
             response: $response,
             server: 'http'

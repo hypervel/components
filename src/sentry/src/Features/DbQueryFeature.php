@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\ConnectionEvent;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -29,7 +28,7 @@ class DbQueryFeature extends Feature
 
     public function onBoot(): void
     {
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
 
         $dispatcher->listen(QueryExecuted::class, [$this, 'handleQueryExecutedEvent']);
         $dispatcher->listen(TransactionBeginning::class, [$this, 'handleTransactionEvent']);

@@ -494,7 +494,7 @@ class RedisConnectionTest extends TestCase
             ->with(LogLevel::ERROR, 'unit');
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(\Hypervel\Contracts\Events\Dispatcher::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
 

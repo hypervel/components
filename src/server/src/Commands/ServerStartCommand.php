@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Commands;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Foundation\Application;
@@ -56,10 +54,10 @@ class ServerStartCommand extends SymfonyCommand
         }
 
         $serverFactory = $this->container->make(ServerFactory::class)
-            ->setEventDispatcher($this->container->make(DispatcherContract::class))
+            ->setEventDispatcher($this->container->make('events'))
             ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
-        $serverConfig = $this->container->make(Repository::class)->get('server', []);
+        $serverConfig = $this->container->make('config')->get('server', []);
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
         }

@@ -50,7 +50,7 @@ class CacheFeature extends Feature
             $config->set("cache.stores.{$store}.events", true);
         }
         /** @var Dispatcher $dispatcher */
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
         if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,

@@ -12,7 +12,6 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -120,7 +119,7 @@ class ConsoleSchedulingFeature extends Feature
     public function onBoot(): void
     {
         $this->shouldHandleCheckIn = true;
-        $dispatcher = $this->container->make(Dispatcher::class);
+        $dispatcher = $this->container->make('events');
 
         $dispatcher->listen(ScheduledTaskStarting::class, [$this, 'handleScheduledTaskStarting']);
         $dispatcher->listen(ScheduledTaskFinished::class, [$this, 'handleScheduledTaskFinished']);

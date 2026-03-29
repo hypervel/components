@@ -218,6 +218,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         // First client: master is node A
         $clientA = m::mock(RedisCluster::class);

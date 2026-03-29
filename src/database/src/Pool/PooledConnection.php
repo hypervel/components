@@ -49,8 +49,8 @@ class PooledConnection implements PoolConnectionInterface
         $this->factory = $container->make('db.factory');
         $this->logger = $container->make(StdoutLoggerInterface::class);
 
-        if ($container->has(Dispatcher::class)) {
-            $this->dispatcher = $container->make(Dispatcher::class);
+        if ($container->bound('events')) {
+            $this->dispatcher = $container->make('events');
         }
 
         $this->reconnect();
@@ -102,8 +102,8 @@ class PooledConnection implements PoolConnectionInterface
         }
 
         // Configure event dispatcher for query events
-        if ($this->container->has(Dispatcher::class)) {
-            $this->connection->setEventDispatcher($this->container->make(Dispatcher::class));
+        if ($this->container->bound('events')) {
+            $this->connection->setEventDispatcher($this->container->make('events'));
         }
 
         // Configure transaction manager for after-commit callbacks
@@ -119,8 +119,8 @@ class PooledConnection implements PoolConnectionInterface
 
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)->dispatch(
+        if ($this->container->bound('events')) {
+            $this->container->make('events')->dispatch(
                 new ConnectionEstablished($this->connection)
             );
         }
@@ -249,8 +249,8 @@ class PooledConnection implements PoolConnectionInterface
 
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)->dispatch(
+        if ($this->container->bound('events')) {
+            $this->container->make('events')->dispatch(
                 new ConnectionEstablished($connection)
             );
         }

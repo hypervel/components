@@ -6,7 +6,6 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Framework\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;
 use Hypervel\ServerProcess\ProcessManager;
@@ -129,7 +128,7 @@ class BootProcessListenerTest extends TestCase
     private function makeSimpleContainer(): ContainerContract
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
         return $container;
     }
 }

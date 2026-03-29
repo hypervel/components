@@ -43,8 +43,8 @@ class ProcessTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
 
-        $container->shouldReceive('has')->with(DispatcherContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(DispatcherContract::class)->andReturnUsing(function () {
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturnUsing(function () {
             $dispatcher = m::mock(DispatcherContract::class);
             $dispatcher->shouldReceive('dispatch')->withAnyArgs()->andReturnUsing(function ($event) {
                 self::$dispatched[] = $event;

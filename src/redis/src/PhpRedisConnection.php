@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
@@ -61,8 +60,8 @@ class PhpRedisConnection extends RedisConnection
         $this->connection = $redis;
         $this->lastUseTime = microtime(true);
 
-        if (($this->config['event']['enable'] ?? false) && $this->container->has(Dispatcher::class)) {
-            $this->eventDispatcher = $this->container->make(Dispatcher::class);
+        if (($this->config['event']['enable'] ?? false) && $this->container->bound('events')) {
+            $this->eventDispatcher = $this->container->make('events');
         }
 
         return true;

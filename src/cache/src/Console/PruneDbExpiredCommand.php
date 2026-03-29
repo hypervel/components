@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -29,7 +28,7 @@ class PruneDbExpiredCommand extends Command
     public function handle(): ?int
     {
         $store = $this->argument('store');
-        $cache = $this->hypervel->make(CacheManager::class)->store($store);
+        $cache = $this->hypervel->make('cache')->store($store);
 
         if (! $cache->getStore() instanceof DatabaseStore) {
             if (is_null($store)) {
