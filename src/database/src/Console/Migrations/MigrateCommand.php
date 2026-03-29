@@ -9,7 +9,6 @@ use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\Connection;
-use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
@@ -252,7 +251,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
 
         $adminConfig['database'] = $adminDatabase;
 
-        $factory = $this->hypervel->make(ConnectionFactory::class);
+        $factory = $this->hypervel->make('db.factory');
         $adminConnection = $factory->make($adminConfig, $connection->getName());
 
         try {

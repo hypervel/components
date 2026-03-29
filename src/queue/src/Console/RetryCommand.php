@@ -8,7 +8,6 @@ use __PHP_Incomplete_Class;
 use DateTimeInterface;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use RuntimeException;
@@ -51,7 +50,7 @@ class RetryCommand extends Command
             if (is_null($job)) {
                 $this->components->error("Unable to find failed job with ID [{$id}].");
             } else {
-                $this->hypervel->make(Dispatcher::class)->dispatch(new JobRetryRequested($job));
+                $this->hypervel['events']->dispatch(new JobRetryRequested($job));
 
                 $this->components->task($id, fn () => $this->retryJob($job));
 

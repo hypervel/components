@@ -69,7 +69,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = new Application();
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
-        $this->app->singleton(DatabaseManager::class, fn () => $this->getMockedDatabase());
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -89,7 +89,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = new Application();
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
-        $this->app->singleton(DatabaseManager::class, fn () => $this->getMockedDatabase());
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -109,7 +109,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = new Application();
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
-        $this->app->singleton(DatabaseManager::class, fn () => $this->getMockedDatabase());
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -129,7 +129,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = new Application();
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
-        $this->app->singleton(DatabaseManager::class, fn () => $this->getMockedDatabase());
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -149,7 +149,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = new Application();
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
-        $this->app->singleton(DatabaseManager::class, fn () => $this->getMockedDatabase());
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }

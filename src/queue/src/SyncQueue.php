@@ -8,7 +8,6 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -135,8 +134,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseBeforeJobEvent(JobContract $job): void
     {
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)
+        if ($this->container->bound('events')) {
+            $this->container['events']
                 ->dispatch(new JobProcessing($this->connectionName, $job));
         }
     }
@@ -146,8 +145,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseAfterJobEvent(JobContract $job): void
     {
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)
+        if ($this->container->bound('events')) {
+            $this->container['events']
                 ->dispatch(new JobProcessed($this->connectionName, $job));
         }
     }
@@ -157,8 +156,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null): void
     {
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)
+        if ($this->container->bound('events')) {
+            $this->container['events']
                 ->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred));
         }
     }
@@ -168,8 +167,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseExceptionOccurredJobEvent(JobContract $job, Throwable $e): void
     {
-        if ($this->container->has(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)
+        if ($this->container->bound('events')) {
+            $this->container['events']
                 ->dispatch(new JobExceptionOccurred($this->connectionName, $job, $e));
         }
     }

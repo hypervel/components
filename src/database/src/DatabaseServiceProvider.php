@@ -48,23 +48,23 @@ class DatabaseServiceProvider extends ServiceProvider
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
-            $migrations = $app->make('config')->get('database.migrations', 'migrations');
+            $migrations = $app['config']['database.migrations'];
 
             $table = is_array($migrations)
                 ? ($migrations['table'] ?? 'migrations')
                 : $migrations;
 
             return new DatabaseMigrationRepository(
-                $app->make('db'),
+                $app['db'],
                 $table,
             );
         });
 
         $this->app->singleton('migrator', function ($app) {
             return new Migrator(
-                $app->make('migration.repository'),
-                $app->make('db'),
-                $app->make('files'),
+                $app['migration.repository'],
+                $app['db'],
+                $app['files'],
             );
         });
 
@@ -100,8 +100,12 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     protected function registerConnectionServices(): void
     {
+        $this->app->singleton('db.factory', function ($app) {
+            return new ConnectionFactory($app);
+        });
+
         $this->app->singleton('db', function ($app) {
-            return new DatabaseManager($app, $app->make(ConnectionFactory::class));
+            return new DatabaseManager($app, $app['db.factory']);
         });
 
         $this->app->singleton('db.schema', function () {
@@ -135,7 +139,7 @@ class DatabaseServiceProvider extends ServiceProvider
         }
 
         $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
-            $locale = $parameters['locale'] ?? $app->make('config')->get('app.faker_locale', 'en_US');
+            $locale = $parameters['locale'] ?? $app['config']->get('app.faker_locale', 'en_US');
 
             return FakerFactory::create($locale);
         });
@@ -146,10 +150,10 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Model::setConnectionResolver($this->app->make('db'));
+        Model::setConnectionResolver($this->app['db']);
         Model::setEventDispatcher($this->app['events']);
 
-        $events = $this->app->make('events');
+        $events = $this->app['events'];
 
         $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
             $this->app->make(UnsetContextInTaskWorkerListener::class)->handle($event);

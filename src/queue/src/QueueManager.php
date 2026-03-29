@@ -8,7 +8,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
@@ -58,7 +57,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -67,7 +66,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -76,7 +75,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -85,7 +84,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -94,7 +93,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -103,7 +102,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function starting(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\WorkerStarting::class, $callback);
     }
 
@@ -112,7 +111,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app->make(Dispatcher::class)
+        $this->app['events']
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -135,7 +134,7 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->forever("hypervel:queue:paused:{$connection}:{$queue}", true);
 
-        $this->app->make(Dispatcher::class)->dispatch(
+        $this->app['events']->dispatch(
             new Events\QueuePaused($connection, $queue)
         );
     }
@@ -149,7 +148,7 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->put("hypervel:queue:paused:{$connection}:{$queue}", true, $ttl);
 
-        $this->app->make(Dispatcher::class)->dispatch(
+        $this->app['events']->dispatch(
             new Events\QueuePaused($connection, $queue, $ttl)
         );
     }
@@ -163,7 +162,7 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->forget("hypervel:queue:paused:{$connection}:{$queue}");
 
-        $this->app->make(Dispatcher::class)->dispatch(
+        $this->app['events']->dispatch(
             new Events\QueueResumed($connection, $queue)
         );
     }

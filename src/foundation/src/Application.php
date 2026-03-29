@@ -1190,11 +1190,17 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register the core class aliases in the container.
      *
-     * The key is the abstract (a resolvable FQCN), and the values are aliases
-     * that should resolve to it. This direction is important: aliases point TO
-     * the FQCN, so resolving an alias follows through to a real class. The
-     * reversed direction (short name as key) would require service provider
-     * bindings for each short name, which don't exist yet.
+     * Keys are canonical string binding names (matching Laravel). Values are
+     * class/interface aliases that resolve to the same binding. When code calls
+     * make(SomeClass::class), getAlias() maps it to the string key, which
+     * finds the service provider's binding.
+     *
+     * IMPORTANT: When a service has a string binding (via singleton/bind in a
+     * service provider), its concrete and contract classes MUST be listed here
+     * as aliases. Hypervel's container auto-singletons unbound concrete classes
+     * — if a class isn't aliased to its string key, make(Class::class) bypasses
+     * the string binding and creates a separate cached instance, resulting in
+     * two instances of the same service in the container.
      */
     protected function registerCoreContainerAliases(): void
     {
@@ -1242,6 +1248,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Database\DatabaseManager::class,
                 \Hypervel\Database\ConnectionResolverInterface::class,
             ],
+            'db.factory' => [\Hypervel\Database\Connectors\ConnectionFactory::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
             'encrypter' => [

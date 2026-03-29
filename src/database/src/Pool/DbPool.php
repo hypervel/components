@@ -6,7 +6,6 @@ namespace Hypervel\Database\Pool;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
-use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
@@ -95,7 +94,7 @@ class DbPool extends Pool
      */
     protected function createSharedInMemorySqlitePdo(): PDO
     {
-        $factory = $this->container->make(ConnectionFactory::class);
+        $factory = $this->container->make('db.factory');
         $connection = $factory->make($this->config, $this->name);
 
         return $connection->getPdo();

@@ -62,6 +62,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch')->times(4);
+        $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
 
@@ -79,7 +80,9 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue();
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $container->instance(EventDispatcher::class, new EventsDispatcher($container));
+        $events = new EventsDispatcher($container);
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
         $container->instance(DispatcherContract::class, new BusDispatcher($container));
         $sync->setContainer($container);
 
@@ -101,6 +104,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch');
+        $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);

@@ -7,7 +7,6 @@ namespace Hypervel\Queue;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
-use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\Connectors\BackgroundConnector;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
@@ -201,7 +200,7 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerDatabaseConnector(QueueManager $manager): void
     {
         $manager->addConnector('database', fn () => new DatabaseConnector(
-            $this->app->make('db'),
+            $this->app['db'],
         ));
     }
 
@@ -211,7 +210,7 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerRedisConnector(QueueManager $manager): void
     {
         $manager->addConnector('redis', fn () => new RedisConnector(
-            $this->app->make(Redis::class),
+            $this->app['redis'],
         ));
     }
 
@@ -286,7 +285,7 @@ class QueueServiceProvider extends ServiceProvider
 
             if (isset($config['driver']) && $config['driver'] === 'database-uuids') {
                 return new DatabaseUuidFailedJobProvider(
-                    $app->make('db'),
+                    $app['db'],
                     $config['table'],
                     $config['database'],
                 );
@@ -294,7 +293,7 @@ class QueueServiceProvider extends ServiceProvider
 
             if (isset($config['table'])) {
                 return new DatabaseFailedJobProvider(
-                    $app->make('db'),
+                    $app['db'],
                     $config['table'],
                     $config['database'],
                 );

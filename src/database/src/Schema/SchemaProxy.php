@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Container\Container;
-use Hypervel\Database\DatabaseManager;
 
 /**
  * @mixin Builder
@@ -26,7 +25,7 @@ class SchemaProxy
     public function connection(?string $name = null): Builder
     {
         return Container::getInstance()
-            ->make(DatabaseManager::class)
+            ->make('db')
             ->connection($name)
             ->getSchemaBuilder();
     }

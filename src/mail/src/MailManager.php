@@ -8,10 +8,8 @@ use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\LogTransport;
@@ -128,11 +126,11 @@ class MailManager implements FactoryContract
             $name,
             $this->app['view'],
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
-            $this->app->make(Dispatcher::class)
+            $this->app['events']
         );
 
-        if ($this->app->has(QueueFactory::class)) {
-            $mailer->setQueue($this->app->make(QueueFactory::class));
+        if ($this->app->bound('queue')) {
+            $mailer->setQueue($this->app['queue']);
         }
 
         // Next we will set all of the global addresses on this mailer, which allows
@@ -156,11 +154,11 @@ class MailManager implements FactoryContract
             $config['name'] ?? 'ondemand',
             $this->app['view'],
             $this->createSymfonyTransport($config),
-            $this->app->make(Dispatcher::class)
+            $this->app['events']
         );
 
-        if ($this->app->has(QueueFactory::class)) {
-            $mailer->setQueue($this->app->make(QueueFactory::class));
+        if ($this->app->bound('queue')) {
+            $mailer->setQueue($this->app['queue']);
         }
 
         return $mailer;

@@ -67,7 +67,7 @@ class RefreshCommand extends Command
         ]));
 
         if ($this->hypervel->bound(Dispatcher::class)) {
-            $this->hypervel->make(Dispatcher::class)->dispatch(
+            $this->hypervel[Dispatcher::class]->dispatch(
                 new DatabaseRefreshed($database, $this->needsSeeding())
             );
         }

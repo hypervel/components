@@ -45,7 +45,7 @@ class ValidationServiceProvider extends ServiceProvider
     protected function registerPresenceVerifier(): void
     {
         $this->app->singleton('validation.presence', function ($app) {
-            return new DatabasePresenceVerifier($app->make('db'));
+            return new DatabasePresenceVerifier($app['db']);
         });
     }
 

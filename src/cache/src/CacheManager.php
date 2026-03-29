@@ -10,9 +10,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
-use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Contracts\Session\Session;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use Mockery;
@@ -151,7 +149,7 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connectionResolver = $this->app->make('db');
+        $connectionResolver = $this->app['db'];
 
         $store = new DatabaseStore(
             $connectionResolver,
@@ -190,7 +188,7 @@ class CacheManager implements FactoryContract
     {
         return $this->repository(
             (new FileStore(
-                $this->app->make(Filesystem::class),
+                $this->app['files'],
                 $config['path'],
                 $config['permission'] ?? null,
                 $this->getSerializableClasses($config),
@@ -213,7 +211,7 @@ class CacheManager implements FactoryContract
      */
     protected function createRedisDriver(array $config): Repository
     {
-        $redis = $this->app->make(Redis::class);
+        $redis = $this->app['redis'];
 
         $connection = $config['connection'] ?? 'default';
 
@@ -311,12 +309,12 @@ class CacheManager implements FactoryContract
      */
     protected function setEventDispatcher(Repository $repository): void
     {
-        if (! $this->app->has(DispatcherContract::class)) {
+        if (! $this->app->bound(DispatcherContract::class)) {
             return;
         }
 
         $repository->setEventDispatcher(
-            $this->app->make(DispatcherContract::class)
+            $this->app[DispatcherContract::class]
         );
     }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Log;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -95,7 +94,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             $monolog,
-            $this->app->make(Dispatcher::class)
+            $this->app['events']
         );
     }
 
@@ -122,7 +121,7 @@ class LogManager implements LoggerInterface
     {
         try {
             return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                $loggerWithContext = $this->tap($name, new Logger($logger, $this->app->make(Dispatcher::class)));
+                $loggerWithContext = $this->tap($name, new Logger($logger, $this->app['events']));
 
                 $underlyingLogger = $loggerWithContext->getLogger();
 
@@ -181,7 +180,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app->make(Dispatcher::class)
+            $this->app['events']
         );
     }
 

@@ -56,6 +56,7 @@ class QueueDeferredQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->times(4);
+        $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $deferred->setContainer($container);
 

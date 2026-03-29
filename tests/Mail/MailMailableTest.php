@@ -1202,7 +1202,7 @@ class MailMailableTest extends TestCase
             ->andReturn('');
 
         $this->app->singleton('mail.manager', fn ($app) => new MailManager($app));
-        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance('view', m::mock(ViewFactory::class));
         $this->app->instance('mailer', $mailer);
     }
 

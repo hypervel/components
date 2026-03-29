@@ -339,7 +339,7 @@ class MailMailerTest extends TestCase
 
     protected function mockContainer(): void
     {
-        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
     protected function mockView()

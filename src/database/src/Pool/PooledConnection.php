@@ -46,7 +46,7 @@ class PooledConnection implements PoolConnectionInterface
         protected DbPool $pool,
         protected array $config
     ) {
-        $this->factory = $container->make(ConnectionFactory::class);
+        $this->factory = $container->make('db.factory');
         $this->logger = $container->make(StdoutLoggerInterface::class);
 
         if ($container->has(Dispatcher::class)) {

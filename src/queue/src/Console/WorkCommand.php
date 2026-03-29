@@ -8,7 +8,6 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -168,20 +167,19 @@ class WorkCommand extends Command
             return;
         }
 
-        $event = $this->container->make(Dispatcher::class);
-        $event->listen(JobProcessing::class, function ($event) {
+        $this->hypervel['events']->listen(JobProcessing::class, function ($event) {
             $this->writeOutput($event->job, 'starting');
         });
 
-        $event->listen(JobProcessed::class, function ($event) {
+        $this->hypervel['events']->listen(JobProcessed::class, function ($event) {
             $this->writeOutput($event->job, 'success');
         });
 
-        $event->listen(JobReleasedAfterException::class, function ($event) {
+        $this->hypervel['events']->listen(JobReleasedAfterException::class, function ($event) {
             $this->writeOutput($event->job, 'released_after_exception');
         });
 
-        $event->listen(JobFailed::class, function ($event) {
+        $this->hypervel['events']->listen(JobFailed::class, function ($event) {
             $this->writeOutput($event->job, 'failed', $event->exception);
 
             $this->logFailedJob($event);

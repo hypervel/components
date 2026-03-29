@@ -519,7 +519,7 @@ class CacheManagerTest extends TestCase
         // Mock RedisFactory
         $redisFactory = m::mock(RedisFactory::class);
 
-        $app->instance(RedisFactory::class, $redisFactory);
+        $app->instance('redis', $redisFactory);
         $app->instance(PoolFactory::class, $poolFactory);
 
         Container::setInstance($app);

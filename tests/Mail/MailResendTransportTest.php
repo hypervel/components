@@ -25,7 +25,7 @@ class MailResendTransportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
     public function testGetTransport()

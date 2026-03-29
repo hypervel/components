@@ -231,7 +231,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
                     ],
                 ],
             ]),
-            ConnectionFactory::class => $factory,
+            'db.factory' => $factory,
         ]);
         $command = new TestableMigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
         $command->probeMode = 'mysql';
