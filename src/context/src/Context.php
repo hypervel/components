@@ -154,7 +154,9 @@ class Context
             $map[self::PROPAGATED_CONTEXT_KEY] = $map[self::PROPAGATED_CONTEXT_KEY]->replicate();
         }
 
-        $current->exchangeArray($map);
+        foreach ($map as $key => $value) {
+            $current[$key] = $value;
+        }
     }
 
     /**

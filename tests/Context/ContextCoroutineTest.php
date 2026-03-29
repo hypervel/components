@@ -47,8 +47,8 @@ class ContextCoroutineTest extends TestCase
                 Context::copy($id, ['test.store.id']);
                 $this->assertSame($uid, Context::get('test.store.id'));
 
-                // Context::copy will delete origin values.
-                $this->assertNull(Context::get('test.store.name'));
+                // Context::copy merges — existing values are preserved.
+                $this->assertSame('Hypervel', Context::get('test.store.name'));
             },
         ]);
     }
