@@ -43,7 +43,7 @@ class ContextTest extends TestCase
     /**
      * @covers ::copyFromNonCoroutine
      */
-    public function testCopyFromNonCoroutineWithSpecificKeys()
+    public function testCopyFromNonCoroutineCopiesAllKeys()
     {
         Context::set('foo', 'foo');
         Context::set('bar', 'bar');
@@ -53,6 +53,49 @@ class ContextTest extends TestCase
                 Context::copyFromNonCoroutine();
                 $this->assertSame('foo', Context::get('foo'));
                 $this->assertSame('bar', Context::get('bar'));
+            });
+        });
+    }
+
+    /**
+     * @covers ::copyFromNonCoroutine
+     */
+    public function testCopyFromNonCoroutinePreservesExistingCoroutineValues()
+    {
+        Context::set('from_non_co', 'copied');
+
+        run(function () {
+            Coroutine::create(function () {
+                // Set a value in the coroutine before copying
+                Context::set('existing', 'should_survive');
+
+                Context::copyFromNonCoroutine();
+
+                // Copied value is present
+                $this->assertSame('copied', Context::get('from_non_co'));
+                // Pre-existing coroutine value is preserved
+                $this->assertSame('should_survive', Context::get('existing'));
+            });
+        });
+    }
+
+    /**
+     * @covers ::copyFromNonCoroutine
+     */
+    public function testCopyFromNonCoroutineWithSelectiveKeysPreservesExisting()
+    {
+        Context::set('wanted', 'yes');
+        Context::set('unwanted', 'no');
+
+        run(function () {
+            Coroutine::create(function () {
+                Context::set('existing', 'kept');
+
+                Context::copyFromNonCoroutine(['wanted']);
+
+                $this->assertSame('yes', Context::get('wanted'));
+                $this->assertNull(Context::get('unwanted'));
+                $this->assertSame('kept', Context::get('existing'));
             });
         });
     }

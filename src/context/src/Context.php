@@ -206,6 +206,9 @@ class Context
 
     /**
      * Copy context data from non-coroutine context to the specified coroutine context.
+     *
+     * Merges into the target coroutine's context — existing values that are
+     * not in the source are preserved. Matching keys are overwritten.
      */
     public static function copyFromNonCoroutine(array $keys = [], ?int $coroutineId = null): void
     {
@@ -227,7 +230,9 @@ class Context
             $map[self::PROPAGATED_CONTEXT_KEY] = $map[self::PROPAGATED_CONTEXT_KEY]->replicate();
         }
 
-        $context->exchangeArray($map);
+        foreach ($map as $key => $value) {
+            $context[$key] = $value;
+        }
     }
 
     /**
