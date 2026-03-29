@@ -128,10 +128,16 @@ trait InteractsWithRedis
 
     /**
      * Get the base Redis DB number from environment.
+     *
+     * Reads from env directly (not config) because configureParallelRedisDb()
+     * mutates the config value — reading config here would cause the DB number
+     * to drift upward across tests in the same worker.
+     *
+     * Default matches database.php: env('REDIS_DB', 0).
      */
     protected function getBaseRedisDb(): int
     {
-        return (int) env('REDIS_DB', 1);
+        return (int) env('REDIS_DB', 0);
     }
 
     /**

@@ -21,8 +21,8 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testGetBaseRedisDbReturnsEnvValue()
     {
-        // REDIS_DB is set to 1 in .env
-        $this->assertSame((int) env('REDIS_DB', 1), $this->getBaseRedisDb());
+        // Default matches database.php: env('REDIS_DB', 0)
+        $this->assertSame((int) env('REDIS_DB', 0), $this->getBaseRedisDb());
     }
 
     public function testGetParallelRedisDbReturnsBaseWhenNoToken()
