@@ -12,7 +12,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
-use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\LogTransport;
@@ -127,7 +126,7 @@ class MailManager implements FactoryContract
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app->make(ViewFactoryContract::class),
+            $this->app['view'],
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
             $this->app->make(Dispatcher::class)
         );
@@ -155,7 +154,7 @@ class MailManager implements FactoryContract
     {
         $mailer = new Mailer(
             $config['name'] ?? 'ondemand',
-            $this->app->make(ViewFactoryContract::class),
+            $this->app['view'],
             $this->createSymfonyTransport($config),
             $this->app->make(Dispatcher::class)
         );

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Contracts\Session\Session;
 use Hypervel\Session\CacheBasedSessionHandler;
 use Hypervel\Support\Facades\Session as SessionFacade;
 use Hypervel\Testbench\TestCase;
@@ -19,7 +18,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->withSession(['foo' => 'bar', 'baz' => 'qux']);
 
-        $session = $this->app->make(Session::class);
+        $session = $this->app->make('session');
 
         $this->assertTrue($session->has('foo'));
         $this->assertSame('bar', $session->get('foo'));
@@ -42,7 +41,7 @@ class InteractsWithSessionTest extends TestCase
 
         $this->withSession(['cache_test' => 'value']);
 
-        $session = $this->app->make(Session::class);
+        $session = $this->app->make('session');
 
         $this->assertTrue($session->has('cache_test'));
         $this->assertSame('value', $session->get('cache_test'));
@@ -52,7 +51,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->session(['key' => 'value']);
 
-        $session = $this->app->make(Session::class);
+        $session = $this->app->make('session');
 
         $this->assertTrue($session->has('key'));
         $this->assertSame('value', $session->get('key'));
@@ -62,7 +61,7 @@ class InteractsWithSessionTest extends TestCase
     {
         $this->withSession(['foo' => 'bar', 'baz' => 'qux']);
 
-        $session = $this->app->make(Session::class);
+        $session = $this->app->make('session');
         $this->assertTrue($session->has('foo'));
 
         $this->flushSession();

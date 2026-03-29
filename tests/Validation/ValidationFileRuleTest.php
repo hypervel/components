@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
@@ -61,7 +60,7 @@ class ValidationFileRuleTest extends TestCase
 
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->make(TranslatorContract::class),
+                $this->app->make('translator'),
                 ['my_file' => $value],
                 ['my_file' => is_object($rule) ? clone $rule : $rule]
             );

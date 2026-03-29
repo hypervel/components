@@ -20,7 +20,7 @@ use Hypervel\Contracts\Cache\InvalidArgumentException;
  */
 function cache($key = null, $default = null)
 {
-    $manager = Container::getInstance()->make(CacheManager::class);
+    $manager = Container::getInstance()->make('cache');
 
     if (is_null($key)) {
         return $manager;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
@@ -281,7 +280,7 @@ class QueueServiceProvider extends ServiceProvider
                 return new FileFailedJobProvider(
                     $config['path'] ?? $app->basePath('storage/framework/cache/failed-jobs.json'),
                     $config['limit'] ?? 100,
-                    fn () => $app->make(CacheFactoryContract::class)->store('file'),
+                    fn () => $app['cache']->store('file'),
                 );
             }
 

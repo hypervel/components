@@ -11,7 +11,6 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -358,10 +357,10 @@ abstract class Queue
      */
     protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(Dispatcher::class)) {
+        if ($this->container->bound('events')) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->make(Dispatcher::class)
+            $this->container['events']
                 ->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
         }
     }
@@ -373,10 +372,10 @@ abstract class Queue
      */
     protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(Dispatcher::class)) {
+        if ($this->container->bound('events')) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->make(Dispatcher::class)
+            $this->container['events']
                 ->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
     }

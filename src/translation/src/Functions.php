@@ -18,7 +18,7 @@ function __(?string $key = null, array $replace = [], ?string $locale = null): a
     }
 
     return Container::getInstance()
-        ->make(TranslatorContract::class)
+        ->make('translator')
         ->get($key, $replace, $locale);
 }
 
@@ -31,11 +31,11 @@ function trans(?string $key = null, array $replace = [], ?string $locale = null)
 {
     if (is_null($key)) {
         return Container::getInstance()
-            ->make(TranslatorContract::class);
+            ->make('translator');
     }
 
     return Container::getInstance()
-        ->make(TranslatorContract::class)
+        ->make('translator')
         ->get($key, $replace, $locale);
 }
 
@@ -45,6 +45,6 @@ function trans(?string $key = null, array $replace = [], ?string $locale = null)
 function trans_choice(string $key, array|Countable|float|int $number, array $replace = [], ?string $locale = null): string
 {
     return Container::getInstance()
-        ->make(TranslatorContract::class)
+        ->make('translator')
         ->choice($key, $number, $replace, $locale);
 }

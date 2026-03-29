@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -82,7 +81,7 @@ class ActingAsTest extends TestCase
 
         Sanctum::actingAs($user, ['read'], 'api');
 
-        $this->assertSame($user, $this->app->make(AuthFactoryContract::class)->guard('api')->user());
+        $this->assertSame($user, $this->app->make('auth')->guard('api')->user());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void

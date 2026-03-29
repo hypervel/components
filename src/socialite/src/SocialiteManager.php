@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\FacebookProvider;
@@ -234,7 +233,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
         $redirect = value($config['redirect']);
 
         return Str::startsWith($redirect ?? '', '/')
-            ? $this->container->make(UrlGeneratorContract::class)->to($redirect)
+            ? $this->container->make('url')->to($redirect)
             : $redirect;
     }
 

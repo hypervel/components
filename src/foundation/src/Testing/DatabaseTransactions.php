@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Database\Connection as DatabaseConnection;
-use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 
@@ -65,7 +64,7 @@ trait DatabaseTransactions
      */
     protected function beginDatabaseTransactionWork(): void
     {
-        $database = $this->app->make(DatabaseManager::class);
+        $database = $this->app->make('db');
         $connections = $this->connectionsToTransact();
 
         // Create a testing-aware transaction manager that properly handles afterCommit callbacks
@@ -96,7 +95,7 @@ trait DatabaseTransactions
      */
     protected function rollbackDatabaseTransactionWork(): void
     {
-        $database = $this->app->make(DatabaseManager::class);
+        $database = $this->app->make('db');
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);

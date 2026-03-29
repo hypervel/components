@@ -7,7 +7,6 @@ namespace Hypervel\Testing;
 use ArrayAccess;
 use BackedEnum;
 use Closure;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\MessageBag;
 use Hypervel\Contracts\View\View;
@@ -30,7 +29,6 @@ use Hypervel\Testing\Constraints\SeeInOrder;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponseAssert as PHPUnit;
 use LogicException;
-use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -1502,13 +1500,7 @@ class TestResponse implements ArrayAccess
      */
     protected function session(): SessionContract
     {
-        $container = Container::getInstance();
-
-        if (! $container->has(SessionContract::class)) {
-            throw new RuntimeException('Package `hypervel/session` is not installed.');
-        }
-
-        return $container->make(SessionContract::class);
+        return app('session.store');
     }
 
     /**

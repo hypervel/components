@@ -13,7 +13,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
-use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Grammar;
@@ -375,7 +374,7 @@ class FoundationServiceProvider extends ServiceProvider
     protected function registerUriUrlGeneration(): void
     {
         Uri::setUrlGeneratorResolver(
-            fn () => $this->app->make(UrlGeneratorContract::class)
+            fn () => app('url')
         );
     }
 

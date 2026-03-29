@@ -464,8 +464,8 @@ trait ValidatesAttributes
      */
     protected function validateCurrentPassword(string $attribute, mixed $value, mixed $parameters): bool
     {
-        $auth = $this->container->make(\Hypervel\Contracts\Auth\Factory::class);
-        $hasher = $this->container->make(\Hypervel\Contracts\Hashing\Hasher::class);
+        $auth = $this->container->make('auth');
+        $hasher = $this->container->make('hash');
 
         $guard = $auth->guard(array_first($parameters));
 

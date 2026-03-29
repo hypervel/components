@@ -8,7 +8,6 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\Batchable;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
@@ -59,7 +58,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public static function pushJobsDataProvider()
@@ -106,7 +105,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->later(10, 'foo', ['data']);
 
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public function testPushIncludesBatchIdInPayloadForBatchableJob()
@@ -136,7 +135,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public function testFailureToCreatePayloadFromObject()

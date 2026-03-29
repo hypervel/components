@@ -17,7 +17,7 @@ use RuntimeException;
  */
 function session(array|string|null $key = null, mixed $default = null): mixed
 {
-    $session = app(SessionContract::class);
+    $session = app('session');
 
     if (is_null($key)) {
         return $session;
@@ -37,12 +37,13 @@ function session(array|string|null $key = null, mixed $default = null): mixed
  */
 function csrf_token(): ?string
 {
-    if (! app()->has(SessionContract::class)) {
+    $session = app('session');
+
+    if (! isset($session)) {
         throw new RuntimeException('Application session store not set.');
     }
 
-    return app()->get(SessionContract::class)
-        ->token();
+    return $session->token();
 }
 
 /**

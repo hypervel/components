@@ -357,8 +357,8 @@ class RedisQueueTest extends TestCase
         })->andReturnNull()->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(Dispatcher::class)->andReturn(true)->twice();
-        $container->shouldReceive('make')->with(Dispatcher::class)->andReturn($events)->twice();
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->twice();
+        $container->shouldReceive('offsetGet')->with('events')->andReturn($events)->twice();
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->app['config']->get('queue.connections.redis.queue'));
         $queue->setContainer($container);
@@ -374,8 +374,8 @@ class RedisQueueTest extends TestCase
         $events->shouldReceive('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(Dispatcher::class)->andReturn(true)->times(6);
-        $container->shouldReceive('make')->with(Dispatcher::class)->andReturn($events)->times(6);
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->times(6);
+        $container->shouldReceive('offsetGet')->with('events')->andReturn($events)->times(6);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->app['config']->get('queue.connections.redis.queue'));
         $queue->setContainer($container);

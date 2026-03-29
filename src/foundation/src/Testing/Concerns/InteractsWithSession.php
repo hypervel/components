@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Contracts\Session\Session;
-
 trait InteractsWithSession
 {
     /**
@@ -26,7 +24,7 @@ trait InteractsWithSession
         $this->startSession();
 
         foreach ($data as $key => $value) {
-            $this->app->make(Session::class)->put($key, $value);
+            $this->app['session']->put($key, $value);
         }
 
         return $this;
@@ -37,17 +35,15 @@ trait InteractsWithSession
      */
     protected function startSession(): static
     {
-        $session = $this->app->make(Session::class);
-
-        if (! $session->isStarted()) {
+        if (! $this->app['session']->isStarted()) {
             // Ensure a session ID exists before starting. In production, the
             // StartSession middleware sets the ID from the request cookie.
             // In tests, we generate one if none exists.
-            if ($session->getId() === null) {
-                $session->setId(null);
+            if ($this->app['session']->getId() === null) {
+                $this->app['session']->setId(null);
             }
 
-            $session->start();
+            $this->app['session']->start();
         }
 
         return $this;
@@ -60,7 +56,7 @@ trait InteractsWithSession
     {
         $this->startSession();
 
-        $this->app->make(Session::class)->flush();
+        $this->app['session']->flush();
 
         return $this;
     }

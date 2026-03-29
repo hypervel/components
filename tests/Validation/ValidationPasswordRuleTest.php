@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Testbench\TestCase;
@@ -243,7 +242,7 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
 
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['my_password' => 'Nuno'],
             ['my_password' => ['nullable', 'confirmed', Password::min(3)->letters()]]
         );
@@ -299,7 +298,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => '1234'],
             $rules
         );
@@ -307,7 +306,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v1 = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => '123412@45#341111'],
             $rules
         );
@@ -327,7 +326,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['my_password' => '1234'],
             $rules,
             $messages,
@@ -482,7 +481,7 @@ class ValidationPasswordRuleTest extends TestCase
     public function testRequiredWithMissingValue()
     {
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             [],
             ['password' => [Password::required()]]
         );
@@ -504,7 +503,7 @@ class ValidationPasswordRuleTest extends TestCase
     public function testNullableWithEmptyString()
     {
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => ''],
             ['password' => ['nullable', Password::min(8)->letters()->numbers()]]
         );
@@ -512,7 +511,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertTrue($v->passes());
 
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => null],
             ['password' => ['nullable', Password::min(8)->letters()->numbers()]]
         );
@@ -520,7 +519,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertTrue($v->passes());
 
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => ''],
             ['password' => ['nullable', Password::sometimes()->min(8)->letters()->numbers()]]
         );
@@ -548,7 +547,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->make(TranslatorContract::class),
+                $this->app->make('translator'),
                 ['my_password' => $value, 'my_password_confirmation' => $value],
                 ['my_password' => is_object($rule) ? clone $rule : $rule]
             );

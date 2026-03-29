@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Support\Carbon;
@@ -55,7 +54,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->push('foo', ['data'], 'stack');
         $this->queue->push('foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
+        $this->container->shouldHaveReceived('bound')->with('events')->times(4);
     }
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd()
@@ -76,7 +75,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->later(5, 'foo', ['data'], 'stack');
         $this->queue->later(5, 'foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
+        $this->container->shouldHaveReceived('bound')->with('events')->times(4);
     }
 
     public function testPopProperlyPopsJobOffOfBeanstalkd()

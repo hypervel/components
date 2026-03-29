@@ -1308,8 +1308,8 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('make')->with('auth')->andReturn($auth);
+        $container->shouldReceive('make')->with('hash')->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1332,8 +1332,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(false);
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('make')->with('auth')->andReturn($auth);
+        $container->shouldReceive('make')->with('hash')->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1356,8 +1356,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('make')->with('auth')->andReturn($auth);
+        $container->shouldReceive('make')->with('hash')->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1380,8 +1380,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
-        $container->shouldReceive('make')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('make')->with('auth')->andReturn($auth);
+        $container->shouldReceive('make')->with('hash')->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);

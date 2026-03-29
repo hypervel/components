@@ -253,7 +253,7 @@ class BroadcastManagerTest extends TestCase
                 'driver' => 'redis',
             ])->getMock()
         );
-        $app->shouldReceive('make')->with(\Hypervel\Contracts\Redis\Factory::class)
+        $app->shouldReceive('make')->with('redis')
             ->andThrow(new Exception('Redis unavailable.'));
 
         $broadcastManager = new BroadcastManager($app);

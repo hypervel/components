@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
-use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -60,7 +59,7 @@ trait RefreshDatabase
      */
     protected function restoreInMemoryDatabase(): void
     {
-        $database = $this->app->make(DatabaseManager::class);
+        $database = $this->app->make('db');
 
         foreach ($this->connectionsToTransact() as $name) {
             if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
@@ -152,7 +151,7 @@ trait RefreshDatabase
      */
     protected function beginDatabaseTransactionWork(): void
     {
-        $database = $this->app->make(DatabaseManager::class);
+        $database = $this->app->make('db');
         $connections = $this->connectionsToTransact();
 
         // Create a testing-aware transaction manager that properly handles afterCommit callbacks
@@ -187,7 +186,7 @@ trait RefreshDatabase
      */
     protected function rollbackDatabaseTransactionWork(): void
     {
-        $database = $this->app->make(DatabaseManager::class);
+        $database = $this->app->make('db');
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);
@@ -216,7 +215,7 @@ trait RefreshDatabase
      */
     protected function withoutModelEvents(callable $callback, ?string $connection = null): void
     {
-        $connection = $this->app->make(DatabaseManager::class)
+        $connection = $this->app->make('db')
             ->connection($connection);
         $dispatcher = $connection->getEventDispatcher();
 

@@ -86,7 +86,7 @@ class ValidationRuleCanTest extends TestCase
     public function testCustomMessageUsingDotNotationAndFqcnWorks()
     {
         $v = new Validator(
-            $this->app->make(TranslatorContract::class),
+            $this->app->make('translator'),
             [
                 'company' => '1',
                 'company_fqcn' => '1',

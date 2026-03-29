@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
@@ -39,7 +38,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public function testPushProperlyPushesJobOntoRedisWithCustomPayloadHook()
@@ -62,7 +61,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
 
         Queue::createPayloadUsing(null);
     }
@@ -91,7 +90,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
 
         Queue::createPayloadUsing(null);
     }
@@ -120,7 +119,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->later(1, 'foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis()
@@ -147,7 +146,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
         $queue->later($date->addSeconds(5), 'foo', ['data']);
-        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     protected function mockUuid(): Uuid
