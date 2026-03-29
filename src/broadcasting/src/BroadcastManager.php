@@ -427,7 +427,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->make('config')->get("broadcasting.connections.{$name}");
+            return $this->app['config']["broadcasting.connections.{$name}"];
         }
 
         return ['driver' => 'null'];
@@ -438,7 +438,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->make('config')->get('broadcasting.default');
+        return $this->app['config']['broadcasting.default'];
     }
 
     /**
@@ -446,7 +446,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->make('config')->set('broadcasting.default', $name);
+        $this->app['config']['broadcasting.default'] = $name;
     }
 
     /**

@@ -7,7 +7,6 @@ namespace Hypervel\Queue\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Contracts\Queue\ClearableQueue;
-use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -39,14 +38,14 @@ class ClearCommand extends Command
         }
 
         $connection = $this->argument('connection')
-            ?: $this->hypervel->make('config')->get('queue.default');
+            ?: $this->hypervel['config']['queue.default'];
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
         // connection being run for the queue operation currently being executed.
         $queueName = $this->getQueue($connection);
 
-        $queue = $this->hypervel->make(FactoryContract::class)->connection($connection);
+        $queue = $this->hypervel['queue']->connection($connection);
 
         if ($queue instanceof ClearableQueue) {
             $count = $queue->clear($queueName);
@@ -66,7 +65,7 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->hypervel->make('config')->get(
+        return $this->option('queue') ?: $this->hypervel['config']->get(
             "queue.connections.{$connection}.queue",
             'default'
         );

@@ -14,14 +14,14 @@ class PaginationState
      */
     public static function resolveUsing(Container $app): void
     {
-        Paginator::viewFactoryResolver(fn () => $app->make('view'));
+        Paginator::viewFactoryResolver(fn () => $app['view']);
 
         Paginator::currentPathResolver(function () use ($app): string {
             if (! RequestContext::has()) {
                 return '/';
             }
 
-            return $app->make('request')->url();
+            return $app['request']->url();
         });
 
         Paginator::currentPageResolver(function (string $pageName = 'page') use ($app): int {
@@ -29,7 +29,7 @@ class PaginationState
                 return 1;
             }
 
-            $page = $app->make('request')->input($pageName);
+            $page = $app['request']->input($pageName);
 
             if (filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1) {
                 return (int) $page;
@@ -43,7 +43,7 @@ class PaginationState
                 return [];
             }
 
-            return $app->make('request')->query();
+            return $app['request']->query();
         });
 
         CursorPaginator::currentCursorResolver(function (string $cursorName = 'cursor') use ($app): ?Cursor {
@@ -51,7 +51,7 @@ class PaginationState
                 return null;
             }
 
-            return Cursor::fromEncoded($app->make('request')->input($cursorName));
+            return Cursor::fromEncoded($app['request']->input($cursorName));
         });
     }
 }

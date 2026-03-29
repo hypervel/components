@@ -124,7 +124,7 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $this->hypervel->make('queue')->connection($job->connection)->pushRaw(
+        $this->hypervel['queue']->connection($job->connection)->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),
             $job->queue
         );

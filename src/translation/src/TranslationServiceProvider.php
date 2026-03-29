@@ -16,14 +16,14 @@ class TranslationServiceProvider extends ServiceProvider
         $this->registerLoader();
 
         $this->app->singleton('translator', function ($app) {
-            $config = $app->make('config');
+            $loader = $app['translation.loader'];
 
             $trans = new Translator(
-                $app->make('translation.loader'),
-                $config->get('app.locale', 'en')
+                $loader,
+                $app['config']->get('app.locale', 'en')
             );
 
-            $trans->setFallback($config->get('app.fallback_locale', 'en'));
+            $trans->setFallback($app['config']->get('app.fallback_locale', 'en'));
 
             return $trans;
         });
@@ -36,7 +36,7 @@ class TranslationServiceProvider extends ServiceProvider
     {
         $this->app->singleton('translation.loader', function ($app) {
             return new FileLoader(
-                $app->make('files'),
+                $app['files'],
                 [
                     dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lang',
                     $app->langPath(),

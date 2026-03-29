@@ -171,7 +171,7 @@ abstract class Job implements JobContract
 
         if ($this->shouldRollBackDatabaseTransaction($e)) {
             $this->container->make('db')
-                ->connection($this->container->make('config')->get('queue.failed.database'))
+                ->connection($this->container['config']['queue.failed.database'])
                 ->rollBack(toLevel: 0);
         }
 
@@ -198,9 +198,9 @@ abstract class Job implements JobContract
     protected function shouldRollBackDatabaseTransaction(?Throwable $e): bool
     {
         return $e instanceof TimeoutExceededException
-            && $this->container->make('config')->get('queue.failed.database')
-            && in_array($this->container->make('config')->get('queue.failed.driver'), ['database', 'database-uuids'])
-            && $this->container->has('db');
+            && $this->container['config']['queue.failed.database']
+            && in_array($this->container['config']['queue.failed.driver'], ['database', 'database-uuids'])
+            && $this->container->bound('db');
     }
 
     /**

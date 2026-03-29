@@ -34,7 +34,7 @@ class TableCommand extends MigrationGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return $this->hypervel->make('config')->get('queue.connections.database.table');
+        return $this->hypervel['config']['queue.connections.database.table'];
     }
 
     /**

@@ -67,10 +67,9 @@ class DbCommand extends Command
      */
     public function getConnection(): array
     {
-        $connection = $this->hypervel->make('config')->get(
-            'database.connections.'
-            . (($db = $this->argument('connection')) ?? $this->hypervel->make('config')->get('database.default'))
-        );
+        $connection = $this->hypervel['config']['database.connections.'
+            . (($db = $this->argument('connection')) ?? $this->hypervel['config']['database.default'])
+        ];
 
         if (empty($connection)) {
             throw new UnexpectedValueException("Invalid database connection [{$db}].");

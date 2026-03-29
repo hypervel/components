@@ -130,7 +130,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function pause(string $connection, string $queue): void
     {
-        $this->app->make('cache')
+        $this->app['cache']
             ->store()
             ->forever("hypervel:queue:paused:{$connection}:{$queue}", true);
 
@@ -144,7 +144,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
     {
-        $this->app->make('cache')
+        $this->app['cache']
             ->store()
             ->put("hypervel:queue:paused:{$connection}:{$queue}", true, $ttl);
 
@@ -158,7 +158,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function resume(string $connection, string $queue): void
     {
-        $this->app->make('cache')
+        $this->app['cache']
             ->store()
             ->forget("hypervel:queue:paused:{$connection}:{$queue}");
 
@@ -172,7 +172,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function isPaused(string $connection, string $queue): bool
     {
-        return (bool) $this->app->make('cache')
+        return (bool) $this->app['cache']
             ->store()
             ->get("hypervel:queue:paused:{$connection}:{$queue}", false);
     }
@@ -277,7 +277,7 @@ class QueueManager implements FactoryContract, MonitorContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->make('config')->get("queue.connections.{$name}");
+            return $this->app['config']["queue.connections.{$name}"];
         }
 
         return ['driver' => 'null'];
@@ -288,7 +288,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->make('config')->get('queue.default');
+        return $this->app['config']['queue.default'];
     }
 
     /**
@@ -296,7 +296,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->make('config')->set('queue.default', $name);
+        $this->app['config']['queue.default'] = $name;
     }
 
     /**

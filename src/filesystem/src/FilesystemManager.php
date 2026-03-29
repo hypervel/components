@@ -442,8 +442,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->make('config')
-            ->get("filesystems.disks.{$name}", []);
+        return $this->app['config']["filesystems.disks.{$name}"] ?: [];
     }
 
     /**
@@ -451,8 +450,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->make('config')
-            ->get('filesystems.default');
+        return $this->app['config']['filesystems.default'];
     }
 
     /**
@@ -460,8 +458,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver(): string
     {
-        return $this->app->make('config')
-            ->get('filesystems.cloud', 's3');
+        return $this->app['config']['filesystems.cloud'] ?? 's3';
     }
 
     /**

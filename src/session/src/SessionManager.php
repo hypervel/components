@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 
@@ -68,7 +67,7 @@ class SessionManager extends Manager
         $lifetime = $this->config->get('session.lifetime');
 
         return $this->buildSession(new FileSessionHandler(
-            $this->container->make(Filesystem::class),
+            $this->container->make('files'),
             $this->config->get('session.files'),
             $lifetime
         ));

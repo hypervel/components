@@ -139,11 +139,16 @@ class BroadcastManagerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
 
-        $config = m::mock(Container::class);
-        $config->shouldReceive('get')->with('broadcasting.connections.alien_connection')->andReturn(null);
-
-        $app = m::mock(Container::class);
-        $app->shouldReceive('make')->with('config')->andReturn($config);
+        $app = new Container();
+        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'my_connection' => [
+                        'driver' => 'pusher',
+                    ],
+                ],
+            ],
+        ]));
 
         $broadcastManager = new BroadcastManager($app);
 
@@ -222,7 +227,17 @@ class BroadcastManagerTest extends TestCase
 
     public function testCustomDriverClosureBoundObjectIsBroadcastManager(): void
     {
-        $app = m::mock(Container::class);
+        $app = new Container();
+        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'test' => [
+                        'driver' => 'custom',
+                    ],
+                ],
+            ],
+        ]));
+
         $broadcastManager = new BroadcastManager($app);
 
         $boundInstance = null;
@@ -231,12 +246,6 @@ class BroadcastManagerTest extends TestCase
 
             return m::mock(\Hypervel\Contracts\Broadcasting\Broadcaster::class);
         });
-
-        $app->shouldReceive('make')->with('config')->andReturn(
-            m::mock()->shouldReceive('get')->with('broadcasting.connections.test')->andReturn([
-                'driver' => 'custom',
-            ])->getMock()
-        );
 
         $broadcastManager->connection('test');
         $this->assertSame($broadcastManager, $boundInstance);
@@ -247,14 +256,17 @@ class BroadcastManagerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
 
-        $app = m::mock(Container::class);
-        $app->shouldReceive('make')->with('config')->andReturn(
-            m::mock()->shouldReceive('get')->with('broadcasting.connections.failing')->andReturn([
-                'driver' => 'redis',
-            ])->getMock()
-        );
-        $app->shouldReceive('make')->with('redis')
-            ->andThrow(new Exception('Redis unavailable.'));
+        $app = new Container();
+        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'failing' => [
+                        'driver' => 'redis',
+                    ],
+                ],
+            ],
+        ]));
+        $app->singleton('redis', fn () => throw new Exception('Redis unavailable.'));
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->connection('failing');
