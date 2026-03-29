@@ -8,7 +8,6 @@ use Hypervel\Auth\GuardHelpers;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
@@ -78,7 +77,7 @@ class SanctumGuard implements GuardContract
         }
 
         // Check stateful guards first (like 'web')
-        $authFactory = $this->app->make(AuthFactory::class);
+        $authFactory = $this->app->make('auth');
         foreach (Arr::wrap(config('sanctum.guard', 'web')) as $guard) {
             if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
                 $user = $authFactory->guard($guard)->user();

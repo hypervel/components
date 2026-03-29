@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -50,8 +49,8 @@ class SanctumServiceProvider extends ServiceProvider
                     name: $name,
                     provider: $authManager->createUserProvider($config['provider'] ?? null),
                     app: $app,
-                    events: $app->has(Dispatcher::class) ? $app->make(Dispatcher::class) : null,
-                    expiration: $app->make('config')->get('sanctum.expiration'),
+                    events: $app->has('events') ? $app['events'] : null,
+                    expiration: $app['config']->get('sanctum.expiration'),
                 );
             });
         });

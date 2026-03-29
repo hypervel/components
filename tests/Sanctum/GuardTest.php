@@ -279,6 +279,7 @@ class GuardTest extends TestCase
                 return $realDispatcher->dispatch($event);
             });
 
+        $this->app->instance('events', $events);
         $this->app->instance(Dispatcher::class, $events);
 
         [$user, $token, $plainToken] = $this->createUserWithToken();
