@@ -18,6 +18,19 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use stdClass;
 
+/**
+ * Sanctum authentication guard.
+ *
+ * Implements GuardContract directly instead of using Laravel's RequestGuard
+ * wrapper. This is intentional: RequestGuard stores user state on $this->user
+ * which is process-global and unsafe under Swoole. This guard uses coroutine
+ * Context for per-request user caching, keyed by token fingerprint.
+ *
+ * Token lookup and tokenable resolution are delegated to PersonalAccessToken,
+ * which owns all cache logic (token caching, tokenable caching, last_used_at
+ * write throttling). This keeps caching co-located with the model rather than
+ * split across the guard and model.
+ */
 class SanctumGuard implements GuardContract
 {
     use GuardHelpers;
