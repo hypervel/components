@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 
 use function Hypervel\Prompts\spin;
 
@@ -14,7 +13,6 @@ use function Hypervel\Prompts\spin;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class SpinnerTest extends TestCase
 {
     public function testSpinner()

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\MultiSearchPrompt;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\multisearch;
@@ -16,7 +15,6 @@ use function Hypervel\Prompts\multisearch;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class MultiSearchPromptTest extends TestCase
 {
     public function testSupportsDefaultResults()

@@ -15,6 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Testing\FakeWritableConnection;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
@@ -41,7 +42,7 @@ class FilesystemAdapterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tempDir = __DIR__ . '/tmp';
+        $this->tempDir = ParallelTesting::tempDir('FilesystemAdapter');
         $this->filesystem = new Filesystem(
             $this->adapter = new LocalFilesystemAdapter($this->tempDir)
         );
@@ -561,7 +562,7 @@ class FilesystemAdapterTest extends TestCase
 
         $this->filesystem->write('foo.txt', 'Hello World');
 
-        chmod(__DIR__ . '/tmp/foo.txt', 0400);
+        chmod($this->tempDir . '/foo.txt', 0400);
 
         $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
 
@@ -572,7 +573,7 @@ class FilesystemAdapterTest extends TestCase
 
             return;
         } finally {
-            chmod(__DIR__ . '/tmp/foo.txt', 0600);
+            chmod($this->tempDir . '/foo.txt', 0600);
         }
 
         $this->fail('Exception was not thrown.');
@@ -677,7 +678,7 @@ class FilesystemAdapterTest extends TestCase
 
         $this->filesystem->write('foo.txt', 'Hello World');
 
-        chmod(__DIR__ . '/tmp/foo.txt', 0400);
+        chmod($this->tempDir . '/foo.txt', 0400);
 
         $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['report' => true]);
 
@@ -686,7 +687,7 @@ class FilesystemAdapterTest extends TestCase
         } catch (UnableToWriteFile) {
             $this->fail('Exception was thrown.');
         } finally {
-            chmod(__DIR__ . '/tmp/foo.txt', 0600);
+            chmod($this->tempDir . '/foo.txt', 0600);
         }
     }
 

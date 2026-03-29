@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Filesystem;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -27,8 +28,7 @@ class FilesystemTest extends TestCase
     {
         parent::setUp();
 
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
-        $this->tempDir = sys_get_temp_dir() . '/hypervel-fs-' . $token . '-' . getmypid() . '-FilesystemTest';
+        $this->tempDir = ParallelTesting::tempDir('FilesystemTest');
 
         if (! is_dir($this->tempDir)) {
             mkdir($this->tempDir, 0777, true);

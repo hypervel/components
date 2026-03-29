@@ -56,9 +56,9 @@ jobs:
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
-          REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
+          vendor/bin/phpunit tests/Integration/Horizon
           vendor/bin/phpunit tests/Integration/Redis
 
   valkey_9:
@@ -109,7 +109,7 @@ jobs:
         env:
           REDIS_HOST: valkey
           REDIS_PORT: 6379
-          REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
+          vendor/bin/phpunit tests/Integration/Horizon
           vendor/bin/phpunit tests/Integration/Redis

@@ -9,7 +9,6 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\text;
@@ -18,7 +17,6 @@ use function Hypervel\Prompts\text;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class TextPromptTest extends TestCase
 {
     protected function tearDown(): void

@@ -8,7 +8,6 @@ use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\confirm;
@@ -17,7 +16,6 @@ use function Hypervel\Prompts\confirm;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class ConfirmPromptTest extends TestCase
 {
     public function testConfirm()

@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\confirm;
@@ -18,7 +17,6 @@ use function Hypervel\Prompts\text;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class FormTest extends TestCase
 {
     public function testCanRunMultipleSteps()

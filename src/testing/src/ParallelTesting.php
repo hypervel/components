@@ -255,6 +255,19 @@ class ParallelTesting
     }
 
     /**
+     * Get a unique temporary directory path for the current test process.
+     *
+     * Incorporates TEST_TOKEN (parallel worker ID) and PID to prevent
+     * cross-worker filesystem collisions under ParaTest.
+     */
+    public static function tempDir(string $suffix = ''): string
+    {
+        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+
+        return sys_get_temp_dir() . '/hypervel-test-' . $token . '-' . getmypid() . ($suffix ? '-' . $suffix : '');
+    }
+
+    /**
      * Apply the callback if tests are running in parallel.
      */
     protected function whenRunningInParallel(callable $callback): void

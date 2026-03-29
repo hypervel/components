@@ -12,6 +12,7 @@ use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use League\Flysystem\UnableToReadFile;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -38,6 +39,27 @@ enum FilesystemTestUnitDisk
  */
 class FilesystemManagerTest extends TestCase
 {
+    private string $tempDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDir = ParallelTesting::tempDir('FilesystemManager');
+    }
+
+    protected function tearDown(): void
+    {
+        if (is_dir($this->tempDir)) {
+            $filesystem = new \League\Flysystem\Filesystem(
+                new \League\Flysystem\Local\LocalFilesystemAdapter(dirname($this->tempDir))
+            );
+            $filesystem->deleteDirectory(basename($this->tempDir));
+        }
+
+        parent::tearDown();
+    }
+
     public function testExceptionThrownOnUnsupportedDriver()
     {
         $this->expectException(InvalidArgumentException::class);
@@ -286,7 +308,7 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 'local' => [
                     'driver' => 'local',
-                    'root' => __DIR__ . '/tmp',
+                    'root' => $this->tempDir,
                 ],
             ],
         ]);
@@ -303,7 +325,7 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 'local' => [
                     'driver' => 'local',
-                    'root' => __DIR__ . '/tmp',
+                    'root' => $this->tempDir,
                 ],
             ],
         ]);
@@ -320,7 +342,7 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 '1' => [
                     'driver' => 'local',
-                    'root' => __DIR__ . '/tmp',
+                    'root' => $this->tempDir,
                 ],
             ],
         ]);
@@ -338,7 +360,7 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 'local' => [
                     'driver' => 'local',
-                    'root' => __DIR__ . '/tmp',
+                    'root' => $this->tempDir,
                 ],
             ],
         ]);

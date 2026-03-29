@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
-use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use Sentry\SentrySdk;
@@ -98,8 +98,8 @@ class CoroutineSafetyTest extends TestCase
         // The trait uses Context keys namespaced by class name.
         // Verify that different coroutines get independent stacks.
         $featureClass = 'Hypervel\Sentry\Features\CacheFeature';
-        $scopeKey = TracksPushedScopesAndSpans::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
-        $currentSpansKey = TracksPushedScopesAndSpans::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
+        $scopeKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.scope_count';
+        $currentSpansKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
 
         // Simulate pushing scope/span state in parent
         Context::set($scopeKey, 3);

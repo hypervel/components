@@ -8,7 +8,6 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SearchPrompt;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\search;
@@ -17,7 +16,6 @@ use function Hypervel\Prompts\search;
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class SearchPromptTest extends TestCase
 {
     public function testAcceptsCallback(): void

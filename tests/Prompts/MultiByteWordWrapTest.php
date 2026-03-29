@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Concerns\Truncation;
-use PHPUnit\Framework\Attributes\BackupStaticProperties;
 use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-#[BackupStaticProperties(true)]
 class MultiByteWordWrapTest extends TestCase
 {
     public function testWillMatchWordwrap()
