@@ -3,6 +3,7 @@
 #
 
 parameters:
+  tmpDir: .cache/phpstan
   level: 5
   parallel:
     jobSize: 20

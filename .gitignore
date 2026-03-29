@@ -11,6 +11,7 @@ tests/Http/Fixtures/sunk.txt
 !tests/Support/envs/**/.env
 !tests/Foundation/Fixtures/envs/.env
 /testing
+.cache/
 docs/node_modules/
 docs/.vuepress/dist/
 docs/.vuepress/.cache
