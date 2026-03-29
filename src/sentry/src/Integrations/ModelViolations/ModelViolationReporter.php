@@ -51,6 +51,8 @@ abstract class ModelViolationReporter
         $origin = $this->resolveEventOrigin();
 
         if ($this->reportAfterResponse) {
+            // defer() instead of app()->terminating() — terminating callbacks
+            // accumulate on the process-global Application in Swoole workers.
             defer(function () use ($model, $property, $origin) {
                 $this->report($model, $property, $origin);
             }, always: true);

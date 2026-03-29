@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\JWT\Contracts\ManagerContract;
-
 /**
  * @method static \Hypervel\JWT\Providers\Lcobucci createLcobucciDriver()
  * @method static string getDefaultDriver()
@@ -26,6 +24,6 @@ class JWT extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return ManagerContract::class;
+        return 'jwt';
     }
 }

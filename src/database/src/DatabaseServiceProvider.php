@@ -108,6 +108,10 @@ class DatabaseServiceProvider extends ServiceProvider
             return new DatabaseManager($app, $app['db.factory']);
         });
 
+        $this->app->bind('db.connection', function ($app) {
+            return $app['db']->connection();
+        });
+
         $this->app->singleton('db.schema', function () {
             return new SchemaProxy();
         });

@@ -1248,6 +1248,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Database\DatabaseManager::class,
                 \Hypervel\Database\ConnectionResolverInterface::class,
             ],
+            'db.connection' => [
+                \Hypervel\Database\Connection::class,
+                \Hypervel\Database\ConnectionInterface::class,
+            ],
             'db.factory' => [\Hypervel\Database\Connectors\ConnectionFactory::class],
             'db.schema' => [\Hypervel\Database\Schema\SchemaProxy::class],
             'db.transactions' => [\Hypervel\Database\DatabaseTransactionsManager::class],
