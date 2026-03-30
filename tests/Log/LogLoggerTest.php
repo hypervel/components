@@ -54,18 +54,18 @@ class LogLoggerTest extends TestCase
         $context = [];
 
         $events->listen(MessageLogged::class, function ($event) use (&$context) {
-            $context['__log.level'] = $event->level;
-            $context['__log.message'] = $event->message;
-            $context['__log.context'] = $event->context;
+            $context['level'] = $event->level;
+            $context['message'] = $event->message;
+            $context['event_context'] = $event->context;
         });
 
         $writer->error('foo');
-        $this->assertTrue(isset($context['__log.level']));
-        $this->assertSame('error', $context['__log.level']);
-        $this->assertTrue(isset($context['__log.message']));
-        $this->assertSame('foo', $context['__log.message']);
-        $this->assertTrue(isset($context['__log.context']));
-        $this->assertEquals([], $context['__log.context']);
+        $this->assertTrue(isset($context['level']));
+        $this->assertSame('error', $context['level']);
+        $this->assertTrue(isset($context['message']));
+        $this->assertSame('foo', $context['message']);
+        $this->assertTrue(isset($context['event_context']));
+        $this->assertEquals([], $context['event_context']);
     }
 
     public function testListenShortcutFailsWithNoDispatcher()

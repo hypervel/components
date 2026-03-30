@@ -17,9 +17,9 @@ use Stringable;
 class Logger implements LoggerInterface
 {
     /**
-     * Context key for per-request log context.
+     * Context key for per-channel log context set via withContext().
      */
-    protected const LOG_CONTEXT_KEY = '__log.context';
+    protected const LOG_CONTEXT_KEY = '__log.channel_context';
 
     /**
      * Create a new log writer instance.
