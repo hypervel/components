@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Tracing;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\Sentry\Integration;
 use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\Span;
@@ -59,6 +61,11 @@ class Middleware
 
     /**
      * Perform cleanup after the response has been sent.
+     *
+     * The transaction is not finished here — it stays open to capture spans
+     * created by after-response work (e.g. dispatchAfterResponse). A
+     * Coroutine::defer() registered in startTransaction() finishes the
+     * transaction when the coroutine exits, after all deferred work completes.
      */
     public function terminate(Request $request, Response $response): void
     {
@@ -78,8 +85,6 @@ class Middleware
         }
 
         $this->hydrateResponseData($response);
-
-        $this->finishTransaction();
     }
 
     /**
@@ -168,6 +173,15 @@ class Middleware
         }
 
         $this->transaction = $transaction;
+
+        // Register a coroutine defer to finish the transaction when the coroutine exits.
+        // Since defers run in LIFO order, this early registration ensures the transaction
+        // finishes LAST — after all dispatchAfterResponse() work and other deferred callbacks
+        // have completed, capturing their spans on the transaction.
+        Coroutine::defer(function () {
+            $this->finishTransaction();
+            Integration::flushEvents();
+        });
 
         $bootstrapSpan = $this->addAppBootstrapSpan();
 

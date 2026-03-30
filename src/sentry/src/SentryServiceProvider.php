@@ -302,8 +302,9 @@ class SentryServiceProvider extends ServiceProvider
             return;
         }
 
-        // Tracing middleware is prepended so it runs first in handle() and first in terminate().
-        // This ensures the transaction is finished before FlushEventsMiddleware releases transports.
+        // Tracing middleware is prepended so it starts the transaction as early as possible
+        // in handle() and finishes the app span in terminate(). The transaction itself is
+        // finished later by a Coroutine::defer() to capture after-response work.
         $httpKernel->prependMiddleware(TracingMiddleware::class);
 
         $httpKernel->pushMiddleware(SetRequestIpMiddleware::class);
