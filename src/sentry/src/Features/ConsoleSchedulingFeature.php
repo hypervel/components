@@ -10,8 +10,7 @@ use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
-use Hypervel\Contracts\Cache\Factory as Cache;
-use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -28,13 +27,6 @@ use Sentry\Tracing\TransactionSource;
 class ConsoleSchedulingFeature extends Feature
 {
     use TracksPushedScopesAndSpans;
-
-    private ?string $cacheStore = null;
-
-    /**
-     * @var array<string, string> the list of checkins that are currently in progress
-     */
-    private array $checkInStore = [];
 
     private bool $shouldHandleCheckIn = false;
 
@@ -112,8 +104,7 @@ class ConsoleSchedulingFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled('console_scheduling')
-            || $this->isBreadcrumbFeatureEnabled('console_scheduling');
+        return true;
     }
 
     public function onBoot(): void
@@ -129,11 +120,6 @@ class ConsoleSchedulingFeature extends Feature
     public function onBootInactive(): void
     {
         $this->shouldHandleCheckIn = false;
-    }
-
-    public function useCacheStore(?string $name): void
-    {
-        $this->cacheStore = $name;
     }
 
     public function handleScheduledTaskStarting(ScheduledTaskStarting $event): void
@@ -203,11 +189,7 @@ class ConsoleSchedulingFeature extends Feature
 
         $cacheKey = $this->buildCacheKey($scheduled->mutexName(), $checkInSlug);
 
-        $this->checkInStore[$cacheKey] = $checkIn;
-
-        if ($scheduled->runInBackground) {
-            $this->resolveCache()->put($cacheKey, $checkIn->getId(), $scheduled->expiresAt * 60);
-        }
+        $this->storeCheckIn($cacheKey, $checkIn);
 
         $this->sendCheckIn($checkIn);
     }
@@ -218,33 +200,18 @@ class ConsoleSchedulingFeature extends Feature
             return;
         }
 
-        $mutex = $scheduled->mutexName();
-
         $checkInSlug = $slug ?? $this->makeSlugForScheduled($scheduled);
 
-        $cacheKey = $this->buildCacheKey($mutex, $checkInSlug);
+        $cacheKey = $this->buildCacheKey($scheduled->mutexName(), $checkInSlug);
 
-        $checkIn = $this->checkInStore[$cacheKey] ?? null;
-
-        if ($checkIn === null && $scheduled->runInBackground) {
-            $checkInId = $this->resolveCache()->get($cacheKey);
-
-            if ($checkInId !== null) {
-                $checkIn = $this->createCheckIn($checkInSlug, $status, $checkInId);
-            }
-        }
+        $checkIn = $this->getCheckIn($cacheKey);
 
         // This should never happen (because we should always start before we finish), but better safe than sorry
         if ($checkIn === null) {
             return;
         }
 
-        // We don't need to keep the checkIn ID stored since we finished executing the command
-        unset($this->checkInStore[$cacheKey]);
-
-        if ($scheduled->runInBackground) {
-            $this->resolveCache()->forget($cacheKey);
-        }
+        $this->forgetCheckIn($cacheKey);
 
         $checkIn->setStatus($status);
 
@@ -270,6 +237,40 @@ class ConsoleSchedulingFeature extends Feature
             $options->getRelease(),
             $options->getEnvironment()
         );
+    }
+
+    /**
+     * Store the check-in in coroutine-local hidden context.
+     */
+    private function storeCheckIn(string $cacheKey, CheckIn $checkIn): void
+    {
+        ContextRepository::getInstance()->addHidden($cacheKey, $checkIn);
+    }
+
+    /**
+     * Retrieve the check-in from coroutine-local hidden context.
+     */
+    private function getCheckIn(string $cacheKey): ?CheckIn
+    {
+        if (! ContextRepository::hasInstance()) {
+            return null;
+        }
+
+        $checkIn = ContextRepository::getInstance()->getHidden($cacheKey);
+
+        return $checkIn instanceof CheckIn ? $checkIn : null;
+    }
+
+    /**
+     * Remove the check-in from coroutine-local hidden context.
+     */
+    private function forgetCheckIn(string $cacheKey): void
+    {
+        if (! ContextRepository::hasInstance()) {
+            return;
+        }
+
+        ContextRepository::getInstance()->forgetHidden($cacheKey);
     }
 
     private function buildCacheKey(string $mutex, string $slug): string
@@ -316,10 +317,5 @@ class ConsoleSchedulingFeature extends Feature
         return trim(
             Str::after($scheduled->command, ConsoleApplication::phpBinary() . ' ' . ConsoleApplication::artisanBinary())
         );
-    }
-
-    private function resolveCache(): Repository
-    {
-        return $this->container->make(Cache::class)->store($this->cacheStore);
     }
 }

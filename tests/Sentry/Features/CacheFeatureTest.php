@@ -17,6 +17,13 @@ use Sentry\Tracing\Span;
  */
 class CacheFeatureTest extends SentryTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->make(CacheFeature::class)->detectSessionKeyOnConsole = true;
+    }
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.breadcrumbs.cache' => true,

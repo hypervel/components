@@ -11,17 +11,17 @@ use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
-use Hypervel\Sentry\Console\AboutCommand;
+use Hypervel\Sentry\Console\AboutCommandIntegration;
 use Hypervel\Sentry\Console\TestCommand;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
-use Hypervel\Sentry\HttpClient\HttpClient;
 use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
@@ -38,7 +38,6 @@ use Hypervel\View\Factory as ViewFactory;
 use InvalidArgumentException;
 use RuntimeException;
 use Sentry\ClientBuilder;
-use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Logger\DebugFileLogger;
 use Sentry\Logs\Logs;
@@ -102,6 +101,8 @@ class SentryServiceProvider extends ServiceProvider
             $this->registerCommands();
         }
 
+        $this->registerAboutCommandIntegration();
+
         $this->registerCoroutineContextPropagation();
     }
 
@@ -128,12 +129,6 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function configureAndRegisterClient(): void
     {
-        // HttpClientInterface singleton — async coroutine-based sending
-        $this->app->singleton(HttpClientInterface::class, fn () => new HttpClient(
-            Version::getSdkIdentifier(),
-            Version::getSdkVersion(),
-        ));
-
         // ClientBuilder — fresh per resolution so each Hub gets a properly configured builder
         $this->app->bind(ClientBuilder::class, function () {
             $basePath = base_path();
@@ -523,9 +518,16 @@ class SentryServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
-            AboutCommand::class,
             TestCommand::class,
         ]);
+    }
+
+    /**
+     * Register the `php artisan about` command integration.
+     */
+    protected function registerAboutCommandIntegration(): void
+    {
+        AboutCommand::add('Sentry', AboutCommandIntegration::class);
     }
 
     /**

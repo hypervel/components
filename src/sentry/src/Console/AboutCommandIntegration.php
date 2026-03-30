@@ -4,31 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Sentry\Version;
-use Hypervel\Support\Collection;
 use Sentry\Client;
 use Sentry\State\HubInterface;
-use Symfony\Component\Console\Attribute\AsCommand;
 
-#[AsCommand(name: 'sentry:about')]
-class AboutCommand extends Command
+class AboutCommandIntegration
 {
-    protected ?string $name = 'sentry:about';
-
-    protected string $description = 'Show what Sentry SDK is used in this project and if it is enabled';
-
-    public function handle(): void
-    {
-        $hub = $this->hypervel->make(HubInterface::class);
-        $options = $this->getSentryOptions($hub);
-        $this->table(
-            ['Option', 'Value'],
-            Collection::make($options)->map(fn ($value, $key) => [$key, $value])->toArray()
-        );
-    }
-
-    protected function getSentryOptions(HubInterface $hub): array
+    public function __invoke(HubInterface $hub): array
     {
         $client = $hub->getClient();
 
@@ -50,13 +32,9 @@ class AboutCommand extends Command
             'PHP SDK Version' => Client::SDK_VERSION,
             'Release' => $options->getRelease() ?: '<fg=yellow;options=bold>NOT SET</>',
             'Sample Rate Errors' => $this->formatSampleRate($options->getSampleRate()),
-            'Sample Rate Performance Monitoring' => $this->formatSampleRate(
-                $options->getTracesSampleRate(),
-                $options->getTracesSampler() !== null
-            ),
+            'Sample Rate Performance Monitoring' => $this->formatSampleRate($options->getTracesSampleRate(), $options->getTracesSampler() !== null),
             'Sample Rate Profiling' => $this->formatSampleRate($options->getProfilesSampleRate()),
-            'Send Default PII' => $options->shouldSendDefaultPii(
-            ) ? '<fg=green;options=bold>ENABLED</>' : '<fg=yellow;options=bold>DISABLED</>',
+            'Send Default PII' => $options->shouldSendDefaultPii() ? '<fg=green;options=bold>ENABLED</>' : '<fg=yellow;options=bold>DISABLED</>',
         ];
     }
 

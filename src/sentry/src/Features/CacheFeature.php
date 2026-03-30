@@ -34,12 +34,22 @@ class CacheFeature extends Feature
     use TracksPushedScopesAndSpans;
     use ResolvesEventOrigin;
 
-    protected const FEATURE_KEY = 'cache';
+    /**
+     * Indicates whether to attempt to detect the session key when running in the console.
+     *
+     * Instance property (not static) because this feature is a container singleton —
+     * a static would persist across worker lifetime and leak between tests.
+     *
+     * @internal this is mainly intended for testing purposes
+     */
+    public bool $detectSessionKeyOnConsole = false;
+
+    private const FEATURE_KEY = 'cache';
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
-            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
+        return $this->isTracingFeatureEnabled(self::FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY);
     }
 
     public function onBoot(): void
@@ -51,7 +61,7 @@ class CacheFeature extends Feature
         }
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->make('events');
-        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
                 CacheMissed::class,
@@ -60,7 +70,7 @@ class CacheFeature extends Feature
             ], [$this, 'handleCacheEventsForBreadcrumbs']);
         }
 
-        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(self::FEATURE_KEY)) {
             $dispatcher->listen([
                 RetrievingKey::class,
                 RetrievingManyKeys::class,
@@ -226,8 +236,14 @@ class CacheFeature extends Feature
     private function getSessionKey(): ?string
     {
         try {
+            // Skip session resolution in the console to avoid unnecessary database connections
+            // (e.g. when using a database session driver during `artisan cache:clear`)
+            if (! $this->detectSessionKeyOnConsole && app()->runningInConsole()) {
+                return null;
+            }
+
             /** @var Session $sessionStore */
-            $sessionStore = $this->container->make(Session::class);
+            $sessionStore = $this->container->make('session.store');
 
             // It is safe for us to get the session ID here without checking if the session is started
             // because getting the session ID does not start the session. In addition we need the ID before
@@ -235,7 +251,7 @@ class CacheFeature extends Feature
             // is considered started. So if we wait for the session to be started, we will not be able to replace the
             // session key in the cache operation that is being executed to retrieve the session data from the cache.
             return $sessionStore->getId();
-        } catch (Exception $e) {
+        } catch (Exception) {
             // We can assume the session store is not available here so there is no session key to retrieve
             // We capture a generic exception to avoid breaking the application because some code paths can
             // result in an exception other than the expected `Hypervel\Contracts\Container\BindingResolutionException`
@@ -246,8 +262,12 @@ class CacheFeature extends Feature
     /**
      * Replace a session key with a placeholder.
      */
-    private function replaceSessionKey(string $value): string
+    private function replaceSessionKey(?string $value): string
     {
+        if (! is_string($value)) {
+            return '{empty key}';
+        }
+
         return $value === $this->getSessionKey() ? '{sessionKey}' : $value;
     }
 

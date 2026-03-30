@@ -152,6 +152,39 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
         $this->assertEquals(ScheduledQueuedJob::class, $transaction->getTransaction());
     }
 
+    public function testCheckInStateIsIsolatedBetweenConcurrentTasks(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        // Schedule two closures with different monitor slugs
+        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('task-a');
+        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('task-b');
+
+        // Run both — each gets its own check-in in its own coroutine-local context
+        $scheduledEventA->run($this->app);
+        $scheduledEventB->run($this->app);
+
+        // We should have 4 check-in events total (2 starts + 2 finishes)
+        $this->assertSentryCheckInCount(4);
+    }
+
+    public function testCheckInStateIsCleanedUpAfterTaskCompletes(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        $scheduledEvent = $scheduler->call(fn () => null)->sentryMonitor('cleanup-test');
+
+        $scheduledEvent->run($this->app);
+
+        // 2 check-in events (start + finish)
+        $this->assertSentryCheckInCount(2);
+
+        // Running again should create 2 new check-ins (not reuse old state)
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(4);
+    }
+
     protected function getScheduler(): Schedule
     {
         return $this->app->make(Schedule::class);

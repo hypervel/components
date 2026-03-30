@@ -14,6 +14,13 @@ use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
 class HypervelRequestFetcher implements RequestFetcherInterface
 {
     /**
+     * Cached PSR-7 factory for converting Symfony requests.
+     *
+     * Stateless and safe for worker-lifetime caching — all properties are readonly.
+     */
+    private static ?PsrHttpFactory $psrHttpFactory = null;
+
+    /**
      * Fetch the current request as a PSR-7 server request for Sentry.
      */
     public function fetchRequest(): ?ServerRequestInterface
@@ -24,10 +31,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
 
         $httpFoundationRequest = RequestContext::get();
 
-        $psr17Factory = new Psr17Factory();
-        $psrHttpFactory = new PsrHttpFactory($psr17Factory, $psr17Factory, $psr17Factory, $psr17Factory);
-
-        $request = $psrHttpFactory->createRequest($httpFoundationRequest);
+        $request = self::getPsrHttpFactory()->createRequest($httpFoundationRequest);
 
         return $request->withCookieParams(
             $this->filterCookies($request->getCookieParams())
@@ -47,5 +51,18 @@ class HypervelRequestFetcher implements RequestFetcherInterface
         }
 
         return $filtered;
+    }
+
+    /**
+     * Get or create the PSR-7 factory.
+     */
+    private static function getPsrHttpFactory(): PsrHttpFactory
+    {
+        if (self::$psrHttpFactory === null) {
+            $psr17Factory = new Psr17Factory();
+            self::$psrHttpFactory = new PsrHttpFactory($psr17Factory, $psr17Factory, $psr17Factory, $psr17Factory);
+        }
+
+        return self::$psrHttpFactory;
     }
 }
