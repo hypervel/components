@@ -36,6 +36,7 @@
         "hypervel/config": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4"
     },
     "config": {
@@ -44,6 +45,7 @@
     "extra": {
         "hypervel": {
             "providers": [
+                "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider"
             ]
         },

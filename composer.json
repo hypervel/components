@@ -314,6 +314,7 @@
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
                 "Hypervel\\JWT\\JWTServiceProvider",
+                "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",

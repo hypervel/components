@@ -265,6 +265,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected function registerBaseServiceProviders(): void
     {
         $this->register(new \Hypervel\Events\EventServiceProvider($this));
+        $this->register(new \Hypervel\Log\Context\ContextServiceProvider($this));
         $this->register(new \Hypervel\Routing\RoutingServiceProvider($this));
     }
 
