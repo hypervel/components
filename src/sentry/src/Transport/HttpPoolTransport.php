@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Transport;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 use Sentry\Event;
 use Sentry\Transport\HttpTransport;
@@ -41,7 +42,7 @@ class HttpPoolTransport implements TransportInterface
             return new Result(ResultStatus::skipped());
         }
 
-        $transports = CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []);
+        $transports = $this->initializeTrackedTransports();
         $transports[] = $transport;
         CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, $transports);
 
@@ -74,5 +75,32 @@ class HttpPoolTransport implements TransportInterface
         CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
 
         return new Result(ResultStatus::success());
+    }
+
+    /**
+     * Get the tracked transport list, registering a coroutine defer callback
+     * on first access to ensure transports are released even if the coroutine
+     * dies without close() being called.
+     *
+     * @return list<HttpTransport>
+     */
+    private function initializeTrackedTransports(): array
+    {
+        $transports = CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY);
+
+        if (is_array($transports)) {
+            return $transports;
+        }
+
+        CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
+
+        Coroutine::defer(function (): void {
+            foreach (CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []) as $transport) {
+                $this->pool->release($transport);
+            }
+            CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
+        });
+
+        return [];
     }
 }

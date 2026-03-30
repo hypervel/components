@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Tests\TestCase;
@@ -13,6 +14,7 @@ use Sentry\Event;
 use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
+use Swoole\Coroutine\Channel;
 
 /**
  * @internal
@@ -229,5 +231,77 @@ class HttpPoolTransportTest extends TestCase
         $transport->send(Event::createEvent());
         $transport->close();
         $transport->close(); // Second close should be a no-op
+    }
+
+    public function testTransportsAreReleasedWhenCoroutineDiesWithoutClose()
+    {
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldReceive('send')
+            ->once()
+            ->andReturn(new Result(ResultStatus::success()));
+
+        $released = new Channel(1);
+
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')
+            ->once()
+            ->andReturn($httpTransport);
+        $pool->shouldReceive('release')
+            ->once()
+            ->with($httpTransport)
+            ->andReturnUsing(function () use ($released) {
+                $released->push(true);
+            });
+
+        $transport = new HttpPoolTransport($pool);
+
+        // Run send() in a child coroutine that exits WITHOUT calling close()
+        Coroutine::create(function () use ($transport) {
+            $transport->send(Event::createEvent());
+            // Coroutine ends here — no close() called
+        });
+
+        // Wait for the deferred release to fire (with timeout)
+        $wasReleased = $released->pop(1.0);
+
+        $this->assertTrue($wasReleased, 'Transport should be released via defer when coroutine exits without close()');
+    }
+
+    public function testDeferDoesNotDoubleReleaseWhenCloseAlreadyCalled()
+    {
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldReceive('send')
+            ->once()
+            ->andReturn(new Result(ResultStatus::success()));
+
+        $releaseCount = 0;
+
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')
+            ->once()
+            ->andReturn($httpTransport);
+        $pool->shouldReceive('release')
+            ->with($httpTransport)
+            ->andReturnUsing(function () use (&$releaseCount) {
+                ++$releaseCount;
+            });
+
+        $transport = new HttpPoolTransport($pool);
+
+        $done = new Channel(1);
+
+        // Run send() + close() in a child coroutine — defer should be a no-op
+        Coroutine::create(function () use ($transport, $done) {
+            $transport->send(Event::createEvent());
+            $transport->close();
+            // Coroutine ends — defer fires but list is empty
+            $done->push(true);
+        });
+
+        $done->pop(1.0);
+        // Give defer a moment to fire
+        usleep(10_000);
+
+        $this->assertSame(1, $releaseCount, 'Transport should be released exactly once — by close(), not again by defer');
     }
 }
