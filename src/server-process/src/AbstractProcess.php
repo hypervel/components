@@ -105,15 +105,23 @@ abstract class AbstractProcess implements ProcessInterface
         Coroutine::create(function () use ($quit) {
             while ($quit->pop(0.001) !== true) {
                 try {
-                    /** @var Socket $sock */
-                    $sock = $this->process->exportSocket();
+                    $sock = $this->getListenSocket();
                     $recv = $sock->recv($this->recvLength, $this->recvTimeout);
+
+                    // Empty string means the peer closed the pipe — permanent, stop listening.
                     if ($recv === '') {
-                        throw new SocketAcceptException('Socket is closed', $sock->errCode);
+                        throw new SocketAcceptException('Socket is closed', $sock->errCode, permanent: true);
                     }
 
                     if ($recv === false && $sock->errCode !== SOCKET_ETIMEDOUT) {
-                        throw new SocketAcceptException('Socket is closed', $sock->errCode);
+                        // Signal interruption or temporarily unavailable — transient, retry.
+                        $transient = $sock->errCode === SOCKET_EINTR || $sock->errCode === SOCKET_EAGAIN;
+
+                        throw new SocketAcceptException(
+                            $transient ? 'Socket recv error' : 'Socket is closed',
+                            $sock->errCode,
+                            permanent: ! $transient,
+                        );
                     }
 
                     if ($this->event && $recv !== false && $data = unserialize($recv)) {
@@ -121,14 +129,21 @@ abstract class AbstractProcess implements ProcessInterface
                     }
                 } catch (Throwable $exception) {
                     $this->logThrowable($exception);
-                    if ($exception instanceof SocketAcceptException) {
-                        // TODO: Reconnect the socket.
+                    if ($exception instanceof SocketAcceptException && $exception->isPermanent()) {
                         break;
                     }
                 }
             }
             $quit->close();
         });
+    }
+
+    /**
+     * Get the socket for the IPC pipe listener.
+     */
+    protected function getListenSocket(): Socket
+    {
+        return $this->process->exportSocket();
     }
 
     /**
