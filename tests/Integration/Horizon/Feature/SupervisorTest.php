@@ -261,7 +261,7 @@ class SupervisorTest extends IntegrationTestCase
         }, 50);
     }
 
-    // TODO: 討論，執行後會有錯誤訊息
+    // @TODO Investigate — error messages appear after execution
     public function testSupervisorCanRestartProcesses()
     {
         $this->supervisor = $supervisor = new Supervisor($this->supervisorOptions());
