@@ -98,6 +98,26 @@ class Concurrent
     }
 
     /**
+     * Create a new coroutine with concurrency limiting and parent context propagation.
+     *
+     * @param array<string> $keys Context keys to copy (empty = all keys)
+     */
+    public function fork(callable $callable, array $keys = []): void
+    {
+        $this->channel->push(true);
+
+        Coroutine::fork(function () use ($callable) {
+            try {
+                $callable();
+            } catch (Throwable $exception) {
+                $this->reportException($exception);
+            } finally {
+                $this->channel->pop();
+            }
+        }, $keys);
+    }
+
+    /**
      * Report an exception through the exception handler.
      */
     protected function reportException(Throwable $throwable): void
