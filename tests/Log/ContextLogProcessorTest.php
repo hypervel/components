@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Context;
+namespace Hypervel\Tests\Log;
 
 use DateTimeImmutable;
-use Hypervel\Context\CoroutineContext;
-use Hypervel\Log\ContextLogProcessor;
+use Hypervel\Log\Context\ContextLogProcessor;
+use Hypervel\Log\Context\Repository;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger as Monolog;
@@ -17,12 +17,12 @@ use Monolog\Processor\ProcessorInterface;
  * @internal
  * @coversNothing
  */
-class PropagatedContextLogTest extends TestCase
+class ContextLogProcessorTest extends TestCase
 {
-    public function testPropagatedContextIsAddedToLogRecords()
+    public function testContextIsAddedToLogRecords()
     {
-        CoroutineContext::propagated()->add('trace_id', 'abc-123');
-        CoroutineContext::propagated()->add('user_id', 42);
+        Repository::getInstance()->add('trace_id', 'abc-123');
+        Repository::getInstance()->add('user_id', 42);
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -36,7 +36,7 @@ class PropagatedContextLogTest extends TestCase
 
     public function testHiddenContextIsNotAddedToLogRecords()
     {
-        CoroutineContext::propagated()->addHidden('secret', 'sensitive-data');
+        Repository::getInstance()->addHidden('secret', 'sensitive-data');
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -47,9 +47,9 @@ class PropagatedContextLogTest extends TestCase
         $this->assertArrayNotHasKey('secret', $record->extra);
     }
 
-    public function testPropagatedContextDoesNotOverrideLogMessageContext()
+    public function testContextDoesNotOverrideLogMessageContext()
     {
-        CoroutineContext::propagated()->add('request_id', 'propagated-value');
+        Repository::getInstance()->add('request_id', 'propagated-value');
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -62,7 +62,7 @@ class PropagatedContextLogTest extends TestCase
         $this->assertSame('propagated-value', $record->extra['request_id']);
     }
 
-    public function testLogProcessorSkipsWhenNoPropagatedContextExists()
+    public function testLogProcessorSkipsWhenNoContextExists()
     {
         $processor = new ContextLogProcessor();
 
@@ -75,16 +75,16 @@ class PropagatedContextLogTest extends TestCase
 
         $result = $processor($record);
 
-        // Should return the same record unchanged — no PropagatedContext allocated
+        // Should return the same record unchanged — no Repository allocated
         $this->assertSame($record, $result);
-        $this->assertFalse(CoroutineContext::hasPropagated());
+        $this->assertFalse(Repository::hasInstance());
     }
 
-    public function testLogProcessorSkipsWhenPropagatedContextIsEmpty()
+    public function testLogProcessorSkipsWhenContextIsEmpty()
     {
-        // Access propagated context but don't add anything
-        CoroutineContext::propagated();
-        $this->assertTrue(CoroutineContext::hasPropagated());
+        // Access context but don't add anything
+        Repository::getInstance();
+        $this->assertTrue(Repository::hasInstance());
 
         $processor = new ContextLogProcessor();
 
@@ -97,7 +97,7 @@ class PropagatedContextLogTest extends TestCase
 
         $result = $processor($record);
 
-        // Should return the same record unchanged — propagated context exists but is empty
+        // Should return the same record unchanged — context exists but is empty
         $this->assertSame($record, $result);
     }
 

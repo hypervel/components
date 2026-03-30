@@ -200,7 +200,7 @@ class CallQueuedHandlerTest extends TestCase
         $cacheFactory->shouldReceive('store')->with('array')->andReturn($store);
         $this->app->instance(\Hypervel\Contracts\Cache\Factory::class, $cacheFactory);
 
-        \Hypervel\Context\CoroutineContext::propagated()->addHidden([
+        \Hypervel\Log\Context\Repository::getInstance()->addHidden([
             'laravel_unique_job_cache_store' => 'array',
             'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
         ]);

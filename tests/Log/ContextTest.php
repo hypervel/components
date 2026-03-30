@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Context;
+namespace Hypervel\Tests\Log;
 
-use Hypervel\Context\Events\ContextDehydrating;
-use Hypervel\Context\Events\ContextHydrated;
-use Hypervel\Context\PropagatedContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Log\Context\Events\ContextDehydrating;
+use Hypervel\Log\Context\Events\ContextHydrated;
+use Hypervel\Log\Context\Repository;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -17,9 +17,9 @@ use stdClass;
  * @internal
  * @coversNothing
  */
-class PropagatedContextTest extends TestCase
+class ContextTest extends TestCase
 {
-    protected PropagatedContext $context;
+    protected Repository $context;
 
     protected Dispatcher $events;
 
@@ -30,7 +30,7 @@ class PropagatedContextTest extends TestCase
         $this->events = m::mock(Dispatcher::class);
         $this->events->shouldReceive('listen')->byDefault();
         $this->events->shouldReceive('dispatch')->byDefault();
-        $this->context = new PropagatedContext($this->events);
+        $this->context = new Repository($this->events);
     }
 
     // =========================================================================
@@ -511,7 +511,7 @@ class PropagatedContextTest extends TestCase
         $this->assertArrayHasKey('hidden', $payload);
 
         // Hydrate into a fresh context
-        $fresh = new PropagatedContext($this->events);
+        $fresh = new Repository($this->events);
         $this->events->shouldReceive('dispatch')
             ->once()
             ->with(m::type(ContextHydrated::class));
@@ -565,7 +565,7 @@ class PropagatedContextTest extends TestCase
             ->once()
             ->with(m::type(ContextHydrated::class));
 
-        $other = new PropagatedContext($this->events);
+        $other = new Repository($this->events);
         $other->add('new', 'data');
         $payload = $other->dehydrate();
 
@@ -612,7 +612,7 @@ class PropagatedContextTest extends TestCase
                 return true;
             }));
 
-        $other = new PropagatedContext($this->events);
+        $other = new Repository($this->events);
         $other->add('key', 'value');
         $payload = $other->dehydrate();
 

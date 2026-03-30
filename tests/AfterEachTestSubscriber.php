@@ -44,7 +44,6 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Container\BoundMethod::flushMethodRecipeCache();
         \Hypervel\Container\Container::setInstance(null);
         \Hypervel\Context\CoroutineContext::flush();
-        \Hypervel\Context\PropagatedContext::flushState();
         \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
         \Hypervel\Coroutine\Coroutine::flushAfterCreated();
         \Hypervel\Database\Console\Migrations\FreshCommand::prohibit(false);
@@ -100,6 +99,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Http\Middleware\TrustProxies::flushState();
         \Hypervel\Http\Resources\Json\JsonResource::flushState();
         \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
+        \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
         \Hypervel\Mail\Mailer::flushState();
         \Hypervel\Mail\Markdown::flushState();

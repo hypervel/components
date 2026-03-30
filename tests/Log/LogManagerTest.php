@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hypervel\Log\ContextLogProcessor;
+use Hypervel\Log\Context\ContextLogProcessor;
 use Hypervel\Log\Logger;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\TestCase;
