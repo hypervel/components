@@ -252,7 +252,7 @@ class Application
      */
     public function ignorePackageDiscoveriesFrom(): array
     {
-        return $this->config['dont-discover'] ?? [];
+        return $this->config['dont-discover'];
     }
 
     /**
@@ -334,7 +334,7 @@ class Application
      */
     protected function hasConfiguredEnvironmentVariable(string $key): bool
     {
-        foreach ($this->config['env'] ?? [] as $environmentVariable) {
+        foreach ($this->config['env'] as $environmentVariable) {
             if (! is_string($environmentVariable)) { /* @phpstan-ignore function.alreadyNarrowedType */
                 continue;
             }
@@ -354,7 +354,7 @@ class Application
      */
     protected function getPackageProviders(ApplicationContract $app): array
     {
-        return $this->config['providers'] ?? [];
+        return $this->config['providers'];
     }
 
     /**
@@ -396,7 +396,7 @@ class Application
             $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
         }
 
-        (new LoadEnvironmentVariablesFromArray($this->config['env'] ?? []))->bootstrap($app);
+        (new LoadEnvironmentVariablesFromArray($this->config['env']))->bootstrap($app);
     }
 
     /**

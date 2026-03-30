@@ -786,7 +786,7 @@ class PendingRequest
 
         $shouldRetry = null;
 
-        return retry($this->tries ?? 1, function ($attempt) use ($method, $url, $options, &$shouldRetry) {
+        return retry($this->tries, function ($attempt) use ($method, $url, $options, &$shouldRetry) {
             try {
                 return tap(
                     $this->newResponse($this->sendRequest($method, $url, $options)),
@@ -845,7 +845,7 @@ class PendingRequest
 
                 throw $e;
             }
-        }, $this->retryDelay ?? 100, function ($exception) use (&$shouldRetry) {
+        }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
             $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,

@@ -274,7 +274,7 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
     {
         $this->messages = [];
 
-        if (! $this->required && ! $this->sometimes && ! Arr::has($this->data ?? [], $attribute)) {
+        if (! $this->required && ! $this->sometimes && ! Arr::has($this->data, $attribute)) {
             return true;
         }
 
