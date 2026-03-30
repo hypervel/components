@@ -40,7 +40,6 @@ class DefaultProviders
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\Queue\QueueServiceProvider::class,
             \Hypervel\Redis\RedisServiceProvider::class,
-            \Hypervel\Routing\RoutingServiceProvider::class,
             \Hypervel\Server\ServerServiceProvider::class,
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
             \Hypervel\Session\SessionServiceProvider::class,
