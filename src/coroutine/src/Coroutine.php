@@ -132,7 +132,7 @@ class Coroutine
     {
         $cid = static::id();
         $callable = static function () use ($callable, $cid, $keys) {
-            Context::copy($cid, $keys);
+            Context::copyFrom($cid, $keys);
             $callable();
         };
 

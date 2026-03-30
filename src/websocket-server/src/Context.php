@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\WebSocketServer;
 
 use Closure;
-use Hypervel\Context\Context as CoContext;
+use Hypervel\Context\Context as CoroutineContext;
 use Hypervel\Support\Arr;
 
 class Context
@@ -19,7 +19,7 @@ class Context
      */
     public static function set(string $id, mixed $value): mixed
     {
-        $fd = CoContext::get(Context::FD, 0);
+        $fd = CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
         data_set(self::$container, $key, $value);
         return $value;
@@ -30,7 +30,7 @@ class Context
      */
     public static function get(string $id, mixed $default = null, ?int $fd = null): mixed
     {
-        $fd ??= CoContext::get(Context::FD, 0);
+        $fd ??= CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
         return data_get(self::$container, $key, $default);
     }
@@ -40,7 +40,7 @@ class Context
      */
     public static function has(string $id, ?int $fd = null): bool
     {
-        $fd ??= CoContext::get(Context::FD, 0);
+        $fd ??= CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
         return data_get(self::$container, $key) !== null;
     }
@@ -50,7 +50,7 @@ class Context
      */
     public static function forget(string $id): void
     {
-        $fd = CoContext::get(Context::FD, 0);
+        $fd = CoroutineContext::get(Context::FD, 0);
         unset(self::$container[strval($fd)][$id]);
     }
 
@@ -59,20 +59,27 @@ class Context
      */
     public static function release(?int $fd = null): void
     {
-        $fd ??= CoContext::get(Context::FD, 0);
+        $fd ??= CoroutineContext::get(Context::FD, 0);
         unset(self::$container[strval($fd)]);
     }
 
     /**
-     * Copy context data from one file descriptor to the current one.
+     * Copy context data from another file descriptor into the current one.
+     *
+     * Merges into the current FD's context — existing values that are
+     * not in the source are preserved. Matching keys are overwritten.
      *
      * @param array<string> $keys
      */
-    public static function copy(int $fromFd, array $keys = []): void
+    public static function copyFrom(int $fromFd, array $keys = []): void
     {
-        $fd = CoContext::get(Context::FD, 0);
+        $fd = CoroutineContext::get(Context::FD, 0);
         $from = self::$container[$fromFd];
-        self::$container[$fd] = ($keys ? Arr::only($from, $keys) : $from);
+        $map = $keys ? Arr::only($from, $keys) : $from;
+
+        foreach ($map as $key => $value) {
+            self::$container[$fd][$key] = $value;
+        }
     }
 
     /**

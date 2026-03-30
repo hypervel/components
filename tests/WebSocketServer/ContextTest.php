@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Context\Context as CoContext;
+use Hypervel\Context\Context as CoroutineContext;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Context;
 
@@ -44,18 +44,41 @@ class ContextTest extends TestCase
 
     public function testCopy()
     {
-        CoContext::set(Context::FD, 2);
+        CoroutineContext::set(Context::FD, 2);
         Context::set('a', 42);
         parallel([function () {
-            CoContext::set(Context::FD, 3);
-            Context::copy(2);
+            CoroutineContext::set(Context::FD, 3);
+            Context::copyFrom(2);
             $this->assertEquals(42, Context::get('a'));
         }, function () {
-            CoContext::set(Context::FD, 3);
-            Context::copy(2, ['a']);
+            CoroutineContext::set(Context::FD, 3);
+            Context::copyFrom(2, ['a']);
             $this->assertEquals(42, Context::get('a'));
         }]);
         $this->assertEquals(42, Context::get('a', 0, 3));
+    }
+
+    public function testCopyFromPreservesExistingValues()
+    {
+        CoroutineContext::set(Context::FD, 2);
+        Context::set('a', 42);
+        parallel([function () {
+            CoroutineContext::set(Context::FD, 3);
+            Context::set('b', 99);
+            Context::copyFrom(2);
+            // Copied value is present.
+            $this->assertEquals(42, Context::get('a'));
+            // Context::copyFrom() merges — existing values are preserved.
+            $this->assertEquals(99, Context::get('b'));
+        }, function () {
+            CoroutineContext::set(Context::FD, 3);
+            Context::set('b', 99);
+            Context::copyFrom(2, ['a']);
+            // Copied value is present.
+            $this->assertEquals(42, Context::get('a'));
+            // Context::copyFrom() merges — existing values are preserved.
+            $this->assertEquals(99, Context::get('b'));
+        }]);
     }
 
     public function testOverride()

@@ -127,10 +127,12 @@ class Context
     }
 
     /**
-     * Copy the context from a coroutine to current coroutine.
-     * This method will delete the origin values in current coroutine.
+     * Copy context from another coroutine into the current coroutine.
+     *
+     * Merges into the current coroutine's context — existing values that are
+     * not in the source are preserved. Matching keys are overwritten.
      */
-    public static function copy(int $fromCoroutineId, array $keys = []): void
+    public static function copyFrom(int $fromCoroutineId, array $keys = []): void
     {
         $from = Coroutine::getContextFor($fromCoroutineId);
 

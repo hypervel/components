@@ -25,7 +25,7 @@ class Waiter extends BaseWaiter
         $coroutineId = Coroutine::id();
         Coroutine::create(function () use ($channel, $closure, $coroutineId) {
             if ($coroutineId) {
-                Context::copy($coroutineId);
+                Context::copyFrom($coroutineId);
             }
 
             try {

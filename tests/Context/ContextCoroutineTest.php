@@ -31,7 +31,7 @@ class ContextCoroutineTest extends TestCase
         $id = Coroutine::id();
         parallel([
             function () use ($id, $uid) {
-                Context::copy($id, ['test.store.id']);
+                Context::copyFrom($id, ['test.store.id']);
                 $this->assertSame($uid, Context::get('test.store.id'));
             },
         ]);
@@ -44,10 +44,10 @@ class ContextCoroutineTest extends TestCase
         parallel([
             function () use ($id, $uid) {
                 Context::set('test.store.name', 'Hypervel');
-                Context::copy($id, ['test.store.id']);
+                Context::copyFrom($id, ['test.store.id']);
                 $this->assertSame($uid, Context::get('test.store.id'));
 
-                // Context::copy merges — existing values are preserved.
+                // Context::copyFrom() merges — existing values are preserved.
                 $this->assertSame('Hypervel', Context::get('test.store.name'));
             },
         ]);
@@ -64,7 +64,7 @@ class ContextCoroutineTest extends TestCase
         $tid = uniqid();
         parallel([
             function () use ($id, $uid, $tid) {
-                Context::copy($id, ['test.store.id']);
+                Context::copyFrom($id, ['test.store.id']);
                 $obj = Context::get('test.store.id');
                 $this->assertSame($uid, $obj->id);
                 $obj->id = $tid;
@@ -85,12 +85,12 @@ class ContextCoroutineTest extends TestCase
 
         $this->assertFalse(Context::has('id', -1));
 
-        Context::copy(-1);
+        Context::copyFrom(-1);
 
         parallel([
             function () {
                 Context::set('id', $id = uniqid());
-                Context::copy(-1, ['id']);
+                Context::copyFrom(-1, ['id']);
                 $this->assertSame($id, Context::get('id'));
             },
         ]);

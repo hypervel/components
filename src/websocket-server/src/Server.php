@@ -25,7 +25,7 @@ use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
-use Hypervel\WebSocketServer\Context as WsContext;
+use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
 use Swoole\Http\Request;
@@ -94,7 +94,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
-            Context::set(WsContext::FD, $fd);
+            Context::set(WebSocketContext::FD, $fd);
 
             // Create HttpFoundation request and seed contexts.
             // RequestContext is needed for request() helper and container resolution.
@@ -138,7 +138,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             );
 
             isset($fd) && FdCollector::del($fd);
-            isset($fd) && WsContext::release($fd);
+            isset($fd) && WebSocketContext::release($fd);
         } finally {
             if ($httpResponse instanceof Response) {
                 ResponseBridge::send($httpResponse, $response);
@@ -152,7 +152,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     public function onMessage(WebSocketServer $server, Frame $frame): void
     {
         $fd = $frame->fd;
-        Context::set(WsContext::FD, $fd);
+        Context::set(WebSocketContext::FD, $fd);
         $fdObj = FdCollector::get($fd);
         if (! $fdObj) {
             $this->logger->warning(sprintf('WebSocket: fd[%d] does not exist.', $fd));
@@ -185,11 +185,11 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
 
         $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
 
-        Context::set(WsContext::FD, $fd);
+        Context::set(WebSocketContext::FD, $fd);
         Coroutine::defer(function () use ($fd) {
             // Move those functions to defer, because onClose may throw exceptions
             FdCollector::del($fd);
-            WsContext::release($fd);
+            WebSocketContext::release($fd);
         });
 
         $instance = $this->container->make($fdObj->class);
