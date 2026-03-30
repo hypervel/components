@@ -31,7 +31,6 @@ class BootProcessListener
 
         ProcessManager::setRunning(true);
 
-        // @TODO Add annotation-based process discovery once the DI annotation system is ported.
         $processes = array_merge($serverProcesses, $configProcesses, ProcessManager::all());
         foreach ($processes as $process) {
             if (is_string($process)) {
