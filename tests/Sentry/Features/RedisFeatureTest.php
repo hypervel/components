@@ -24,6 +24,13 @@ use Sentry\State\HubInterface;
  */
 class RedisFeatureTest extends SentryTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->make(RedisFeature::class)->detectSessionKeyOnConsole = true;
+    }
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.tracing.redis_commands' => true,

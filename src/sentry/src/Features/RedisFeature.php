@@ -19,6 +19,16 @@ class RedisFeature extends Feature
 {
     use ResolvesEventOrigin;
 
+    /**
+     * Indicates whether to attempt to detect the session key when running in the console.
+     *
+     * Instance property (not static) because this feature is a container singleton —
+     * a static would persist across worker lifetime and leak between tests.
+     *
+     * @internal this is mainly intended for testing purposes
+     */
+    public bool $detectSessionKeyOnConsole = false;
+
     public function isApplicable(): bool
     {
         return $this->isTracingFeatureEnabled('redis_commands');
@@ -107,7 +117,14 @@ class RedisFeature extends Feature
     private function getSessionKey(): ?string
     {
         try {
-            $sessionStore = $this->container->make(Session::class);
+            // Skip session resolution in the console to avoid unnecessary database connections
+            // (e.g. when using a database session driver during artisan commands)
+            if (! $this->detectSessionKeyOnConsole && app()->runningInConsole()) {
+                return null;
+            }
+
+            /** @var Session $sessionStore */
+            $sessionStore = $this->container->make('session.store');
 
             // It is safe for us to get the session ID here without checking if the session is started
             // because getting the session ID does not start the session. In addition we need the ID before
@@ -115,10 +132,10 @@ class RedisFeature extends Feature
             // is considered started. So if we wait for the session to be started, we will not be able to replace the
             // session key in the cache operation that is being executed to retrieve the session data from the cache.
             return $sessionStore->getId();
-        } catch (Exception $e) {
+        } catch (Exception) {
             // We can assume the session store is not available here so there is no session key to retrieve
             // We capture a generic exception to avoid breaking the application because some code paths can
-            // result in an exception other than the expected `Illuminate\Contracts\Container\BindingResolutionException`
+            // result in an exception other than the expected `Hypervel\Contracts\Container\BindingResolutionException`
             return null;
         }
     }

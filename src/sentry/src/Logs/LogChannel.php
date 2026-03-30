@@ -7,7 +7,7 @@ namespace Hypervel\Sentry\Logs;
 use Hypervel\Log\LogManager;
 use Monolog\Handler\FingersCrossedHandler;
 use Monolog\Logger;
-use Sentry\Monolog\LogsHandler;
+use Hypervel\Sentry\Logs\LogsHandler;
 
 class LogChannel extends LogManager
 {
