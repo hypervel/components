@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Log\ContextLogProcessor;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -125,8 +126,8 @@ class LogManager implements LoggerInterface
 
                 $underlyingLogger = $loggerWithContext->getLogger();
 
-                // Push the propagated context processor so log records
-                // automatically include data from CoroutineContext::propagated().
+                // Push the context processor so log records automatically
+                // include data from the context repository.
                 if ($underlyingLogger instanceof Monolog) {
                     $underlyingLogger->pushProcessor(
                         $this->app->make(ContextLogProcessor::class)

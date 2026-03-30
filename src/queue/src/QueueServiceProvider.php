@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Database\ModelIdentifier;
@@ -34,7 +33,6 @@ use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Console\TableCommand;
 use Hypervel\Queue\Console\WorkCommand;
-use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
@@ -322,40 +320,6 @@ class QueueServiceProvider extends ServiceProvider
             }
 
             return new NullFailedJobProvider();
-        });
-    }
-
-    /**
-     * Bootstrap the service provider.
-     */
-    public function boot(): void
-    {
-        $this->configurePropagatedContext();
-    }
-
-    /**
-     * Wire propagated context into job payloads and restore it when jobs run.
-     */
-    protected function configurePropagatedContext(): void
-    {
-        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
-            if (! CoroutineContext::hasPropagated()) {
-                return [];
-            }
-
-            $context = CoroutineContext::propagated()->dehydrate();
-
-            return $context === null ? [] : ['hypervel:context' => $context];
-        });
-
-        $this->app['events']->listen(JobProcessing::class, function (JobProcessing $event): void {
-            $context = $event->job->payload()['hypervel:context'] ?? null;
-
-            if ($context === null) {
-                return;
-            }
-
-            CoroutineContext::propagated()->hydrate($context);
         });
     }
 }
