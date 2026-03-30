@@ -26,7 +26,7 @@ class Repository implements ReplicableContext
     use Macroable;
     use SerializesAndRestoresModelIdentifiers;
 
-    protected const CONTEXT_KEY = '__log.context_repository';
+    public const CONTEXT_KEY = '__log.context_repository';
 
     /**
      * The contextual data that flows to logs and jobs.
