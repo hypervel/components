@@ -144,7 +144,8 @@ abstract class Queue
         $payload = $this->withCreatePayloadHooks($queue, [
             'uuid' => (string) Str::uuid(),
             'displayName' => $this->getDisplayName($job),
-            'job' => 'Hypervel\Queue\CallQueuedHandler@call',
+            // IMPORTANT: Uses Laravel's handler reference for cross-framework queue interoperability.
+            'job' => 'Illuminate\Queue\CallQueuedHandler@call',
             'maxTries' => $this->getJobTries($job),
             'maxExceptions' => $this->getAttributeValue($job, MaxExceptions::class, 'maxExceptions'),
             'failOnTimeout' => $this->getAttributeValue($job, FailOnTimeout::class, 'failOnTimeout') ?? false,

@@ -364,7 +364,7 @@ class ThrottlesExceptionsTest extends TestCase
             }
         };
 
-        $expectedKey = 'hypervel_throttles_exceptions:' . hash('xxh128', get_class($job));
+        $expectedKey = 'laravel_throttles_exceptions:' . hash('xxh128', get_class($job));
 
         $rateLimiter->shouldReceive('tooManyAttempts')
             ->once()
@@ -405,7 +405,7 @@ class ThrottlesExceptionsTest extends TestCase
             }
         };
 
-        $expectedKey = 'hypervel_throttles_exceptions:' . hash('xxh128', 'App\Actions\ThrottlesExceptionsTestAction');
+        $expectedKey = 'laravel_throttles_exceptions:' . hash('xxh128', 'App\Actions\ThrottlesExceptionsTestAction');
 
         $rateLimiter->shouldReceive('tooManyAttempts')
             ->once()

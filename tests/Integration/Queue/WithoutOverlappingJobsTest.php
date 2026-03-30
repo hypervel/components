@@ -139,12 +139,12 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $job = new OverlappingTestJob();
 
         $this->assertSame(
-            'hypervel-queue-overlap:' . OverlappingTestJob::class . ':key',
+            'laravel-queue-overlap:' . OverlappingTestJob::class . ':key',
             (new WithoutOverlapping('key'))->getLockKey($job)
         );
 
         $this->assertSame(
-            'hypervel-queue-overlap:key',
+            'laravel-queue-overlap:key',
             (new WithoutOverlapping('key'))->shared()->getLockKey($job)
         );
 
@@ -164,12 +164,12 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $job = new OverlappingTestJobWithDisplayName();
 
         $this->assertSame(
-            'hypervel-queue-overlap:App\Actions\WithoutOverlappingTestAction:key',
+            'laravel-queue-overlap:App\Actions\WithoutOverlappingTestAction:key',
             (new WithoutOverlapping('key'))->getLockKey($job)
         );
 
         $this->assertSame(
-            'hypervel-queue-overlap:key',
+            'laravel-queue-overlap:key',
             (new WithoutOverlapping('key'))->shared()->getLockKey($job)
         );
 

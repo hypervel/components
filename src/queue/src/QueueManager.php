@@ -130,9 +130,10 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function pause(string $connection, string $queue): void
     {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app['cache']
             ->store()
-            ->forever("hypervel:queue:paused:{$connection}:{$queue}", true);
+            ->forever("illuminate:queue:paused:{$connection}:{$queue}", true);
 
         $this->app['events']->dispatch(
             new Events\QueuePaused($connection, $queue)
@@ -144,9 +145,10 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
     {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app['cache']
             ->store()
-            ->put("hypervel:queue:paused:{$connection}:{$queue}", true, $ttl);
+            ->put("illuminate:queue:paused:{$connection}:{$queue}", true, $ttl);
 
         $this->app['events']->dispatch(
             new Events\QueuePaused($connection, $queue, $ttl)
@@ -158,9 +160,10 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function resume(string $connection, string $queue): void
     {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app['cache']
             ->store()
-            ->forget("hypervel:queue:paused:{$connection}:{$queue}");
+            ->forget("illuminate:queue:paused:{$connection}:{$queue}");
 
         $this->app['events']->dispatch(
             new Events\QueueResumed($connection, $queue)
@@ -172,9 +175,10 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function isPaused(string $connection, string $queue): bool
     {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         return (bool) $this->app['cache']
             ->store()
-            ->get("hypervel:queue:paused:{$connection}:{$queue}", false);
+            ->get("illuminate:queue:paused:{$connection}:{$queue}", false);
     }
 
     /**

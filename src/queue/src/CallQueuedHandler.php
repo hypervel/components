@@ -234,9 +234,10 @@ class CallQueuedHandler
 
         $context = Context::propagated();
 
+        // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
         [$store, $key] = [
-            $context->getHidden('hypervel_unique_job_cache_store'),
-            $context->getHidden('hypervel_unique_job_key'),
+            $context->getHidden('laravel_unique_job_cache_store'),
+            $context->getHidden('laravel_unique_job_key'),
         ];
 
         if ($store && $key) {

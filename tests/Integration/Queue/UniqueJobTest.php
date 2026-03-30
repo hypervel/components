@@ -201,14 +201,14 @@ class UniqueJobTest extends QueueTestCase
 
     protected function getLockKey($job)
     {
-        return 'hypervel_unique_job:' . (is_string($job) ? $job : get_class($job)) . ':';
+        return 'laravel_unique_job:' . (is_string($job) ? $job : get_class($job)) . ':';
     }
 
     public function testLockUsesDisplayNameWhenAvailable()
     {
         Bus::fake();
 
-        $lockKey = 'hypervel_unique_job:App\Actions\UniqueTestAction:';
+        $lockKey = 'laravel_unique_job:App\Actions\UniqueTestAction:';
 
         dispatch(new UniqueTestJobWithDisplayName());
         $this->runQueueWorkerCommand(['--once' => true]);
@@ -231,7 +231,7 @@ class UniqueJobTest extends QueueTestCase
     public function testUniqueLockCreatesKeyWithClassName()
     {
         $this->assertEquals(
-            'hypervel_unique_job:' . UniqueTestJob::class . ':',
+            'laravel_unique_job:' . UniqueTestJob::class . ':',
             UniqueLock::getKey(new UniqueTestJob())
         );
     }
@@ -239,7 +239,7 @@ class UniqueJobTest extends QueueTestCase
     public function testUniqueLockCreatesKeyWithIdAndClassName()
     {
         $this->assertEquals(
-            'hypervel_unique_job:' . UniqueIdTestJob::class . ':unique-id-1',
+            'laravel_unique_job:' . UniqueIdTestJob::class . ':unique-id-1',
             UniqueLock::getKey(new UniqueIdTestJob())
         );
     }
@@ -247,7 +247,7 @@ class UniqueJobTest extends QueueTestCase
     public function testUniqueLockCreatesKeyWithDisplayNameWhenAvailable()
     {
         $this->assertEquals(
-            'hypervel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
+            'laravel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
             UniqueLock::getKey(new UniqueIdTestJobWithDisplayName())
         );
     }
@@ -255,7 +255,7 @@ class UniqueJobTest extends QueueTestCase
     public function testUniqueLockCreatesKeyWithIdAndDisplayNameWhenAvailable()
     {
         $this->assertEquals(
-            'hypervel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
+            'laravel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
             UniqueLock::getKey(new UniqueIdTestJobWithDisplayName())
         );
     }

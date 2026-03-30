@@ -39,7 +39,12 @@ class Worker
 
     public const EXIT_MEMORY_LIMIT = 12;
 
-    public const RESTART_SIGNAL_CACHE_KEY = 'hypervel:queue:restart';
+    /**
+     * The cache key for the restart signal.
+     *
+     * IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
+     */
+    public const RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
 
     /**
      * The name of the worker.

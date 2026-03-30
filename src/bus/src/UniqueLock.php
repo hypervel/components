@@ -61,6 +61,7 @@ class UniqueLock
             ? $job->displayName()
             : get_class($job);
 
-        return 'hypervel_unique_job:' . $jobName . ':' . $uniqueId;
+        // IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
+        return 'laravel_unique_job:' . $jobName . ':' . $uniqueId;
     }
 }

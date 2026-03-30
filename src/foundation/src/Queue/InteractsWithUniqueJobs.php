@@ -16,9 +16,10 @@ trait InteractsWithUniqueJobs
     public function addUniqueJobInformationToContext(mixed $job): void
     {
         if ($job instanceof ShouldBeUnique) {
+            // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
             Context::propagated()->addHidden([
-                'hypervel_unique_job_cache_store' => $this->getUniqueJobCacheStore($job),
-                'hypervel_unique_job_key' => UniqueLock::getKey($job),
+                'laravel_unique_job_cache_store' => $this->getUniqueJobCacheStore($job),
+                'laravel_unique_job_key' => UniqueLock::getKey($job),
             ]);
         }
     }
@@ -29,9 +30,10 @@ trait InteractsWithUniqueJobs
     public function removeUniqueJobInformationFromContext(mixed $job): void
     {
         if ($job instanceof ShouldBeUnique) {
+            // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
             Context::propagated()->forgetHidden([
-                'hypervel_unique_job_cache_store',
-                'hypervel_unique_job_key',
+                'laravel_unique_job_cache_store',
+                'laravel_unique_job_key',
             ]);
         }
     }

@@ -21,8 +21,10 @@ class WithoutOverlapping
 
     /**
      * The prefix of the lock key.
+     *
+     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    public string $prefix = 'hypervel-queue-overlap:';
+    public string $prefix = 'laravel-queue-overlap:';
 
     /**
      * Share the key across different jobs.

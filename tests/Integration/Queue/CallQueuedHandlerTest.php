@@ -194,15 +194,15 @@ class CallQueuedHandlerTest extends TestCase
         $lock->shouldReceive('forceRelease')->once();
 
         $store = m::mock(\Hypervel\Contracts\Cache\Repository::class);
-        $store->shouldReceive('lock')->with('hypervel_unique_job:TestJob:42')->andReturn($lock);
+        $store->shouldReceive('lock')->with('laravel_unique_job:TestJob:42')->andReturn($lock);
 
         $cacheFactory = m::mock(\Hypervel\Contracts\Cache\Factory::class);
         $cacheFactory->shouldReceive('store')->with('array')->andReturn($store);
         $this->app->instance(\Hypervel\Contracts\Cache\Factory::class, $cacheFactory);
 
         \Hypervel\Context\Context::propagated()->addHidden([
-            'hypervel_unique_job_cache_store' => 'array',
-            'hypervel_unique_job_key' => 'hypervel_unique_job:TestJob:42',
+            'laravel_unique_job_cache_store' => 'array',
+            'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
         ]);
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);

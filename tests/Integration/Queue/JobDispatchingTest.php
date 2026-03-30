@@ -238,7 +238,7 @@ class JobDispatchingTest extends QueueTestCase
      */
     private function getJobLock(string $job, mixed $value = null): bool
     {
-        return $this->app->get(Repository::class)->lock('hypervel_unique_job:' . $job . ':' . $value, 10)->get();
+        return $this->app->get(Repository::class)->lock('laravel_unique_job:' . $job . ':' . $value, 10)->get();
     }
 
     private function dispatchAfterResponseInChildCoroutine(callable $callback): void

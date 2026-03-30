@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Database\ModelIdentifier;
 use Hypervel\Queue\Connectors\BackgroundConnector;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
@@ -80,6 +81,8 @@ class QueueServiceProvider extends ServiceProvider
             TableCommand::class,
             WorkCommand::class,
         ]);
+
+        $this->registerLaravelInteropAliases();
     }
 
     /**
@@ -102,6 +105,25 @@ class QueueServiceProvider extends ServiceProvider
 
             return $data;
         });
+    }
+
+    /**
+     * Register class aliases for cross-framework queue interoperability.
+     *
+     * These aliases allow Hypervel workers to process jobs dispatched by Laravel
+     * and vice versa. The payload's "job" field references Illuminate\Queue\CallQueuedHandler,
+     * and serialized models use Illuminate\Contracts\Database\ModelIdentifier. Without these
+     * aliases, Hypervel cannot resolve those classes from Laravel-dispatched job payloads.
+     */
+    protected function registerLaravelInteropAliases(): void
+    {
+        if (! class_exists(\Illuminate\Queue\CallQueuedHandler::class, autoload: false)) {
+            class_alias(CallQueuedHandler::class, \Illuminate\Queue\CallQueuedHandler::class);
+        }
+
+        if (! class_exists(\Illuminate\Contracts\Database\ModelIdentifier::class, autoload: false)) {
+            class_alias(ModelIdentifier::class, \Illuminate\Contracts\Database\ModelIdentifier::class);
+        }
     }
 
     /**

@@ -55,8 +55,10 @@ class ThrottlesExceptions
 
     /**
      * The prefix of the rate limiter key.
+     *
+     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    protected string $prefix = 'hypervel_throttles_exceptions:';
+    protected string $prefix = 'laravel_throttles_exceptions:';
 
     /**
      * The rate limiter instance.
