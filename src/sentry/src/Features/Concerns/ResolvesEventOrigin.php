@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Traits;
+namespace Hypervel\Sentry\Features\Concerns;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Sentry\Tracing\BacktraceHelper;

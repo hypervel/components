@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Sentry;
 use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Sentry\Integrations\ModelViolations\ModelViolationReporter;
+use Hypervel\Sentry\Integration\ModelViolations\ModelViolationReporter;
 use Swoole\Coroutine\Channel;
 
 /**

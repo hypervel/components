@@ -10,7 +10,6 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
-use Hypervel\Sentry\Features\DbQueryFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use ReflectionException;
 use Sentry\Breadcrumb;
@@ -22,12 +21,9 @@ use Sentry\Breadcrumb;
 class DbQueryFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
-        'sentry.features' => [
-            DbQueryFeature::class,
-        ],
         'sentry.breadcrumbs.sql_queries' => true,
         'sentry.breadcrumbs.sql_bindings' => true,
-        'sentry.breadcrumbs.sql_transaction' => true,
+        'sentry.breadcrumbs.sql_transactions' => true,
     ];
 
     /**
@@ -36,41 +32,6 @@ class DbQueryFeatureTest extends SentryTestCase
     protected function createTestConnection(): Connection
     {
         return new Connection(fn () => null, '', '', ['name' => 'sqlite']);
-    }
-
-    public function testFeatureIsApplicableWhenSqlQueriesBreadcrumbIsEnabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => true,
-        ]);
-
-        $feature = $this->app->make(DbQueryFeature::class);
-
-        $this->assertTrue($feature->isApplicable());
-    }
-
-    public function testFeatureIsApplicableWhenSqlTransactionBreadcrumbIsEnabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
-            'sentry.breadcrumbs.sql_transaction' => true,
-        ]);
-
-        $feature = $this->app->make(DbQueryFeature::class);
-
-        $this->assertTrue($feature->isApplicable());
-    }
-
-    public function testFeatureIsNotApplicableWhenBothFeaturesAreDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
-            'sentry.breadcrumbs.sql_transaction' => false,
-        ]);
-
-        $feature = $this->app->make(DbQueryFeature::class);
-
-        $this->assertFalse($feature->isApplicable());
     }
 
     /**
@@ -92,7 +53,7 @@ class DbQueryFeatureTest extends SentryTestCase
         $breadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('sql.query', $breadcrumb->getCategory());
+        $this->assertEquals('db.sql.query', $breadcrumb->getCategory());
         $this->assertEquals('SELECT * FROM users WHERE id = ?', $breadcrumb->getMessage());
         $this->assertEquals(Breadcrumb::LEVEL_INFO, $breadcrumb->getLevel());
         $this->assertEquals([
@@ -147,7 +108,7 @@ class DbQueryFeatureTest extends SentryTestCase
         $breadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('sql.transaction', $breadcrumb->getCategory());
+        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
         $this->assertEquals(TransactionBeginning::class, $breadcrumb->getMessage());
         $this->assertEquals([
             'connectionName' => 'sqlite',
@@ -168,7 +129,7 @@ class DbQueryFeatureTest extends SentryTestCase
         $breadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('sql.transaction', $breadcrumb->getCategory());
+        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
         $this->assertEquals(TransactionCommitted::class, $breadcrumb->getMessage());
         $this->assertEquals([
             'connectionName' => 'sqlite',
@@ -189,7 +150,7 @@ class DbQueryFeatureTest extends SentryTestCase
         $breadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertInstanceOf(Breadcrumb::class, $breadcrumb);
-        $this->assertEquals('sql.transaction', $breadcrumb->getCategory());
+        $this->assertEquals('db.sql.transaction', $breadcrumb->getCategory());
         $this->assertEquals(TransactionRolledBack::class, $breadcrumb->getMessage());
         $this->assertEquals([
             'connectionName' => 'sqlite',
@@ -226,7 +187,7 @@ class DbQueryFeatureTest extends SentryTestCase
     public function testTransactionEventIsIgnoredWhenFeatureDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_transaction' => false,
+            'sentry.breadcrumbs.sql_transactions' => false,
         ]);
 
         $dispatcher = $this->app->make(Dispatcher::class);

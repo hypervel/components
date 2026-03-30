@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Http;
 
 use Closure;
 use Hypervel\Http\Request;
-use Hypervel\Sentry\Integrations\Integration;
+use Hypervel\Sentry\Integration;
 use Symfony\Component\HttpFoundation\Response;
 
 class FlushEventsMiddleware

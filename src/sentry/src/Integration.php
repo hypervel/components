@@ -2,13 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Integrations;
+namespace Hypervel\Sentry;
 
-// @TODO: Uncomment once Hypervel\Foundation\Configuration\Exceptions is ported
-// use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Routing\Route;
-use Hypervel\Sentry\Integrations\ModelViolations as ModelViolationReports;
+use Hypervel\Sentry\Integration\ModelViolations as ModelViolationReports;
 use Sentry\Breadcrumb;
 use Sentry\Event;
 use Sentry\EventHint;
@@ -56,16 +55,15 @@ class Integration implements IntegrationInterface
         });
     }
 
-    // @TODO: Uncomment once Hypervel\Foundation\Configuration\Exceptions is ported
-    // /**
-    //  * Register the exception handler with the Hypervel exception configuration.
-    //  */
-    // public static function handles(Exceptions $exceptions): void
-    // {
-    //     $exceptions->reportable(static function (Throwable $exception) {
-    //         self::captureUnhandledException($exception);
-    //     });
-    // }
+    /**
+     * Register the exception handler with the Hypervel exception configuration.
+     */
+    public static function handles(Exceptions $exceptions): void
+    {
+        $exceptions->reportable(static function (Throwable $exception) {
+            self::captureUnhandledException($exception);
+        });
+    }
 
     /**
      * Add a breadcrumb if the integration is enabled.

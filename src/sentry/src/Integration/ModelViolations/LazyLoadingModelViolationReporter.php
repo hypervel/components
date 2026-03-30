@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Integrations\ModelViolations;
+namespace Hypervel\Sentry\Integration\ModelViolations;
 
 use Exception;
 use Hypervel\Database\Eloquent\Model;

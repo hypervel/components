@@ -10,7 +10,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
-use Hypervel\Sentry\Traits\ResolvesEventOrigin;
+use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Support\Str;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;

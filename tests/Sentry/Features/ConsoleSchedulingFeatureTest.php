@@ -20,6 +20,7 @@ use RuntimeException;
 class ConsoleSchedulingFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
             ConsoleSchedulingFeature::class,
         ],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Commands;
+namespace Hypervel\Sentry\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Sentry\Version;

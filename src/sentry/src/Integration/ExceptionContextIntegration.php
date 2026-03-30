@@ -2,20 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Integrations;
+namespace Hypervel\Sentry\Integration;
 
-use Hypervel\Log\Context\Repository;
 use Sentry\Event;
 use Sentry\EventHint;
-use Sentry\EventType;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 
-/**
- * Adds log context data to Sentry events.
- */
-class ContextIntegration implements IntegrationInterface
+class ExceptionContextIntegration implements IntegrationInterface
 {
     public function setupOnce(): void
     {
@@ -26,12 +21,18 @@ class ContextIntegration implements IntegrationInterface
                 return $event;
             }
 
-            if (! in_array($event->getType(), [EventType::event(), EventType::transaction()], true)) {
+            if ($hint === null || $hint->exception === null) {
                 return $event;
             }
 
-            if (Repository::hasInstance()) {
-                $event->setContext('hypervel', Repository::getInstance()->all());
+            if (! method_exists($hint->exception, 'context')) {
+                return $event;
+            }
+
+            $context = $hint->exception->context();
+
+            if (is_array($context)) {
+                $event->setExtra(['exception_context' => $context]);
             }
 
             return $event;

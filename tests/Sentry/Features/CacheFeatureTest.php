@@ -18,6 +18,7 @@ use Sentry\Tracing\Span;
 class CacheFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
         'sentry.breadcrumbs.cache' => true,
         'sentry.tracing.cache' => true,
         'sentry.features' => [

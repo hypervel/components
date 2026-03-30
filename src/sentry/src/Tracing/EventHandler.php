@@ -9,8 +9,8 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Routing\Events as RoutingEvents;
-use Hypervel\Sentry\Integrations\Integration;
-use Hypervel\Sentry\Traits\ResolvesEventOrigin;
+use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
+use Hypervel\Sentry\Integration;
 use RuntimeException;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
@@ -41,15 +41,23 @@ class EventHandler
 
     public const CONTEXT_CURRENT_SPANS_KEY = '__sentry.tracing.current_spans';
 
+    private readonly bool $traceSqlQueries;
+
+    private readonly bool $traceSqlBindings;
+
+    private readonly bool $traceSqlQueryOrigin;
+
+    private readonly int $traceSqlQueryOriginThresholdMs;
+
     /**
      * Create a new tracing event handler instance.
      */
-    public function __construct(
-        private readonly bool $traceSqlQueries = true,
-        private readonly bool $traceSqlBindings = true,
-        private readonly bool $traceSqlQueryOrigin = true,
-        private readonly int $traceSqlQueryOriginThresholdMs = 100,
-    ) {
+    public function __construct(array $config)
+    {
+        $this->traceSqlQueries = ($config['sql_queries'] ?? true) === true;
+        $this->traceSqlBindings = ($config['sql_bindings'] ?? false) === true;
+        $this->traceSqlQueryOrigin = ($config['sql_origin'] ?? true) === true;
+        $this->traceSqlQueryOriginThresholdMs = $config['sql_origin_threshold_ms'] ?? 100;
     }
 
     /**

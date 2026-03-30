@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Traits;
+namespace Hypervel\Sentry\Features\Concerns;
 
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;

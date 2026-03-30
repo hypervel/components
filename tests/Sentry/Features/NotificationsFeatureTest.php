@@ -22,6 +22,7 @@ use Sentry\Tracing\SpanStatus;
 class NotificationsFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
         'sentry.breadcrumbs.notifications' => true,
         'sentry.tracing.notifications' => true,
         'sentry.features' => [

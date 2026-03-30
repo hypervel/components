@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Integrations\ModelViolations;
+namespace Hypervel\Sentry\Integration\ModelViolations;
 
 use Closure;
 use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Sentry\Traits\ResolvesEventOrigin;
+use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Sentry\Event;
 use Sentry\EventHint;
 use Sentry\ExceptionMechanism;

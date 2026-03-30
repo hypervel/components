@@ -7,8 +7,8 @@ namespace Hypervel\Sentry\Features;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Sentry\Integrations\Integration;
-use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
+use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
+use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
@@ -18,18 +18,18 @@ class NotificationsFeature extends Feature
 {
     use TracksPushedScopesAndSpans;
 
-    protected const FEATURE_KEY = 'notifications';
+    private const FEATURE_KEY = 'notifications';
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
-            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
+        return $this->isTracingFeatureEnabled(self::FEATURE_KEY)
+            || $this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
         $dispatcher = $this->container->make('events');
-        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->isTracingFeatureEnabled(self::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
         }
 
@@ -63,7 +63,7 @@ class NotificationsFeature extends Feature
     {
         $this->maybeFinishSpan(SpanStatus::ok());
 
-        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
             Integration::addBreadcrumb(
                 new Breadcrumb(
                     Breadcrumb::LEVEL_INFO,
@@ -80,7 +80,7 @@ class NotificationsFeature extends Feature
         }
     }
 
-    protected function formatNotifiable($notifiable): string
+    private function formatNotifiable($notifiable): string
     {
         if (is_string($notifiable) || is_numeric($notifiable)) {
             return (string) $notifiable;

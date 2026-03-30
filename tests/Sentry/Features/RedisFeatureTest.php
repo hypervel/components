@@ -25,6 +25,7 @@ use Sentry\State\HubInterface;
 class RedisFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
         'sentry.tracing.redis_commands' => true,
         'sentry.tracing.redis_origin' => false, // Disable origin tracking to avoid complex dependencies
         'sentry.features' => [

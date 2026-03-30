@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Exception;
-use Hypervel\Sentry\Integrations\ContextIntegration;
+use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Support\Facades\Context;
 use Sentry\EventType;
 

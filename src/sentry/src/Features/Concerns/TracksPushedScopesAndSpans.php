@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Traits;
+namespace Hypervel\Sentry\Features\Concerns;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Sentry\Integrations\Integration;
+use Hypervel\Sentry\Integration;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;

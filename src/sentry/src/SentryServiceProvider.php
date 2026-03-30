@@ -15,16 +15,15 @@ use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
-use Hypervel\Sentry\Commands\AboutCommand;
-use Hypervel\Sentry\Commands\TestCommand;
+use Hypervel\Sentry\Console\AboutCommand;
+use Hypervel\Sentry\Console\TestCommand;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\HttpClient\HttpClient;
-use Hypervel\Sentry\Integrations\ContextIntegration;
-use Hypervel\Sentry\Integrations\ExceptionContextIntegration;
-use Hypervel\Sentry\Integrations\Integration;
-use Hypervel\Sentry\Integrations\RequestFetcher;
+use Hypervel\Sentry\Integration\ContextIntegration;
+use Hypervel\Sentry\Integration\ExceptionContextIntegration;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
@@ -41,6 +40,7 @@ use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
+use Sentry\Logger\DebugFileLogger;
 use Sentry\Logs\Logs;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
@@ -111,6 +111,10 @@ class SentryServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/sentry.php', static::$abstract);
+
+        $this->app->singleton(DebugFileLogger::class, function () {
+            return new DebugFileLogger(storage_path('logs/sentry.log'));
+        });
 
         $this->configureAndRegisterClient();
 
@@ -220,7 +224,7 @@ class SentryServiceProvider extends ServiceProvider
                     });
 
                     $integrations[] = new SdkIntegration\RequestIntegration(
-                        new RequestFetcher()
+                        new HypervelRequestFetcher()
                     );
                 }
 
@@ -266,7 +270,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $userConfig = $this->getUserConfig();
 
-        $handler = new EventHandler($userConfig);
+        $handler = new EventHandler($this->app, $userConfig);
 
         try {
             /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */
@@ -274,10 +278,9 @@ class SentryServiceProvider extends ServiceProvider
 
             $handler->subscribe($dispatcher);
 
-            // @TODO: Uncomment once Hypervel\Auth\Events is ported
-            // if (isset($userConfig['send_default_pii']) && $userConfig['send_default_pii'] !== false) {
-            //     $handler->subscribeAuthEvents($dispatcher);
-            // }
+            if (isset($userConfig['send_default_pii']) && $userConfig['send_default_pii'] !== false) {
+                $handler->subscribeAuthEvents($dispatcher);
+            }
 
             if (isset($userConfig['enable_logs']) && $userConfig['enable_logs'] === true) {
                 $this->app->terminating(static function () {
@@ -337,12 +340,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     private function bindTracingEvents(array $tracingConfig): void
     {
-        $handler = new TracingEventHandler(
-            traceSqlQueries: ($tracingConfig['sql_queries'] ?? true) === true,
-            traceSqlBindings: ($tracingConfig['sql_bindings'] ?? false) === true,
-            traceSqlQueryOrigin: ($tracingConfig['sql_origin'] ?? true) === true,
-            traceSqlQueryOriginThresholdMs: (int) ($tracingConfig['sql_origin_threshold_ms'] ?? 100),
-        );
+        $handler = new TracingEventHandler($tracingConfig);
 
         try {
             /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */

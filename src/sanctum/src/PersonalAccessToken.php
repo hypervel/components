@@ -19,6 +19,7 @@ use function Hypervel\Support\enum_value;
  * @property array $abilities
  * @property string $token
  * @property string $name
+ * @property \Hypervel\Database\Eloquent\Model $tokenable
  * @property null|\Carbon\Carbon $last_used_at
  * @property null|\Carbon\Carbon $expires_at
  * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')

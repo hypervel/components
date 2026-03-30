@@ -12,7 +12,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
+use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Sentry\CheckIn;

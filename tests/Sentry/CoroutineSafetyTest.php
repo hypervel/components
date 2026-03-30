@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Sentry;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Features\CacheFeature;
-use Hypervel\Sentry\Integrations\Integration;
+use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
@@ -58,7 +58,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testTracingEventHandlerSpanStacksAreIsolatedPerCoroutine()
     {
-        $handler = new TracingEventHandler();
+        $handler = new TracingEventHandler([]);
 
         // We need a transaction on the hub for span operations to work
         $hub = SentrySdk::getCurrentHub();

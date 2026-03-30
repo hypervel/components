@@ -21,6 +21,7 @@ use function Sentry\captureException;
 class QueueFeatureTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
         'sentry.breadcrumbs.queue_info' => true,
         'sentry.tracing.queue_jobs' => true,
         'sentry.tracing.queue_job_transactions' => true,

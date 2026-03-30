@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Hypervel\Console\Events as ConsoleEvents;
-use Hypervel\Sentry\Integrations\Integration;
+use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
 use Sentry\State\Scope;
 use Symfony\Component\Console\Input\ArgvInput;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\Integrations;
+namespace Hypervel\Sentry\Http;
 
 use Hypervel\Context\RequestContext;
 use Hypervel\Support\Str;
@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Sentry\Integration\RequestFetcherInterface;
 use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
 
-class RequestFetcher implements RequestFetcherInterface
+class HypervelRequestFetcher implements RequestFetcherInterface
 {
     /**
      * Fetch the current request as a PSR-7 server request for Sentry.
