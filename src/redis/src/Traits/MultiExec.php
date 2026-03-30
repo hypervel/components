@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Traits;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\Redis as HypervelRedis;
 use Redis;
 use RedisCluster;
@@ -49,7 +49,7 @@ trait MultiExec
             return tap($this->__call($command, []), $callback)->exec();
         }
 
-        $hasExistingConnection = Context::has($this->getContextKey());
+        $hasExistingConnection = CoroutineContext::has($this->getContextKey());
         $instance = $this->__call($command, []);
 
         try {

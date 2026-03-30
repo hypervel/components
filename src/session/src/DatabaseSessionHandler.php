@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container;
@@ -253,7 +253,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function setExists(bool $value): static
     {
-        Context::set(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
+        CoroutineContext::set(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
 
         return $this;
     }
@@ -263,6 +263,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return Context::get(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), false);
+        return CoroutineContext::get(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), false);
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
@@ -46,7 +46,7 @@ trait CompilesComponents
     {
         $hash = hash('xxh128', $component);
 
-        Context::override(static::COMPONENT_HASH_STACK_CONTEXT_KEY, function ($stack) use ($hash) {
+        CoroutineContext::override(static::COMPONENT_HASH_STACK_CONTEXT_KEY, function ($stack) use ($hash) {
             $stack ??= [];
             $stack[] = $hash;
             return $stack;
@@ -100,11 +100,11 @@ trait CompilesComponents
 
     protected function popComponentHashStack(): string
     {
-        $stack = Context::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
 
         $hash = array_pop($stack);
 
-        Context::set(static::COMPONENT_HASH_STACK_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPONENT_HASH_STACK_CONTEXT_KEY, $stack);
 
         return $hash;
     }

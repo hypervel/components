@@ -14,7 +14,7 @@ class ResponseContext
      */
     public static function get(?int $coroutineId = null): Response
     {
-        return Context::get(SymfonyResponse::class, null, $coroutineId);
+        return CoroutineContext::get(SymfonyResponse::class, null, $coroutineId);
     }
 
     /**
@@ -22,7 +22,7 @@ class ResponseContext
      */
     public static function set(Response $response, ?int $coroutineId = null): Response
     {
-        return Context::set(SymfonyResponse::class, $response, $coroutineId);
+        return CoroutineContext::set(SymfonyResponse::class, $response, $coroutineId);
     }
 
     /**
@@ -30,7 +30,7 @@ class ResponseContext
      */
     public static function has(?int $coroutineId = null): bool
     {
-        return Context::has(SymfonyResponse::class, $coroutineId);
+        return CoroutineContext::has(SymfonyResponse::class, $coroutineId);
     }
 
     /**
@@ -38,7 +38,7 @@ class ResponseContext
      */
     public static function forget(?int $coroutineId = null): void
     {
-        Context::forget(SymfonyResponse::class, $coroutineId);
+        CoroutineContext::forget(SymfonyResponse::class, $coroutineId);
     }
 
     /**
@@ -46,6 +46,6 @@ class ResponseContext
      */
     public static function getOrNull(?int $coroutineId = null): ?Response
     {
-        return Context::get(SymfonyResponse::class, null, $coroutineId);
+        return CoroutineContext::get(SymfonyResponse::class, null, $coroutineId);
     }
 }

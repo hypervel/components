@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
@@ -52,14 +52,14 @@ class FlushLifecycleTest extends TestCase
         $transport->send(Event::createEvent());
 
         // Verify transports are tracked in context
-        $tracked = Context::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []);
+        $tracked = CoroutineContext::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []);
         $this->assertCount(2, $tracked);
 
         // Simulate what flush does: client->flush() -> transport->close()
         $transport->close();
 
         // Verify context is cleaned up
-        $tracked = Context::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []);
+        $tracked = CoroutineContext::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []);
         $this->assertCount(0, $tracked);
     }
 
@@ -84,12 +84,12 @@ class FlushLifecycleTest extends TestCase
         // Send an event (checks out a transport)
         $transport->send(Event::createEvent());
 
-        $this->assertCount(1, Context::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []));
+        $this->assertCount(1, CoroutineContext::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []));
 
         // close() releases the transport back to the pool
         $transport->close();
 
         // All transports should be released
-        $this->assertCount(0, Context::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []));
+        $this->assertCount(0, CoroutineContext::get(HttpPoolTransport::CONTEXT_TRANSPORTS_KEY, []));
     }
 }

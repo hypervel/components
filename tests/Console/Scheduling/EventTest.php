@@ -8,7 +8,7 @@ use DateTimeZone;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
@@ -106,7 +106,7 @@ class EventTest extends TestCase
         $process->shouldReceive('getOutput')
             ->once()
             ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
-        Context::set($key = "__console.scheduling_process.{$event->mutexName()}", $process);
+        CoroutineContext::set($key = "__console.scheduling_process.{$event->mutexName()}", $process);
 
         $filesystem = m::mock(Filesystem::class);
         $filesystem->shouldReceive('put')
@@ -117,7 +117,7 @@ class EventTest extends TestCase
 
         $event->writeOutput($this->container);
 
-        Context::forget($key);
+        CoroutineContext::forget($key);
     }
 
     public function testDaysOfMonthMethod()

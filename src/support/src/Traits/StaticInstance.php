@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait StaticInstance
 {
@@ -16,13 +16,13 @@ trait StaticInstance
         $key = static::class . $suffix;
         $instance = null;
 
-        if (Context::has($key)) {
-            $instance = Context::get($key);
+        if (CoroutineContext::has($key)) {
+            $instance = CoroutineContext::get($key);
         }
 
         if ($refresh || ! $instance instanceof static) {
             $instance = new static(...$params);
-            Context::set($key, $instance);
+            CoroutineContext::set($key, $instance);
         }
 
         return $instance;

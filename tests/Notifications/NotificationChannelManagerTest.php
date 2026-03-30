@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -157,7 +157,7 @@ class NotificationChannelManagerTest extends TestCase
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         // Simulate boot-time listener: when NotificationFailed is dispatched, set Context flag
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class))->andReturnUsing(function () {
-            Context::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
+            CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
         });
         $events->shouldReceive('dispatch')->never()->with(m::type(NotificationSent::class));
 
@@ -193,7 +193,7 @@ class NotificationChannelManagerTest extends TestCase
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         // Simulate boot-time listener: when NotificationFailed is dispatched, set Context flag
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class))->andReturnUsing(function () {
-            Context::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
+            CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
         });
         $events->shouldReceive('dispatch')->twice()->with(m::type(NotificationSent::class));
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Traits\Macroable;
 use NumberFormatter;
 use RuntimeException;
@@ -305,7 +305,7 @@ class Number
      */
     public static function useLocale(string $locale): void
     {
-        Context::set(self::LOCALE_CONTEXT_KEY, $locale);
+        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**
@@ -313,7 +313,7 @@ class Number
      */
     public static function useCurrency(string $currency): void
     {
-        Context::set(self::CURRENCY_CONTEXT_KEY, $currency);
+        CoroutineContext::set(self::CURRENCY_CONTEXT_KEY, $currency);
     }
 
     /**
@@ -321,7 +321,7 @@ class Number
      */
     public static function defaultLocale(): string
     {
-        return Context::get(self::LOCALE_CONTEXT_KEY, static::$locale);
+        return CoroutineContext::get(self::LOCALE_CONTEXT_KEY, static::$locale);
     }
 
     /**
@@ -329,7 +329,7 @@ class Number
      */
     public static function defaultCurrency(): string
     {
-        return Context::get(self::CURRENCY_CONTEXT_KEY, static::$currency);
+        return CoroutineContext::get(self::CURRENCY_CONTEXT_KEY, static::$currency);
     }
 
     /**
@@ -337,8 +337,8 @@ class Number
      */
     public static function flushState(): void
     {
-        Context::forget(self::LOCALE_CONTEXT_KEY);
-        Context::forget(self::CURRENCY_CONTEXT_KEY);
+        CoroutineContext::forget(self::LOCALE_CONTEXT_KEY);
+        CoroutineContext::forget(self::CURRENCY_CONTEXT_KEY);
     }
 
     /**

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use BackedEnum;
-use Hypervel\Context\ParentContext;
+use Hypervel\Context\ParentCoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
@@ -518,15 +518,15 @@ trait MakesHttpRequests
                 /** @var SessionStore $session */
                 $session = $request->session();
 
-                ParentContext::set(SessionStore::CONTEXT_KEY, $session);
-                ParentContext::set(SessionStore::STARTED_CONTEXT_KEY, $session->isStarted());
-                ParentContext::set(SessionStore::ID_CONTEXT_KEY, $session->getId());
-                ParentContext::set(SessionStore::ATTRIBUTES_CONTEXT_KEY, $session->all());
+                ParentCoroutineContext::set(SessionStore::CONTEXT_KEY, $session);
+                ParentCoroutineContext::set(SessionStore::STARTED_CONTEXT_KEY, $session->isStarted());
+                ParentCoroutineContext::set(SessionStore::ID_CONTEXT_KEY, $session->getId());
+                ParentCoroutineContext::set(SessionStore::ATTRIBUTES_CONTEXT_KEY, $session->all());
             } else {
-                ParentContext::forget(SessionStore::CONTEXT_KEY);
-                ParentContext::forget(SessionStore::STARTED_CONTEXT_KEY);
-                ParentContext::forget(SessionStore::ID_CONTEXT_KEY);
-                ParentContext::forget(SessionStore::ATTRIBUTES_CONTEXT_KEY);
+                ParentCoroutineContext::forget(SessionStore::CONTEXT_KEY);
+                ParentCoroutineContext::forget(SessionStore::STARTED_CONTEXT_KEY);
+                ParentCoroutineContext::forget(SessionStore::ID_CONTEXT_KEY);
+                ParentCoroutineContext::forget(SessionStore::ATTRIBUTES_CONTEXT_KEY);
             }
 
             $response = $this->createTestResponse($response, $request);

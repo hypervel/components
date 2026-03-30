@@ -16,7 +16,7 @@ use function Hypervel\Support\enum_value;
  * @template TKey of string
  * @template TValue
  */
-class Context
+class CoroutineContext
 {
     protected const DEPTH_KEY = 'di.depth';
 

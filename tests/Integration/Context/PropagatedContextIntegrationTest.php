@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Context\PropagatedContextIntegrationTest;
 
 use ErrorException;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -33,67 +33,67 @@ class PropagatedContextIntegrationTest extends TestCase
 
     public function testItCanHydrateNull()
     {
-        Context::propagated()->hydrate(null);
+        CoroutineContext::propagated()->hydrate(null);
 
-        $this->assertSame([], Context::propagated()->all());
+        $this->assertSame([], CoroutineContext::propagated()->all());
     }
 
     public function testItHandlesEloquent()
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
-        Context::propagated()->add('model', $user);
-        Context::propagated()->add('number', 55);
+        CoroutineContext::propagated()->add('model', $user);
+        CoroutineContext::propagated()->add('number', 55);
 
-        $dehydrated = Context::propagated()->dehydrate();
+        $dehydrated = CoroutineContext::propagated()->dehydrate();
 
-        Context::propagated()->flush();
-        $this->assertNull(Context::propagated()->get('model'));
-        $this->assertNull(Context::propagated()->get('number'));
+        CoroutineContext::propagated()->flush();
+        $this->assertNull(CoroutineContext::propagated()->get('model'));
+        $this->assertNull(CoroutineContext::propagated()->get('number'));
 
-        Context::propagated()->hydrate($dehydrated);
-        $this->assertTrue($user->is(Context::propagated()->get('model')));
-        $this->assertNotSame($user, Context::propagated()->get('model'));
-        $this->assertSame(55, Context::propagated()->get('number'));
+        CoroutineContext::propagated()->hydrate($dehydrated);
+        $this->assertTrue($user->is(CoroutineContext::propagated()->get('model')));
+        $this->assertNotSame($user, CoroutineContext::propagated()->get('model'));
+        $this->assertSame(55, CoroutineContext::propagated()->get('number'));
     }
 
     public function testItIgnoresDeletedModelsWhenHydrating()
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
-        Context::propagated()->add('model', $user);
-        Context::propagated()->add('number', 55);
+        CoroutineContext::propagated()->add('model', $user);
+        CoroutineContext::propagated()->add('number', 55);
 
-        $dehydrated = Context::propagated()->dehydrate();
+        $dehydrated = CoroutineContext::propagated()->dehydrate();
         $user->delete();
 
-        Context::propagated()->flush();
-        $this->assertNull(Context::propagated()->get('model'));
-        $this->assertNull(Context::propagated()->get('number'));
+        CoroutineContext::propagated()->flush();
+        $this->assertNull(CoroutineContext::propagated()->get('model'));
+        $this->assertNull(CoroutineContext::propagated()->get('number'));
 
-        Context::propagated()->hydrate($dehydrated);
-        $this->assertNull(Context::propagated()->get('model'));
-        $this->assertSame(55, Context::propagated()->get('number'));
+        CoroutineContext::propagated()->hydrate($dehydrated);
+        $this->assertNull(CoroutineContext::propagated()->get('model'));
+        $this->assertSame(55, CoroutineContext::propagated()->get('number'));
     }
 
     public function testItIgnoresDeletedModelsWithinCollectionsWhenHydrating()
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
-        Context::propagated()->add('models', User::all());
-        Context::propagated()->add('number', 55);
+        CoroutineContext::propagated()->add('models', User::all());
+        CoroutineContext::propagated()->add('number', 55);
 
-        $dehydrated = Context::propagated()->dehydrate();
+        $dehydrated = CoroutineContext::propagated()->dehydrate();
         $user->delete();
 
-        Context::propagated()->flush();
-        $this->assertNull(Context::propagated()->get('models'));
-        $this->assertNull(Context::propagated()->get('number'));
+        CoroutineContext::propagated()->flush();
+        $this->assertNull(CoroutineContext::propagated()->get('models'));
+        $this->assertNull(CoroutineContext::propagated()->get('number'));
 
-        Context::propagated()->hydrate($dehydrated);
-        $this->assertInstanceOf(EloquentCollection::class, Context::propagated()->get('models'));
-        $this->assertCount(0, Context::propagated()->get('models'));
-        $this->assertSame(55, Context::propagated()->get('number'));
+        CoroutineContext::propagated()->hydrate($dehydrated);
+        $this->assertInstanceOf(EloquentCollection::class, CoroutineContext::propagated()->get('models'));
+        $this->assertCount(0, CoroutineContext::propagated()->get('models'));
+        $this->assertSame(55, CoroutineContext::propagated()->get('number'));
     }
 
     public function testItThrowsOnIncompleteClasses()
@@ -108,7 +108,7 @@ class PropagatedContextIntegrationTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Value is incomplete class');
 
-        Context::propagated()->hydrate($dehydrated);
+        CoroutineContext::propagated()->hydrate($dehydrated);
     }
 
     public function testItThrowsGenericUnserializeExceptions()
@@ -123,7 +123,7 @@ class PropagatedContextIntegrationTest extends TestCase
         $this->expectException(ErrorException::class);
         $this->expectExceptionMessage('unserialize(): Error at offset 0 of 8 bytes');
 
-        Context::propagated()->hydrate($dehydrated);
+        CoroutineContext::propagated()->hydrate($dehydrated);
     }
 
     public function testItCanHandleUnserializeExceptionsManually()
@@ -137,7 +137,7 @@ class PropagatedContextIntegrationTest extends TestCase
             ],
         ];
 
-        Context::propagated()->handleUnserializeExceptionsUsing(
+        CoroutineContext::propagated()->handleUnserializeExceptionsUsing(
             function ($exception, $key, $value, $hidden) {
                 if ($key === 'model') {
                     $this->assertSame('bad data', $value);
@@ -153,9 +153,9 @@ class PropagatedContextIntegrationTest extends TestCase
             }
         );
 
-        Context::propagated()->hydrate($dehydrated);
+        CoroutineContext::propagated()->hydrate($dehydrated);
 
-        $this->assertSame('replaced value 1', Context::propagated()->get('model'));
-        $this->assertSame('replaced value 2', Context::propagated()->getHidden('other'));
+        $this->assertSame('replaced value 1', CoroutineContext::propagated()->get('model'));
+        $this->assertSame('replaced value 2', CoroutineContext::propagated()->getHidden('other'));
     }
 }

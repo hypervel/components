@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Collection;
 
 /**
@@ -28,7 +28,7 @@ class DatabaseTransactionsManager
      */
     protected function getCommittedTransactionsInternal(): Collection
     {
-        return Context::get(self::COMMITTED_CONTEXT_KEY, new Collection());
+        return CoroutineContext::get(self::COMMITTED_CONTEXT_KEY, new Collection());
     }
 
     /**
@@ -38,7 +38,7 @@ class DatabaseTransactionsManager
      */
     protected function setCommittedTransactions(Collection $transactions): void
     {
-        Context::set(self::COMMITTED_CONTEXT_KEY, $transactions);
+        CoroutineContext::set(self::COMMITTED_CONTEXT_KEY, $transactions);
     }
 
     /**
@@ -48,7 +48,7 @@ class DatabaseTransactionsManager
      */
     protected function getPendingTransactionsInternal(): Collection
     {
-        return Context::get(self::PENDING_CONTEXT_KEY, new Collection());
+        return CoroutineContext::get(self::PENDING_CONTEXT_KEY, new Collection());
     }
 
     /**
@@ -58,7 +58,7 @@ class DatabaseTransactionsManager
      */
     protected function setPendingTransactions(Collection $transactions): void
     {
-        Context::set(self::PENDING_CONTEXT_KEY, $transactions);
+        CoroutineContext::set(self::PENDING_CONTEXT_KEY, $transactions);
     }
 
     /**
@@ -68,7 +68,7 @@ class DatabaseTransactionsManager
      */
     protected function getCurrentTransaction(): array
     {
-        return Context::get(self::CURRENT_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::CURRENT_CONTEXT_KEY, []);
     }
 
     /**
@@ -78,7 +78,7 @@ class DatabaseTransactionsManager
     {
         $current = $this->getCurrentTransaction();
         $current[$connection] = $transaction;
-        Context::set(self::CURRENT_CONTEXT_KEY, $current);
+        CoroutineContext::set(self::CURRENT_CONTEXT_KEY, $current);
     }
 
     /**
@@ -309,9 +309,9 @@ class DatabaseTransactionsManager
      */
     public static function flushState(): void
     {
-        Context::forget(self::COMMITTED_CONTEXT_KEY);
-        Context::forget(self::PENDING_CONTEXT_KEY);
-        Context::forget(self::CURRENT_CONTEXT_KEY);
+        CoroutineContext::forget(self::COMMITTED_CONTEXT_KEY);
+        CoroutineContext::forget(self::PENDING_CONTEXT_KEY);
+        CoroutineContext::forget(self::CURRENT_CONTEXT_KEY);
     }
 
     /**
@@ -319,7 +319,7 @@ class DatabaseTransactionsManager
      */
     public static function hasNonCoroutinePendingTransactions(): bool
     {
-        $pending = Context::getFromNonCoroutine(self::PENDING_CONTEXT_KEY);
+        $pending = CoroutineContext::getFromNonCoroutine(self::PENDING_CONTEXT_KEY);
 
         return $pending instanceof Collection && $pending->isNotEmpty();
     }
@@ -329,7 +329,7 @@ class DatabaseTransactionsManager
      */
     public static function copyToNonCoroutineState(): void
     {
-        Context::copyToNonCoroutine([
+        CoroutineContext::copyToNonCoroutine([
             self::COMMITTED_CONTEXT_KEY,
             self::PENDING_CONTEXT_KEY,
             self::CURRENT_CONTEXT_KEY,
@@ -341,7 +341,7 @@ class DatabaseTransactionsManager
      */
     public static function clearNonCoroutineState(): void
     {
-        Context::clearFromNonCoroutine([
+        CoroutineContext::clearFromNonCoroutine([
             self::COMMITTED_CONTEXT_KEY,
             self::PENDING_CONTEXT_KEY,
             self::CURRENT_CONTEXT_KEY,

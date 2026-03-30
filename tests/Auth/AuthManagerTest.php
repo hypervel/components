@@ -10,7 +10,7 @@ use Hypervel\Auth\DatabaseUserProvider;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -41,10 +41,10 @@ class AuthManagerTest extends TestCase
     {
         $manager = new AuthManager($this->getContainer());
 
-        Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
+        CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
 
         Coroutine::create(function () use ($manager) {
-            Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'bar');
+            CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'bar');
 
             $this->assertSame('bar', $manager->getDefaultDriver());
         });
@@ -59,7 +59,7 @@ class AuthManagerTest extends TestCase
         $manager->setDefaultDriver('api');
 
         $this->assertSame('api', $manager->getDefaultDriver());
-        $this->assertSame('api', Context::get(AuthManager::DEFAULT_GUARD_CONTEXT_KEY));
+        $this->assertSame('api', CoroutineContext::get(AuthManager::DEFAULT_GUARD_CONTEXT_KEY));
     }
 
     public function testShouldUseSetsDefaultDriverAndUserResolver()

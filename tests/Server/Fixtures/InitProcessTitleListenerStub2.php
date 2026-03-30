@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server\Fixtures;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Server\Listeners\InitProcessTitleListener;
 
 class InitProcessTitleListenerStub2 extends InitProcessTitleListener
@@ -14,7 +14,7 @@ class InitProcessTitleListenerStub2 extends InitProcessTitleListener
     public function setTitle(string $title): void
     {
         if ($this->isSupportedOS()) {
-            Context::set('test.server.process.title', $title);
+            CoroutineContext::set('test.server.process.title', $title);
         }
     }
 

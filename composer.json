@@ -107,8 +107,7 @@
             "src/support/src/Functions.php",
             "src/support/src/helpers.php",
             "src/testbench/src/functions.php",
-            "src/translation/src/Functions.php",
-            "src/context/src/helpers.php"
+            "src/translation/src/Functions.php"
         ]
     },
     "autoload-dev": {

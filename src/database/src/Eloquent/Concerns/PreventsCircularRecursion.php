@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Onceable;
 use WeakMap;
@@ -77,7 +77,7 @@ trait PreventsCircularRecursion
      */
     protected static function getRecursionCache(): WeakMap
     {
-        return Context::getOrSet(self::RECURSION_CACHE_CONTEXT_KEY, fn () => new WeakMap());
+        return CoroutineContext::getOrSet(self::RECURSION_CACHE_CONTEXT_KEY, fn () => new WeakMap());
     }
 
     /**

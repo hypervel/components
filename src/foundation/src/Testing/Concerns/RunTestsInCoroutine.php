@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -45,7 +45,7 @@ trait RunTestsInCoroutine
             $this->clearNonCoroutineTransactionContext();
 
             if ($this->copyNonCoroutineContext) {
-                Context::copyFromNonCoroutine();
+                CoroutineContext::copyFromNonCoroutine();
             }
 
             try {
@@ -120,7 +120,7 @@ trait RunTestsInCoroutine
      * Clean up Context keys that cause test pollution.
      *
      * Only forgets specific keys known to leak between tests. Does not use
-     * Context::flush() because that would flush data needed by defer
+     * CoroutineContext::flush() because that would flush data needed by defer
      * callbacks (e.g., Redis connections waiting to be released).
      */
     protected function cleanupTestContext(): void
@@ -128,6 +128,6 @@ trait RunTestsInCoroutine
         DatabaseTransactionsManager::flushState();
 
         // Model guard state
-        Context::forget(Model::UNGUARDED_CONTEXT_KEY);
+        CoroutineContext::forget(Model::UNGUARDED_CONTEXT_KEY);
     }
 }

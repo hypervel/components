@@ -11,7 +11,6 @@ use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
 use Hypervel\Container\ReflectionManager;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;

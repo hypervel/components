@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Tracing;
 
 use Exception;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Routing\Events as RoutingEvents;
@@ -236,15 +236,15 @@ class EventHandler
     {
         $hub = SentrySdk::getCurrentHub();
 
-        $parentStack = Context::get(self::CONTEXT_PARENT_SPANS_KEY, []);
+        $parentStack = CoroutineContext::get(self::CONTEXT_PARENT_SPANS_KEY, []);
         $parentStack[] = $hub->getSpan();
-        Context::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
+        CoroutineContext::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
 
         $hub->setSpan($span);
 
-        $currentStack = Context::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
+        $currentStack = CoroutineContext::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
         $currentStack[] = $span;
-        Context::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
+        CoroutineContext::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
     }
 
     /**
@@ -252,20 +252,20 @@ class EventHandler
      */
     private function popSpan(): ?Span
     {
-        $currentStack = Context::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
+        $currentStack = CoroutineContext::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
 
         if ($currentStack === []) {
             return null;
         }
 
-        $parentStack = Context::get(self::CONTEXT_PARENT_SPANS_KEY, []);
+        $parentStack = CoroutineContext::get(self::CONTEXT_PARENT_SPANS_KEY, []);
         $parent = array_pop($parentStack);
-        Context::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
+        CoroutineContext::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
 
         SentrySdk::getCurrentHub()->setSpan($parent);
 
         $span = array_pop($currentStack);
-        Context::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
+        CoroutineContext::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
 
         return $span;
     }

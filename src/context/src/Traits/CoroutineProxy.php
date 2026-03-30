@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Context\Traits;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use RuntimeException;
 
 trait CoroutineProxy
@@ -47,6 +47,6 @@ trait CoroutineProxy
             throw new RuntimeException(sprintf('Missing $proxyKey property in %s.', $this::class));
         }
 
-        return Context::get($this->proxyKey);
+        return CoroutineContext::get($this->proxyKey);
     }
 }

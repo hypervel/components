@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -44,7 +44,7 @@ class TelescopeServiceProvider extends ServiceProvider
                 Telescope::BATCH_ID => null,
             ];
             foreach ($keys as $key => $default) {
-                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+                CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
     }

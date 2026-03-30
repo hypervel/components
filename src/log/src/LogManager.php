@@ -6,7 +6,7 @@ namespace Hypervel\Log;
 
 use Closure;
 use Hypervel\Config\Repository;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -126,7 +126,7 @@ class LogManager implements LoggerInterface
                 $underlyingLogger = $loggerWithContext->getLogger();
 
                 // Push the propagated context processor so log records
-                // automatically include data from Context::propagated().
+                // automatically include data from CoroutineContext::propagated().
                 if ($underlyingLogger instanceof Monolog) {
                     $underlyingLogger->pushProcessor(
                         $this->app->make(ContextLogProcessor::class)
@@ -447,7 +447,7 @@ class LogManager implements LoggerInterface
             $channel->withContext($context);
         }
 
-        Context::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
+        CoroutineContext::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
             return array_merge($currentContext ?: [], $context);
         });
 
@@ -459,7 +459,7 @@ class LogManager implements LoggerInterface
      */
     public function sharedContext(): array
     {
-        return (array) Context::get(self::SHARED_CONTEXT_KEY, []);
+        return (array) CoroutineContext::get(self::SHARED_CONTEXT_KEY, []);
     }
 
     /**
@@ -485,7 +485,7 @@ class LogManager implements LoggerInterface
      */
     public function flushSharedContext(): self
     {
-        Context::forget(self::SHARED_CONTEXT_KEY);
+        CoroutineContext::forget(self::SHARED_CONTEXT_KEY);
 
         return $this;
     }

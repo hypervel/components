@@ -13,7 +13,7 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use Hypervel\Console\Application;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -196,7 +196,7 @@ class Event
             $container->basePath()
         );
 
-        Context::set("__console.scheduling_process.{$this->mutexName()}", $process);
+        CoroutineContext::set("__console.scheduling_process.{$this->mutexName()}", $process);
 
         return $process->run();
     }
@@ -206,7 +206,7 @@ class Event
      */
     protected function getProcessOutput(): ?string
     {
-        if (! $process = Context::get("__console.scheduling_process.{$this->mutexName()}")) {
+        if (! $process = CoroutineContext::get("__console.scheduling_process.{$this->mutexName()}")) {
             return null;
         }
 

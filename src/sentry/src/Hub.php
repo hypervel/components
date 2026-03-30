@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
 use Sentry\CheckIn;
@@ -52,13 +52,13 @@ class Hub implements HubInterface
 
     public function getLastEventId(): ?EventId
     {
-        return Context::get(static::CONTEXT_LAST_EVENT_ID_KEY);
+        return CoroutineContext::get(static::CONTEXT_LAST_EVENT_ID_KEY);
     }
 
     public function pushScope(): Scope
     {
         $clonedScope = clone $this->getScope();
-        Context::override(static::CONTEXT_STACK_KEY, function ($layers) use ($clonedScope) {
+        CoroutineContext::override(static::CONTEXT_STACK_KEY, function ($layers) use ($clonedScope) {
             $layers = $layers ?? [];
             $layers[] = new Layer($this->getClient(), $clonedScope);
 
@@ -70,13 +70,13 @@ class Hub implements HubInterface
 
     public function popScope(): bool
     {
-        $currentLayers = Context::get(static::CONTEXT_STACK_KEY, []);
+        $currentLayers = CoroutineContext::get(static::CONTEXT_STACK_KEY, []);
         if (count($currentLayers) === 1) {
             return false; // Cannot pop the last scope, as it would leave no layers in the stack
         }
 
         array_pop($currentLayers);
-        Context::set(static::CONTEXT_STACK_KEY, $currentLayers);
+        CoroutineContext::set(static::CONTEXT_STACK_KEY, $currentLayers);
 
         return true;
     }
@@ -86,7 +86,7 @@ class Hub implements HubInterface
         $client = $this->getClient();
 
         if ($client !== null) {
-            return Context::set(
+            return CoroutineContext::set(
                 static::CONTEXT_LAST_EVENT_ID_KEY,
                 $client->captureMessage($message, $level, $this->getScope(), $hint)
             );
@@ -100,7 +100,7 @@ class Hub implements HubInterface
         $client = $this->getClient();
 
         if ($client !== null) {
-            return Context::set(
+            return CoroutineContext::set(
                 static::CONTEXT_LAST_EVENT_ID_KEY,
                 $client->captureException($exception, $this->getScope(), $hint)
             );
@@ -114,7 +114,7 @@ class Hub implements HubInterface
         $client = $this->getClient();
 
         if ($client !== null) {
-            return Context::set(
+            return CoroutineContext::set(
                 static::CONTEXT_LAST_EVENT_ID_KEY,
                 $client->captureEvent($event, $hint, $this->getScope())
             );
@@ -128,7 +128,7 @@ class Hub implements HubInterface
         $client = $this->getClient();
 
         if ($client !== null) {
-            return Context::set(static::CONTEXT_LAST_EVENT_ID_KEY, $client->captureLastError($this->getScope(), $hint));
+            return CoroutineContext::set(static::CONTEXT_LAST_EVENT_ID_KEY, $client->captureLastError($this->getScope(), $hint));
         }
 
         return null;
@@ -390,7 +390,7 @@ class Hub implements HubInterface
      */
     private function getStackTop(): Layer
     {
-        $stack = Context::getOrSet(self::CONTEXT_STACK_KEY, function () {
+        $stack = CoroutineContext::getOrSet(self::CONTEXT_STACK_KEY, function () {
             $scope = $this->scope ?? new Scope();
 
             return [new Layer($this->getClient(), $scope)];

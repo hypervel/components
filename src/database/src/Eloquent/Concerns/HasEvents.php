@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Model;
@@ -430,13 +430,13 @@ trait HasEvents
      */
     public static function withoutEvents(callable $callback): mixed
     {
-        $wasDisabled = Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
-        Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, true);
+        $wasDisabled = CoroutineContext::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::EVENTS_DISABLED_CONTEXT_KEY, true);
 
         try {
             return $callback();
         } finally {
-            Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, $wasDisabled);
+            CoroutineContext::set(self::EVENTS_DISABLED_CONTEXT_KEY, $wasDisabled);
         }
     }
 
@@ -445,6 +445,6 @@ trait HasEvents
      */
     public static function eventsDisabled(): bool
     {
-        return (bool) Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
+        return (bool) CoroutineContext::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
     }
 }

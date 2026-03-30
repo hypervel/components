@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Context;
 
 use DateTimeImmutable;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Log\ContextLogProcessor;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
@@ -21,8 +21,8 @@ class PropagatedContextLogTest extends TestCase
 {
     public function testPropagatedContextIsAddedToLogRecords()
     {
-        Context::propagated()->add('trace_id', 'abc-123');
-        Context::propagated()->add('user_id', 42);
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->add('user_id', 42);
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -36,7 +36,7 @@ class PropagatedContextLogTest extends TestCase
 
     public function testHiddenContextIsNotAddedToLogRecords()
     {
-        Context::propagated()->addHidden('secret', 'sensitive-data');
+        CoroutineContext::propagated()->addHidden('secret', 'sensitive-data');
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -49,7 +49,7 @@ class PropagatedContextLogTest extends TestCase
 
     public function testPropagatedContextDoesNotOverrideLogMessageContext()
     {
-        Context::propagated()->add('request_id', 'propagated-value');
+        CoroutineContext::propagated()->add('request_id', 'propagated-value');
 
         $handler = new TestHandler();
         $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
@@ -77,14 +77,14 @@ class PropagatedContextLogTest extends TestCase
 
         // Should return the same record unchanged — no PropagatedContext allocated
         $this->assertSame($record, $result);
-        $this->assertFalse(Context::hasPropagated());
+        $this->assertFalse(CoroutineContext::hasPropagated());
     }
 
     public function testLogProcessorSkipsWhenPropagatedContextIsEmpty()
     {
         // Access propagated context but don't add anything
-        Context::propagated();
-        $this->assertTrue(Context::hasPropagated());
+        CoroutineContext::propagated();
+        $this->assertTrue(CoroutineContext::hasPropagated());
 
         $processor = new ContextLogProcessor();
 

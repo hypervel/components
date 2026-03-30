@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
 
@@ -166,7 +166,7 @@ class NumberTest extends TestCase
         Number::useLocale('de');
 
         $this->assertSame('de', Number::defaultLocale());
-        $this->assertSame('de', Context::get(Number::LOCALE_CONTEXT_KEY));
+        $this->assertSame('de', CoroutineContext::get(Number::LOCALE_CONTEXT_KEY));
     }
 
     public function testUseCurrencyStoresInContext(): void
@@ -176,19 +176,19 @@ class NumberTest extends TestCase
         Number::useCurrency('EUR');
 
         $this->assertSame('EUR', Number::defaultCurrency());
-        $this->assertSame('EUR', Context::get(Number::CURRENCY_CONTEXT_KEY));
+        $this->assertSame('EUR', CoroutineContext::get(Number::CURRENCY_CONTEXT_KEY));
     }
 
     public function testDefaultLocaleReturnsStaticDefaultWhenNotSet(): void
     {
         $this->assertSame('en', Number::defaultLocale());
-        $this->assertNull(Context::get(Number::LOCALE_CONTEXT_KEY));
+        $this->assertNull(CoroutineContext::get(Number::LOCALE_CONTEXT_KEY));
     }
 
     public function testDefaultCurrencyReturnsStaticDefaultWhenNotSet(): void
     {
         $this->assertSame('USD', Number::defaultCurrency());
-        $this->assertNull(Context::get(Number::CURRENCY_CONTEXT_KEY));
+        $this->assertNull(CoroutineContext::get(Number::CURRENCY_CONTEXT_KEY));
     }
 
     public function testWithLocaleTemporarilySetsLocale(): void
@@ -342,17 +342,17 @@ class NumberTest extends TestCase
     }
 
     /**
-     * useCurrency must call Context::set, not Context::get.
+     * useCurrency must call CoroutineContext::set, not CoroutineContext::get.
      */
     public function testUseCurrencyActuallySetsValue(): void
     {
-        // Before the fix, useCurrency() called Context::get() which doesn't set anything
-        $this->assertNull(Context::get(Number::CURRENCY_CONTEXT_KEY));
+        // Before the fix, useCurrency() called CoroutineContext::get() which doesn't set anything
+        $this->assertNull(CoroutineContext::get(Number::CURRENCY_CONTEXT_KEY));
 
         Number::useCurrency('JPY');
 
         // After calling useCurrency, the value should be set in Context
-        $this->assertSame('JPY', Context::get(Number::CURRENCY_CONTEXT_KEY));
+        $this->assertSame('JPY', CoroutineContext::get(Number::CURRENCY_CONTEXT_KEY));
         $this->assertSame('JPY', Number::defaultCurrency());
     }
 

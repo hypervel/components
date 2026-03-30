@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
@@ -32,11 +32,11 @@ class ContextTest extends TestCase
             'key3' => 'value3',
         ];
 
-        Context::setMany($values);
+        CoroutineContext::setMany($values);
 
         foreach ($values as $key => $expectedValue) {
-            $this->assertTrue(Context::has($key));
-            $this->assertEquals($expectedValue, Context::get($key));
+            $this->assertTrue(CoroutineContext::has($key));
+            $this->assertEquals($expectedValue, CoroutineContext::get($key));
         }
     }
 
@@ -45,14 +45,14 @@ class ContextTest extends TestCase
      */
     public function testCopyFromNonCoroutineCopiesAllKeys()
     {
-        Context::set('foo', 'foo');
-        Context::set('bar', 'bar');
+        CoroutineContext::set('foo', 'foo');
+        CoroutineContext::set('bar', 'bar');
 
         run(function () {
             Coroutine::create(function () {
-                Context::copyFromNonCoroutine();
-                $this->assertSame('foo', Context::get('foo'));
-                $this->assertSame('bar', Context::get('bar'));
+                CoroutineContext::copyFromNonCoroutine();
+                $this->assertSame('foo', CoroutineContext::get('foo'));
+                $this->assertSame('bar', CoroutineContext::get('bar'));
             });
         });
     }
@@ -62,19 +62,19 @@ class ContextTest extends TestCase
      */
     public function testCopyFromNonCoroutinePreservesExistingCoroutineValues()
     {
-        Context::set('from_non_co', 'copied');
+        CoroutineContext::set('from_non_co', 'copied');
 
         run(function () {
             Coroutine::create(function () {
                 // Set a value in the coroutine before copying
-                Context::set('existing', 'should_survive');
+                CoroutineContext::set('existing', 'should_survive');
 
-                Context::copyFromNonCoroutine();
+                CoroutineContext::copyFromNonCoroutine();
 
                 // Copied value is present
-                $this->assertSame('copied', Context::get('from_non_co'));
+                $this->assertSame('copied', CoroutineContext::get('from_non_co'));
                 // Pre-existing coroutine value is preserved
-                $this->assertSame('should_survive', Context::get('existing'));
+                $this->assertSame('should_survive', CoroutineContext::get('existing'));
             });
         });
     }
@@ -84,18 +84,18 @@ class ContextTest extends TestCase
      */
     public function testCopyFromNonCoroutineWithSelectiveKeysPreservesExisting()
     {
-        Context::set('wanted', 'yes');
-        Context::set('unwanted', 'no');
+        CoroutineContext::set('wanted', 'yes');
+        CoroutineContext::set('unwanted', 'no');
 
         run(function () {
             Coroutine::create(function () {
-                Context::set('existing', 'kept');
+                CoroutineContext::set('existing', 'kept');
 
-                Context::copyFromNonCoroutine(['wanted']);
+                CoroutineContext::copyFromNonCoroutine(['wanted']);
 
-                $this->assertSame('yes', Context::get('wanted'));
-                $this->assertNull(Context::get('unwanted'));
-                $this->assertSame('kept', Context::get('existing'));
+                $this->assertSame('yes', CoroutineContext::get('wanted'));
+                $this->assertNull(CoroutineContext::get('unwanted'));
+                $this->assertSame('kept', CoroutineContext::get('existing'));
             });
         });
     }
@@ -105,50 +105,50 @@ class ContextTest extends TestCase
      */
     public function testFlush()
     {
-        Context::set('key1', 'value1');
-        Context::set('key2', 'value2');
+        CoroutineContext::set('key1', 'value1');
+        CoroutineContext::set('key2', 'value2');
 
-        $this->assertTrue(Context::has('key1'));
-        $this->assertTrue(Context::has('key2'));
+        $this->assertTrue(CoroutineContext::has('key1'));
+        $this->assertTrue(CoroutineContext::has('key2'));
 
-        Context::flush();
+        CoroutineContext::flush();
 
-        $this->assertFalse(Context::has('key1'));
-        $this->assertFalse(Context::has('key2'));
+        $this->assertFalse(CoroutineContext::has('key1'));
+        $this->assertFalse(CoroutineContext::has('key2'));
     }
 
     public function testOverride()
     {
-        Context::set('override.id', 1);
+        CoroutineContext::set('override.id', 1);
 
-        $this->assertSame(2, Context::override('override.id', function ($id) {
+        $this->assertSame(2, CoroutineContext::override('override.id', function ($id) {
             return $id + 1;
         }));
 
-        $this->assertSame(2, Context::get('override.id'));
+        $this->assertSame(2, CoroutineContext::get('override.id'));
     }
 
     public function testGetOrSet()
     {
-        Context::set('test.store.id', null);
-        $this->assertSame(1, Context::getOrSet('test.store.id', function () {
+        CoroutineContext::set('test.store.id', null);
+        $this->assertSame(1, CoroutineContext::getOrSet('test.store.id', function () {
             return 1;
         }));
-        $this->assertSame(1, Context::getOrSet('test.store.id', function () {
+        $this->assertSame(1, CoroutineContext::getOrSet('test.store.id', function () {
             return 2;
         }));
 
-        Context::set('test.store.id', null);
-        $this->assertSame(1, Context::getOrSet('test.store.id', 1));
+        CoroutineContext::set('test.store.id', null);
+        $this->assertSame(1, CoroutineContext::getOrSet('test.store.id', 1));
     }
 
     public function testContextForget()
     {
-        Context::set($id = uniqid(), $value = uniqid());
+        CoroutineContext::set($id = uniqid(), $value = uniqid());
 
-        $this->assertSame($value, Context::get($id));
-        Context::forget($id);
-        $this->assertNull(Context::get($id));
+        $this->assertSame($value, CoroutineContext::get($id));
+        CoroutineContext::forget($id);
+        $this->assertNull(CoroutineContext::get($id));
     }
 
     public function testRequestContext()
@@ -157,10 +157,10 @@ class ContextTest extends TestCase
         RequestContext::set($request);
         $this->assertSame($request, RequestContext::get());
 
-        Context::set(Request::class, $req = m::mock(Request::class));
+        CoroutineContext::set(Request::class, $req = m::mock(Request::class));
         $this->assertNotSame($request, RequestContext::get());
         $this->assertSame($req, RequestContext::get());
-        $this->assertSame($req, Context::get(Request::class));
+        $this->assertSame($req, CoroutineContext::get(Request::class));
     }
 
     public function testResponseContext()
@@ -169,27 +169,9 @@ class ContextTest extends TestCase
         ResponseContext::set($response);
         $this->assertSame($response, ResponseContext::get());
 
-        Context::set(SymfonyResponse::class, $res = m::mock(Response::class));
+        CoroutineContext::set(SymfonyResponse::class, $res = m::mock(Response::class));
         $this->assertNotSame($response, ResponseContext::get());
         $this->assertSame($res, ResponseContext::get());
-        $this->assertSame($res, Context::get(SymfonyResponse::class));
-    }
-
-    // =========================================================================
-    // context() helper
-    // =========================================================================
-
-    public function testContextHelperGetReturnsRawContextValue()
-    {
-        Context::set('key', 'val');
-
-        $this->assertSame('val', context('key'));
-    }
-
-    public function testContextHelperSetWritesToRawContext()
-    {
-        context(['key' => 'val']);
-
-        $this->assertSame('val', Context::get('key'));
+        $this->assertSame($res, CoroutineContext::get(SymfonyResponse::class));
     }
 }

@@ -15,7 +15,7 @@ use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
@@ -91,7 +91,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         ));
 
         Container::setInstance($this->container);
-        Context::forget(Store::CONTEXT_KEY);
+        CoroutineContext::forget(Store::CONTEXT_KEY);
 
         $this->handler = new Handler($this->container);
     }
@@ -343,7 +343,7 @@ class FoundationExceptionsHandlerTest extends TestCase
                 return true;
             }
         ))->andReturnNull();
-        Context::set(Store::CONTEXT_KEY, $session);
+        CoroutineContext::set(Store::CONTEXT_KEY, $session);
         $this->container->instance(SessionContract::class, $session);
 
         $this->container->singleton('redirect', function () use ($session) {
@@ -695,7 +695,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(1, $reported);
 
         // Simulate a new request by clearing the Context key.
-        Context::forget(Handler::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
+        CoroutineContext::forget(Handler::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
 
         $this->handler->report($exception);
 
@@ -1016,7 +1016,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
         $session->shouldReceive('flash')->with('errors', m::type(ViewErrorBag::class))->once();
         $session->shouldReceive('flashInput')->with(['foo' => 'bar'])->once();
-        Context::set(Store::CONTEXT_KEY, $session);
+        CoroutineContext::set(Store::CONTEXT_KEY, $session);
         $this->container->instance(SessionContract::class, $session);
 
         $redirectTo = 'http://localhost/redirectTo';

@@ -13,7 +13,7 @@ class RequestContext
      */
     public static function get(?int $coroutineId = null): Request
     {
-        return Context::get(Request::class, null, $coroutineId);
+        return CoroutineContext::get(Request::class, null, $coroutineId);
     }
 
     /**
@@ -21,7 +21,7 @@ class RequestContext
      */
     public static function set(Request $request, ?int $coroutineId = null): Request
     {
-        return Context::set(Request::class, $request, $coroutineId);
+        return CoroutineContext::set(Request::class, $request, $coroutineId);
     }
 
     /**
@@ -29,7 +29,7 @@ class RequestContext
      */
     public static function has(?int $coroutineId = null): bool
     {
-        return Context::has(Request::class, $coroutineId);
+        return CoroutineContext::has(Request::class, $coroutineId);
     }
 
     /**
@@ -37,7 +37,7 @@ class RequestContext
      */
     public static function forget(?int $coroutineId = null): void
     {
-        Context::forget(Request::class, $coroutineId);
+        CoroutineContext::forget(Request::class, $coroutineId);
     }
 
     /**
@@ -45,6 +45,6 @@ class RequestContext
      */
     public static function getOrNull(?int $coroutineId = null): ?Request
     {
-        return Context::get(Request::class, null, $coroutineId);
+        return CoroutineContext::get(Request::class, null, $coroutineId);
     }
 }

@@ -6,7 +6,7 @@ namespace Hypervel\Redis;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
 use Hypervel\Coroutine\Coroutine;
@@ -105,7 +105,7 @@ class Redis implements FactoryContract, ConnectionContract
             return $this->handleSubscribe($name, $arguments);
         }
 
-        $hasContextConnection = Context::has($this->getContextKey());
+        $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
         $start = (float) microtime(true);
@@ -139,7 +139,7 @@ class Redis implements FactoryContract, ConnectionContract
                 if ($name === 'select' && array_key_exists(0, $arguments)) {
                     $connection->setDatabase((int) $arguments[0]);
                 }
-                Context::set($this->getContextKey(), $connection);
+                CoroutineContext::set($this->getContextKey(), $connection);
                 Coroutine::defer(function () {
                     $this->releaseContextConnection();
                 });
@@ -162,10 +162,10 @@ class Redis implements FactoryContract, ConnectionContract
     protected function releaseContextConnection(): void
     {
         $contextKey = $this->getContextKey();
-        $connection = Context::get($contextKey);
+        $connection = CoroutineContext::get($contextKey);
 
         if ($connection) {
-            Context::set($contextKey, null);
+            CoroutineContext::set($contextKey, null);
             $connection->release();
         }
     }
@@ -223,7 +223,7 @@ class Redis implements FactoryContract, ConnectionContract
     protected function getConnection(bool $hasContextConnection, bool $transform = true): RedisConnection
     {
         $connection = $hasContextConnection
-            ? Context::get($this->getContextKey())
+            ? CoroutineContext::get($this->getContextKey())
             : null;
 
         $connection = $connection
@@ -261,7 +261,7 @@ class Redis implements FactoryContract, ConnectionContract
      */
     public function withConnection(callable $callback, bool $transform = true): mixed
     {
-        $hasContextConnection = Context::has($this->getContextKey());
+        $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection, $transform);
 
         try {
@@ -283,18 +283,18 @@ class Redis implements FactoryContract, ConnectionContract
     public function withPinnedConnection(callable $callback): mixed
     {
         $contextKey = $this->getContextKey();
-        $hadContextConnection = Context::has($contextKey);
+        $hadContextConnection = CoroutineContext::has($contextKey);
         $connection = $this->getConnection($hadContextConnection);
 
         if (! $hadContextConnection) {
-            Context::set($contextKey, $connection);
+            CoroutineContext::set($contextKey, $connection);
         }
 
         try {
             return $callback();
         } finally {
             if (! $hadContextConnection) {
-                Context::set($contextKey, null);
+                CoroutineContext::set($contextKey, null);
                 $connection->release();
             }
         }
@@ -313,7 +313,7 @@ class Redis implements FactoryContract, ConnectionContract
     {
         return $this->withPinnedConnection(function () use ($callback) {
             $contextKey = $this->getContextKey();
-            $connection = Context::get($contextKey);
+            $connection = CoroutineContext::get($contextKey);
 
             return $connection->withoutSerializationOrCompression($callback);
         });

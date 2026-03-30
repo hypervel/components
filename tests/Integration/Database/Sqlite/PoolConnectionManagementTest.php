@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;
@@ -326,7 +326,7 @@ class PoolConnectionManagementTest extends TestCase
 
             // Clear any existing connection from context
             $contextKey = '__database.connection.pool_test';
-            Context::forget($contextKey);
+            CoroutineContext::forget($contextKey);
 
             // This should not throw
             $manager->disconnect('pool_test');
@@ -369,7 +369,7 @@ class PoolConnectionManagementTest extends TestCase
 
             // Clear any existing connection from context
             $contextKey = '__database.connection.pool_test';
-            Context::forget($contextKey);
+            CoroutineContext::forget($contextKey);
 
             // Reconnect should get a fresh connection
             $connection = $manager->reconnect('pool_test');

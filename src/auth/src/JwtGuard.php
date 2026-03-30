@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard;
@@ -86,14 +86,14 @@ class JwtGuard implements Guard
     public function login(AuthenticatableContract $user): string
     {
         $now = Carbon::now();
-        $claims = Context::get("__auth.guards.{$this->name}.claims", []);
+        $claims = CoroutineContext::get("__auth.guards.{$this->name}.claims", []);
         $token = $this->jwtManager->encode(array_merge([
             'sub' => $user->getAuthIdentifier(),
             'iat' => $now->copy()->timestamp,
             'exp' => $now->copy()->addMinutes($this->ttl)->timestamp,
         ], $claims));
 
-        Context::set(
+        CoroutineContext::set(
             $this->getContextKeyForToken($this->parseToken() ? $token : null),
             $user
         );
@@ -110,7 +110,7 @@ class JwtGuard implements Guard
 
         $token = $this->parseToken();
         $contextKey = $this->getContextKeyForToken($token);
-        $cached = Context::get($contextKey);
+        $cached = CoroutineContext::get($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -121,7 +121,7 @@ class JwtGuard implements Guard
         }
 
         if (! $token) {
-            Context::set($contextKey, self::$nullUserSentinel);
+            CoroutineContext::set($contextKey, self::$nullUserSentinel);
 
             return null;
         }
@@ -132,7 +132,7 @@ class JwtGuard implements Guard
         $sub = $payload['sub'] ?? null;
         $user = $sub ? $this->provider->retrieveById($sub) : null;
 
-        Context::set($contextKey, $user ?? self::$nullUserSentinel);
+        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
         return $user;
     }
@@ -151,11 +151,11 @@ class JwtGuard implements Guard
     public function claims(array $claims): static
     {
         $contextKey = "__auth.guards.{$this->name}.claims";
-        if ($contextClaims = Context::get($contextKey)) {
+        if ($contextClaims = CoroutineContext::get($contextKey)) {
             $claims = array_merge($contextClaims, $claims);
         }
 
-        Context::set($contextKey, $claims);
+        CoroutineContext::set($contextKey, $claims);
 
         return $this;
     }
@@ -184,7 +184,7 @@ class JwtGuard implements Guard
     {
         $contextKey = "__auth.guards.{$this->name}.payload." . md5($token);
 
-        return Context::getOrSet($contextKey, fn () => $this->jwtManager->decode($token));
+        return CoroutineContext::getOrSet($contextKey, fn () => $this->jwtManager->decode($token));
     }
 
     /**
@@ -196,7 +196,7 @@ class JwtGuard implements Guard
             return null;
         }
 
-        Context::forget($this->getContextKeyForToken($token));
+        CoroutineContext::forget($this->getContextKeyForToken($token));
 
         return $this->jwtManager->refresh($token);
     }
@@ -230,7 +230,7 @@ class JwtGuard implements Guard
     {
         $token = $this->parseToken();
 
-        Context::forget($this->getContextKeyForToken($token));
+        CoroutineContext::forget($this->getContextKeyForToken($token));
 
         if ($token) {
             $this->jwtManager->invalidate($token);
@@ -244,7 +244,7 @@ class JwtGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass();
 
-        $cached = Context::get($this->getContextKeyForToken($this->parseToken()));
+        $cached = CoroutineContext::get($this->getContextKeyForToken($this->parseToken()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -254,7 +254,7 @@ class JwtGuard implements Guard
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        Context::set($this->getContextKeyForToken($this->parseToken()), $user);
+        CoroutineContext::set($this->getContextKeyForToken($this->parseToken()), $user);
 
         return $this;
     }
@@ -264,7 +264,7 @@ class JwtGuard implements Guard
      */
     public function forgetUser(): static
     {
-        Context::forget($this->getContextKeyForToken($this->parseToken()));
+        CoroutineContext::forget($this->getContextKeyForToken($this->parseToken()));
 
         return $this;
     }

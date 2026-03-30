@@ -8,7 +8,7 @@ use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Routing\UrlRoutable;
@@ -284,7 +284,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $secure ? 'https://' : 'http://';
         }
 
-        return Context::getOrSet(self::CACHED_SCHEME_CONTEXT_KEY, function () {
+        return CoroutineContext::getOrSet(self::CACHED_SCHEME_CONTEXT_KEY, function () {
             return $this->forceScheme ?: $this->getRequest()->getScheme() . '://';
         });
     }
@@ -518,8 +518,8 @@ class UrlGenerator implements UrlGeneratorContract
     public function formatRoot(string $scheme, ?string $root = null): string
     {
         if (is_null($root)) {
-            $root = Context::getOrSet(self::CACHED_ROOT_CONTEXT_KEY, function () {
-                return Context::get(self::FORCED_ROOT_CONTEXT_KEY)
+            $root = CoroutineContext::getOrSet(self::CACHED_ROOT_CONTEXT_KEY, function () {
+                return CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY)
                     ?? $this->forcedRoot
                     ?: $this->getRequest()->root();
             });
@@ -597,7 +597,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceScheme(?string $scheme): void
     {
-        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
 
         $this->forceScheme = $scheme ? $scheme . '://' : null;
     }
@@ -621,12 +621,12 @@ class UrlGenerator implements UrlGeneratorContract
     public function useOrigin(?string $root): void
     {
         if ($root !== null) {
-            Context::set(self::FORCED_ROOT_CONTEXT_KEY, rtrim($root, '/'));
+            CoroutineContext::set(self::FORCED_ROOT_CONTEXT_KEY, rtrim($root, '/'));
         } else {
-            Context::forget(self::FORCED_ROOT_CONTEXT_KEY);
+            CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
         }
 
-        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
     }
 
     /**
@@ -646,9 +646,9 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public static function flushRequestState(): void
     {
-        Context::forget(self::FORCED_ROOT_CONTEXT_KEY);
-        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
-        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
+        CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
     }
 
     /**
@@ -704,8 +704,8 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $this->request = $request;
 
-        Context::forget(self::CACHED_ROOT_CONTEXT_KEY);
-        Context::forget(self::CACHED_SCHEME_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
+        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
 
         tap($this->routeGenerator?->defaultParameters ?: [], function ($defaults) {
             $this->routeGenerator = null;

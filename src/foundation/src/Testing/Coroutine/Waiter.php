@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ExceptionThrower;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
@@ -25,7 +25,7 @@ class Waiter extends BaseWaiter
         $coroutineId = Coroutine::id();
         Coroutine::create(function () use ($channel, $closure, $coroutineId) {
             if ($coroutineId) {
-                Context::copyFrom($coroutineId);
+                CoroutineContext::copyFrom($coroutineId);
             }
 
             try {

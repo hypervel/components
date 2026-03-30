@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hypervel\Context\Context as CoroutineContext;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;

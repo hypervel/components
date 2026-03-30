@@ -12,7 +12,7 @@ use Hypervel\Auth\Events\Login;
 use Hypervel\Auth\Events\Logout;
 use Hypervel\Auth\Events\OtherDeviceLogout;
 use Hypervel\Auth\Events\Validated;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Auth\SupportsBasicAuth;
@@ -122,7 +122,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         // Check unstarted context first — an explicit setUser() call before
         // the session started takes precedence over any cached session lookup.
         $unstartedKey = $this->getUnstartedContextKey();
-        $unstartedCached = Context::get($unstartedKey);
+        $unstartedCached = CoroutineContext::get($unstartedKey);
 
         if ($unstartedCached === self::$nullUserSentinel) {
             return null;
@@ -134,7 +134,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
         // Check started-session Context cache — avoids redundant DB lookups.
         $contextKey = $this->getContextKey();
-        $cached = Context::get($contextKey);
+        $cached = CoroutineContext::get($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -168,7 +168,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             }
         }
 
-        Context::set($contextKey, $user ?? self::$nullUserSentinel);
+        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
         return $user;
     }
@@ -833,13 +833,13 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     {
         self::$nullUserSentinel ??= new stdClass();
 
-        $unstartedCached = Context::get($this->getUnstartedContextKey());
+        $unstartedCached = CoroutineContext::get($this->getUnstartedContextKey());
 
         if ($unstartedCached !== null && $unstartedCached !== self::$nullUserSentinel) {
             return true;
         }
 
-        $cached = Context::get($this->getContextKey());
+        $cached = CoroutineContext::get($this->getContextKey());
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -854,9 +854,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     public function setUser(AuthenticatableContract $user): static
     {
         if (! $this->session->isStarted()) {
-            Context::set($this->getUnstartedContextKey(), $user);
+            CoroutineContext::set($this->getUnstartedContextKey(), $user);
         } else {
-            Context::set($this->getContextKey(), $user);
+            CoroutineContext::set($this->getContextKey(), $user);
         }
 
         $this->setContextState('loggedOut', false);
@@ -871,8 +871,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function forgetUser(): static
     {
-        Context::forget($this->getContextKey());
-        Context::forget($this->getUnstartedContextKey());
+        CoroutineContext::forget($this->getContextKey());
+        CoroutineContext::forget($this->getUnstartedContextKey());
 
         return $this;
     }
@@ -917,7 +917,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function getContextState(string $key, mixed $default = null): mixed
     {
-        return Context::get("__auth.guards.{$this->name}.{$key}", $default);
+        return CoroutineContext::get("__auth.guards.{$this->name}.{$key}", $default);
     }
 
     /**
@@ -925,6 +925,6 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function setContextState(string $key, mixed $value): void
     {
-        Context::set("__auth.guards.{$this->name}.{$key}", $value);
+        CoroutineContext::set("__auth.guards.{$this->name}.{$key}", $value);
     }
 }

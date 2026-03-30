@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\PropagatedContext;
 use Hypervel\Testbench\TestCase;
 
@@ -16,88 +16,77 @@ class ContextPropagatedTest extends TestCase
 {
     public function testPropagatedReturnsPropagatedContextInstance()
     {
-        $this->assertInstanceOf(PropagatedContext::class, Context::propagated());
+        $this->assertInstanceOf(PropagatedContext::class, CoroutineContext::propagated());
     }
 
     public function testPropagatedReturnsSameInstanceWithinContext()
     {
-        $first = Context::propagated();
-        $second = Context::propagated();
+        $first = CoroutineContext::propagated();
+        $second = CoroutineContext::propagated();
 
         $this->assertSame($first, $second);
     }
 
     public function testPropagatedCanBeStoredInVariable()
     {
-        $propagated = Context::propagated();
+        $propagated = CoroutineContext::propagated();
         $propagated->add('key', 'value');
 
-        $this->assertSame('value', Context::propagated()->get('key'));
+        $this->assertSame('value', CoroutineContext::propagated()->get('key'));
     }
 
     public function testFlushClearsPropagatedContext()
     {
-        Context::propagated()->add('key', 'value');
-        $this->assertTrue(Context::hasPropagated());
+        CoroutineContext::propagated()->add('key', 'value');
+        $this->assertTrue(CoroutineContext::hasPropagated());
 
-        Context::flush();
+        CoroutineContext::flush();
 
         // After flush, hasPropagated returns false and a new call
         // to propagated() returns a fresh empty instance
-        $this->assertFalse(Context::hasPropagated());
-        $this->assertNull(Context::propagated()->get('key'));
+        $this->assertFalse(CoroutineContext::hasPropagated());
+        $this->assertNull(CoroutineContext::propagated()->get('key'));
     }
 
     public function testPropagatedAddAndGet()
     {
-        Context::propagated()->add('key', 'val');
+        CoroutineContext::propagated()->add('key', 'val');
 
-        $this->assertSame('val', Context::propagated()->get('key'));
+        $this->assertSame('val', CoroutineContext::propagated()->get('key'));
     }
 
     public function testPropagatedDataDoesNotAppearInRawContext()
     {
-        Context::propagated()->add('key', 'val');
+        CoroutineContext::propagated()->add('key', 'val');
 
-        $this->assertNull(Context::get('key'));
+        $this->assertNull(CoroutineContext::get('key'));
     }
 
     public function testRawContextDataDoesNotAppearInPropagated()
     {
-        Context::set('key', 'val');
+        CoroutineContext::set('key', 'val');
 
-        $this->assertNull(Context::propagated()->get('key'));
+        $this->assertNull(CoroutineContext::propagated()->get('key'));
     }
 
     public function testHasPropagatedReturnsFalseWhenNeverAccessed()
     {
-        $this->assertFalse(Context::hasPropagated());
+        $this->assertFalse(CoroutineContext::hasPropagated());
     }
 
     public function testHasPropagatedReturnsTrueAfterPropagatedAccessed()
     {
-        Context::propagated();
+        CoroutineContext::propagated();
 
-        $this->assertTrue(Context::hasPropagated());
+        $this->assertTrue(CoroutineContext::hasPropagated());
     }
 
     public function testHasPropagatedDoesNotCreateInstance()
     {
         // First call should not create an instance
-        $this->assertFalse(Context::hasPropagated());
+        $this->assertFalse(CoroutineContext::hasPropagated());
 
         // Second call should still be false — no instance was created
-        $this->assertFalse(Context::hasPropagated());
-    }
-
-    // =========================================================================
-    // context() helper — propagated boundary
-    // =========================================================================
-
-    public function testContextHelperGetDoesNotReadPropagated()
-    {
-        Context::propagated()->add('key', 'val');
-
-        $this->assertNull(context('key'));
+        $this->assertFalse(CoroutineContext::hasPropagated());
     }
 }

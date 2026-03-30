@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -121,12 +121,12 @@ class NotificationSender
         }
 
         // Reset per-attempt — must not carry over from a previous channel/notifiable
-        Context::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
 
         try {
             $response = $this->manager->driver($channel)->send($notifiable, $notification);
         } catch (Throwable $exception) {
-            if (! Context::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false)) {
+            if (! CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false)) {
                 if ($exception instanceof HttpTransportException) {
                     $exception = new TransportException($exception->getMessage(), $exception->getCode());
                 }
@@ -137,7 +137,7 @@ class NotificationSender
             }
 
             // Reset so next attempt starts clean
-            Context::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
+            CoroutineContext::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
 
             throw $exception;
         }

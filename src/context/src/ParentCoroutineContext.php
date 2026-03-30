@@ -8,7 +8,7 @@ use ArrayObject;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 
-class ParentContext
+class ParentCoroutineContext
 {
     /**
      * Set a value in the parent coroutine's context.
@@ -16,10 +16,10 @@ class ParentContext
     public static function set(string $id, mixed $value): mixed
     {
         if (Coroutine::inCoroutine()) {
-            return Context::set($id, $value, Coroutine::parentId());
+            return CoroutineContext::set($id, $value, Coroutine::parentId());
         }
 
-        return Context::set($id, $value);
+        return CoroutineContext::set($id, $value);
     }
 
     /**
@@ -28,10 +28,10 @@ class ParentContext
     public static function get(string $id, mixed $default = null): mixed
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get($id, $default, Coroutine::parentId());
+            return CoroutineContext::get($id, $default, Coroutine::parentId());
         }
 
-        return Context::get($id, $default);
+        return CoroutineContext::get($id, $default);
     }
 
     /**
@@ -40,10 +40,10 @@ class ParentContext
     public static function has(string $id): bool
     {
         if (Coroutine::inCoroutine()) {
-            return Context::has($id, Coroutine::parentId());
+            return CoroutineContext::has($id, Coroutine::parentId());
         }
 
-        return Context::has($id);
+        return CoroutineContext::has($id);
     }
 
     /**
@@ -52,9 +52,9 @@ class ParentContext
     public static function forget(string $id): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::forget($id, Coroutine::parentId());
+            CoroutineContext::forget($id, Coroutine::parentId());
         } else {
-            Context::forget($id);
+            CoroutineContext::forget($id);
         }
     }
 
@@ -64,10 +64,10 @@ class ParentContext
     public static function override(string $id, Closure $closure): mixed
     {
         if (Coroutine::inCoroutine()) {
-            return Context::override($id, $closure, Coroutine::parentId());
+            return CoroutineContext::override($id, $closure, Coroutine::parentId());
         }
 
-        return Context::override($id, $closure);
+        return CoroutineContext::override($id, $closure);
     }
 
     /**
@@ -76,10 +76,10 @@ class ParentContext
     public static function getOrSet(string $id, mixed $value): mixed
     {
         if (Coroutine::inCoroutine()) {
-            return Context::getOrSet($id, $value, Coroutine::parentId());
+            return CoroutineContext::getOrSet($id, $value, Coroutine::parentId());
         }
 
-        return Context::getOrSet($id, $value);
+        return CoroutineContext::getOrSet($id, $value);
     }
 
     /**
@@ -88,9 +88,9 @@ class ParentContext
     public static function getContainer(): array|ArrayObject|null
     {
         if (Coroutine::inCoroutine()) {
-            return Context::getContainer(Coroutine::parentId());
+            return CoroutineContext::getContainer(Coroutine::parentId());
         }
 
-        return Context::getContainer();
+        return CoroutineContext::getContainer();
     }
 }

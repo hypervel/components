@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\View\Factory;
 use Hypervel\Filesystem\Filesystem;
@@ -133,7 +133,7 @@ class ComponentTagCompiler
      */
     protected function clearBoundAttributes(): void
     {
-        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        CoroutineContext::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -142,9 +142,9 @@ class ComponentTagCompiler
      */
     protected function setBoundAttribute($attribute): void
     {
-        $boundAttributes = Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        $boundAttributes = CoroutineContext::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
         $boundAttributes[$attribute] = true;
-        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, $boundAttributes);
+        CoroutineContext::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, $boundAttributes);
     }
 
     /**
@@ -152,7 +152,7 @@ class ComponentTagCompiler
      */
     protected function getBoundAttributes(): array
     {
-        return Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**

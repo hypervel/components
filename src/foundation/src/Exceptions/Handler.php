@@ -13,7 +13,7 @@ use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Console\View\Components\BulletList;
 use Hypervel\Console\View\Components\Error;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Debug\ShouldntReport;
@@ -391,11 +391,11 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportedExceptionMap(): WeakMap
     {
-        $map = Context::get(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
+        $map = CoroutineContext::get(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
 
         if (! $map instanceof WeakMap) {
             $map = new WeakMap();
-            Context::set(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY, $map);
+            CoroutineContext::set(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY, $map);
         }
 
         return $map;
@@ -618,7 +618,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function afterResponse(callable $callback): void
     {
-        Context::override(self::AFTER_RESPONSE_CONTEXT_KEY, function ($callbacks) use ($callback) {
+        CoroutineContext::override(self::AFTER_RESPONSE_CONTEXT_KEY, function ($callbacks) use ($callback) {
             $callbacks = $callbacks ?: [];
             $callbacks[] = $callback;
 
@@ -631,7 +631,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function afterResponseCallbacks(): array
     {
-        return Context::get(self::AFTER_RESPONSE_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::AFTER_RESPONSE_CONTEXT_KEY, []);
     }
 
     /**
@@ -746,7 +746,7 @@ class Handler implements ExceptionHandlerContract
     {
         $redirect = redirect($exception->redirectTo ?? url()->previous());
 
-        if (Context::get(Store::CONTEXT_KEY)) {
+        if (CoroutineContext::get(Store::CONTEXT_KEY)) {
             $redirect->withInput(Arr::except($request->input(), $this->dontFlash))
                 ->withErrors($exception->errors(), $request->input('_error_bag', $exception->errorBag));
         }

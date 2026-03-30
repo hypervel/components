@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
@@ -27,28 +27,28 @@ class ContextCoroutineTest extends TestCase
 {
     public function testCopy()
     {
-        Context::set('test.store.id', $uid = uniqid());
+        CoroutineContext::set('test.store.id', $uid = uniqid());
         $id = Coroutine::id();
         parallel([
             function () use ($id, $uid) {
-                Context::copyFrom($id, ['test.store.id']);
-                $this->assertSame($uid, Context::get('test.store.id'));
+                CoroutineContext::copyFrom($id, ['test.store.id']);
+                $this->assertSame($uid, CoroutineContext::get('test.store.id'));
             },
         ]);
     }
 
     public function testCopyAfterSet()
     {
-        Context::set('test.store.id', $uid = uniqid());
+        CoroutineContext::set('test.store.id', $uid = uniqid());
         $id = Coroutine::id();
         parallel([
             function () use ($id, $uid) {
-                Context::set('test.store.name', 'Hypervel');
-                Context::copyFrom($id, ['test.store.id']);
-                $this->assertSame($uid, Context::get('test.store.id'));
+                CoroutineContext::set('test.store.name', 'Hypervel');
+                CoroutineContext::copyFrom($id, ['test.store.id']);
+                $this->assertSame($uid, CoroutineContext::get('test.store.id'));
 
-                // Context::copyFrom() merges — existing values are preserved.
-                $this->assertSame('Hypervel', Context::get('test.store.name'));
+                // CoroutineContext::copyFrom() merges — existing values are preserved.
+                $this->assertSame('Hypervel', CoroutineContext::get('test.store.name'));
             },
         ]);
     }
@@ -58,40 +58,40 @@ class ContextCoroutineTest extends TestCase
         $obj = new stdClass();
         $obj->id = $uid = uniqid();
 
-        Context::set('test.store.id', $obj);
-        Context::set('test.store.useless.id', 1);
+        CoroutineContext::set('test.store.id', $obj);
+        CoroutineContext::set('test.store.useless.id', 1);
         $id = Coroutine::id();
         $tid = uniqid();
         parallel([
             function () use ($id, $uid, $tid) {
-                Context::copyFrom($id, ['test.store.id']);
-                $obj = Context::get('test.store.id');
+                CoroutineContext::copyFrom($id, ['test.store.id']);
+                $obj = CoroutineContext::get('test.store.id');
                 $this->assertSame($uid, $obj->id);
                 $obj->id = $tid;
-                $this->assertFalse(Context::has('test.store.useless.id'));
+                $this->assertFalse(CoroutineContext::has('test.store.useless.id'));
             },
         ]);
 
-        $this->assertSame($tid, Context::get('test.store.id')->id);
+        $this->assertSame($tid, CoroutineContext::get('test.store.id')->id);
     }
 
     public function testContextFromNull()
     {
-        $res = Context::get('id', $default = 'Hello World!', -1);
+        $res = CoroutineContext::get('id', $default = 'Hello World!', -1);
         $this->assertSame($default, $res);
 
-        $res = Context::get('id', null, -1);
+        $res = CoroutineContext::get('id', null, -1);
         $this->assertSame(null, $res);
 
-        $this->assertFalse(Context::has('id', -1));
+        $this->assertFalse(CoroutineContext::has('id', -1));
 
-        Context::copyFrom(-1);
+        CoroutineContext::copyFrom(-1);
 
         parallel([
             function () {
-                Context::set('id', $id = uniqid());
-                Context::copyFrom(-1, ['id']);
-                $this->assertSame($id, Context::get('id'));
+                CoroutineContext::set('id', $id = uniqid());
+                CoroutineContext::copyFrom(-1, ['id']);
+                $this->assertSame($id, CoroutineContext::get('id'));
             },
         ]);
     }
@@ -127,9 +127,9 @@ class ContextCoroutineTest extends TestCase
     {
         $id = Coroutine::id();
         $value = uniqid();
-        Context::override('override.id.coroutine_id', fn () => $value);
+        CoroutineContext::override('override.id.coroutine_id', fn () => $value);
         (new Waiter())->wait(function () use ($id, $value) {
-            Context::override(
+            CoroutineContext::override(
                 'override.id.coroutine_id',
                 function ($v) use ($value) {
                     $this->assertSame($v, $value);
@@ -139,16 +139,16 @@ class ContextCoroutineTest extends TestCase
             );
         });
 
-        $this->assertSame('123', Context::get('override.id.coroutine_id'));
+        $this->assertSame('123', CoroutineContext::get('override.id.coroutine_id'));
     }
 
     public function testContextGetOrSetWithCoroutineId()
     {
         $id = Coroutine::id();
         $value = uniqid();
-        Context::getOrSet('get_or_set.id.coroutine_id', fn () => $value);
+        CoroutineContext::getOrSet('get_or_set.id.coroutine_id', fn () => $value);
         (new Waiter())->wait(function () use ($id, $value) {
-            $res = Context::getOrSet('get_or_set.id.coroutine_id', fn () => '123', $id);
+            $res = CoroutineContext::getOrSet('get_or_set.id.coroutine_id', fn () => '123', $id);
             $this->assertSame($res, $value);
         });
     }

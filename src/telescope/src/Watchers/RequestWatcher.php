@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
@@ -274,7 +274,7 @@ class RequestWatcher extends Watcher
     protected function getContext(): array
     {
         $result = [];
-        foreach (Context::getContainer() as $key => $value) {
+        foreach (CoroutineContext::getContainer() as $key => $value) {
             if ($key === 'di.depth') {
                 continue;
             }

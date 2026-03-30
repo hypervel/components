@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait ManagesTranslations
 {
@@ -20,7 +20,7 @@ trait ManagesTranslations
     {
         ob_start();
 
-        Context::set(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, $replacements);
+        CoroutineContext::set(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, $replacements);
     }
 
     /**
@@ -30,7 +30,7 @@ trait ManagesTranslations
     {
         return $this->container->make('translator')->get(
             trim(ob_get_clean()),
-            Context::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
+            CoroutineContext::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
         );
     }
 }

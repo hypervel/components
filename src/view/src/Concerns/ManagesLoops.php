@@ -7,7 +7,7 @@ namespace Hypervel\View\Concerns;
 use Closure;
 use Countable;
 use Generator;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\LazyCollection;
 use stdClass;
 
@@ -27,7 +27,7 @@ trait ManagesLoops
                             ? count($data)
                             : null;
 
-        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $loopsStack = CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
         $parent = array_last($loopsStack);
 
         $loopsStack[] = [
@@ -43,7 +43,7 @@ trait ManagesLoops
             'parent' => $parent ? (object) $parent : null,
         ];
 
-        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
+        CoroutineContext::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
@@ -51,7 +51,7 @@ trait ManagesLoops
      */
     public function incrementLoopIndices(): void
     {
-        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $loopsStack = CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
         $loop = $loopsStack[$index = count($loopsStack) - 1];
 
         $loopsStack[$index] = array_merge($loopsStack[$index], [
@@ -64,7 +64,7 @@ trait ManagesLoops
             'last' => isset($loop['count']) ? $loop['iteration'] == $loop['count'] - 1 : null,
         ]);
 
-        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
+        CoroutineContext::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
@@ -72,9 +72,9 @@ trait ManagesLoops
      */
     public function popLoop(): void
     {
-        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $loopsStack = CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
         array_pop($loopsStack);
-        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
+        CoroutineContext::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
@@ -82,7 +82,7 @@ trait ManagesLoops
      */
     public function getLastLoop(): ?stdClass
     {
-        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $loopsStack = CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
 
         return ! empty($loopsStack)
             ? (object) end($loopsStack)
@@ -94,6 +94,6 @@ trait ManagesLoops
      */
     public function getLoopStack(): array
     {
-        return Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        return CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
     }
 }

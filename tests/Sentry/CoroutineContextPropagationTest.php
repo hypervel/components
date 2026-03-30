@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Hub;
@@ -25,7 +25,7 @@ class CoroutineContextPropagationTest extends SentryTestCase
             $scope->setTag('test_tag', 'parent_value');
         });
 
-        $parentStack = Context::get(Hub::CONTEXT_STACK_KEY);
+        $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
         $this->assertNotNull($parentStack);
 
         $childStack = null;
@@ -33,7 +33,7 @@ class CoroutineContextPropagationTest extends SentryTestCase
         $channel = new \Swoole\Coroutine\Channel(1);
 
         Coroutine::create(function () use (&$childStack, $channel) {
-            $childStack = Context::get(Hub::CONTEXT_STACK_KEY);
+            $childStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
             $channel->push(true);
         });
 
@@ -47,14 +47,14 @@ class CoroutineContextPropagationTest extends SentryTestCase
     {
         // Set up a request in the parent coroutine context
         $request = Request::create('/test', 'GET');
-        Context::set(Request::class, $request);
+        CoroutineContext::set(Request::class, $request);
 
         $childRequest = null;
 
         $channel = new \Swoole\Coroutine\Channel(1);
 
         Coroutine::create(function () use (&$childRequest, $channel) {
-            $childRequest = Context::get(Request::class);
+            $childRequest = CoroutineContext::get(Request::class);
             $channel->push(true);
         });
 
@@ -71,9 +71,9 @@ class CoroutineContextPropagationTest extends SentryTestCase
         $hub->pushScope();
 
         $request = Request::create('/both-test', 'POST');
-        Context::set(Request::class, $request);
+        CoroutineContext::set(Request::class, $request);
 
-        $parentStack = Context::get(Hub::CONTEXT_STACK_KEY);
+        $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
 
         $childStack = null;
         $childRequest = null;
@@ -81,8 +81,8 @@ class CoroutineContextPropagationTest extends SentryTestCase
         $channel = new \Swoole\Coroutine\Channel(1);
 
         Coroutine::create(function () use (&$childStack, &$childRequest, $channel) {
-            $childStack = Context::get(Hub::CONTEXT_STACK_KEY);
-            $childRequest = Context::get(Request::class);
+            $childStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
+            $childRequest = CoroutineContext::get(Request::class);
             $channel->push(true);
         });
 
@@ -95,14 +95,14 @@ class CoroutineContextPropagationTest extends SentryTestCase
     public function testChildCoroutineWithoutParentContextGetsNull()
     {
         // Ensure no request is set in the parent
-        Context::forget(Request::class);
+        CoroutineContext::forget(Request::class);
 
         $childRequest = 'sentinel';
 
         $channel = new \Swoole\Coroutine\Channel(1);
 
         Coroutine::create(function () use (&$childRequest, $channel) {
-            $childRequest = Context::get(Request::class);
+            $childRequest = CoroutineContext::get(Request::class);
             $channel->push(true);
         });
 

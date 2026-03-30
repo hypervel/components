@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Container\ContextualBindingTest;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Tests\TestCase;
 
 /**

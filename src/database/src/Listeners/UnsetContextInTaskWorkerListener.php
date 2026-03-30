@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Listeners;
 
 use Hypervel\Config\Repository;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Framework\Events\BeforeWorkerStart;
 
@@ -38,7 +38,7 @@ class UnsetContextInTaskWorkerListener
 
         foreach (array_keys($connections) as $name) {
             $contextKey = (fn () => $this->getContextKey($name))->call($connectionResolver); // @phpstan-ignore method.notFound (Closure::call() binds to concrete ConnectionResolver which has protected getContextKey())
-            Context::forget($contextKey);
+            CoroutineContext::forget($contextKey);
         }
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pool\Fixtures;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Pool\KeepaliveConnection;
 
@@ -26,15 +26,15 @@ class KeepaliveConnectionStub extends KeepaliveConnection
 
     protected function sendClose(mixed $connection): void
     {
-        $data = Context::get('test.pool.heartbeat_connection', []);
+        $data = CoroutineContext::get('test.pool.heartbeat_connection', []);
         $data['close'] = 'close protocol';
-        Context::set('test.pool.heartbeat_connection', $data);
+        CoroutineContext::set('test.pool.heartbeat_connection', $data);
     }
 
     protected function heartbeat(): void
     {
-        $data = Context::get('test.pool.heartbeat_connection', []);
+        $data = CoroutineContext::get('test.pool.heartbeat_connection', []);
         $data['heartbeat'] = 'heartbeat protocol';
-        Context::set('test.pool.heartbeat_connection', $data);
+        CoroutineContext::set('test.pool.heartbeat_connection', $data);
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integrations\Integration;
@@ -72,7 +72,7 @@ class CoroutineSafetyTest extends TestCase
 
         // Verify parent has a span on its stack
         $parentStackKey = TracingEventHandler::CONTEXT_CURRENT_SPANS_KEY;
-        $parentStack = Context::get($parentStackKey, []);
+        $parentStack = CoroutineContext::get($parentStackKey, []);
         $this->assertCount(1, $parentStack);
 
         $childStackCount = null;
@@ -80,7 +80,7 @@ class CoroutineSafetyTest extends TestCase
 
         Coroutine::create(function () use ($parentStackKey, &$childStackCount, $channel) {
             // Child coroutine should have an empty span stack
-            $childStackCount = count(Context::get($parentStackKey, []));
+            $childStackCount = count(CoroutineContext::get($parentStackKey, []));
             $channel->push(true);
         });
 
@@ -90,7 +90,7 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame(0, $childStackCount);
 
         // Parent's stack should be unaffected
-        $this->assertCount(1, Context::get($parentStackKey, []));
+        $this->assertCount(1, CoroutineContext::get($parentStackKey, []));
     }
 
     public function testTracksPushedScopesAndSpansTraitIsIsolatedPerCoroutine()
@@ -102,16 +102,16 @@ class CoroutineSafetyTest extends TestCase
         $currentSpansKey = CacheFeature::SPANS_CONTEXT_PREFIX . $featureClass . '.current_spans';
 
         // Simulate pushing scope/span state in parent
-        Context::set($scopeKey, 3);
-        Context::set($currentSpansKey, ['span1', 'span2', 'span3']);
+        CoroutineContext::set($scopeKey, 3);
+        CoroutineContext::set($currentSpansKey, ['span1', 'span2', 'span3']);
 
         $childScopeCount = null;
         $childSpanCount = null;
         $channel = new Channel(1);
 
         Coroutine::create(function () use ($scopeKey, $currentSpansKey, &$childScopeCount, &$childSpanCount, $channel) {
-            $childScopeCount = Context::get($scopeKey, 0);
-            $childSpanCount = count(Context::get($currentSpansKey, []));
+            $childScopeCount = CoroutineContext::get($scopeKey, 0);
+            $childSpanCount = count(CoroutineContext::get($currentSpansKey, []));
             $channel->push(true);
         });
 
@@ -122,8 +122,8 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame(0, $childSpanCount);
 
         // Parent should be unaffected
-        $this->assertSame(3, Context::get($scopeKey, 0));
-        $this->assertCount(3, Context::get($currentSpansKey, []));
+        $this->assertSame(3, CoroutineContext::get($scopeKey, 0));
+        $this->assertCount(3, CoroutineContext::get($currentSpansKey, []));
     }
 
     /**

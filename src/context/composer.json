@@ -40,10 +40,7 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\Context\\": "src/"
-        },
-        "files": [
-            "src/helpers.php"
-        ]
+        }
     },
     "extra": {
         "branch-alias": {

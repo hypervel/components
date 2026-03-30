@@ -9,7 +9,7 @@ use Error;
 use Exception;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -285,7 +285,7 @@ class Dispatcher implements DispatcherContract
         ];
 
         if ($this->shouldDeferEvent($parsedEvent)) {
-            Context::override(self::DEFERRED_EVENTS_CONTEXT_KEY, function (?array $events) use ($event, $payload, $halt) {
+            CoroutineContext::override(self::DEFERRED_EVENTS_CONTEXT_KEY, function (?array $events) use ($event, $payload, $halt) {
                 $events = $events ?? [];
                 $events[] = [$event, $payload, $halt];
 
@@ -804,28 +804,28 @@ class Dispatcher implements DispatcherContract
      */
     public function defer(callable $callback, ?array $events = null): mixed
     {
-        $wasDeferring = Context::get(self::DEFERRING_CONTEXT_KEY, false);
-        $previousDeferredEvents = Context::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
-        $previousEventsToDefer = Context::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
+        $wasDeferring = CoroutineContext::get(self::DEFERRING_CONTEXT_KEY, false);
+        $previousDeferredEvents = CoroutineContext::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
+        $previousEventsToDefer = CoroutineContext::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
 
-        Context::set(self::DEFERRING_CONTEXT_KEY, true);
-        Context::set(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
-        Context::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $events);
+        CoroutineContext::set(self::DEFERRING_CONTEXT_KEY, true);
+        CoroutineContext::set(self::DEFERRED_EVENTS_CONTEXT_KEY, []);
+        CoroutineContext::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $events);
 
         try {
             $result = $callback();
 
-            Context::set(self::DEFERRING_CONTEXT_KEY, false);
+            CoroutineContext::set(self::DEFERRING_CONTEXT_KEY, false);
 
-            foreach (Context::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []) as $args) {
+            foreach (CoroutineContext::get(self::DEFERRED_EVENTS_CONTEXT_KEY, []) as $args) {
                 $this->dispatch(...$args);
             }
 
             return $result;
         } finally {
-            Context::set(self::DEFERRING_CONTEXT_KEY, $wasDeferring);
-            Context::set(self::DEFERRED_EVENTS_CONTEXT_KEY, $previousDeferredEvents);
-            Context::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $previousEventsToDefer);
+            CoroutineContext::set(self::DEFERRING_CONTEXT_KEY, $wasDeferring);
+            CoroutineContext::set(self::DEFERRED_EVENTS_CONTEXT_KEY, $previousDeferredEvents);
+            CoroutineContext::set(self::EVENTS_TO_DEFER_CONTEXT_KEY, $previousEventsToDefer);
         }
     }
 
@@ -834,11 +834,11 @@ class Dispatcher implements DispatcherContract
      */
     protected function shouldDeferEvent(string $event): bool
     {
-        if (! Context::get(self::DEFERRING_CONTEXT_KEY, false)) {
+        if (! CoroutineContext::get(self::DEFERRING_CONTEXT_KEY, false)) {
             return false;
         }
 
-        $eventsToDefer = Context::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
+        $eventsToDefer = CoroutineContext::get(self::EVENTS_TO_DEFER_CONTEXT_KEY);
 
         return $eventsToDefer === null || in_array($event, $eventsToDefer);
     }

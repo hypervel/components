@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
@@ -132,7 +132,7 @@ class Coroutine
     {
         $cid = static::id();
         $callable = static function () use ($callable, $cid, $keys) {
-            Context::copyFrom($cid, $keys);
+            CoroutineContext::copyFrom($cid, $keys);
             $callable();
         };
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as JarContract;
 use Hypervel\Support\Arr;
@@ -213,7 +213,7 @@ class CookieJar implements JarContract
      */
     protected function getQueuedCookiesRaw(): array
     {
-        return Context::get(self::QUEUE_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::QUEUE_CONTEXT_KEY, []);
     }
 
     /**
@@ -221,6 +221,6 @@ class CookieJar implements JarContract
      */
     protected function setQueuedCookies(array $cookies): void
     {
-        Context::set(self::QUEUE_CONTEXT_KEY, $cookies);
+        CoroutineContext::set(self::QUEUE_CONTEXT_KEY, $cookies);
     }
 }

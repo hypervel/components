@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 
@@ -28,7 +28,7 @@ trait Interactivity
     public static function interactive(bool $interactive = true): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set(self::INTERACTIVE_CONTEXT_KEY, $interactive);
+            CoroutineContext::set(self::INTERACTIVE_CONTEXT_KEY, $interactive);
         } else {
             static::$interactive = $interactive;
         }
@@ -40,7 +40,7 @@ trait Interactivity
     public static function isInteractive(): ?bool
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get(self::INTERACTIVE_CONTEXT_KEY) ?? static::$interactive;
+            return CoroutineContext::get(self::INTERACTIVE_CONTEXT_KEY) ?? static::$interactive;
         }
 
         return static::$interactive;
@@ -52,7 +52,7 @@ trait Interactivity
     public static function resetInteractivity(): void
     {
         static::$interactive = null;
-        Context::forget(self::INTERACTIVE_CONTEXT_KEY);
+        CoroutineContext::forget(self::INTERACTIVE_CONTEXT_KEY);
     }
 
     /**

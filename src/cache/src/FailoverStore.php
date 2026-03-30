@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Cache\Events\CacheFailedOver;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
@@ -181,7 +181,7 @@ class FailoverStore extends TaggableStore implements LockProvider
     {
         $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
 
-        $failingCaches = Context::get($contextKey, []);
+        $failingCaches = CoroutineContext::get($contextKey, []);
 
         [$lastException, $failedCaches] = [null, []];
 
@@ -200,7 +200,7 @@ class FailoverStore extends TaggableStore implements LockProvider
                 }
             }
         } finally {
-            Context::set($contextKey, $failedCaches);
+            CoroutineContext::set($contextKey, $failedCaches);
         }
 
         throw $lastException ?? new RuntimeException('All failover cache stores failed.');

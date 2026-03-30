@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Signal;
 
 use Hypervel\Config\Repository;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
@@ -24,7 +24,7 @@ class SignalManagerTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::set('test.signal', null);
+        CoroutineContext::set('test.signal', null);
     }
 
     public function testGetHandlers()

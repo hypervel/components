@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as FactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
@@ -179,7 +179,7 @@ class AuthManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if ($driver = Context::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
+        if ($driver = CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
             return $driver;
         }
 
@@ -205,7 +205,7 @@ class AuthManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        Context::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
+        CoroutineContext::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
     }
 
     /**
@@ -226,7 +226,7 @@ class AuthManager implements FactoryContract
      */
     public function userResolver(): Closure
     {
-        if ($resolver = Context::get(self::RESOLVER_CONTEXT_KEY)) {
+        if ($resolver = CoroutineContext::get(self::RESOLVER_CONTEXT_KEY)) {
             return $resolver;
         }
 
@@ -240,7 +240,7 @@ class AuthManager implements FactoryContract
      */
     public function resolveUsersUsing(Closure $userResolver): static
     {
-        Context::set(self::RESOLVER_CONTEXT_KEY, $userResolver);
+        CoroutineContext::set(self::RESOLVER_CONTEXT_KEY, $userResolver);
 
         return $this;
     }

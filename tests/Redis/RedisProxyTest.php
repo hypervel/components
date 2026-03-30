@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -28,8 +28,8 @@ class RedisProxyTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default');
-        Context::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache');
+        CoroutineContext::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default');
+        CoroutineContext::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache');
     }
 
     public function testProxyUsesSpecifiedPoolName(): void
@@ -70,8 +70,8 @@ class RedisProxyTest extends TestCase
         $proxy->pipeline();
 
         // Context key should use the pool name
-        $this->assertTrue(Context::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache'));
-        $this->assertFalse(Context::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache'));
+        $this->assertFalse(CoroutineContext::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testIsClusterReadsCorrectPoolConfig(): void

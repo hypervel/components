@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
@@ -94,7 +94,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
             $fd = $this->getFd($response);
-            Context::set(WebSocketContext::FD, $fd);
+            CoroutineContext::set(WebSocketContext::FD, $fd);
 
             // Create HttpFoundation request and seed contexts.
             // RequestContext is needed for request() helper and container resolution.
@@ -152,7 +152,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     public function onMessage(WebSocketServer $server, Frame $frame): void
     {
         $fd = $frame->fd;
-        Context::set(WebSocketContext::FD, $fd);
+        CoroutineContext::set(WebSocketContext::FD, $fd);
         $fdObj = FdCollector::get($fd);
         if (! $fdObj) {
             $this->logger->warning(sprintf('WebSocket: fd[%d] does not exist.', $fd));
@@ -185,7 +185,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
 
         $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
 
-        Context::set(WebSocketContext::FD, $fd);
+        CoroutineContext::set(WebSocketContext::FD, $fd);
         Coroutine::defer(function () use ($fd) {
             // Move those functions to defer, because onClose may throw exceptions
             FdCollector::del($fd);

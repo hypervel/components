@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -84,16 +84,16 @@ class CompilerEngine extends PhpEngine
 
     protected function pushCompiledPath(string $path): void
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
         $stack[] = $path;
-        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
     protected function popCompiledPath(): void
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
         array_pop($stack);
-        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -121,7 +121,7 @@ class CompilerEngine extends PhpEngine
      */
     protected function getMessage(Throwable $e): string
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY);
 
         return $e->getMessage() . ' (View: ' . realpath(last($stack)) . ')';
     }

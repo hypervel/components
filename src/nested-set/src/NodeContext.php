@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\NestedSet;
 
 use DateTimeInterface;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Model;
 
 class NodeContext
@@ -22,7 +22,7 @@ class NodeContext
 
     public static function keepDeletedAt(Model $model): void
     {
-        Context::set(
+        CoroutineContext::set(
             self::DELETED_AT_CONTEXT_PREFIX . get_class($model),
             $model->{$model->getDeletedAtColumn()} // @phpstan-ignore-line
         );
@@ -30,7 +30,7 @@ class NodeContext
 
     public static function restoreDeletedAt(Model $model): DateTimeInterface|int|string
     {
-        $deletedAt = Context::get(self::DELETED_AT_CONTEXT_PREFIX . get_class($model));
+        $deletedAt = CoroutineContext::get(self::DELETED_AT_CONTEXT_PREFIX . get_class($model));
 
         if (! is_null($deletedAt)) {
             /* @phpstan-ignore-next-line */
@@ -42,11 +42,11 @@ class NodeContext
 
     public static function hasPerformed(Model $model): bool
     {
-        return Context::get(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), false);
+        return CoroutineContext::get(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), false);
     }
 
     public static function setHasPerformed(Model $model, bool $performed = true): void
     {
-        Context::set(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), $performed);
+        CoroutineContext::set(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), $performed);
     }
 }

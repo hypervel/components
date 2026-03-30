@@ -11,7 +11,7 @@ use Hypervel\Console\View\Components\Info;
 use Hypervel\Console\View\Components\Task;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
@@ -454,20 +454,20 @@ class Migrator
     protected function runMethod(Connection $connection, object $migration, string $method): void
     {
         $previousConnection = $this->resolver->getDefaultConnection();
-        $previousContext = Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+        $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
             $this->resolver->setDefaultConnection($connection->getName());
-            Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
 
             $migration->{$method}();
         } finally {
             $this->resolver->setDefaultConnection($previousConnection);
 
             if ($previousContext === null) {
-                Context::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+                CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
             } else {
-                Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
+                CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
             }
         }
     }

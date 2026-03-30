@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
@@ -155,7 +155,7 @@ class Logger implements LoggerInterface
      */
     public function withContext(array $context = []): self
     {
-        Context::override(self::LOG_CONTEXT_KEY, function ($currentContext) use ($context) {
+        CoroutineContext::override(self::LOG_CONTEXT_KEY, function ($currentContext) use ($context) {
             return array_merge($currentContext ?: [], $context);
         });
 
@@ -169,7 +169,7 @@ class Logger implements LoggerInterface
      */
     public function withoutContext(): self
     {
-        Context::forget(self::LOG_CONTEXT_KEY);
+        CoroutineContext::forget(self::LOG_CONTEXT_KEY);
 
         return $this;
     }
@@ -181,7 +181,7 @@ class Logger implements LoggerInterface
      */
     public function getContext(): array
     {
-        return (array) Context::get(self::LOG_CONTEXT_KEY, []);
+        return (array) CoroutineContext::get(self::LOG_CONTEXT_KEY, []);
     }
 
     /**

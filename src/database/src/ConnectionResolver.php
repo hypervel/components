@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
@@ -57,8 +57,8 @@ class ConnectionResolver implements ConnectionResolverInterface
         $contextKey = $this->getContextKey($name);
 
         // Check if this coroutine already has a connection
-        if (Context::has($contextKey)) {
-            $connection = Context::get($contextKey);
+        if (CoroutineContext::has($contextKey)) {
+            $connection = CoroutineContext::get($contextKey);
             if ($connection instanceof ConnectionInterface) {
                 return $connection;
             }
@@ -75,12 +75,12 @@ class ConnectionResolver implements ConnectionResolverInterface
             $connection = $pooledConnection->getConnection();
 
             // Store in context for this coroutine
-            Context::set($contextKey, $connection);
+            CoroutineContext::set($contextKey, $connection);
         } finally {
             // Schedule cleanup when coroutine ends
             if (Coroutine::inCoroutine()) {
                 Coroutine::defer(function () use ($pooledConnection, $contextKey) {
-                    Context::set($contextKey, null);
+                    CoroutineContext::set($contextKey, null);
                     $pooledConnection->release();
                 });
             }
@@ -97,7 +97,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public function getDefaultConnection(): ?string
     {
-        return Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY) ?? $this->default;
+        return CoroutineContext::get(self::DEFAULT_CONNECTION_CONTEXT_KEY) ?? $this->default;
     }
 
     /**

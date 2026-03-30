@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\QueryExecuted;
 
@@ -35,7 +35,7 @@ class Listener
      */
     public function queries(): array
     {
-        return Context::get(self::QUERIES_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::QUERIES_CONTEXT_KEY, []);
     }
 
     /**
@@ -43,7 +43,7 @@ class Listener
      */
     public function onQueryExecuted(QueryExecuted $event): void
     {
-        $queries = Context::get(self::QUERIES_CONTEXT_KEY, []);
+        $queries = CoroutineContext::get(self::QUERIES_CONTEXT_KEY, []);
 
         if (count($queries) === self::MAX_QUERIES) {
             return;
@@ -56,6 +56,6 @@ class Listener
             'bindings' => $event->connection->prepareBindings($event->bindings),
         ];
 
-        Context::set(self::QUERIES_CONTEXT_KEY, $queries);
+        CoroutineContext::set(self::QUERIES_CONTEXT_KEY, $queries);
     }
 }

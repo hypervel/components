@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pool;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Pool\Fixtures\HeartbeatPoolStub;
@@ -21,7 +21,7 @@ class HeartbeatConnectionTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Context::set('test.pool.heartbeat_connection', []);
+        CoroutineContext::set('test.pool.heartbeat_connection', []);
         parent::tearDown();
     }
 
@@ -80,7 +80,7 @@ class HeartbeatConnectionTest extends TestCase
         $connection->close();
         $this->assertSame(0, count((new ClassInvoker($timer))->closures));
         $this->assertFalse($connection->check());
-        $this->assertSame('close protocol', Context::get('test.pool.heartbeat_connection')['close']);
+        $this->assertSame('close protocol', CoroutineContext::get('test.pool.heartbeat_connection')['close']);
     }
 
     public function testConnectionDestruct()
@@ -98,7 +98,7 @@ class HeartbeatConnectionTest extends TestCase
 
         $pool->flush();
 
-        $this->assertSame('close protocol', Context::get('test.pool.heartbeat_connection')['close']);
+        $this->assertSame('close protocol', CoroutineContext::get('test.pool.heartbeat_connection')['close']);
     }
 
     protected function getContainer()

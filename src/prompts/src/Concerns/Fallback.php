@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts\Concerns;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 
@@ -39,7 +39,7 @@ trait Fallback
     public static function fallbackWhen(bool $condition): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set(self::SHOULD_FALLBACK_CONTEXT_KEY, $condition);
+            CoroutineContext::set(self::SHOULD_FALLBACK_CONTEXT_KEY, $condition);
         } else {
             static::$shouldFallback = $condition;
         }
@@ -51,8 +51,8 @@ trait Fallback
     public static function shouldFallback(): bool
     {
         if (Coroutine::inCoroutine()) {
-            $shouldFallback = Context::get(self::SHOULD_FALLBACK_CONTEXT_KEY) ?? static::$shouldFallback;
-            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
+            $shouldFallback = CoroutineContext::get(self::SHOULD_FALLBACK_CONTEXT_KEY) ?? static::$shouldFallback;
+            $fallbacks = CoroutineContext::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
 
             return $shouldFallback && isset($fallbacks[static::class]);
         }
@@ -68,9 +68,9 @@ trait Fallback
     public static function fallbackUsing(Closure $fallback): void
     {
         if (Coroutine::inCoroutine()) {
-            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
+            $fallbacks = CoroutineContext::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
             $fallbacks[static::class] = $fallback;
-            Context::set(self::FALLBACKS_CONTEXT_KEY, $fallbacks);
+            CoroutineContext::set(self::FALLBACKS_CONTEXT_KEY, $fallbacks);
         } else {
             static::$fallbacks[static::class] = $fallback;
         }
@@ -82,7 +82,7 @@ trait Fallback
     public function fallback(): mixed
     {
         if (Coroutine::inCoroutine()) {
-            $fallbacks = Context::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
+            $fallbacks = CoroutineContext::get(self::FALLBACKS_CONTEXT_KEY) ?? static::$fallbacks;
         } else {
             $fallbacks = static::$fallbacks;
         }
@@ -103,7 +103,7 @@ trait Fallback
     {
         static::$shouldFallback = false;
         static::$fallbacks = [];
-        Context::forget(self::SHOULD_FALLBACK_CONTEXT_KEY);
-        Context::forget(self::FALLBACKS_CONTEXT_KEY);
+        CoroutineContext::forget(self::SHOULD_FALLBACK_CONTEXT_KEY);
+        CoroutineContext::forget(self::FALLBACKS_CONTEXT_KEY);
     }
 }

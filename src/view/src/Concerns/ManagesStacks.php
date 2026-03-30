@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use InvalidArgumentException;
 
 trait ManagesStacks
@@ -40,16 +40,16 @@ trait ManagesStacks
 
     protected function pushStack(string $section): void
     {
-        $pushStack = Context::get(static::PUSH_STACK_CONTEXT_KEY, []);
+        $pushStack = CoroutineContext::get(static::PUSH_STACK_CONTEXT_KEY, []);
         $pushStack[] = $section;
-        Context::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
+        CoroutineContext::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
     }
 
     private function popStack(): string
     {
-        $pushStack = Context::get(static::PUSH_STACK_CONTEXT_KEY, []);
+        $pushStack = CoroutineContext::get(static::PUSH_STACK_CONTEXT_KEY, []);
         $last = array_pop($pushStack);
-        Context::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
+        CoroutineContext::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
 
         return $last;
     }
@@ -77,7 +77,7 @@ trait ManagesStacks
      */
     protected function extendPush(string $section, string $content): void
     {
-        $pushes = Context::get(static::PUSHES_CONTEXT_KEY, []);
+        $pushes = CoroutineContext::get(static::PUSHES_CONTEXT_KEY, []);
 
         if (! isset($pushes[$section])) {
             $pushes[$section] = [];
@@ -91,7 +91,7 @@ trait ManagesStacks
             $pushes[$section][$renderCount] .= $content;
         }
 
-        Context::set(static::PUSHES_CONTEXT_KEY, $pushes);
+        CoroutineContext::set(static::PUSHES_CONTEXT_KEY, $pushes);
     }
 
     /**
@@ -131,7 +131,7 @@ trait ManagesStacks
      */
     protected function extendPrepend(string $section, string $content): void
     {
-        $prepends = Context::get(static::PREPENDS_CONTEXT_KEY, []);
+        $prepends = CoroutineContext::get(static::PREPENDS_CONTEXT_KEY, []);
 
         if (! isset($prepends[$section])) {
             $prepends[$section] = [];
@@ -145,7 +145,7 @@ trait ManagesStacks
             $prepends[$section][$renderCount] = $content . $prepends[$section][$renderCount];
         }
 
-        Context::set(static::PREPENDS_CONTEXT_KEY, $prepends);
+        CoroutineContext::set(static::PREPENDS_CONTEXT_KEY, $prepends);
     }
 
     /**
@@ -153,8 +153,8 @@ trait ManagesStacks
      */
     public function yieldPushContent(string $section, string $default = ''): string
     {
-        $pushes = Context::get(static::PUSHES_CONTEXT_KEY, []);
-        $prepends = Context::get(static::PREPENDS_CONTEXT_KEY, []);
+        $pushes = CoroutineContext::get(static::PUSHES_CONTEXT_KEY, []);
+        $prepends = CoroutineContext::get(static::PREPENDS_CONTEXT_KEY, []);
 
         if (! isset($pushes[$section]) && ! isset($prepends[$section])) {
             return $default;
@@ -178,8 +178,8 @@ trait ManagesStacks
      */
     public function flushStacks(): void
     {
-        Context::set(static::PUSHES_CONTEXT_KEY, []);
-        Context::set(static::PREPENDS_CONTEXT_KEY, []);
-        Context::set(static::PUSH_STACK_CONTEXT_KEY, []);
+        CoroutineContext::set(static::PUSHES_CONTEXT_KEY, []);
+        CoroutineContext::set(static::PREPENDS_CONTEXT_KEY, []);
+        CoroutineContext::set(static::PUSH_STACK_CONTEXT_KEY, []);
     }
 }

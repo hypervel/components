@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\GuardHelpers;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
@@ -66,7 +66,7 @@ class SanctumGuard implements GuardContract
 
         $token = $this->getTokenFromRequest();
         $contextKey = $this->getContextKeyForToken($token);
-        $cached = Context::get($contextKey);
+        $cached = CoroutineContext::get($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -86,7 +86,7 @@ class SanctumGuard implements GuardContract
                     $tokenUser = $user;
                     $user = $tokenUser->withAccessToken(new TransientToken());
                 }
-                Context::set($contextKey, $user ?? self::$nullUserSentinel);
+                CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
                 return $user;
             }
@@ -108,14 +108,14 @@ class SanctumGuard implements GuardContract
                         $this->events->dispatch(new TokenAuthenticated($accessToken));
                     }
 
-                    Context::set($contextKey, $user);
+                    CoroutineContext::set($contextKey, $user);
 
                     return $user;
                 }
             }
         }
 
-        Context::set($contextKey, self::$nullUserSentinel);
+        CoroutineContext::set($contextKey, self::$nullUserSentinel);
 
         return null;
     }
@@ -231,7 +231,7 @@ class SanctumGuard implements GuardContract
     {
         self::$nullUserSentinel ??= new stdClass();
 
-        $cached = Context::get($this->getContextKeyForToken($this->getTokenFromRequest()));
+        $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -241,7 +241,7 @@ class SanctumGuard implements GuardContract
      */
     public function setUser(Authenticatable $user): static
     {
-        Context::set($this->getContextKeyForToken($this->getTokenFromRequest()), $user);
+        CoroutineContext::set($this->getContextKeyForToken($this->getTokenFromRequest()), $user);
 
         return $this;
     }
@@ -251,7 +251,7 @@ class SanctumGuard implements GuardContract
      */
     public function forgetUser(): static
     {
-        Context::forget($this->getContextKeyForToken($this->getTokenFromRequest()));
+        CoroutineContext::forget($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $this;
     }

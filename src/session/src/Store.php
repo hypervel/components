@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
@@ -80,7 +80,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set(self::STARTED_CONTEXT_KEY, true);
+        return CoroutineContext::set(self::STARTED_CONTEXT_KEY, true);
     }
 
     /**
@@ -88,7 +88,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get(self::ATTRIBUTES_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -96,7 +96,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
+        CoroutineContext::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
     }
 
     /**
@@ -104,9 +104,9 @@ class Store implements Session
      */
     protected function replaceAttributes(array $attributes): void
     {
-        Context::set(
+        CoroutineContext::set(
             self::ATTRIBUTES_CONTEXT_KEY,
-            array_replace(Context::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
+            array_replace(CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
         );
     }
 
@@ -181,7 +181,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set(self::STARTED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -552,7 +552,7 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get(self::STARTED_CONTEXT_KEY, false);
+        return CoroutineContext::get(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -560,10 +560,10 @@ class Store implements Session
      */
     public static function flushState(): void
     {
-        Context::forget(self::CONTEXT_KEY);
-        Context::forget(self::STARTED_CONTEXT_KEY);
-        Context::forget(self::ID_CONTEXT_KEY);
-        Context::forget(self::ATTRIBUTES_CONTEXT_KEY);
+        CoroutineContext::forget(self::CONTEXT_KEY);
+        CoroutineContext::forget(self::STARTED_CONTEXT_KEY);
+        CoroutineContext::forget(self::ID_CONTEXT_KEY);
+        CoroutineContext::forget(self::ATTRIBUTES_CONTEXT_KEY);
     }
 
     /**
@@ -595,7 +595,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get(self::ID_CONTEXT_KEY, null);
+        return CoroutineContext::get(self::ID_CONTEXT_KEY, null);
     }
 
     /**
@@ -603,7 +603,7 @@ class Store implements Session
      */
     public function setId(?string $id): void
     {
-        Context::set(
+        CoroutineContext::set(
             self::ID_CONTEXT_KEY,
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );

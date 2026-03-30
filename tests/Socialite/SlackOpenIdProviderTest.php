@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Two\SlackOpenIdProvider;
@@ -110,7 +110,7 @@ class SlackOpenIdProviderTest extends TestCase
             'redirect'
         );
         $provider->stateless();
-        Context::set(
+        CoroutineContext::set(
             '__socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
             $guzzle
         );

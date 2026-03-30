@@ -503,7 +503,7 @@ class PropagatedContext
     /**
      * Create an independent copy with the same data and hidden values.
      *
-     * Used by Context::copyFrom() to ensure forked coroutines get their own
+     * Used by CoroutineContext::copyFrom() to ensure forked coroutines get their own
      * PropagatedContext instance rather than sharing an object reference
      * with the parent.
      */

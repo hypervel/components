@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Events\NotificationFailed;
@@ -45,7 +45,7 @@ class NotificationServiceProvider extends ServiceProvider
         // See NotificationSender::sendToNotifiable() for the consumer of this flag.
         $this->app->make('events')->listen(
             NotificationFailed::class,
-            static fn () => Context::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true)
+            static fn () => CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true)
         );
     }
 }

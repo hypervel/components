@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\View;
 use Hypervel\Support\Arr;
@@ -54,34 +54,34 @@ trait ManagesComponents
 
     protected function pushComponentStack(View|Htmlable|Closure|string $view): int
     {
-        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         $componentStack[] = $view;
-        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
 
         return count($componentStack);
     }
 
     protected function popComponentStack(): View|Htmlable|Closure|string|null
     {
-        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         $view = array_pop($componentStack);
-        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
 
         return $view;
     }
 
     protected function appendComponentData(array $data): void
     {
-        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
         $componentData[$this->currentComponent()] = $data;
-        Context::set(static::COMPONENT_DATA_CONTEXT_KEY, $componentData);
+        CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, $componentData);
     }
 
     protected function createSlotContext()
     {
-        $slots = Context::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
         $slots[$this->currentComponent()] = [];
-        Context::set(static::SLOTS_CONTEXT_KEY, $slots);
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, $slots);
     }
 
     /**
@@ -103,11 +103,11 @@ trait ManagesComponents
     {
         $view = $this->popComponentStack();
 
-        $previousComponentData = Context::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        $previousComponentData = CoroutineContext::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
         $data = $this->componentData();
 
         $currentComponentData = array_merge($previousComponentData, $data);
-        Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $currentComponentData);
+        CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $currentComponentData);
 
         try {
             $view = value($view, $data);
@@ -120,7 +120,7 @@ trait ManagesComponents
             }
             return $this->make($view, $data)->render();
         } finally {
-            Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $previousComponentData);
+            CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $previousComponentData);
         }
     }
 
@@ -131,9 +131,9 @@ trait ManagesComponents
     {
         $defaultSlot = new ComponentSlot(trim(ob_get_clean()));
 
-        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
-        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
-        $slotsData = Context::get(static::SLOTS_CONTEXT_KEY, []);
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $slotsData = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
 
         $stackCount = count($componentStack);
 
@@ -154,20 +154,20 @@ trait ManagesComponents
      */
     public function getConsumableComponentData(string $key, mixed $default = null): mixed
     {
-        $currentComponentData = Context::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        $currentComponentData = CoroutineContext::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
 
         if (array_key_exists($key, $currentComponentData)) {
             return $currentComponentData[$key];
         }
 
-        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         $currentComponent = count($componentStack);
 
         if ($currentComponent === 0) {
             return value($default);
         }
 
-        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
 
         for ($i = $currentComponent - 1; $i >= 0; --$i) {
             $data = $componentData[$i] ?? [];
@@ -198,27 +198,27 @@ trait ManagesComponents
     {
         $currentComponent = $this->currentComponent();
 
-        $slots = Context::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
         $slots[$currentComponent][$name] = $content;
-        Context::set(static::SLOTS_CONTEXT_KEY, $slots);
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, $slots);
     }
 
     protected function pushSlotStack(array $value): void
     {
         $currentComponent = $this->currentComponent();
 
-        $slotStack = Context::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $slotStack = CoroutineContext::get(static::SLOT_STACK_CONTEXT_KEY, []);
         $slotStack[$currentComponent][] = $value;
-        Context::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
     }
 
     protected function popSlotStack(): array
     {
         $currentComponent = $this->currentComponent();
 
-        $slotStack = Context::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $slotStack = CoroutineContext::get(static::SLOT_STACK_CONTEXT_KEY, []);
         $value = array_pop($slotStack[$currentComponent]);
-        Context::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
 
         return $value;
     }
@@ -243,7 +243,7 @@ trait ManagesComponents
      */
     protected function currentComponent(): int
     {
-        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
         return count($componentStack) - 1;
     }
 
@@ -252,8 +252,8 @@ trait ManagesComponents
      */
     protected function flushComponents(): void
     {
-        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
-        Context::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
-        Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
     }
 }

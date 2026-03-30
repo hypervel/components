@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Integrations\ModelViolations;
 
 use Closure;
 use Exception;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Sentry\Event;
@@ -81,7 +81,7 @@ abstract class ModelViolationReporter
         }
 
         /** @var array<string, true> $reported */
-        $reported = Context::get(self::CONTEXT_REPORTED_PREFIX . static::class, []);
+        $reported = CoroutineContext::get(self::CONTEXT_REPORTED_PREFIX . static::class, []);
 
         return ! array_key_exists(get_class($model) . $property, $reported);
     }
@@ -98,9 +98,9 @@ abstract class ModelViolationReporter
         $contextKey = self::CONTEXT_REPORTED_PREFIX . static::class;
 
         /** @var array<string, true> $reported */
-        $reported = Context::get($contextKey, []);
+        $reported = CoroutineContext::get($contextKey, []);
         $reported[get_class($model) . $property] = true;
-        Context::set($contextKey, $reported);
+        CoroutineContext::set($contextKey, $reported);
     }
 
     /**

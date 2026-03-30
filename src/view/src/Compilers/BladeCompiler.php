@@ -6,7 +6,7 @@ namespace Hypervel\View\Compilers;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View;
@@ -194,7 +194,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compileString(string $value): string
     {
-        Context::set(static::FOOTER_CONTEXT_KEY, []);
+        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, []);
         $result = '';
 
         foreach ($this->prepareStringsForCompilationUsing as $callback) {
@@ -221,14 +221,14 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $result .= is_array($token) ? $this->parseToken($token) : $token;
         }
 
-        if (! empty(Context::get(static::RAW_BLOCKS_CONTEXT_KEY))) {
+        if (! empty(CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY))) {
             $result = $this->restoreRawContent($result);
         }
 
         // If there are any footer lines that need to get added to a template we will
         // add them here at the end of the template. This gets used mainly for the
         // template inheritance via the extends keyword that should be appended.
-        $footer = Context::get(static::FOOTER_CONTEXT_KEY, []);
+        $footer = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
         if (count($footer) > 0) {
             $result = $this->addFooters($result, $footer);
         }
@@ -348,9 +348,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function pushRawBlock(string $value): int
     {
-        $stack = Context::get(static::RAW_BLOCKS_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY, []);
         $stack[] = $value;
-        Context::set(static::RAW_BLOCKS_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::RAW_BLOCKS_CONTEXT_KEY, $stack);
 
         return count($stack);
     }
@@ -385,13 +385,13 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function restoreRawContent(string $result): string
     {
-        $rawBlocks = Context::get(static::RAW_BLOCKS_CONTEXT_KEY);
+        $rawBlocks = CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY);
 
         $result = preg_replace_callback('/' . $this->getRawPlaceholder('(\d+)') . '/', function ($matches) use ($rawBlocks) {
             return $rawBlocks[$matches[1]];
         }, $result);
 
-        $rawBlocks = Context::set(static::RAW_BLOCKS_CONTEXT_KEY, []);
+        $rawBlocks = CoroutineContext::set(static::RAW_BLOCKS_CONTEXT_KEY, []);
 
         return $result;
     }
@@ -860,7 +860,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function setEchoFormat(string $format): void
     {
-        Context::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
+        CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
     }
 
     /**
@@ -868,7 +868,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function getEchoFormat(): string
     {
-        return Context::get(static::ECHO_FORMAT_CONTEXT_KEY, 'e(%s)');
+        return CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY, 'e(%s)');
     }
 
     /**
@@ -897,8 +897,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     protected function pushFooter($footer)
     {
-        $stack = Context::get(static::FOOTER_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
         $stack[] = $footer;
-        Context::set(static::FOOTER_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, $stack);
     }
 }

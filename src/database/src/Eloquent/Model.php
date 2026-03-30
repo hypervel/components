@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent;
 
 use ArrayAccess;
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
@@ -424,13 +424,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public static function withoutTouchingOn(array $models, callable $callback): void
     {
         /** @var list<class-string<self>> $previous */
-        $previous = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
-        Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_merge($previous, $models));
+        $previous = CoroutineContext::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
+        CoroutineContext::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_merge($previous, $models));
 
         try {
             $callback();
         } finally {
-            Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, $previous);
+            CoroutineContext::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, $previous);
         }
     }
 
@@ -448,7 +448,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         }
 
         /** @var array<int, class-string<self>> $ignoreOnTouch */
-        $ignoreOnTouch = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
+        $ignoreOnTouch = CoroutineContext::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
 
         foreach ($ignoreOnTouch as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
@@ -536,14 +536,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function withoutBroadcasting(callable $callback): mixed
     {
-        $wasBroadcasting = Context::get(self::BROADCASTING_CONTEXT_KEY, true);
+        $wasBroadcasting = CoroutineContext::get(self::BROADCASTING_CONTEXT_KEY, true);
 
-        Context::set(self::BROADCASTING_CONTEXT_KEY, false);
+        CoroutineContext::set(self::BROADCASTING_CONTEXT_KEY, false);
 
         try {
             return $callback();
         } finally {
-            Context::set(self::BROADCASTING_CONTEXT_KEY, $wasBroadcasting);
+            CoroutineContext::set(self::BROADCASTING_CONTEXT_KEY, $wasBroadcasting);
         }
     }
 
@@ -552,7 +552,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isBroadcasting(): bool
     {
-        return (bool) Context::get(self::BROADCASTING_CONTEXT_KEY, true);
+        return (bool) CoroutineContext::get(self::BROADCASTING_CONTEXT_KEY, true);
     }
 
     /**

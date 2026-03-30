@@ -6,7 +6,7 @@ namespace Hypervel\Database;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connectors\ConnectionFactory;
@@ -246,7 +246,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Clear context so next connection() gets a fresh pooled connection
         $contextKey = $this->getConnectionContextKey($name);
-        Context::forget($contextKey);
+        CoroutineContext::forget($contextKey);
 
         // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
         unset($this->connections[$name]);
@@ -279,7 +279,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $contextKey = $this->getConnectionContextKey($name);
 
         // Pooled mode: disconnect the current coroutine's connection
-        $connection = Context::get($contextKey);
+        $connection = CoroutineContext::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->disconnect();
         }
@@ -305,7 +305,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Pooled mode: if we already have a connection in this coroutine, reconnect it
         $contextKey = $this->getConnectionContextKey($name);
-        $connection = Context::get($contextKey);
+        $connection = CoroutineContext::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->reconnect();
             $this->dispatchConnectionEstablishedEvent($connection);
@@ -333,17 +333,17 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function usingConnection(UnitEnum|string $name, callable $callback): mixed
     {
-        $previous = Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+        $previous = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
-        Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
+        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
 
         try {
             return $callback();
         } finally {
             if ($previous === null) {
-                Context::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+                CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
             } else {
-                Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
+                CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
             }
         }
     }
@@ -370,7 +370,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function getDefaultConnection(): ?string
     {
-        return Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
+        return CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
             ?? $this->app['config']['database.default'];
     }
 

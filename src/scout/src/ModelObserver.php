@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\SearchableInterface;
@@ -58,7 +58,7 @@ class ModelObserver
      */
     public static function enableSyncingFor(string $class): void
     {
-        Context::set(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, false);
+        CoroutineContext::set(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, false);
     }
 
     /**
@@ -70,7 +70,7 @@ class ModelObserver
      */
     public static function disableSyncingFor(string $class): void
     {
-        Context::set(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, true);
+        CoroutineContext::set(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, true);
     }
 
     /**
@@ -84,7 +84,7 @@ class ModelObserver
     {
         $class = is_object($class) ? get_class($class) : $class;
 
-        return (bool) Context::get(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, false);
+        return (bool) CoroutineContext::get(self::SYNCING_DISABLED_CONTEXT_KEY_PREFIX . $class, false);
     }
 
     /**

@@ -7,7 +7,7 @@ namespace Hypervel\Routing;
 use ArrayObject;
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Contracts\Routing\Registrar as RegistrarContract;
@@ -593,7 +593,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function dispatch(Request $request): SymfonyResponse
     {
-        Context::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
+        CoroutineContext::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
 
         return $this->dispatchToRoute($request);
     }
@@ -618,7 +618,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function dispatchToCallback(Request $request, Closure $callback): SymfonyResponse
     {
-        Context::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
+        CoroutineContext::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
 
         $route = $this->findRoute($request);
 
@@ -653,7 +653,7 @@ class Router implements BindingRegistrar, RegistrarContract
 
         $route = $this->routes->match($request);
 
-        Context::set(self::CURRENT_ROUTE_CONTEXT_KEY, $route);
+        CoroutineContext::set(self::CURRENT_ROUTE_CONTEXT_KEY, $route);
 
         $route->setContainer($this->container);
 
@@ -1093,7 +1093,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function getCurrentRequest(): ?Request
     {
-        return Context::get(self::CURRENT_REQUEST_CONTEXT_KEY);
+        return CoroutineContext::get(self::CURRENT_REQUEST_CONTEXT_KEY);
     }
 
     /**
@@ -1109,7 +1109,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function current(): ?Route
     {
-        return Context::get(self::CURRENT_ROUTE_CONTEXT_KEY);
+        return CoroutineContext::get(self::CURRENT_ROUTE_CONTEXT_KEY);
     }
 
     /**
@@ -1314,7 +1314,7 @@ class Router implements BindingRegistrar, RegistrarContract
             // 2. Pre-warm middleware (populates Route::$computedMiddleware)
             // Safe for HasMiddleware (static method) and attribute-based middleware
             // (pure reflection). The only unsafe path is legacy getMiddleware() which
-            // calls getController() → Context::getOrSet() — no coroutine at boot.
+            // calls getController() → CoroutineContext::getOrSet() — no coroutine at boot.
             if ($class !== null
                 && (is_a($class, \Hypervel\Routing\Controllers\HasMiddleware::class, true)
                     || ! method_exists($class, 'getMiddleware'))

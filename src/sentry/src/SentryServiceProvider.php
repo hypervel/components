@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
@@ -432,9 +432,9 @@ class SentryServiceProvider extends ServiceProvider
             $parentId = Coroutine::parentId();
 
             foreach ([Hub::CONTEXT_STACK_KEY, Request::class] as $key) {
-                $value = Context::get($key, null, $parentId);
+                $value = CoroutineContext::get($key, null, $parentId);
                 if ($value !== null) {
-                    Context::set($key, $value);
+                    CoroutineContext::set($key, $value);
                 }
             }
         });

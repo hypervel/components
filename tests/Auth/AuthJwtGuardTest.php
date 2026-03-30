@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\JwtGuard;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -458,7 +458,7 @@ class AuthJwtGuardTest extends TestCase
         if ($request !== null) {
             $container->instance('request', $request);
             // Set RequestContext so parseToken() works
-            Context::set(Request::class, $request);
+            CoroutineContext::set(Request::class, $request);
         }
 
         return new JwtGuard(

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\PropagatedContext;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -23,7 +23,7 @@ class PropagatedContextQueueTest extends TestCase
 {
     public function testPropagatedContextIsIncludedInJobPayload()
     {
-        Context::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
@@ -36,7 +36,7 @@ class PropagatedContextQueueTest extends TestCase
     public function testEmptyPropagatedContextDoesNotAddToPayload()
     {
         // Access propagated context but don't add anything
-        Context::propagated();
+        CoroutineContext::propagated();
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
@@ -50,12 +50,12 @@ class PropagatedContextQueueTest extends TestCase
         $payload = $queue->testCreatePayload('SomeJob', null);
 
         $this->assertArrayNotHasKey('hypervel:context', $payload);
-        $this->assertFalse(Context::hasPropagated());
+        $this->assertFalse(CoroutineContext::hasPropagated());
     }
 
     public function testHiddenContextIsIncludedInJobPayload()
     {
-        Context::propagated()->addHidden('api_key', 'secret-token');
+        CoroutineContext::propagated()->addHidden('api_key', 'secret-token');
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
@@ -68,15 +68,15 @@ class PropagatedContextQueueTest extends TestCase
     public function testPropagatedContextIsHydratedWhenJobProcesses()
     {
         // Build a payload with context
-        Context::propagated()->add('trace_id', 'abc-123');
-        Context::propagated()->addHidden('secret', 'token');
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->addHidden('secret', 'token');
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
 
         // Clear context to simulate a fresh coroutine
-        Context::flush();
-        $this->assertFalse(Context::hasPropagated());
+        CoroutineContext::flush();
+        $this->assertFalse(CoroutineContext::hasPropagated());
 
         // Simulate JobProcessing event with the payload
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
@@ -86,8 +86,8 @@ class PropagatedContextQueueTest extends TestCase
         $this->app['events']->dispatch($event);
 
         // Context should now be hydrated
-        $this->assertSame('abc-123', Context::propagated()->get('trace_id'));
-        $this->assertSame('token', Context::propagated()->getHidden('secret'));
+        $this->assertSame('abc-123', CoroutineContext::propagated()->get('trace_id'));
+        $this->assertSame('token', CoroutineContext::propagated()->getHidden('secret'));
     }
 
     public function testHydrateSkipsWhenPayloadHasNoContext()
@@ -99,15 +99,15 @@ class PropagatedContextQueueTest extends TestCase
         $this->app['events']->dispatch($event);
 
         // No PropagatedContext should have been allocated
-        $this->assertFalse(Context::hasPropagated());
+        $this->assertFalse(CoroutineContext::hasPropagated());
     }
 
     public function testDehydratingHookFiresBeforeJobDispatch()
     {
         $called = false;
 
-        Context::propagated()->add('trace_id', 'abc-123');
-        Context::propagated()->dehydrating(function (PropagatedContext $context) use (&$called) {
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->dehydrating(function (PropagatedContext $context) use (&$called) {
             $called = true;
             // Callback can modify context before serialization
             $context->add('dehydrated_at', 'test-timestamp');
@@ -126,13 +126,13 @@ class PropagatedContextQueueTest extends TestCase
         $called = false;
 
         // Build a payload with context
-        Context::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
 
         // Clear and set up hydrated callback
-        Context::flush();
-        Context::propagated()->hydrated(function (PropagatedContext $context) use (&$called) {
+        CoroutineContext::flush();
+        CoroutineContext::propagated()->hydrated(function (PropagatedContext $context) use (&$called) {
             $called = true;
         });
 
@@ -147,8 +147,8 @@ class PropagatedContextQueueTest extends TestCase
 
     public function testDehydratingCallbackCanModifyWithoutAffectingOriginal()
     {
-        Context::propagated()->add('trace_id', 'abc-123');
-        Context::propagated()->dehydrating(function (PropagatedContext $context) {
+        CoroutineContext::propagated()->add('trace_id', 'abc-123');
+        CoroutineContext::propagated()->dehydrating(function (PropagatedContext $context) {
             $context->add('extra', 'injected');
             $context->forget('trace_id');
         });
@@ -161,26 +161,26 @@ class PropagatedContextQueueTest extends TestCase
         $this->assertArrayNotHasKey('trace_id', $payload['hypervel:context']['data']);
 
         // Original propagated context should be untouched
-        $this->assertSame('abc-123', Context::propagated()->get('trace_id'));
-        $this->assertNull(Context::propagated()->get('extra'));
+        $this->assertSame('abc-123', CoroutineContext::propagated()->get('trace_id'));
+        $this->assertNull(CoroutineContext::propagated()->get('extra'));
     }
 
     public function testRoundTripPreservesVariousDataTypes()
     {
-        Context::propagated()->add('string', 'hello');
-        Context::propagated()->add('integer', 42);
-        Context::propagated()->add('float', 3.14);
-        Context::propagated()->add('bool_true', true);
-        Context::propagated()->add('bool_false', false);
-        Context::propagated()->add('null_value', null);
-        Context::propagated()->add('array', ['nested' => ['deep' => true]]);
-        Context::propagated()->addHidden('secret', 'hidden-value');
+        CoroutineContext::propagated()->add('string', 'hello');
+        CoroutineContext::propagated()->add('integer', 42);
+        CoroutineContext::propagated()->add('float', 3.14);
+        CoroutineContext::propagated()->add('bool_true', true);
+        CoroutineContext::propagated()->add('bool_false', false);
+        CoroutineContext::propagated()->add('null_value', null);
+        CoroutineContext::propagated()->add('array', ['nested' => ['deep' => true]]);
+        CoroutineContext::propagated()->addHidden('secret', 'hidden-value');
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
 
         // Clear context to simulate fresh coroutine
-        Context::flush();
+        CoroutineContext::flush();
 
         // Hydrate from the payload
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
@@ -188,15 +188,15 @@ class PropagatedContextQueueTest extends TestCase
         $this->app['events']->dispatch(new JobProcessing('sync', $job));
 
         // Verify all types survived the round trip
-        $this->assertSame('hello', Context::propagated()->get('string'));
-        $this->assertSame(42, Context::propagated()->get('integer'));
-        $this->assertSame(3.14, Context::propagated()->get('float'));
-        $this->assertTrue(Context::propagated()->get('bool_true'));
-        $this->assertFalse(Context::propagated()->get('bool_false'));
-        $this->assertNull(Context::propagated()->get('null_value'));
-        $this->assertTrue(Context::propagated()->has('null_value'));
-        $this->assertSame(['nested' => ['deep' => true]], Context::propagated()->get('array'));
-        $this->assertSame('hidden-value', Context::propagated()->getHidden('secret'));
+        $this->assertSame('hello', CoroutineContext::propagated()->get('string'));
+        $this->assertSame(42, CoroutineContext::propagated()->get('integer'));
+        $this->assertSame(3.14, CoroutineContext::propagated()->get('float'));
+        $this->assertTrue(CoroutineContext::propagated()->get('bool_true'));
+        $this->assertFalse(CoroutineContext::propagated()->get('bool_false'));
+        $this->assertNull(CoroutineContext::propagated()->get('null_value'));
+        $this->assertTrue(CoroutineContext::propagated()->has('null_value'));
+        $this->assertSame(['nested' => ['deep' => true]], CoroutineContext::propagated()->get('array'));
+        $this->assertSame('hidden-value', CoroutineContext::propagated()->getHidden('secret'));
     }
 
     public function testEndToEndSyncJobReceivesPropagatedContext()
@@ -204,8 +204,8 @@ class PropagatedContextQueueTest extends TestCase
         PropagatedContextQueueTestJob::$receivedTraceId = null;
         PropagatedContextQueueTestJob::$receivedSecret = null;
 
-        Context::propagated()->add('trace_id', 'e2e-test-123');
-        Context::propagated()->addHidden('secret', 'e2e-secret');
+        CoroutineContext::propagated()->add('trace_id', 'e2e-test-123');
+        CoroutineContext::propagated()->addHidden('secret', 'e2e-secret');
 
         $queue = $this->createSyncQueue();
         $queue->push(new PropagatedContextQueueTestJob());
@@ -255,7 +255,7 @@ class PropagatedContextQueueTestJob implements ShouldQueue
 
     public function handle(): void
     {
-        static::$receivedTraceId = Context::propagated()->get('trace_id');
-        static::$receivedSecret = Context::propagated()->getHidden('secret');
+        static::$receivedTraceId = CoroutineContext::propagated()->get('trace_id');
+        static::$receivedSecret = CoroutineContext::propagated()->getHidden('secret');
     }
 }

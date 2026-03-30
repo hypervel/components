@@ -7,7 +7,7 @@ namespace Hypervel\Telescope;
 use Closure;
 use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
@@ -98,7 +98,7 @@ trait ListensForStorageOpportunities
      */
     protected static function getProcessingJobs(): array
     {
-        return Context::get(static::PROCESSING_JOBS, []);
+        return CoroutineContext::get(static::PROCESSING_JOBS, []);
     }
 
     /**
@@ -106,7 +106,7 @@ trait ListensForStorageOpportunities
      */
     protected static function addProcessingJob(): array
     {
-        return Context::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
             $jobs = $jobs ?? [];
             $jobs[] = true;
 
@@ -119,7 +119,7 @@ trait ListensForStorageOpportunities
      */
     protected static function popProcessingJob(): array
     {
-        return Context::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
             $jobs = $jobs ?? [];
             array_pop($jobs);
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\CallQueuedListener;
@@ -148,12 +148,12 @@ class Tags
      */
     protected static function setEvent(object $event): void
     {
-        Context::set(static::CONTEXT_KEY, $event);
+        CoroutineContext::set(static::CONTEXT_KEY, $event);
     }
 
     protected static function getEvent(): ?object
     {
-        return Context::get(static::CONTEXT_KEY);
+        return CoroutineContext::get(static::CONTEXT_KEY);
     }
 
     /**
@@ -161,6 +161,6 @@ class Tags
      */
     protected static function flushEventState(): void
     {
-        Context::set(static::CONTEXT_KEY, null);
+        CoroutineContext::set(static::CONTEXT_KEY, null);
     }
 }

@@ -11,7 +11,6 @@ use Hypervel\Container\Attributes\Give;
 use Hypervel\Container\BoundMethod;
 use Hypervel\Container\Container;
 use Hypervel\Container\ParameterRecipe;
-use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;

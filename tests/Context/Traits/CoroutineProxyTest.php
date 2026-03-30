@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context\Traits;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\Traits\CoroutineProxy;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
@@ -17,7 +17,7 @@ class CoroutineProxyTest extends TestCase
 {
     public function testCoroutineProxy()
     {
-        Context::set('bar', new Bar());
+        CoroutineContext::set('bar', new Bar());
         $foo = new Foo();
         $this->assertSame('bar', $foo->callBar());
         $this->assertSame('bar', $foo->bar);

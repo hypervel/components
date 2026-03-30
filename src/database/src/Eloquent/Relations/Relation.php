@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -104,9 +104,9 @@ abstract class Relation implements BuilderContract
      */
     public static function noConstraints(Closure $callback): mixed
     {
-        $previous = Context::get(static::CONSTRAINTS_CONTEXT_KEY, true);
+        $previous = CoroutineContext::get(static::CONSTRAINTS_CONTEXT_KEY, true);
 
-        Context::set(static::CONSTRAINTS_CONTEXT_KEY, false);
+        CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, false);
 
         // When resetting the relation where clause, we want to shift the first element
         // off of the bindings, leaving only the constraints that the developers put
@@ -114,7 +114,7 @@ abstract class Relation implements BuilderContract
         try {
             return $callback();
         } finally {
-            Context::set(static::CONSTRAINTS_CONTEXT_KEY, $previous);
+            CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, $previous);
         }
     }
 
@@ -123,7 +123,7 @@ abstract class Relation implements BuilderContract
      */
     public static function shouldAddConstraints(): bool
     {
-        return Context::get(static::CONSTRAINTS_CONTEXT_KEY, true);
+        return CoroutineContext::get(static::CONSTRAINTS_CONTEXT_KEY, true);
     }
 
     /**

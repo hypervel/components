@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Prompts\Output\ConsoleOutput;
@@ -230,7 +230,7 @@ abstract class Prompt
     public static function setOutput(OutputInterface $output): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set(self::OUTPUT_CONTEXT_KEY, $output);
+            CoroutineContext::set(self::OUTPUT_CONTEXT_KEY, $output);
         } else {
             self::$output = $output;
         }
@@ -242,7 +242,7 @@ abstract class Prompt
     protected static function output(): OutputInterface
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput());
+            return CoroutineContext::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput());
         }
 
         return self::$output ??= new ConsoleOutput();
@@ -274,7 +274,7 @@ abstract class Prompt
     public static function validateUsing(Closure $callback): void
     {
         if (Coroutine::inCoroutine()) {
-            Context::set(self::VALIDATE_USING_CONTEXT_KEY, $callback);
+            CoroutineContext::set(self::VALIDATE_USING_CONTEXT_KEY, $callback);
         } else {
             static::$validateUsing = $callback;
         }
@@ -286,7 +286,7 @@ abstract class Prompt
     protected static function getValidateUsing(): ?Closure
     {
         if (Coroutine::inCoroutine()) {
-            return Context::get(self::VALIDATE_USING_CONTEXT_KEY) ?? static::$validateUsing;
+            return CoroutineContext::get(self::VALIDATE_USING_CONTEXT_KEY) ?? static::$validateUsing;
         }
 
         return static::$validateUsing;
@@ -497,8 +497,8 @@ abstract class Prompt
         static::$output = new ConsoleOutput();
         static::$terminal = new Terminal();
 
-        Context::forget(self::OUTPUT_CONTEXT_KEY);
-        Context::forget(self::VALIDATE_USING_CONTEXT_KEY);
+        CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
+        CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);
 
         static::resetCursor();
         static::resetFallback();

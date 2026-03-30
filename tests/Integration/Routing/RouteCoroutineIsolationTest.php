@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 

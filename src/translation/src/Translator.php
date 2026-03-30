@@ -6,7 +6,7 @@ namespace Hypervel\Translation;
 
 use Closure;
 use Countable;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;
@@ -440,7 +440,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function getLocale(): string
     {
-        return (string) (Context::get(self::LOCALE_CONTEXT_KEY) ?? $this->locale);
+        return (string) (CoroutineContext::get(self::LOCALE_CONTEXT_KEY) ?? $this->locale);
     }
 
     /**
@@ -454,7 +454,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
 
-        Context::set(self::LOCALE_CONTEXT_KEY, $locale);
+        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**

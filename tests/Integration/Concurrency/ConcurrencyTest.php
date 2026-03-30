@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Concurrency;
 
 use Exception;
 use Hypervel\Concurrency\Concurrency;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
@@ -158,11 +158,11 @@ class ConcurrencyTest extends TestCase
 
     public function testRunPropagatesParentContext()
     {
-        Context::set('test_key', 'test_value');
+        CoroutineContext::set('test_key', 'test_value');
 
         $results = $this->concurrency->run([
-            fn () => Context::get('test_key'),
-            fn () => Context::get('test_key'),
+            fn () => CoroutineContext::get('test_key'),
+            fn () => CoroutineContext::get('test_key'),
         ]);
 
         $this->assertSame(['test_value', 'test_value'], $results);
@@ -172,24 +172,24 @@ class ConcurrencyTest extends TestCase
     {
         $this->concurrency->run([
             function () {
-                Context::set('child_key', 'child_value');
+                CoroutineContext::set('child_key', 'child_value');
             },
         ]);
 
-        $this->assertNull(Context::get('child_key'));
+        $this->assertNull(CoroutineContext::get('child_key'));
     }
 
     public function testRunChildContextDoesNotLeakBetweenTasks()
     {
         $results = $this->concurrency->run([
             function () {
-                Context::set('task_key', 'from_task_1');
+                CoroutineContext::set('task_key', 'from_task_1');
                 usleep(10000);
-                return Context::get('task_key');
+                return CoroutineContext::get('task_key');
             },
             function () {
                 usleep(5000);
-                return Context::get('task_key');
+                return CoroutineContext::get('task_key');
             },
         ]);
 
@@ -237,12 +237,12 @@ class ConcurrencyTest extends TestCase
         $collection = new DeferredCallbackCollection();
         $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
 
-        Context::set('defer_key', 'defer_value');
+        CoroutineContext::set('defer_key', 'defer_value');
         $capturedValue = null;
 
         $this->concurrency->defer([
             function () use (&$capturedValue) {
-                $capturedValue = Context::get('defer_key');
+                $capturedValue = CoroutineContext::get('defer_key');
             },
         ]);
 

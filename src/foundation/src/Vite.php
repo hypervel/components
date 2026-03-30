@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Exception;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
@@ -98,12 +98,12 @@ class Vite implements Htmlable
      */
     public function preloadedAssets(): array
     {
-        return Context::get(static::PRELOADED_ASSETS_CONTEXT_KEY, []);
+        return CoroutineContext::get(static::PRELOADED_ASSETS_CONTEXT_KEY, []);
     }
 
     protected function setPreloadedAssets(array $preloadedAssets): void
     {
-        Context::set($this::PRELOADED_ASSETS_CONTEXT_KEY, $preloadedAssets);
+        CoroutineContext::set($this::PRELOADED_ASSETS_CONTEXT_KEY, $preloadedAssets);
     }
 
     /**
@@ -111,7 +111,7 @@ class Vite implements Htmlable
      */
     public function cspNonce(): ?string
     {
-        return Context::get(static::NONCE_CONTEXT_KEY);
+        return CoroutineContext::get(static::NONCE_CONTEXT_KEY);
     }
 
     /**
@@ -120,7 +120,7 @@ class Vite implements Htmlable
     public function useCspNonce(?string $nonce = null): string
     {
         $nonce = $nonce ?? Str::random(40);
-        Context::set(static::NONCE_CONTEXT_KEY, $nonce);
+        CoroutineContext::set(static::NONCE_CONTEXT_KEY, $nonce);
 
         return $nonce;
     }
@@ -140,7 +140,7 @@ class Vite implements Htmlable
      */
     public function withEntryPoints(array $entryPoints): static
     {
-        Context::set(static::ENTRY_POINTS_CONTEXT_KEY, $entryPoints);
+        CoroutineContext::set(static::ENTRY_POINTS_CONTEXT_KEY, $entryPoints);
 
         return $this;
     }
@@ -150,7 +150,7 @@ class Vite implements Htmlable
      */
     public function mergeEntryPoints(array $entryPoints): static
     {
-        $currentEntryPoints = Context::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
+        $currentEntryPoints = CoroutineContext::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
 
         return $this->withEntryPoints(array_unique([
             ...$currentEntryPoints,
@@ -856,7 +856,7 @@ class Vite implements Htmlable
      */
     public function toHtml(): string
     {
-        $entryPoints = Context::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
+        $entryPoints = CoroutineContext::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
 
         return $this->__invoke($entryPoints)->toHtml();
     }
@@ -866,9 +866,9 @@ class Vite implements Htmlable
      */
     public static function flush(): void
     {
-        Context::forget(static::NONCE_CONTEXT_KEY);
-        Context::forget(static::ENTRY_POINTS_CONTEXT_KEY);
-        Context::forget(static::PRELOADED_ASSETS_CONTEXT_KEY);
+        CoroutineContext::forget(static::NONCE_CONTEXT_KEY);
+        CoroutineContext::forget(static::ENTRY_POINTS_CONTEXT_KEY);
+        CoroutineContext::forget(static::PRELOADED_ASSETS_CONTEXT_KEY);
 
         static::$manifests = [];
         static::flushMacros();

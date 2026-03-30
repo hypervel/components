@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Server\Listeners;
 
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\Server\Fixtures\DemoProcess;
@@ -32,9 +32,9 @@ class InitProcessTitleListenerTest extends TestCase
         $listener->handle(new BeforeProcessHandle($process, 1));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, Context::get('test.server.process.title'));
+            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
         } else {
-            $this->assertSame('test.demo.1', Context::get('test.server.process.title'));
+            $this->assertSame('test.demo.1', CoroutineContext::get('test.server.process.title'));
         }
     }
 
@@ -54,9 +54,9 @@ class InitProcessTitleListenerTest extends TestCase
         $listener->handle(new BeforeProcessHandle($process, 0));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, Context::get('test.server.process.title'));
+            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
         } else {
-            $this->assertSame($name . '.test.demo.0', Context::get('test.server.process.title'));
+            $this->assertSame($name . '.test.demo.0', CoroutineContext::get('test.server.process.title'));
         }
     }
 
@@ -76,9 +76,9 @@ class InitProcessTitleListenerTest extends TestCase
         $listener->handle(new BeforeProcessHandle($process, 0));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, Context::get('test.server.process.title'));
+            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
         } else {
-            $this->assertSame($name . '#test.demo#0', Context::get('test.server.process.title'));
+            $this->assertSame($name . '#test.demo#0', CoroutineContext::get('test.server.process.title'));
         }
     }
 }

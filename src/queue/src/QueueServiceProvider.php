@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Database\ModelIdentifier;
@@ -339,11 +339,11 @@ class QueueServiceProvider extends ServiceProvider
     protected function configurePropagatedContext(): void
     {
         Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
-            if (! Context::hasPropagated()) {
+            if (! CoroutineContext::hasPropagated()) {
                 return [];
             }
 
-            $context = Context::propagated()->dehydrate();
+            $context = CoroutineContext::propagated()->dehydrate();
 
             return $context === null ? [] : ['hypervel:context' => $context];
         });
@@ -355,7 +355,7 @@ class QueueServiceProvider extends ServiceProvider
                 return;
             }
 
-            Context::propagated()->hydrate($context);
+            CoroutineContext::propagated()->hydrate($context);
         });
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
@@ -250,7 +250,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function getMonitorTags(): ?array
     {
-        return Context::get(self::MONITORED_TAGS_CONTEXT_KEY, null);
+        return CoroutineContext::get(self::MONITORED_TAGS_CONTEXT_KEY, null);
     }
 
     /**
@@ -258,7 +258,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function setMonitorTags(?array $tags): void
     {
-        Context::set(self::MONITORED_TAGS_CONTEXT_KEY, $tags);
+        CoroutineContext::set(self::MONITORED_TAGS_CONTEXT_KEY, $tags);
     }
 
     /**

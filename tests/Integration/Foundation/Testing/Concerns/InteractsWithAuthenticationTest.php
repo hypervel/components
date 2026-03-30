@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation\Testing\Concerns;
 
 use Hypervel\Auth\AuthManager;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Database\Schema\Blueprint;
@@ -70,7 +70,7 @@ class InteractsWithAuthenticationTest extends TestCase
                 'provider' => 'users',
             ]);
 
-        Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
+        CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
 
         $this->assertGuest();
         $this->assertFalse($this->isAuthenticated());
@@ -101,7 +101,7 @@ class InteractsWithAuthenticationTest extends TestCase
                 'provider' => 'users',
             ]);
 
-        Context::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
+        CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, 'foo');
 
         $this->actingAs($user);
 

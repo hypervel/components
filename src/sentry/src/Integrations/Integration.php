@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Integrations;
 
 // @TODO: Uncomment once Hypervel\Foundation\Configuration\Exceptions is ported
 // use Hypervel\Foundation\Configuration\Exceptions;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Routing\Route;
 use Hypervel\Sentry\Integrations\ModelViolations as ModelViolationReports;
 use Sentry\Breadcrumb;
@@ -100,7 +100,7 @@ class Integration implements IntegrationInterface
      */
     public static function getTransaction(): ?string
     {
-        return Context::get(self::CONTEXT_TRANSACTION_KEY);
+        return CoroutineContext::get(self::CONTEXT_TRANSACTION_KEY);
     }
 
     /**
@@ -108,7 +108,7 @@ class Integration implements IntegrationInterface
      */
     public static function setTransaction(?string $transaction): void
     {
-        Context::set(self::CONTEXT_TRANSACTION_KEY, $transaction);
+        CoroutineContext::set(self::CONTEXT_TRANSACTION_KEY, $transaction);
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\NullDispatcher;
@@ -106,15 +106,15 @@ class EloquentModelWithoutEventsTest extends TestCase
         $contextKey = '__database.model.events_disabled';
 
         // Initially not set
-        $this->assertNull(Context::get($contextKey));
+        $this->assertNull(CoroutineContext::get($contextKey));
 
         TestModel::withoutEvents(function () use ($contextKey) {
             // Set to true within callback
-            $this->assertTrue(Context::get($contextKey));
+            $this->assertTrue(CoroutineContext::get($contextKey));
         });
 
         // Restored after callback (set back to false, which was the initial state)
-        $this->assertFalse(Context::get($contextKey));
+        $this->assertFalse(CoroutineContext::get($contextKey));
     }
 
     public function testWithoutEventsReturnsCallbackResult(): void

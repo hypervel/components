@@ -6,7 +6,7 @@ namespace Hypervel\Session\Middleware;
 
 use Closure;
 use DateTimeInterface;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -98,7 +98,7 @@ class StartSession
 
             // Store the session in coroutine Context so that code outside the
             // middleware pipeline (exception handlers, etc.) can access it.
-            Context::set(Store::CONTEXT_KEY, $session);
+            CoroutineContext::set(Store::CONTEXT_KEY, $session);
 
             $this->collectGarbage($session);
 

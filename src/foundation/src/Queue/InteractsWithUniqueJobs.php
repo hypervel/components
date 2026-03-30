@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Queue;
 
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 trait InteractsWithUniqueJobs
@@ -17,7 +17,7 @@ trait InteractsWithUniqueJobs
     {
         if ($job instanceof ShouldBeUnique) {
             // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
-            Context::propagated()->addHidden([
+            CoroutineContext::propagated()->addHidden([
                 'laravel_unique_job_cache_store' => $this->getUniqueJobCacheStore($job),
                 'laravel_unique_job_key' => UniqueLock::getKey($job),
             ]);
@@ -31,7 +31,7 @@ trait InteractsWithUniqueJobs
     {
         if ($job instanceof ShouldBeUnique) {
             // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
-            Context::propagated()->forgetHidden([
+            CoroutineContext::propagated()->forgetHidden([
                 'laravel_unique_job_cache_store',
                 'laravel_unique_job_key',
             ]);

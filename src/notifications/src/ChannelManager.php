@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Closure;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
@@ -195,7 +195,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getDefaultDriver(): string
     {
-        return Context::get(self::DEFAULT_CHANNEL_CONTEXT_KEY, $this->defaultChannel);
+        return CoroutineContext::get(self::DEFAULT_CHANNEL_CONTEXT_KEY, $this->defaultChannel);
     }
 
     /**
@@ -211,7 +211,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function deliverVia(string $channel): void
     {
-        Context::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
+        CoroutineContext::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
     }
 
     /**
@@ -219,7 +219,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function locale(string $locale): static
     {
-        Context::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
+        CoroutineContext::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
 
         return $this;
     }
@@ -229,6 +229,6 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getLocale(): ?string
     {
-        return Context::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
+        return CoroutineContext::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
     }
 }

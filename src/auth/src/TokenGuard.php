@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -55,7 +55,7 @@ class TokenGuard implements Guard
 
         $token = $this->getTokenForRequest();
         $contextKey = $this->getContextKeyForToken($token);
-        $cached = Context::get($contextKey);
+        $cached = CoroutineContext::get($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
             return null;
@@ -73,7 +73,7 @@ class TokenGuard implements Guard
             ]);
         }
 
-        Context::set($contextKey, $user ?? self::$nullUserSentinel);
+        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
         return $user;
     }
@@ -123,7 +123,7 @@ class TokenGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass();
 
-        $cached = Context::get($this->getContextKeyForToken($this->getTokenForRequest()));
+        $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -133,7 +133,7 @@ class TokenGuard implements Guard
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        Context::set($this->getContextKeyForToken($this->getTokenForRequest()), $user);
+        CoroutineContext::set($this->getContextKeyForToken($this->getTokenForRequest()), $user);
 
         return $this;
     }
@@ -143,7 +143,7 @@ class TokenGuard implements Guard
      */
     public function forgetUser(): static
     {
-        Context::forget($this->getContextKeyForToken($this->getTokenForRequest()));
+        CoroutineContext::forget($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $this;
     }

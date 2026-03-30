@@ -9,7 +9,7 @@ use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -226,13 +226,13 @@ class CallQueuedHandler
      */
     protected function ensureUniqueJobLockIsReleasedViaContext(): void
     {
-        if (! Context::hasPropagated()
+        if (! CoroutineContext::hasPropagated()
             || ! $this->container->bound(CacheFactory::class)
         ) {
             return;
         }
 
-        $context = Context::propagated();
+        $context = CoroutineContext::propagated();
 
         // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
         [$store, $key] = [

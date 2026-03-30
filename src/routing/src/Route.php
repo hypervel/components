@@ -7,7 +7,7 @@ namespace Hypervel\Routing;
 use BackedEnum;
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
@@ -298,7 +298,7 @@ class Route
      *
      * For controllers with per-coroutine semantics (#[Scoped] or explicit
      * bind()), the instance is stored in coroutine Context to preserve the
-     * container's binding contract. Context::getOrSet memoizes within a
+     * container's binding contract. CoroutineContext::getOrSet memoizes within a
      * coroutine (getController() is called twice — middleware + dispatch)
      * while still giving each coroutine its own instance.
      */
@@ -314,7 +314,7 @@ class Route
             return $this->controller ??= $this->container->make($class);
         }
 
-        return Context::getOrSet(
+        return CoroutineContext::getOrSet(
             '__routing.controller.' . $class,
             fn () => $this->container->make($class)
         );
@@ -375,7 +375,7 @@ class Route
 
         if ($this->isControllerAction()) {
             $class = ltrim((string) $this->getControllerClass(), '\\');
-            Context::forget('__routing.controller.' . $class);
+            CoroutineContext::forget('__routing.controller.' . $class);
             $this->container?->forgetInstance($class);
         }
     }
@@ -438,8 +438,8 @@ class Route
 
         $parameters = (new RouteParameterBinder($this))->parameters($request);
 
-        Context::set(self::PARAMS_CONTEXT_KEY, $parameters);
-        Context::set(self::ORIGINAL_PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set(self::ORIGINAL_PARAMS_CONTEXT_KEY, $parameters);
 
         return $this;
     }
@@ -449,7 +449,7 @@ class Route
      */
     public function hasParameters(): bool
     {
-        return Context::has(self::PARAMS_CONTEXT_KEY);
+        return CoroutineContext::has(self::PARAMS_CONTEXT_KEY);
     }
 
     /**
@@ -487,9 +487,9 @@ class Route
     {
         $this->parameters();
 
-        $parameters = Context::get(self::PARAMS_CONTEXT_KEY, []);
+        $parameters = CoroutineContext::get(self::PARAMS_CONTEXT_KEY, []);
         $parameters[$name] = $value;
-        Context::set(self::PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
     }
 
     /**
@@ -499,9 +499,9 @@ class Route
     {
         $this->parameters();
 
-        $parameters = Context::get(self::PARAMS_CONTEXT_KEY, []);
+        $parameters = CoroutineContext::get(self::PARAMS_CONTEXT_KEY, []);
         unset($parameters[$name]);
-        Context::set(self::PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
     }
 
     /**
@@ -511,8 +511,8 @@ class Route
      */
     public function parameters(): array
     {
-        if (Context::has(self::PARAMS_CONTEXT_KEY)) {
-            return Context::get(self::PARAMS_CONTEXT_KEY);
+        if (CoroutineContext::has(self::PARAMS_CONTEXT_KEY)) {
+            return CoroutineContext::get(self::PARAMS_CONTEXT_KEY);
         }
 
         throw new LogicException('Route is not bound.');
@@ -525,8 +525,8 @@ class Route
      */
     public function originalParameters(): array
     {
-        if (Context::has(self::ORIGINAL_PARAMS_CONTEXT_KEY)) {
-            return Context::get(self::ORIGINAL_PARAMS_CONTEXT_KEY);
+        if (CoroutineContext::has(self::ORIGINAL_PARAMS_CONTEXT_KEY)) {
+            return CoroutineContext::get(self::ORIGINAL_PARAMS_CONTEXT_KEY);
         }
 
         throw new LogicException('Route is not bound.');

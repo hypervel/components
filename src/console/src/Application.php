@@ -6,7 +6,7 @@ namespace Hypervel\Console;
 
 use Closure;
 use Hypervel\Console\Events\ArtisanStarting;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -141,7 +141,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
         return $this->run(
             $input,
-            Context::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput())
+            CoroutineContext::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput())
         );
     }
 
@@ -176,7 +176,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     public function output(): string
     {
-        $lastOutput = Context::get($this->lastOutputContextKey);
+        $lastOutput = CoroutineContext::get($this->lastOutputContextKey);
 
         return $lastOutput && method_exists($lastOutput, 'fetch')
             ? $lastOutput->fetch()

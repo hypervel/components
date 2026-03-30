@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
@@ -103,7 +103,7 @@ class ModelWatcher extends Watcher
 
     public function getHyDrations(): array
     {
-        return Context::get(static::HYDRATIONS, []);
+        return CoroutineContext::get(static::HYDRATIONS, []);
     }
 
     public function getHydration(string $modelClass): ?IncomingEntry
@@ -113,7 +113,7 @@ class ModelWatcher extends Watcher
 
     public function updateHydration(string $modelClass, IncomingEntry $entry): void
     {
-        Context::override(static::HYDRATIONS, function ($hydrations) use ($modelClass, $entry) {
+        CoroutineContext::override(static::HYDRATIONS, function ($hydrations) use ($modelClass, $entry) {
             $hydrations = $hydrations ?? [];
             $hydrations[$modelClass] = $entry;
 
@@ -158,7 +158,7 @@ class ModelWatcher extends Watcher
      */
     public function flushHydrations(): void
     {
-        Context::set(static::HYDRATIONS, []);
+        CoroutineContext::set(static::HYDRATIONS, []);
     }
 
     /**

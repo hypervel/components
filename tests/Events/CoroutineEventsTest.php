@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\CoroutineEventsTest;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
@@ -137,24 +137,24 @@ class CoroutineEventsTest extends TestCase
         });
 
         // Before defer, no deferred event state should exist
-        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
-        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
-        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
+        $this->assertFalse(CoroutineContext::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], CoroutineContext::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(CoroutineContext::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
 
         $dispatcher->defer(function () use ($dispatcher) {
             // Inside defer, state should be active
-            $this->assertTrue(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+            $this->assertTrue(CoroutineContext::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
 
             $dispatcher->dispatch('test-event');
 
             // Deferred events should be collected
-            $this->assertNotEmpty(Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+            $this->assertNotEmpty(CoroutineContext::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
         });
 
         // After defer completes, state should be restored to pre-defer values
-        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
-        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
-        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
+        $this->assertFalse(CoroutineContext::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], CoroutineContext::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(CoroutineContext::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
     public function testContextKeysAreCleanedUpAfterDeferThrowsException()
@@ -178,9 +178,9 @@ class CoroutineEventsTest extends TestCase
         }
 
         // After exception, state should be restored to pre-defer values
-        $this->assertFalse(Context::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
-        $this->assertSame([], Context::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
-        $this->assertNull(Context::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
+        $this->assertFalse(CoroutineContext::get(Dispatcher::DEFERRING_CONTEXT_KEY, false));
+        $this->assertSame([], CoroutineContext::get(Dispatcher::DEFERRED_EVENTS_CONTEXT_KEY, []));
+        $this->assertNull(CoroutineContext::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
     public function testNestedDeferRestoresOuterStateAfterInnerCompletes()

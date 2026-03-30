@@ -6,7 +6,7 @@ namespace Hypervel\Horizon;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
@@ -165,7 +165,7 @@ class RedisQueue extends BaseQueue
      */
     protected function setLastPushed(object|string $job): void
     {
-        Context::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
+        CoroutineContext::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
     }
 
     /**
@@ -173,6 +173,6 @@ class RedisQueue extends BaseQueue
      */
     protected function getLastPushed(): object|string|null
     {
-        return Context::get(static::LAST_PUSHED_CONTEXT_KEY);
+        return CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
     }
 }

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Exception;
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\PoolOption;
@@ -52,7 +52,7 @@ class RedisTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::forget(Redis::CONNECTION_CONTEXT_PREFIX . 'default');
+        CoroutineContext::forget(Redis::CONNECTION_CONTEXT_PREFIX . 'default');
     }
 
     public function testCommandIsProxiedToConnection(): void
@@ -83,7 +83,7 @@ class RedisTest extends TestCase
 
         $this->assertSame($multiInstance, $result);
         // Connection should be stored in context
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testConnectionIsStoredInContextForPipeline(): void
@@ -100,7 +100,7 @@ class RedisTest extends TestCase
         $result = $redis->pipeline();
 
         $this->assertSame($pipelineInstance, $result);
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testConnectionIsStoredInContextForSelect(): void
@@ -116,7 +116,7 @@ class RedisTest extends TestCase
         $result = $redis->select(1);
 
         $this->assertTrue($result);
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testConnectionIsStoredInContextForSelectZeroDatabase(): void
@@ -131,7 +131,7 @@ class RedisTest extends TestCase
         $result = $redis->select(0);
 
         $this->assertTrue($result);
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
@@ -220,7 +220,7 @@ class RedisTest extends TestCase
         $connection->shouldReceive('release')->zeroOrMoreTimes();
 
         // Pre-set connection in context
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -274,7 +274,7 @@ class RedisTest extends TestCase
         $mockRedisConnection->shouldReceive('release')->never();
 
         // Pre-set context connection
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $mockRedisConnection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $mockRedisConnection);
 
         $redis = $this->createRedis($mockRedisConnection);
 
@@ -304,7 +304,7 @@ class RedisTest extends TestCase
         }
 
         // Connection should NOT be stored in context on error
-        $this->assertNull(Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testEventDispatchedOnSuccess(): void
@@ -362,7 +362,7 @@ class RedisTest extends TestCase
 
         $redis->get('key');
 
-        $this->assertNull(Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithConnectionExecutesCallbackAndReleasesConnection(): void
@@ -388,7 +388,7 @@ class RedisTest extends TestCase
         $connection->shouldReceive('release')->never();
 
         // Pre-set connection in context (simulating an active multi/pipeline)
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -400,7 +400,7 @@ class RedisTest extends TestCase
 
         $this->assertSame('reused-connection', $result);
         // Connection should still be in context
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithConnectionReleasesOnException(): void
@@ -425,7 +425,7 @@ class RedisTest extends TestCase
         // Should NOT release since connection was in context
         $connection->shouldReceive('release')->never();
 
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $redis = $this->createRedis($connection);
 
@@ -439,7 +439,7 @@ class RedisTest extends TestCase
         }
 
         // Connection should still be in context
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithConnectionDefaultsToTransformTrue(): void
@@ -539,14 +539,14 @@ class RedisTest extends TestCase
 
         $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
             // Connection must be pinned in Context during callback
-            $this->assertSame($connection, Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+            $this->assertSame($connection, CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
 
             return 'result';
         });
 
         $this->assertSame('result', $result);
         // Connection should be unpinned after completion
-        $this->assertNull(Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithoutSerializationOrCompressionReusesExistingContextConnection(): void
@@ -559,20 +559,20 @@ class RedisTest extends TestCase
         $connection->shouldReceive('release')->never();
 
         // Pre-set connection in context (simulating an active multi/pipeline)
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $redis = $this->createRedis($connection);
 
         $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
             // Connection should still be the same one that was pre-set
-            $this->assertSame($connection, Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+            $this->assertSame($connection, CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
 
             return 'reused';
         });
 
         $this->assertSame('reused', $result);
         // Connection should still be in context
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithoutSerializationOrCompressionCleansUpOnException(): void
@@ -590,7 +590,7 @@ class RedisTest extends TestCase
         try {
             $redis->withoutSerializationOrCompression(function () use ($connection) {
                 // Connection must be pinned even when callback throws
-                $this->assertSame($connection, Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+                $this->assertSame($connection, CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
 
                 throw new RuntimeException('Callback failed');
             });
@@ -600,7 +600,7 @@ class RedisTest extends TestCase
         }
 
         // Connection should be unpinned and released
-        $this->assertNull(Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testWithoutSerializationOrCompressionDoesNotReleaseContextConnectionOnException(): void
@@ -614,14 +614,14 @@ class RedisTest extends TestCase
         // Should NOT release since connection was already in context
         $connection->shouldReceive('release')->never();
 
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $redis = $this->createRedis($connection);
 
         try {
             $redis->withoutSerializationOrCompression(function () use ($connection) {
                 // Connection should still be pinned during callback
-                $this->assertSame($connection, Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+                $this->assertSame($connection, CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
 
                 throw new RuntimeException('Callback failed');
             });
@@ -631,7 +631,7 @@ class RedisTest extends TestCase
         }
 
         // Connection should still be in context
-        $this->assertTrue(Context::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testRedisClusterConstructorSignature(): void

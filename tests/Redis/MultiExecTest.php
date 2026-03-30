@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -23,7 +23,7 @@ class MultiExecTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::forget(Redis::CONNECTION_CONTEXT_PREFIX . 'default');
+        CoroutineContext::forget(Redis::CONNECTION_CONTEXT_PREFIX . 'default');
     }
 
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
@@ -121,7 +121,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the pipeline call
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -167,7 +167,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the transaction call
-        Context::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -227,7 +227,7 @@ class MultiExecTest extends TestCase
 
         // After pipeline callback completes, connection was released.
         // The connection should no longer be in context.
-        $this->assertNull(Context::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer\Mappers;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -98,7 +98,7 @@ class BladeMapper
      */
     protected function getKnownPaths(): array
     {
-        $lastCompiled = Context::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []);
+        $lastCompiled = CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []);
 
         $knownPaths = [];
         foreach ($lastCompiled as $lastCompiledPath) {

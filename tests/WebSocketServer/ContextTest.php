@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Context\Context as CoroutineContext;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Context;
 

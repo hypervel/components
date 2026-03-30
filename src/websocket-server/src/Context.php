@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\WebSocketServer;
 
 use Closure;
-use Hypervel\Context\Context as CoroutineContext;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Arr;
 
 class Context

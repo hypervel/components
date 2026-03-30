@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Traits;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Integrations\Integration;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
@@ -25,15 +25,15 @@ trait TracksPushedScopesAndSpans
     {
         $hub = SentrySdk::getCurrentHub();
 
-        $parentStack = Context::get($this->contextKey('parent_spans'), []);
+        $parentStack = CoroutineContext::get($this->contextKey('parent_spans'), []);
         $parentStack[] = $hub->getSpan();
-        Context::set($this->contextKey('parent_spans'), $parentStack);
+        CoroutineContext::set($this->contextKey('parent_spans'), $parentStack);
 
         $hub->setSpan($span);
 
-        $currentStack = Context::get($this->contextKey('current_spans'), []);
+        $currentStack = CoroutineContext::get($this->contextKey('current_spans'), []);
         $currentStack[] = $span;
-        Context::set($this->contextKey('current_spans'), $currentStack);
+        CoroutineContext::set($this->contextKey('current_spans'), $currentStack);
     }
 
     /**
@@ -43,8 +43,8 @@ trait TracksPushedScopesAndSpans
     {
         SentrySdk::getCurrentHub()->pushScope();
 
-        $count = Context::get($this->contextKey('scope_count'), 0);
-        Context::set($this->contextKey('scope_count'), $count + 1);
+        $count = CoroutineContext::get($this->contextKey('scope_count'), 0);
+        CoroutineContext::set($this->contextKey('scope_count'), $count + 1);
     }
 
     /**
@@ -52,20 +52,20 @@ trait TracksPushedScopesAndSpans
      */
     protected function maybePopSpan(): ?Span
     {
-        $currentStack = Context::get($this->contextKey('current_spans'), []);
+        $currentStack = CoroutineContext::get($this->contextKey('current_spans'), []);
 
         if ($currentStack === []) {
             return null;
         }
 
-        $parentStack = Context::get($this->contextKey('parent_spans'), []);
+        $parentStack = CoroutineContext::get($this->contextKey('parent_spans'), []);
         $parent = array_pop($parentStack);
-        Context::set($this->contextKey('parent_spans'), $parentStack);
+        CoroutineContext::set($this->contextKey('parent_spans'), $parentStack);
 
         SentrySdk::getCurrentHub()->setSpan($parent);
 
         $span = array_pop($currentStack);
-        Context::set($this->contextKey('current_spans'), $currentStack);
+        CoroutineContext::set($this->contextKey('current_spans'), $currentStack);
 
         return $span;
     }
@@ -77,7 +77,7 @@ trait TracksPushedScopesAndSpans
     {
         Integration::flushEvents();
 
-        $count = Context::get($this->contextKey('scope_count'), 0);
+        $count = CoroutineContext::get($this->contextKey('scope_count'), 0);
 
         if ($count === 0) {
             return;
@@ -85,7 +85,7 @@ trait TracksPushedScopesAndSpans
 
         SentrySdk::getCurrentHub()->popScope();
 
-        Context::set($this->contextKey('scope_count'), $count - 1);
+        CoroutineContext::set($this->contextKey('scope_count'), $count - 1);
     }
 
     /**

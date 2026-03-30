@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait GuardsAttributes
 {
@@ -106,7 +106,7 @@ trait GuardsAttributes
      */
     public static function unguard(bool $state = true): void
     {
-        Context::set(self::UNGUARDED_CONTEXT_KEY, $state);
+        CoroutineContext::set(self::UNGUARDED_CONTEXT_KEY, $state);
     }
 
     /**
@@ -114,7 +114,7 @@ trait GuardsAttributes
      */
     public static function reguard(): void
     {
-        Context::set(self::UNGUARDED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::UNGUARDED_CONTEXT_KEY, false);
     }
 
     /**
@@ -122,7 +122,7 @@ trait GuardsAttributes
      */
     public static function isUnguarded(): bool
     {
-        return (bool) Context::get(self::UNGUARDED_CONTEXT_KEY, false);
+        return (bool) CoroutineContext::get(self::UNGUARDED_CONTEXT_KEY, false);
     }
 
     /**
@@ -142,13 +142,13 @@ trait GuardsAttributes
             return $callback();
         }
 
-        $wasUnguarded = Context::get(self::UNGUARDED_CONTEXT_KEY, false);
-        Context::set(self::UNGUARDED_CONTEXT_KEY, true);
+        $wasUnguarded = CoroutineContext::get(self::UNGUARDED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::UNGUARDED_CONTEXT_KEY, true);
 
         try {
             return $callback();
         } finally {
-            Context::set(self::UNGUARDED_CONTEXT_KEY, $wasUnguarded);
+            CoroutineContext::set(self::UNGUARDED_CONTEXT_KEY, $wasUnguarded);
         }
     }
 
