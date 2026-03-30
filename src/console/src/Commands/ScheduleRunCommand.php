@@ -19,6 +19,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -233,10 +234,10 @@ class ScheduleRunCommand extends Command
                 : $this->runEvent($event);
 
             if ($event->runInBackground) {
-                $this->concurrent->create(function () use ($runEvent, $event) {
+                $this->concurrent->fork(function () use ($runEvent, $event) {
                     $runEvent();
                     $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
-                });
+                }, [ContextRepository::CONTEXT_KEY]);
                 continue;
             }
 
