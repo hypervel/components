@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Context;
+namespace Hypervel\Log\Context;
 
 use __PHP_Incomplete_Class;
 use Closure;
-use Hypervel\Context\Events\ContextDehydrating;
-use Hypervel\Context\Events\ContextHydrated;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Log\Context\Events\ContextDehydrating;
+use Hypervel\Log\Context\Events\ContextHydrated;
 use Hypervel\Queue\SerializesAndRestoresModelIdentifiers;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
@@ -18,11 +20,13 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
-class PropagatedContext
+class Repository implements ReplicableContext
 {
     use Conditionable;
     use Macroable;
     use SerializesAndRestoresModelIdentifiers;
+
+    protected const CONTEXT_KEY = '__log.context_repository';
 
     /**
      * The contextual data that flows to logs and jobs.
@@ -46,11 +50,36 @@ class PropagatedContext
     protected static ?Closure $handleUnserializeExceptionsUsing = null;
 
     /**
-     * Create a new propagated context instance.
+     * Create a new context repository instance.
      */
     public function __construct(
         protected Dispatcher $events
     ) {
+    }
+
+    /**
+     * Get the context repository instance for the current coroutine.
+     *
+     * Creates the instance on first access. For hot paths that should avoid
+     * unnecessary allocation (log processors, queue hooks), use hasInstance()
+     * to check first.
+     */
+    public static function getInstance(): static
+    {
+        return CoroutineContext::getOrSet(
+            static::CONTEXT_KEY,
+            fn () => new static(app(Dispatcher::class))
+        );
+    }
+
+    /**
+     * Determine if a context repository instance exists for the current coroutine.
+     *
+     * Unlike getInstance(), this does NOT create one if it doesn't exist.
+     */
+    public static function hasInstance(): bool
+    {
+        return CoroutineContext::has(static::CONTEXT_KEY);
     }
 
     // --- Data (flows to logs AND jobs) ---
@@ -503,9 +532,9 @@ class PropagatedContext
     /**
      * Create an independent copy with the same data and hidden values.
      *
-     * Used by CoroutineContext::copyFrom() to ensure forked coroutines get their own
-     * PropagatedContext instance rather than sharing an object reference
-     * with the parent.
+     * Used by CoroutineContext::copyFrom() via ReplicableContext to ensure
+     * forked coroutines get their own instance rather than sharing an
+     * object reference with the parent.
      */
     public function replicate(): static
     {
@@ -519,7 +548,7 @@ class PropagatedContext
     /**
      * Register a callback to execute before context is dehydrated for a job.
      *
-     * @param (callable(PropagatedContext): void) $callback
+     * @param (callable(self): void) $callback
      * @return $this
      */
     public function dehydrating(callable $callback): static
@@ -532,7 +561,7 @@ class PropagatedContext
     /**
      * Register a callback to execute after context has been hydrated from a job.
      *
-     * @param (callable(PropagatedContext): void) $callback
+     * @param (callable(self): void) $callback
      * @return $this
      */
     public function hydrated(callable $callback): static
