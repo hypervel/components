@@ -16,6 +16,7 @@ use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
+use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Console\AboutCommandIntegration;
 use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Sentry\Console\TestCommand;
@@ -123,6 +124,8 @@ class SentryServiceProvider extends ServiceProvider
         $this->registerFeatures();
 
         $this->registerLogChannels();
+
+        $this->aspects(GuzzleHttpClientAspect::class);
     }
 
     /**

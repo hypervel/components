@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Sentry\Features\HttpClientIntegration;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Sentry\Features\QueueFeature;
@@ -171,7 +170,6 @@ return [
         LogFeature::class,
         ConsoleIntegration::class,
         ConsoleSchedulingFeature::class,
-        HttpClientIntegration::class,
         RedisFeature::class,
     ],
 
