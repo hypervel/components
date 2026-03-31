@@ -135,8 +135,10 @@ class Bootstrapper
         $filesystem = static::getFilesystem();
 
         // Purge stale dirs for this worker token from previous crashed runs.
-        // Only delete dirs whose PID is no longer running to avoid destroying
-        // a parent process's live copy when remote() spawns a subprocess.
+        // A dir is stale when its owning PID is either dead or orphaned
+        // (PPID=1, meaning the test process that spawned it exited). Orphaned
+        // serve processes (confirmed via hypervel.pid) are killed before their
+        // dirs are removed.
         foreach (glob(sys_get_temp_dir() . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
             if (! $filesystem->isDirectory($staleDir)) {
                 continue;
@@ -145,7 +147,12 @@ class Bootstrapper
             $stalePid = (int) substr($staleDir, strrpos($staleDir, '-') + 1);
 
             if ($stalePid > 0 && posix_kill($stalePid, 0)) {
-                continue; // Process still running — don't delete
+                // Process is alive — check if it's an orphaned serve process.
+                if (static::isOrphanedServeProcess($stalePid, $staleDir)) {
+                    static::killProcessTree($stalePid);
+                } else {
+                    continue; // Legitimately running — don't delete
+                }
             }
 
             $filesystem->deleteDirectory($staleDir);
@@ -193,6 +200,142 @@ class Bootstrapper
         }
 
         static::$runtimePath = null;
+    }
+
+    /**
+     * Determine if the given PID is an orphaned serve process.
+     *
+     * A process is considered an orphaned serve process when its parent is
+     * PID 1 (re-parented by init after the original parent exited) and the
+     * runtime directory contains a Swoole PID file, confirming it was a
+     * serve command that started a server.
+     */
+    protected static function isOrphanedServeProcess(int $pid, string $runtimeDir): bool
+    {
+        // Check PPID = 1 (orphaned) via /proc on Linux.
+        $statusFile = "/proc/{$pid}/status";
+
+        if (is_readable($statusFile)) {
+            $contents = @file_get_contents($statusFile);
+
+            if ($contents !== false && preg_match('/^PPid:\s+(\d+)$/m', $contents, $matches)) {
+                if ((int) $matches[1] !== 1) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            // Fallback for macOS: use ps to check PPID.
+            $output = [];
+            exec("ps -o ppid= -p {$pid} 2>/dev/null", $output);
+
+            if (! isset($output[0]) || (int) trim($output[0]) !== 1) {
+                return false;
+            }
+        }
+
+        // Confirm this was a serve process by checking for the PID file.
+        return is_file("{$runtimeDir}/storage/framework/hypervel.pid");
+    }
+
+    /**
+     * Kill a process and all its descendants.
+     *
+     * Collects the full descendant tree first (single /proc scan), then
+     * kills leaves before parents to avoid re-parenting races where killing
+     * a parent causes its children to be adopted by init before we can
+     * find them.
+     */
+    protected static function killProcessTree(int $pid): void
+    {
+        $descendants = static::collectDescendants($pid);
+
+        // Kill leaves first (reverse of parent-before-children order).
+        foreach (array_reverse($descendants) as $descendantPid) {
+            if (posix_kill($descendantPid, 0)) {
+                posix_kill($descendantPid, SIGKILL);
+            }
+        }
+
+        // Kill the root process itself.
+        if (posix_kill($pid, 0)) {
+            posix_kill($pid, SIGKILL);
+        }
+    }
+
+    /**
+     * Collect all descendant PIDs of the given PID in depth-first order.
+     *
+     * Scans /proc once to build a PID→children map, then walks the subtree.
+     * Returns PIDs in parent-before-children order.
+     *
+     * @return array<int, int>
+     */
+    protected static function collectDescendants(int $rootPid): array
+    {
+        $childrenMap = static::buildChildrenMap();
+        $descendants = [];
+
+        $stack = $childrenMap[$rootPid] ?? [];
+
+        while ($stack !== []) {
+            $pid = array_pop($stack);
+            $descendants[] = $pid;
+
+            foreach ($childrenMap[$pid] ?? [] as $childPid) {
+                $stack[] = $childPid;
+            }
+        }
+
+        return $descendants;
+    }
+
+    /**
+     * Build a map of PID → direct child PIDs by scanning /proc once.
+     *
+     * @return array<int, array<int, int>>
+     */
+    protected static function buildChildrenMap(): array
+    {
+        $map = [];
+
+        if (is_dir('/proc')) {
+            foreach (scandir('/proc') as $entry) {
+                if (! ctype_digit($entry)) {
+                    continue;
+                }
+
+                $statusFile = "/proc/{$entry}/status";
+                if (! is_readable($statusFile)) {
+                    continue;
+                }
+
+                $contents = @file_get_contents($statusFile);
+                if ($contents === false) {
+                    continue;
+                }
+
+                if (preg_match('/^PPid:\s+(\d+)$/m', $contents, $matches)) {
+                    $map[(int) $matches[1]][] = (int) $entry;
+                }
+            }
+
+            return $map;
+        }
+
+        // Fallback for macOS: use ps to get all PID/PPID pairs.
+        $output = [];
+        exec('ps -eo pid=,ppid= 2>/dev/null', $output);
+
+        foreach ($output as $line) {
+            $parts = preg_split('/\s+/', trim($line));
+            if (count($parts) === 2) {
+                $map[(int) $parts[1]][] = (int) $parts[0];
+            }
+        }
+
+        return $map;
     }
 
     /**

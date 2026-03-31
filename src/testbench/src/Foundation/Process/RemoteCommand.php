@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Process;
 
 use Closure;
-use Hypervel\Support\Arr;
-use Hypervel\Support\ProcessUtils;
 use Laravel\SerializableClosure\SerializableClosure;
 use Symfony\Component\Process\Process;
 
@@ -62,18 +60,16 @@ final class RemoteCommand
             );
             $env['APP_KEY'] ??= config('app.key') ?? false;
             $commands = ['invoke-serialized-closure'];
+        } elseif (is_string($command)) {
+            $commands = preg_split('/\s+/', $command, -1, PREG_SPLIT_NO_EMPTY);
         } else {
-            $commands = Arr::wrap($command);
+            $commands = $command;
         }
 
-        $process = Process::fromShellCommandline(
-            command: Arr::join([
-                ProcessUtils::escapeArgument(php_binary()),
-                ProcessUtils::escapeArgument($commander),
-                ...$commands,
-            ], ' '),
+        $process = new Process(
+            command: [php_binary(), $commander, ...$commands],
             cwd: $this->workingPath,
-            env: array_merge($definedEnvironmentVariables, $env)
+            env: array_merge($definedEnvironmentVariables, $env),
         );
 
         if (is_bool($this->tty)) {
