@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sentry;
+namespace Hypervel\Tests\Sentry\Integration;
 
 use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sentry\Integration\ModelViolations\ModelViolationReporter;
+use Hypervel\Tests\Sentry\SentryTestCase;
 use Swoole\Coroutine\Channel;
 
 /**

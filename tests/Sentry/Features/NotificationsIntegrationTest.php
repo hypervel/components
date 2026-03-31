@@ -19,12 +19,11 @@ use Sentry\Tracing\SpanStatus;
  * @internal
  * @coversNothing
  */
-class NotificationsFeatureTest extends SentryTestCase
+class NotificationsIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
-        'sentry.breadcrumbs.notifications' => true,
-        'sentry.tracing.notifications' => true,
+        'sentry.tracing.views' => false,
         'sentry.features' => [
             NotificationsFeature::class,
         ],
@@ -49,7 +48,11 @@ class NotificationsFeatureTest extends SentryTestCase
     public function testSpanIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => 1.0,
             'sentry.tracing.notifications' => false,
+            'sentry.features' => [
+                NotificationsFeature::class,
+            ],
         ]);
 
         $this->sendNotificationAndExpectNoSpan();
@@ -70,11 +73,22 @@ class NotificationsFeatureTest extends SentryTestCase
     {
         $this->resetApplicationWithConfig([
             'sentry.breadcrumbs.notifications' => false,
+            'sentry.features' => [
+                NotificationsFeature::class,
+            ],
         ]);
 
         $this->sendTestNotification();
 
         $this->assertCount(0, $this->getCurrentSentryBreadcrumbs());
+    }
+
+    private function sendTestNotification(): void
+    {
+        // We fake the mail so that no actual email is sent but the notification is still sent with all its events
+        Mail::fake();
+
+        Notification::route('mail', 'sentry@example.com')->notifyNow(new NotificationsIntegrationTestNotification());
     }
 
     private function sendNotificationAndRetrieveSpan(): Span
@@ -85,20 +99,9 @@ class NotificationsFeatureTest extends SentryTestCase
 
         $spans = $transaction->getSpanRecorder()->getSpans();
 
-        // Find the notification.send span
-        $notificationSpans = array_filter($spans, fn ($span) => $span->getOp() === 'notification.send');
+        $this->assertCount(2, $spans);
 
-        $this->assertCount(1, $notificationSpans, 'Expected exactly one notification.send span');
-
-        return array_values($notificationSpans)[0];
-    }
-
-    private function sendTestNotification(): void
-    {
-        // We fake the mail so that no actual email is sent but the notification is still sent with all it's events
-        Mail::fake();
-
-        Notification::route('mail', 'sentry@example.com')->notifyNow(new NotificationsIntegrationTestNotification());
+        return $spans[1];
     }
 
     private function sendNotificationAndExpectNoSpan(): void
@@ -109,9 +112,7 @@ class NotificationsFeatureTest extends SentryTestCase
 
         $spans = $transaction->getSpanRecorder()->getSpans();
 
-        // Should not have any notification.send spans when tracing is disabled
-        $notificationSpans = array_filter($spans, fn ($span) => $span->getOp() === 'notification.send');
-        $this->assertCount(0, $notificationSpans, 'Expected no notification.send spans when tracing is disabled');
+        $this->assertCount(1, $spans);
     }
 }
 

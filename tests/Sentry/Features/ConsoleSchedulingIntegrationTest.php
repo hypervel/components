@@ -17,7 +17,7 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class ConsoleSchedulingFeatureTest extends SentryTestCase
+class ConsoleSchedulingIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
@@ -124,6 +124,44 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
         })->sentryMonitor();
     }
 
+    /** @define-env envWithoutDsnSet */
+    public function testScheduleMacroWithoutDsnSet(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => null,
+            'sentry_test.override_dsn' => true,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()->call(function () {
+        })->sentryMonitor('test-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(0);
+    }
+
+    public function testScheduleMacroIsRegistered(): void
+    {
+        $this->assertTrue(Event::hasMacro('sentryMonitor'));
+    }
+
+    public function testScheduleMacroIsRegisteredWithoutDsnSet(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => null,
+            'sentry_test.override_dsn' => true,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+
+        $this->assertTrue(Event::hasMacro('sentryMonitor'));
+    }
+
     public function testScheduledClosureCreatesTransaction(): void
     {
         $this->getScheduler()->call(function () {
@@ -150,6 +188,60 @@ class ConsoleSchedulingFeatureTest extends SentryTestCase
         $transaction = $this->getLastSentryEvent();
 
         $this->assertEquals(ScheduledQueuedJob::class, $transaction->getTransaction());
+    }
+
+    public function testBackgroundScheduledTaskUsesContextForCheckInId(): void
+    {
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->command('migrate')
+            ->runInBackground()
+            ->sentryMonitor('test-background-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        // We should have 2 check-in events (start + finish)
+        $this->assertSentryCheckInCount(2);
+
+        $events = $this->getCapturedSentryEvents();
+        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
+
+        $startCheckInId = $checkInEvents[0][0]->getCheckIn()->getId();
+        $finishCheckInId = $checkInEvents[1][0]->getCheckIn()->getId();
+
+        // The finish check-in should have the same ID as the start check-in,
+        // verifying the ID was correctly stored and retrieved via Context hidden storage
+        $this->assertEquals($startCheckInId, $finishCheckInId);
+    }
+
+    public function testBackgroundScheduledTaskOverlappingExecutionsHaveDistinctCheckInIds(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        /** @var Event $scheduledEventA */
+        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
+        /** @var Event $scheduledEventB */
+        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
+
+        $scheduledEventA->run($this->app);
+        $scheduledEventB->run($this->app);
+
+        $this->assertSentryCheckInCount(4);
+
+        $events = $this->getCapturedSentryEvents();
+        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
+
+        $taskAStartId = $checkInEvents[0][0]->getCheckIn()->getId();
+        $taskAFinishId = $checkInEvents[1][0]->getCheckIn()->getId();
+        $taskBStartId = $checkInEvents[2][0]->getCheckIn()->getId();
+        $taskBFinishId = $checkInEvents[3][0]->getCheckIn()->getId();
+
+        // Each task's start and finish should match
+        $this->assertEquals($taskAStartId, $taskAFinishId);
+        $this->assertEquals($taskBStartId, $taskBFinishId);
+
+        // But the two tasks should have different check-in IDs
+        $this->assertNotEquals($taskAStartId, $taskBStartId);
     }
 
     public function testCheckInStateIsIsolatedBetweenConcurrentTasks(): void

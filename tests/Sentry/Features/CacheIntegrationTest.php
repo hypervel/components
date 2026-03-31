@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Sentry\Features\CacheFeature;
-use Hypervel\Session\SessionManager;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Tracing\Span;
@@ -15,7 +14,7 @@ use Sentry\Tracing\Span;
  * @internal
  * @coversNothing
  */
-class CacheFeatureTest extends SentryTestCase
+class CacheIntegrationTest extends SentryTestCase
 {
     protected function setUp(): void
     {
@@ -26,8 +25,6 @@ class CacheFeatureTest extends SentryTestCase
 
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
-        'sentry.breadcrumbs.cache' => true,
-        'sentry.tracing.cache' => true,
         'sentry.features' => [
             CacheFeature::class,
         ],
@@ -77,11 +74,9 @@ class CacheFeatureTest extends SentryTestCase
 
     public function testCacheBreadcrumbReplacesSessionKeyWithPlaceholder(): void
     {
-        // Start a session properly in the test environment
         $this->startSession();
-        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $sessionId = $this->app['session']->getId();
 
-        // Use the session ID as a cache key
         Cache::put($sessionId, 'session-data');
 
         $breadcrumb = $this->getLastSentryBreadcrumb();
@@ -202,7 +197,7 @@ class CacheFeatureTest extends SentryTestCase
         $this->markSkippedIfTracingEventsNotAvailable();
 
         $this->startSession();
-        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $sessionId = $this->app['session']->getId();
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get($sessionId);
@@ -217,9 +212,8 @@ class CacheFeatureTest extends SentryTestCase
     {
         $this->markSkippedIfTracingEventsNotAvailable();
 
-        // Start a session properly in the test environment
         $this->startSession();
-        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $sessionId = $this->app['session']->getId();
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get([$sessionId, 'regular-key', $sessionId . '_another']);

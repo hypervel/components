@@ -12,7 +12,6 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Sentry\Features\RedisFeature;
-use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
 use Sentry\SentrySdk;
@@ -22,7 +21,7 @@ use Sentry\State\HubInterface;
  * @internal
  * @coversNothing
  */
-class RedisFeatureTest extends SentryTestCase
+class RedisIntegrationTest extends SentryTestCase
 {
     protected function setUp(): void
     {
@@ -34,7 +33,7 @@ class RedisFeatureTest extends SentryTestCase
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.tracing.redis_commands' => true,
-        'sentry.tracing.redis_origin' => false, // Disable origin tracking to avoid complex dependencies
+        'sentry.tracing.redis_origin' => false,
         'sentry.features' => [
             RedisFeature::class,
         ],
@@ -51,6 +50,9 @@ class RedisFeatureTest extends SentryTestCase
     {
         $this->resetApplicationWithConfig([
             'sentry.tracing.redis_commands' => false,
+            'sentry.features' => [
+                RedisFeature::class,
+            ],
         ]);
 
         $feature = $this->app->make(RedisFeature::class);
@@ -71,7 +73,7 @@ class RedisFeatureTest extends SentryTestCase
         $dispatcher->dispatch($event);
 
         $spans = $transaction->getSpanRecorder()->getSpans();
-        $this->assertCount(2, $spans); // Transaction + Redis span
+        $this->assertCount(2, $spans);
 
         $redisSpan = $spans[1];
         $this->assertEquals('db.redis', $redisSpan->getOp());
@@ -81,14 +83,14 @@ class RedisFeatureTest extends SentryTestCase
         $this->assertEquals('redis', $spanData['db.system']);
         $this->assertEquals('GET test-key', $spanData['db.statement']);
         $this->assertEquals('default', $spanData['db.redis.connection']);
-        $this->assertEquals(5.0, $spanData['duration']); // 0.005s * 1000
+        $this->assertEquals(5.0, $spanData['duration']);
     }
 
     public function testRedisCommandWithSessionKeyReplacesWithPlaceholder(): void
     {
         $this->setupMocks();
         $this->startSession();
-        $this->app->make(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+        $sessionId = $this->app['session']->getId();
         $transaction = $this->startTransaction();
 
         $dispatcher = $this->app->make(Dispatcher::class);
@@ -114,7 +116,6 @@ class RedisFeatureTest extends SentryTestCase
 
         $dispatcher->dispatch($event);
 
-        // Should not create any events since there's no parent span
         $this->assertEmpty($this->getCapturedSentryEvents());
     }
 
@@ -132,7 +133,7 @@ class RedisFeatureTest extends SentryTestCase
         $dispatcher->dispatch($event);
 
         $spans = $transaction->getSpanRecorder()->getSpans();
-        $this->assertCount(1, $spans); // Only transaction, no Redis span
+        $this->assertCount(1, $spans);
     }
 
     public function testRedisCommandWithMultilineKeyUsesEmptyDescription(): void
@@ -242,7 +243,6 @@ class RedisFeatureTest extends SentryTestCase
 
     private function setupMocks(string $connectionName = 'default', int $database = 0): void
     {
-        // Mock PoolFactory
         $poolOption = m::mock(PoolOptionInterface::class);
         $poolOption->shouldReceive('getMaxConnections')->andReturn(10);
         $poolOption->shouldReceive('getMaxIdleTime')->andReturn(60.0);
@@ -257,7 +257,6 @@ class RedisFeatureTest extends SentryTestCase
 
         $this->app->instance(PoolFactory::class, $poolFactory);
 
-        // Mock Redis config
         $config = $this->app->make('config');
         $config->set("database.redis.{$connectionName}", [
             'host' => '127.0.0.1',

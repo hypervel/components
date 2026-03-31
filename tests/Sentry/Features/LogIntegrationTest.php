@@ -9,14 +9,13 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Sentry\SentryTestCase;
-use Psr\Log\LoggerInterface;
 use Sentry\Severity;
 
 /**
  * @internal
  * @coversNothing
  */
-class LogFeatureTest extends SentryTestCase
+class LogIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.features' => [
@@ -43,36 +42,52 @@ class LogFeatureTest extends SentryTestCase
     public function testLogChannelIsRegistered(): void
     {
         $this->expectNotToPerformAssertions();
+
+        Log::channel('sentry');
+    }
+
+    public function testLogChannelIsRegisteredWithoutDsn(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => null,
+            'sentry_test.override_dsn' => true,
+            'sentry.features' => [
+                LogFeature::class,
+            ],
+        ]);
+
+        $this->expectNotToPerformAssertions();
+
         Log::channel('sentry');
     }
 
     public function testLogChannelGeneratesEvents(): void
     {
-        $logger = $this->app->make(LoggerInterface::class)->channel('sentry');
+        $logger = Log::channel('sentry');
 
-        $logger->info('Sentry Laravel info log message');
+        $logger->info('Sentry Hypervel info log message');
 
         $this->assertSentryEventCount(1);
 
         $event = $this->getLastSentryEvent();
 
         $this->assertEquals(Severity::info(), $event->getLevel());
-        $this->assertEquals('Sentry Laravel info log message', $event->getMessage());
+        $this->assertEquals('Sentry Hypervel info log message', $event->getMessage());
     }
 
     public function testLogChannelGeneratesEventsOnlyForConfiguredLevel(): void
     {
-        $logger = $this->app->make(LoggerInterface::class)->channel('sentry_error_level');
+        $logger = Log::channel('sentry_error_level');
 
-        $logger->info('Sentry Laravel info log message');
-        $logger->warning('Sentry Laravel warning log message');
-        $logger->error('Sentry Laravel error log message');
+        $logger->info('Sentry Hypervel info log message');
+        $logger->warning('Sentry Hypervel warning log message');
+        $logger->error('Sentry Hypervel error log message');
 
         $this->assertSentryEventCount(1);
 
         $event = $this->getLastSentryEvent();
 
         $this->assertEquals(Severity::error(), $event->getLevel());
-        $this->assertEquals('Sentry Laravel error log message', $event->getMessage());
+        $this->assertEquals('Sentry Hypervel error log message', $event->getMessage());
     }
 }

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Exception;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\QueueFeature;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
 use Sentry\EventType;
@@ -18,17 +20,24 @@ use function Sentry\captureException;
  * @internal
  * @coversNothing
  */
-class QueueFeatureTest extends SentryTestCase
+class QueueIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
-        'sentry.traces_sample_rate' => 1.0,
-        'sentry.breadcrumbs.queue_info' => true,
-        'sentry.tracing.queue_jobs' => true,
-        'sentry.tracing.queue_job_transactions' => true,
         'sentry.features' => [
             QueueFeature::class,
         ],
     ];
+
+    protected function withTracingEnabled(ApplicationContract $app): void
+    {
+        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
+    }
+
+    protected function withQueueJobTracingDisabled(ApplicationContract $app): void
+    {
+        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $app->make('config')->set('sentry.tracing.queue_job_transactions', false);
+    }
 
     public function testQueueJobPushesAndPopsScopeWithBreadcrumbs(): void
     {
@@ -105,9 +114,9 @@ class QueueFeatureTest extends SentryTestCase
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
     }
 
+    #[DefineEnvironment('withTracingEnabled')]
     public function testQueueJobCreatesTransactionByDefault(): void
     {
-        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();
@@ -122,13 +131,9 @@ class QueueFeatureTest extends SentryTestCase
         $this->assertEquals('queue.process', $traceContext['op']);
     }
 
-    /**
-     * @define-env withQueueTracingDisabled
-     */
+    #[DefineEnvironment('withQueueJobTracingDisabled')]
     public function testQueueJobDoesntCreateTransaction(): void
     {
-        $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
-        $this->app->make('config')->set('sentry.tracing.queue_job_transactions', false);
         dispatch(new QueueEventsTestJob());
 
         $transaction = $this->getLastSentryEvent();
@@ -176,11 +181,9 @@ class QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb implements ShouldQu
 
 class QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb implements ShouldQueue
 {
-    private ?string $message;
-
-    public function __construct(?string $message = null)
-    {
-        $this->message = $message;
+    public function __construct(
+        private ?string $message = null,
+    ) {
     }
 
     public function handle(): void

@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sentry;
+namespace Hypervel\Tests\Sentry\Tracing;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Tracing\Middleware;
+use Hypervel\Tests\Sentry\SentryTestCase;
 use ReflectionClass;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
  * @internal
  * @coversNothing
  */
-class TracingMiddlewareTest extends SentryTestCase
+class MiddlewareTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,

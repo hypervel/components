@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sentry;
+namespace Hypervel\Tests\Sentry\Integration;
 
 use Exception;
 use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Support\Facades\Context;
+use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\EventType;
 
 use function Sentry\captureException;
