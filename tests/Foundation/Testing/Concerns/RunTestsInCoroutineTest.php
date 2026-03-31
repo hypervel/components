@@ -8,6 +8,7 @@ use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use ReflectionProperty;
+use RuntimeException;
 use Swoole\Coroutine;
 
 /**
@@ -91,7 +92,7 @@ class RunTestsInCoroutineTest extends TestCase
         $setUp = new ReflectionMethod($testCase, 'setUpCoroutineTest');
         $setUp->invoke($testCase);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Test exception from coroutine');
 
         $run = new ReflectionMethod($testCase, 'runTestsInCoroutine');
@@ -101,6 +102,7 @@ class RunTestsInCoroutineTest extends TestCase
 
 /**
  * @internal
+ * @coversNothing
  */
 class CoroutineTestStub extends \PHPUnit\Framework\TestCase
 {
@@ -116,6 +118,7 @@ class CoroutineTestStub extends \PHPUnit\Framework\TestCase
 
 /**
  * @internal
+ * @coversNothing
  */
 class CoroutineDisabledTestStub extends \PHPUnit\Framework\TestCase
 {
@@ -134,6 +137,7 @@ class CoroutineDisabledTestStub extends \PHPUnit\Framework\TestCase
 
 /**
  * @internal
+ * @coversNothing
  */
 class CoroutineExceptionTestStub extends \PHPUnit\Framework\TestCase
 {
@@ -141,6 +145,6 @@ class CoroutineExceptionTestStub extends \PHPUnit\Framework\TestCase
 
     public function throwingMethod(): void
     {
-        throw new \RuntimeException('Test exception from coroutine');
+        throw new RuntimeException('Test exception from coroutine');
     }
 }
