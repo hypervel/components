@@ -45,12 +45,12 @@ class ConfigTest extends SentryTestCase
 
     public function testOldPoolsKeyIsNotUsed()
     {
-        $this->assertNull($this->app->make('config')->get('pools.sentry'));
+        $this->assertNull($this->app['config']->get('pools.sentry'));
     }
 
     public function testRedisFeatureIsInDefaultFeaturesConfig()
     {
-        $features = $this->app->make('config')->get('sentry.features', []);
+        $features = $this->app['config']->get('sentry.features', []);
 
         $this->assertContains(RedisFeature::class, $features);
     }

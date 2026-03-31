@@ -27,7 +27,7 @@ class LogIntegrationTest extends SentryTestCase
     {
         parent::defineEnvironment($app);
 
-        tap($app->make('config'), static function (Repository $config) {
+        tap($app['config'], static function (Repository $config) {
             $config->set('logging.channels.sentry', [
                 'driver' => 'sentry',
             ]);

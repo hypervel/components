@@ -17,6 +17,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
 use Hypervel\Sentry\Console\AboutCommandIntegration;
+use Hypervel\Sentry\Console\PublishCommand;
 use Hypervel\Sentry\Console\TestCommand;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
@@ -519,6 +520,7 @@ class SentryServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
+            PublishCommand::class,
             TestCommand::class,
         ]);
     }

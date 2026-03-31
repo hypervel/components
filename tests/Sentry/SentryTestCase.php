@@ -40,7 +40,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        tap($app->make('config'), function (Repository $config) {
+        tap($app['config'], function (Repository $config) {
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
@@ -73,19 +73,26 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
 
     protected function envWithoutDsnSet(ApplicationContract $app): void
     {
-        $app->make('config')->set('sentry.dsn', null);
-        $app->make('config')->set('sentry_test.override_dsn', true);
+        $app['config']->set('sentry.dsn', null);
+        $app['config']->set('sentry_test.override_dsn', true);
     }
 
     protected function envSamplingAllTransactions(ApplicationContract $app): void
     {
-        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $app['config']->set('sentry.traces_sample_rate', 1.0);
     }
 
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
             SentryServiceProvider::class,
+        ];
+    }
+
+    protected function getPackageAliases(ApplicationContract $app): array
+    {
+        return [
+            'Sentry' => \Hypervel\Sentry\Facade::class,
         ];
     }
 

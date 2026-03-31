@@ -62,7 +62,10 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Sentry\\SentryServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Sentry": "Hypervel\\Sentry\\Facade"
+            }
         }
     }
 }

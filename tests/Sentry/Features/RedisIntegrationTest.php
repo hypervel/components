@@ -257,7 +257,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->app->instance(PoolFactory::class, $poolFactory);
 
-        $config = $this->app->make('config');
+        $config = $this->app['config'];
         $config->set("database.redis.{$connectionName}", [
             'host' => '127.0.0.1',
             'port' => 6379,

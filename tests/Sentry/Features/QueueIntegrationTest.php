@@ -30,13 +30,13 @@ class QueueIntegrationTest extends SentryTestCase
 
     protected function withTracingEnabled(ApplicationContract $app): void
     {
-        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
+        $app['config']->set('sentry.traces_sample_rate', 1.0);
     }
 
     protected function withQueueJobTracingDisabled(ApplicationContract $app): void
     {
-        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
-        $app->make('config')->set('sentry.tracing.queue_job_transactions', false);
+        $app['config']->set('sentry.traces_sample_rate', 1.0);
+        $app['config']->set('sentry.tracing.queue_job_transactions', false);
     }
 
     public function testQueueJobPushesAndPopsScopeWithBreadcrumbs(): void

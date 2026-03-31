@@ -338,7 +338,10 @@
                 "Hypervel\\Sentry\\SentryServiceProvider",
                 "Hypervel\\Watcher\\WatcherServiceProvider",
                 "Hypervel\\View\\ViewServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Sentry": "Hypervel\\Sentry\\Facade"
+            }
         },
         "branch-alias": {
             "dev-main": "0.4-dev"
