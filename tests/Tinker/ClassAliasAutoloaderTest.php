@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Tinker;
 
 use Hypervel\Tests\TestCase;
-use Hypervel\Tests\Tinker\Fixtures\App\Foo\Bar;
-use Hypervel\Tests\Tinker\Fixtures\Vendor\One\Two\Three;
+use Hypervel\Tests\Tinker\Fixtures\App\Foo\TinkerBar;
+use Hypervel\Tests\Tinker\Fixtures\Vendor\One\Two\TinkerThree;
 use Hypervel\Tinker\ClassAliasAutoloader;
 use Mockery as m;
 use Psy\Shell;
@@ -43,11 +43,11 @@ class ClassAliasAutoloaderTest extends TestCase
         );
 
         $shell->shouldReceive('writeStdout')
-            ->with("[!] Aliasing 'Bar' to 'Hypervel\\Tests\\Tinker\\Fixtures\\App\\Foo\\Bar' for this Tinker session.\n")
+            ->with("[!] Aliasing 'TinkerBar' to 'Hypervel\\Tests\\Tinker\\Fixtures\\App\\Foo\\TinkerBar' for this Tinker session.\n")
             ->once();
 
-        $this->assertTrue(class_exists('Bar'));
-        $this->assertInstanceOf(Bar::class, new \Bar());
+        $this->assertTrue(class_exists('TinkerBar'));
+        $this->assertInstanceOf(TinkerBar::class, new \TinkerBar());
     }
 
     public function testCanExcludeNamespacesFromAliasing()
@@ -61,7 +61,7 @@ class ClassAliasAutoloaderTest extends TestCase
 
         $shell->shouldNotReceive('writeStdout');
 
-        $this->assertFalse(class_exists('Qux'));
+        $this->assertFalse(class_exists('TinkerQux'));
     }
 
     public function testVendorClassesAreExcluded()
@@ -73,7 +73,7 @@ class ClassAliasAutoloaderTest extends TestCase
 
         $shell->shouldNotReceive('writeStdout');
 
-        $this->assertFalse(class_exists('Three'));
+        $this->assertFalse(class_exists('TinkerThree'));
     }
 
     public function testVendorClassesCanBeWhitelisted()
@@ -85,10 +85,10 @@ class ClassAliasAutoloaderTest extends TestCase
         );
 
         $shell->shouldReceive('writeStdout')
-            ->with("[!] Aliasing 'Three' to 'Hypervel\\Tests\\Tinker\\Fixtures\\Vendor\\One\\Two\\Three' for this Tinker session.\n")
+            ->with("[!] Aliasing 'TinkerThree' to 'Hypervel\\Tests\\Tinker\\Fixtures\\Vendor\\One\\Two\\TinkerThree' for this Tinker session.\n")
             ->once();
 
-        $this->assertTrue(class_exists('Three'));
-        $this->assertInstanceOf(Three::class, new \Three());
+        $this->assertTrue(class_exists('TinkerThree'));
+        $this->assertInstanceOf(TinkerThree::class, new \TinkerThree());
     }
 }
