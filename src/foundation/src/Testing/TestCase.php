@@ -70,6 +70,15 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         }
 
         $this->setUpHasRun = true;
+
+        // Swap the test method name for coroutine wrapping.
+        // This must happen AFTER setUp completes but BEFORE PHPUnit's
+        // private runTest() calls $this->{$this->name}().
+        // PHPUnit 10.5 made runTest() private, so we can no longer
+        // override it — the name swap in setUp() is the only hook point.
+        if (method_exists($this, 'setUpCoroutineTest')) {
+            $this->setUpCoroutineTest();
+        }
     }
 
     /**

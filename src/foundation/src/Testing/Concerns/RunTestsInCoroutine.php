@@ -14,6 +14,13 @@ use Throwable;
 use function Hypervel\Coroutine\run;
 
 /**
+ * Wraps each test method in a Swoole coroutine so that database connections,
+ * channels, and other coroutine-dependent APIs work correctly during tests.
+ *
+ * PHPUnit 10.5 made runTest() private, so we can no longer override it.
+ * Instead, we swap the test method name during setUp() — which runs before
+ * PHPUnit's private runTest() calls $this->{$this->name}().
+ *
  * @method string name()
  */
 trait RunTestsInCoroutine
@@ -24,9 +31,22 @@ trait RunTestsInCoroutine
 
     protected string $realTestName = '';
 
+    /**
+     * Swap the test method name so PHPUnit's private runTest() calls
+     * runTestsInCoroutine() instead of the real test method.
+     * The real test method is then executed inside a Swoole coroutine.
+     */
+    protected function setUpCoroutineTest(): void
+    {
+        if (Coroutine::getCid() === -1 && $this->enableCoroutine) {
+            $this->realTestName = $this->name();
+            $this->setName('runTestsInCoroutine');
+        }
+    }
+
     final protected function runTestsInCoroutine(...$arguments)
     {
-        parent::setName($this->realTestName);
+        $this->setName($this->realTestName);
 
         $testResult = null;
         $exception = null;
@@ -54,16 +74,6 @@ trait RunTestsInCoroutine
         }
 
         return $testResult;
-    }
-
-    final protected function runTest(): mixed
-    {
-        if (Coroutine::getCid() === -1 && $this->enableCoroutine) {
-            $this->realTestName = $this->name();
-            parent::setName('runTestsInCoroutine');
-        }
-
-        return parent::runTest();
     }
 
     protected function invokeSetupInCoroutine(): void
