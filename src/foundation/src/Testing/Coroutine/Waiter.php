@@ -28,12 +28,16 @@ class Waiter extends BaseWaiter
                 CoroutineContext::copyFrom($coroutineId);
             }
 
+            $result = null;
+
+            Coroutine::defer(function () use ($channel, &$result): void {
+                $channel->push($result, $this->pushTimeout);
+            });
+
             try {
                 $result = $closure();
             } catch (Throwable $exception) {
                 $result = new ExceptionThrower($exception);
-            } finally {
-                $channel->push($result ?? null, $this->pushTimeout);
             }
         });
 

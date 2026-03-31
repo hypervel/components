@@ -74,6 +74,46 @@ class WaiterTest extends TestCase
         wait($callback);
     }
 
+    public function testWaitReturnsAfterDeferredWorkCompletes()
+    {
+        $deferredWorkCompleted = false;
+
+        $result = wait(function () use (&$deferredWorkCompleted) {
+            Coroutine::defer(function () use (&$deferredWorkCompleted) {
+                Coroutine::sleep(0.001);
+                $deferredWorkCompleted = true;
+            });
+
+            return 'result';
+        });
+
+        $this->assertSame('result', $result);
+        $this->assertTrue($deferredWorkCompleted);
+    }
+
+    public function testWaitRethrowsExceptionAfterDeferredWorkCompletes()
+    {
+        $deferredWorkCompleted = false;
+        $message = uniqid();
+
+        try {
+            wait(function () use (&$deferredWorkCompleted, $message) {
+                Coroutine::defer(function () use (&$deferredWorkCompleted) {
+                    Coroutine::sleep(0.001);
+                    $deferredWorkCompleted = true;
+                });
+
+                throw new RuntimeException($message);
+            });
+
+            $this->fail('The waiter should rethrow the child coroutine exception.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($message, $exception->getMessage());
+        }
+
+        $this->assertTrue($deferredWorkCompleted);
+    }
+
     public function testWaitReturnException()
     {
         $message = uniqid();

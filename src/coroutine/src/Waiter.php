@@ -38,12 +38,16 @@ class Waiter
 
         $channel = new Channel(1);
         Coroutine::create(function () use ($channel, $closure) {
+            $result = null;
+
+            Coroutine::defer(function () use ($channel, &$result): void {
+                $channel->push($result, $this->pushTimeout);
+            });
+
             try {
                 $result = $closure();
             } catch (Throwable $exception) {
                 $result = new ExceptionThrower($exception);
-            } finally {
-                $channel->push($result ?? null, $this->pushTimeout);
             }
         });
 

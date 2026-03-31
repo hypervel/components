@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Routing\Registrar;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Response;
@@ -230,6 +231,45 @@ class MakesHttpRequestsTest extends TestCase
         $this->get('/foo')
             ->assertSuccessful()
             ->assertSee('foo');
+    }
+
+    public function testGetReturnsAfterDeferredRouteWorkCompletes()
+    {
+        DeferredHttpRequestState::reset();
+
+        $this->app->make(Router::class)->get('/deferred-ok', function () {
+            Coroutine::defer(function () {
+                Coroutine::sleep(0.001);
+                DeferredHttpRequestState::$deferredWorkCompleted = true;
+            });
+
+            return 'ok';
+        });
+
+        $this->get('/deferred-ok')
+            ->assertSuccessful()
+            ->assertSee('ok');
+
+        $this->assertTrue(DeferredHttpRequestState::$deferredWorkCompleted);
+    }
+
+    public function testGetReturnsAfterDeferredRouteWorkCompletesWhenRouteThrowsHttpException()
+    {
+        DeferredHttpRequestState::reset();
+
+        $this->app->make(Router::class)->get('/deferred-abort', function () {
+            Coroutine::defer(function () {
+                Coroutine::sleep(0.001);
+                DeferredHttpRequestState::$deferredWorkCompleted = true;
+            });
+
+            abort(404);
+        });
+
+        $this->get('/deferred-abort')
+            ->assertNotFound();
+
+        $this->assertTrue(DeferredHttpRequestState::$deferredWorkCompleted);
     }
 
     public function testGetFoundRouteWithTrailingSlash()
@@ -495,5 +535,15 @@ class TerminatingMiddleware
     public function terminate($request, $response)
     {
         call_user_func(static::$callback, $request, $response);
+    }
+}
+
+class DeferredHttpRequestState
+{
+    public static bool $deferredWorkCompleted = false;
+
+    public static function reset(): void
+    {
+        self::$deferredWorkCompleted = false;
     }
 }
