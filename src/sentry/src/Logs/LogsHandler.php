@@ -113,11 +113,11 @@ class LogsHandler extends AbstractProcessingHandler
 
     private static function getLogLevelFromSeverity(Severity $severity): LogLevel
     {
-        return match ($severity) {
-            Severity::debug() => LogLevel::debug(),
-            Severity::warning() => LogLevel::warn(),
-            Severity::error() => LogLevel::error(),
-            Severity::fatal() => LogLevel::fatal(),
+        return match ((string) $severity) {
+            'debug' => LogLevel::debug(),
+            'warning' => LogLevel::warn(),
+            'error' => LogLevel::error(),
+            'fatal' => LogLevel::fatal(),
             default => LogLevel::info(),
         };
     }

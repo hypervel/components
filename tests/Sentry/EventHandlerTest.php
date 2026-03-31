@@ -20,7 +20,7 @@ class EventHandlerTest extends SentryTestCase
 
         $this->expectException(RuntimeException::class);
 
-        /** @noinspection PhpUndefinedMethodInspection */
+        /* @noinspection PhpUndefinedMethodInspection */
         $handler->thisIsNotAHandlerAndShouldThrowAnException();
     }
 

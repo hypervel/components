@@ -9,7 +9,6 @@ use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
-use Sentry\State\HubInterface;
 
 /**
  * @internal

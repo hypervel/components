@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
@@ -42,7 +41,7 @@ class Hub implements HubInterface
 
     public function getClient(): ?ClientInterface
     {
-        return $this->client ?? Container::getInstance()->make(ClientInterface::class);
+        return $this->client;
     }
 
     public function bindClient(ClientInterface $client): void
