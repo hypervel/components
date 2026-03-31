@@ -521,7 +521,8 @@ class SupervisorTest extends IntegrationTestCase
         $supervisor->loop();
 
         $this->wait(function () use ($supervisor) {
-            $this->assertSame(3, $supervisor->totalSystemProcessCount());
+            $this->assertCount(3, $supervisor->processes());
+            $this->assertTrue($supervisor->processes()->every->isRunning());
         });
     }
 
