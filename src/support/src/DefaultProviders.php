@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+/**
+ * Core framework service providers loaded for every Hypervel application.
+ *
+ * Only providers that are part of the framework itself belong here — services
+ * that every app needs regardless of what it does (database, cache, session,
+ * encryption, validation, etc.) plus Swoole infrastructure (engine, server,
+ * object-pool, signal).
+ *
+ * Optional/standalone packages (Reverb, Scout, Horizon, Sanctum, etc.) must
+ * not be added here. They register their own providers via composer.json
+ * extra.hypervel.providers and are auto-discovered when installed.
+ */
 class DefaultProviders
 {
     /**
