@@ -125,6 +125,12 @@ class Sender
      */
     protected function sendPipeMessage(string $name, array $arguments): void
     {
+        if ($this->workerId === null) {
+            $this->logger->warning('[WebSocket] Cannot send pipe message: workerId not set.');
+
+            return;
+        }
+
         $server = $this->getServer();
         $workerCount = $server->setting['worker_num'] - 1;
         for ($workerId = 0; $workerId <= $workerCount; ++$workerId) {
