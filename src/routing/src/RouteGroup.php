@@ -17,6 +17,10 @@ class RouteGroup
             unset($old['domain']);
         }
 
+        if (isset($new['port'])) {
+            unset($old['port']);
+        }
+
         if (isset($new['controller'])) {
             unset($old['controller']);
         }
