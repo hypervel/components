@@ -17,6 +17,7 @@ use Hypervel\Routing\Controllers\HasMiddleware;
 use Hypervel\Routing\Controllers\Middleware;
 use Hypervel\Routing\Matching\HostValidator;
 use Hypervel\Routing\Matching\MethodValidator;
+use Hypervel\Routing\Matching\PortValidator;
 use Hypervel\Routing\Matching\SchemeValidator;
 use Hypervel\Routing\Matching\UriValidator;
 use Hypervel\Support\Arr;
@@ -742,8 +743,6 @@ class Route
     /**
      * Get or set the domain for the route.
      *
-     * @return null|$this|string
-     *
      * @throws InvalidArgumentException
      */
     public function domain(BackedEnum|string|null $domain = null): static|string|null
@@ -776,6 +775,28 @@ class Route
         return isset($this->action['domain'])
             ? str_replace(['http://', 'https://'], '', $this->action['domain'])
             : null;
+    }
+
+    /**
+     * Get or set the port for the route.
+     */
+    public function port(?int $port = null): static|int|null
+    {
+        if (is_null($port)) {
+            return $this->getPort();
+        }
+
+        $this->action['port'] = $port;
+
+        return $this;
+    }
+
+    /**
+     * Get the port defined for the route.
+     */
+    public function getPort(): ?int
+    {
+        return isset($this->action['port']) ? (int) $this->action['port'] : null;
     }
 
     /**
@@ -1258,6 +1279,7 @@ class Route
         return static::$validators = [
             new UriValidator(), new MethodValidator(),
             new SchemeValidator(), new HostValidator(),
+            new PortValidator(),
         ];
     }
 
