@@ -74,6 +74,7 @@ class RouteRegistrar
         'missing',
         'name',
         'namespace',
+        'port',
         'prefix',
         'scopeBindings',
         'where',
