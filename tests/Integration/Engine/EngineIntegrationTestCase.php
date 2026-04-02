@@ -17,6 +17,8 @@ abstract class EngineIntegrationTestCase extends TestCase
 {
     use InteractsWithServer;
 
+    protected int $serverPort = 19501;
+
     protected function setUp(): void
     {
         parent::setUp();
