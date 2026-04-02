@@ -114,4 +114,12 @@ class Context
     {
         return self::$container;
     }
+
+    /**
+     * Reset the entire context container.
+     */
+    public static function flushState(): void
+    {
+        self::$container = [];
+    }
 }
