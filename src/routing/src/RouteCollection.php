@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
+use LogicException;
 use Symfony\Component\Routing\RouteCollection as SymfonyRouteCollection;
 
 class RouteCollection extends AbstractRouteCollection
@@ -59,6 +60,15 @@ class RouteCollection extends AbstractRouteCollection
         $domainAndUri = $route->getDomain() . $route->uri();
 
         foreach ($methods as $method) {
+            $existing = $this->routes[$method][$domainAndUri] ?? null;
+
+            if ($existing !== null && $existing->getPort() !== $route->getPort()) {
+                throw new LogicException(
+                    "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
+                    . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                );
+            }
+
             if ($route->getDomain()) {
                 $domainRoutes = array_filter($this->routes[$method] ?? [], fn (Route $route) => $route->getDomain() !== null);
 
