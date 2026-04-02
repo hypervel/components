@@ -50,4 +50,12 @@ class FdCollector
     {
         return static::$fds;
     }
+
+    /**
+     * Reset all registered file descriptors.
+     */
+    public static function flushState(): void
+    {
+        static::$fds = [];
+    }
 }
