@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Start all engine test servers for integration testing.
+# Start all test servers for integration testing.
 #
 # Usage:
 #   ./bin/test-servers.sh
@@ -10,6 +10,8 @@
 #   - TCP packet server on port 19502
 #   - WebSocket server on port 19503
 #   - HTTP v2 server on port 19505
+#   - Reverb WebSocket server on port 19510
+#   - Reverb Redis WebSocket server on port 19511
 #
 # Press Ctrl+C to stop all servers.
 
@@ -27,12 +29,17 @@ cleanup() {
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
     done
+    # Swoole servers need a moment for graceful shutdown, then force-kill stragglers
+    sleep 1
+    for pid in "${PIDS[@]}"; do
+        kill -9 "$pid" 2>/dev/null || true
+    done
     exit 0
 }
 
 trap cleanup EXIT
 
-echo "Starting engine test servers..."
+echo "Starting test servers..."
 
 php "$PROJECT_DIR/src/engine/examples/http_server.php" &
 PIDS+=($!)
@@ -49,6 +56,18 @@ echo "  WebSocket server started on port 19503 (PID: $!)"
 php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
 PIDS+=($!)
 echo "  HTTP v2 server started on port 19505 (PID: $!)"
+
+REVERB_SERVER_PORT=19510 php "$PROJECT_DIR/tests/Reverb/Integration/server.php" &
+PIDS+=($!)
+echo "  Reverb WebSocket server started on port 19510 (PID: $!)"
+
+# Brief delay so the first Reverb server finishes Bootstrapper::bootstrap()
+# before the second starts — they share temp directory paths and race otherwise.
+sleep 2
+
+REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Reverb/Integration/server.php" &
+PIDS+=($!)
+echo "  Reverb Redis WebSocket server started on port 19511 (PID: $!)"
 
 echo ""
 echo "All servers running. Press Ctrl+C to stop."
