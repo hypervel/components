@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use BackedEnum;
+use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -627,6 +628,18 @@ class UrlGenerator implements UrlGeneratorContract
         }
 
         CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
+    }
+
+    /**
+     * Set the forced root URL.
+     *
+     * @deprecated use useOrigin() instead
+     *
+     * @throws BadMethodCallException
+     */
+    public function forceRootUrl(?string $root): never
+    {
+        throw new BadMethodCallException('forceRootUrl() is deprecated. Use useOrigin() instead.');
     }
 
     /**
