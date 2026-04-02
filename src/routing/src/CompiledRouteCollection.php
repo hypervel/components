@@ -7,6 +7,7 @@ namespace Hypervel\Routing;
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
+use LogicException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Exception\MethodNotAllowedException;
@@ -52,6 +53,16 @@ class CompiledRouteCollection extends AbstractRouteCollection
     protected static array $cachedRoutesByName = [];
 
     /**
+     * Port lookup map for compiled routes, keyed by "METHOD domain+uri".
+     *
+     * Built lazily on first add() call. Used to detect port conflicts
+     * between compiled and dynamically-added routes.
+     *
+     * @var null|array<string, null|int>
+     */
+    protected ?array $compiledPortMap = null;
+
+    /**
      * Create a new CompiledRouteCollection instance.
      */
     public function __construct(array $compiled, array $attributes)
@@ -63,10 +74,59 @@ class CompiledRouteCollection extends AbstractRouteCollection
 
     /**
      * Add a Route instance to the collection.
+     *
+     * @throws LogicException
      */
     public function add(Route $route): Route
     {
+        $this->ensureNoCrossPortConflictWithCompiledRoutes($route);
+
         return $this->routes->add($route);
+    }
+
+    /**
+     * Ensure a dynamically-added route doesn't conflict with a compiled route on port.
+     *
+     * @throws LogicException
+     */
+    protected function ensureNoCrossPortConflictWithCompiledRoutes(Route $route): void
+    {
+        $this->compiledPortMap ??= $this->buildCompiledPortMap();
+
+        $domainAndUri = $route->getDomain() . $route->uri();
+
+        foreach ($route->methods() as $method) {
+            $key = $method . $domainAndUri;
+
+            if (array_key_exists($key, $this->compiledPortMap)
+                && $this->compiledPortMap[$key] !== $route->getPort()
+            ) {
+                throw new LogicException(
+                    "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
+                    . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                );
+            }
+        }
+    }
+
+    /**
+     * Build the port lookup map from compiled route attributes.
+     *
+     * @return array<string, null|int>
+     */
+    protected function buildCompiledPortMap(): array
+    {
+        $map = [];
+
+        foreach ($this->attributes as $attributes) {
+            $domainAndUri = ($attributes['action']['domain'] ?? '') . $attributes['uri'];
+
+            foreach ($attributes['methods'] as $method) {
+                $map[$method . $domainAndUri] = $attributes['action']['port'] ?? null;
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -125,6 +185,16 @@ class CompiledRouteCollection extends AbstractRouteCollection
             try {
                 return $this->routes->match($request);
             } catch (NotFoundHttpException) {
+            }
+        }
+
+        $routePort = $route?->getPort();
+
+        if ($routePort !== null && $routePort !== (int) $request->getPort()) {
+            try {
+                return $this->routes->match($request);
+            } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
+                $route = null;
             }
         }
 
