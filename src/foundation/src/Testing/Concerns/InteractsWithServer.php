@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use RuntimeException;
 use Throwable;
 
 /**
@@ -13,11 +14,10 @@ use Throwable;
  * - Auto-skip: Skips tests if server unavailable on configured host/port
  * - Fast-fail: Once connection fails with defaults, all subsequent tests skip immediately
  *
- * Usage: Add `use InteractsWithServer;` to your test case. Override $serverPort
- * in your test class to connect to a different server port.
- *
- * Environment Variables:
- * - ENGINE_TEST_SERVER_HOST: Server host (default: 127.0.0.1)
+ * Usage: Add `use InteractsWithServer;` to your test case. Declare
+ * `protected int $serverPort = 19510;` on the class to set the port.
+ * The host defaults to 127.0.0.1 and can be overridden via the
+ * ENGINE_TEST_SERVER_HOST environment variable.
  */
 trait InteractsWithServer
 {
@@ -25,18 +25,6 @@ trait InteractsWithServer
      * Indicates if connection failed once, skip all subsequent tests.
      */
     private static bool $serverConnectionFailed = false;
-
-    /**
-     * The server host for testing.
-     */
-    protected string $serverHost = '127.0.0.1';
-
-    /**
-     * The server port for testing.
-     *
-     * Override this in your test class to connect to a different port.
-     */
-    protected int $serverPort = 19501;
 
     /**
      * Set up server connection check.
@@ -47,9 +35,6 @@ trait InteractsWithServer
      */
     protected function setUpInteractsWithServer(): void
     {
-        // Only override host from env, not port - each test class sets its own port
-        $this->serverHost = env('ENGINE_TEST_SERVER_HOST', '127.0.0.1');
-
         if (static::$serverConnectionFailed) {
             $this->markTestSkipped(
                 'Server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST to enable ' . static::class
@@ -66,8 +51,8 @@ trait InteractsWithServer
             // Explicit config exists but failed - throw so test fails (misconfiguration)
             $this->fail(sprintf(
                 'Cannot connect to server at %s:%d. Check your ENGINE_TEST_SERVER_HOST configuration.',
-                $this->serverHost,
-                $this->serverPort
+                $this->getServerHost(),
+                $this->getServerPort(),
             ));
         }
     }
@@ -78,7 +63,7 @@ trait InteractsWithServer
     protected function canConnectToServer(): bool
     {
         try {
-            $socket = @fsockopen($this->serverHost, $this->serverPort, $errno, $errstr, 1);
+            $socket = @fsockopen($this->getServerHost(), $this->getServerPort(), $errno, $errstr, 1);
             if ($socket === false) {
                 return false;
             }
@@ -102,14 +87,20 @@ trait InteractsWithServer
      */
     protected function getServerHost(): string
     {
-        return $this->serverHost;
+        return $this->serverHost ?? env('ENGINE_TEST_SERVER_HOST', '127.0.0.1');
     }
 
     /**
      * Get the server port.
+     *
+     * Classes using this trait must declare `protected int $serverPort`.
      */
     protected function getServerPort(): int
     {
+        if (! isset($this->serverPort)) {
+            throw new RuntimeException(static::class . ' uses InteractsWithServer but does not declare a $serverPort property.');
+        }
+
         return $this->serverPort;
     }
 }
