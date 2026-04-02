@@ -106,7 +106,8 @@ class RouteUrlGenerator
     protected function formatDomain(Route $route, array &$parameters): string
     {
         return $this->addPortToDomain(
-            $this->getRouteScheme($route) . $route->getDomain()
+            $this->getRouteScheme($route) . $route->getDomain(),
+            $route
         );
     }
 
@@ -128,17 +129,33 @@ class RouteUrlGenerator
     /**
      * Add the port to the domain if necessary.
      */
-    protected function addPortToDomain(string $domain): string
+    protected function addPortToDomain(string $domain, ?Route $route = null): string
     {
-        $request = $this->url->getRequest();
+        $port = $route?->getPort() ?? (int) $this->url->getRequest()->getPort();
 
-        $secure = $request->isSecure();
-
-        $port = (int) $request->getPort();
+        $secure = $route !== null
+            ? $this->isRouteSecure($route)
+            : $this->url->getRequest()->isSecure();
 
         return ($secure && $port === 443) || (! $secure && $port === 80)
             ? $domain
             : $domain . ':' . $port;
+    }
+
+    /**
+     * Determine if the route uses HTTPS.
+     */
+    protected function isRouteSecure(Route $route): bool
+    {
+        if ($route->httpsOnly()) {
+            return true;
+        }
+
+        if ($route->httpOnly()) {
+            return false;
+        }
+
+        return $this->url->getRequest()->isSecure();
     }
 
     /**
@@ -279,10 +296,36 @@ class RouteUrlGenerator
     {
         $scheme = $this->getRouteScheme($route);
 
-        return $this->replaceRouteParameters(
-            $this->url->formatRoot($scheme, $domain),
-            $parameters
-        );
+        $root = $this->url->formatRoot($scheme, $domain);
+
+        // When the route has a port constraint and no explicit domain (domain
+        // routes already handle port in addPortToDomain), replace the port
+        // in the root URL so absolute URLs point to the correct port.
+        if ($domain === null && $route->getPort() !== null) {
+            $root = $this->replacePortInRoot($root, $route);
+        }
+
+        return $this->replaceRouteParameters($root, $parameters);
+    }
+
+    /**
+     * Replace the port in a root URL with the route's configured port.
+     */
+    protected function replacePortInRoot(string $root, Route $route): string
+    {
+        $port = $route->getPort();
+        $secure = $this->isRouteSecure($route);
+
+        $parsed = parse_url($root);
+        $scheme = $parsed['scheme'] ?? ($secure ? 'https' : 'http');
+        $host = $parsed['host'] ?? 'localhost';
+        $path = $parsed['path'] ?? '';
+
+        if (($secure && $port === 443) || (! $secure && $port === 80)) {
+            return "{$scheme}://{$host}{$path}";
+        }
+
+        return "{$scheme}://{$host}:{$port}{$path}";
     }
 
     /**
