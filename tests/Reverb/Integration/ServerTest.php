@@ -1234,4 +1234,24 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($sender);
         $this->disconnect($receiver);
     }
+
+    public function testWebhookIncludesIdempotencyKey()
+    {
+        $this->resetQueueFake();
+
+        ['client' => $client, 'socketId' => $socketId] = $this->connect();
+        $this->subscribe($client, $socketId, 'webhook-idempotency-channel');
+
+        usleep(100_000);
+
+        $jobs = $this->getQueuedWebhookJobs();
+
+        $this->assertNotEmpty($jobs, 'Expected at least one webhook');
+        $occupiedJob = collect($jobs)->firstWhere('event', 'channel_occupied');
+        $this->assertNotNull($occupiedJob);
+        $this->assertNotEmpty($occupiedJob['webhookId']);
+        $this->assertSame(36, strlen($occupiedJob['webhookId']));
+
+        $this->disconnect($client);
+    }
 }
