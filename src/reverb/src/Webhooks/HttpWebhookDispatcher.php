@@ -8,7 +8,9 @@ use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Support\Str;
 
 class HttpWebhookDispatcher implements WebhookDispatcher
 {
@@ -28,22 +30,46 @@ class HttpWebhookDispatcher implements WebhookDispatcher
             return;
         }
 
+        $channelPrefix = $webhooks['filter']['channel_name_starts_with'] ?? null;
+        if ($channelPrefix !== null && isset($data['channel'])) {
+            if (! str_starts_with($data['channel'], $channelPrefix)) {
+                return;
+            }
+        }
+
         $eventData = $this->buildEventData($application, $event, $data, $connection);
 
-        $payload = new WebhookPayload(
-            timeMs: (int) (microtime(true) * 1000),
-            events: [$eventData],
-        );
+        $batchingEnabled = (bool) ($webhooks['batching']['enabled'] ?? false);
 
-        WebhookDeliveryJob::dispatch(
-            $payload,
-            $webhooks['url'],
-            $application->key(),
-            $application->secret(),
-            (int) ($webhooks['retries'] ?? 3),
-            (int) ($webhooks['retry_delay'] ?? 1),
-            (int) ($webhooks['timeout'] ?? 5),
-        );
+        if ($batchingEnabled) {
+            $buffer = app(WebhookBatchBuffer::class);
+            $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
+
+            if ($shouldSchedule) {
+                FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
+                    ->onQueue('reverb-webhook-flush')
+                    ->delay(now()->addMilliseconds(
+                        (int) ($webhooks['batching']['max_delay_ms'] ?? 250)
+                    ));
+            }
+        } else {
+            $payload = new WebhookPayload(
+                webhookId: (string) Str::orderedUuid(),
+                timeMs: (int) (microtime(true) * 1000),
+                events: [$eventData],
+            );
+
+            WebhookDeliveryJob::dispatch(
+                $payload,
+                $webhooks['url'],
+                $application->key(),
+                $application->secret(),
+                (int) ($webhooks['retries'] ?? 3),
+                (int) ($webhooks['retry_delay'] ?? 1),
+                (int) ($webhooks['timeout'] ?? 5),
+                $webhooks['headers'] ?? [],
+            );
+        }
     }
 
     /**
