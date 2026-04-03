@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\ConfigApplicationProvider;

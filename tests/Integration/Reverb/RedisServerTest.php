@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 /**
  * End-to-end integration tests for Reverb with Redis scaling enabled.
  *
  * Requires a running Redis-enabled test server:
- *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Reverb/Integration/server.php
+ *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
  * Tests auto-skip when Redis or the server is unavailable.
  *
  * @internal

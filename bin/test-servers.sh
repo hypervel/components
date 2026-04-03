@@ -57,7 +57,7 @@ php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
 PIDS+=($!)
 echo "  HTTP v2 server started on port 19505 (PID: $!)"
 
-REVERB_SERVER_PORT=19510 php "$PROJECT_DIR/tests/Reverb/Integration/server.php" &
+REVERB_SERVER_PORT=19510 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
 PIDS+=($!)
 echo "  Reverb WebSocket server started on port 19510 (PID: $!)"
 
@@ -65,7 +65,7 @@ echo "  Reverb WebSocket server started on port 19510 (PID: $!)"
 # before the second starts — they share temp directory paths and race otherwise.
 sleep 2
 
-REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Reverb/Integration/server.php" &
+REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
 PIDS+=($!)
 echo "  Reverb Redis WebSocket server started on port 19511 (PID: $!)"
 

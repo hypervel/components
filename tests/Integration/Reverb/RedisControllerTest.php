@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 /**
  * HTTP API controller tests with Redis scaling enabled.
@@ -12,7 +12,7 @@ namespace Hypervel\Tests\Reverb\Integration;
  * PusherPubSubIncomingMessageHandler → merge results → HTTP response) works end-to-end.
  *
  * Requires a running Redis-enabled test server:
- *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Reverb/Integration/server.php
+ *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
  *
  * @internal
  * @coversNothing

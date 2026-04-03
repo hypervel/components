@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;

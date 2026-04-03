@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 /**
  * End-to-end integration tests for the Reverb WebSocket server.
  *
- * Requires a running test server: php tests/Reverb/Integration/server.php
+ * Requires a running test server: php tests/Integration/Reverb/server.php
  *
  * @internal
  * @coversNothing

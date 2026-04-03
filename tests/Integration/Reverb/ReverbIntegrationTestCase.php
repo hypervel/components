@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Reverb\Integration;
+namespace Hypervel\Tests\Integration\Reverb;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
 use Hypervel\Tests\TestCase;
@@ -13,7 +13,7 @@ use Swoole\WebSocket\Frame;
  * Base test case for Reverb integration tests.
  *
  * Requires a running Reverb test server on port 19510.
- * Start it with: php tests/Reverb/Integration/server.php
+ * Start it with: php tests/Integration/Reverb/server.php
  *
  * Tests auto-skip when the server is not available.
  *

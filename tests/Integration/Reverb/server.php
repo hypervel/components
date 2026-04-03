@@ -13,8 +13,8 @@ declare(strict_types=1);
  *   REVERB_SCALING_ENABLED    — Enable Redis scaling (default: false)
  *
  * Usage:
- *   php tests/Reverb/Integration/server.php
- *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Reverb/Integration/server.php
+ *   php tests/Integration/Reverb/server.php
+ *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
  *
  * The server starts with a single worker (SWOOLE_BASE mode) for test determinism.
  * Stop with Ctrl+C.
@@ -30,7 +30,7 @@ use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
-use Hypervel\Tests\Reverb\Integration\ParallelTestApplicationProvider;
+use Hypervel\Tests\Integration\Reverb\ParallelTestApplicationProvider;
 
 use function Hypervel\Support\swoole_hook_flags;
 
