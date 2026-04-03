@@ -42,8 +42,9 @@ jobs:
 
       - name: Start test servers
         run: |
+          rm -f /tmp/test-servers-ready
           bin/test-servers.sh engine &
-          sleep 3
+          while [ ! -f /tmp/test-servers-ready ]; do sleep 1; done
 
       - name: Execute integration tests
         env:

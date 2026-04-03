@@ -11,7 +11,8 @@
 # Groups:
 #   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505)
 #   reverb  — Single-worker (19510), Redis scaling (19511), multi-worker (19512),
-#             cross-server A (19513), cross-server B (19514)
+#             cross-server A (19513), cross-server B (19514),
+#             scaling+multi-worker (19515)
 #
 # Press Ctrl+C to stop all servers.
 
@@ -26,6 +27,7 @@ PIDS=()
 cleanup() {
     echo ""
     echo "Stopping test servers..."
+    rm -f /tmp/test-servers-ready
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
     done
@@ -107,6 +109,11 @@ start_reverb() {
     PIDS+=($!)
     echo "  Reverb scaling server B starting on port 19514 (PID: $!)..."
     wait_for_server 19514 "Reverb scaling B"
+
+    REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    PIDS+=($!)
+    echo "  Reverb scaling+multi-worker server starting on port 19515 (PID: $!)..."
+    wait_for_server 19515 "Reverb scaling+multi-worker"
 }
 
 # Parse arguments — no args means start everything
@@ -123,6 +130,9 @@ for group in "${SERVER_GROUPS[@]}"; do
         *) echo "Unknown group: $group (available: engine, reverb)"; exit 1 ;;
     esac
 done
+
+# Signal readiness for CI — the sentinel file tells callers all servers are up
+touch /tmp/test-servers-ready
 
 echo ""
 echo "All servers running. Press Ctrl+C to stop."
