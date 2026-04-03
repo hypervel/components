@@ -25,6 +25,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         ]);
 
         $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
             timeMs: 1712000000000,
             events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
         );
@@ -46,6 +47,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         ]);
 
         $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
             timeMs: 1712000000000,
             events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
         );
@@ -62,11 +64,96 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
+    public function testCustomHeadersMergedWithFrameworkHeaders()
+    {
+        Http::fake([
+            'example.com/webhook' => Http::response('', 200),
+        ]);
+
+        $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
+            timeMs: 1712000000000,
+            events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
+        );
+
+        $job = new WebhookDeliveryJob(
+            $payload,
+            'https://example.com/webhook',
+            'app-key',
+            'app-secret',
+            headers: ['Authorization' => 'Bearer test-token', 'X-Custom' => 'value'],
+        );
+        $job->handle();
+
+        Http::assertSent(function ($request) {
+            return $request->header('Authorization')[0] === 'Bearer test-token'
+                && $request->header('X-Custom')[0] === 'value'
+                && $request->header('X-Pusher-Key')[0] === 'app-key';
+        });
+    }
+
+    public function testFrameworkHeadersCannotBeOverriddenCaseInsensitive()
+    {
+        Http::fake([
+            'example.com/webhook' => Http::response('', 200),
+        ]);
+
+        $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
+            timeMs: 1712000000000,
+            events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
+        );
+
+        $job = new WebhookDeliveryJob(
+            $payload,
+            'https://example.com/webhook',
+            'real-key',
+            'real-secret',
+            headers: [
+                'x-pusher-key' => 'evil-key',
+                'X-PUSHER-SIGNATURE' => 'evil-sig',
+                'content-type' => 'text/plain',
+            ],
+        );
+        $job->handle();
+
+        Http::assertSent(function ($request) use ($payload) {
+            $body = $payload->toJson();
+            $expectedSignature = hash_hmac('sha256', $body, 'real-secret');
+
+            return $request->header('X-Pusher-Key')[0] === 'real-key'
+                && $request->header('X-Pusher-Signature')[0] === $expectedSignature;
+        });
+    }
+
+    public function testWebhookIdPresentInPayload()
+    {
+        Http::fake([
+            'example.com/webhook' => Http::response('', 200),
+        ]);
+
+        $payload = new WebhookPayload(
+            webhookId: 'my-unique-webhook-id',
+            timeMs: 1712000000000,
+            events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
+        );
+
+        $job = new WebhookDeliveryJob($payload, 'https://example.com/webhook', 'app-key', 'app-secret');
+        $job->handle();
+
+        Http::assertSent(function ($request) {
+            $body = json_decode($request->body(), true);
+
+            return $body['webhook_id'] === 'my-unique-webhook-id';
+        });
+    }
+
     public function testDispatchesWebhookFailedEventOnFinalFailure()
     {
         Event::fake([WebhookFailed::class]);
 
         $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
             timeMs: 1712000000000,
             events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
         );
