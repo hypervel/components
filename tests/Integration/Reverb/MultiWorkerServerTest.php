@@ -176,4 +176,46 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         $count = $this->readSharedState("sub:{$this->appId}:test-sub-count-mw");
         $this->assertNull($count);
     }
+
+    public function testDrainOnOneWorkerDoesNotAffectOtherWorker()
+    {
+        // Connect clients on different workers, subscribe to same channel
+        $result = $this->connectOnDifferentWorkers('test-drain-mw');
+
+        // Trigger drain — the HTTP request hits one worker, draining only
+        // the connections on that worker
+        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
+        $httpClient->post('/_test/drain-connections', '');
+        $this->assertSame(200, $httpClient->getStatusCode());
+        $httpClient->close();
+
+        usleep(200_000);
+
+        // At least one client should still be connected (on the other worker).
+        // Trigger a broadcast and check who receives it.
+        $this->triggerEvent('test-drain-mw', 'App\Events\DrainTest', ['after' => 'drain']);
+
+        $receivedCount = 0;
+        foreach ($result['connections'] as $conn) {
+            $data = $this->recv($conn['client'], 1);
+
+            if ($data !== null) {
+                $decoded = json_decode($data, associative: true);
+
+                if (($decoded['event'] ?? null) === 'App\Events\DrainTest') {
+                    ++$receivedCount;
+                }
+            }
+        }
+
+        // At least one client should have received the broadcast (the one on the non-drained worker)
+        $this->assertGreaterThanOrEqual(1, $receivedCount, 'No clients received broadcast after drain — drain may have affected other workers');
+
+        // But not all clients should have received it (the drained ones are gone)
+        $this->assertLessThan(count($result['connections']), $receivedCount, 'All clients received broadcast — drain may not have worked');
+
+        foreach ($result['connections'] as $conn) {
+            @$conn['client']->close();
+        }
+    }
 }

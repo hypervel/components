@@ -1254,4 +1254,62 @@ class ServerTest extends ReverbIntegrationTestCase
 
         $this->disconnect($client);
     }
+
+    public function testDrainCleansUpSharedStateCounters()
+    {
+        ['client' => $client, 'socketId' => $socketId] = $this->connect();
+        $this->subscribe($client, $socketId, 'drain-counter-test');
+
+        // Subscription counter should be 1
+        $count = $this->readSharedState("sub:{$this->appId}:drain-counter-test");
+        $this->assertSame(1, $count);
+
+        // Drain all connections
+        $this->triggerDrain();
+        usleep(100_000);
+
+        // Counter should be gone (key deleted when count reaches 0)
+        $count = $this->readSharedState("sub:{$this->appId}:drain-counter-test");
+        $this->assertNull($count);
+    }
+
+    public function testDrainReleasesConnectionSlots()
+    {
+        // reverb-key-2 app has max_connections=1
+        ['client' => $client] = $this->connect('reverb-key-2');
+
+        // Drain — should release the slot
+        $this->triggerDrain();
+        usleep(100_000);
+
+        // Should be able to connect again (slot released by drain)
+        ['client' => $newClient] = $this->connect('reverb-key-2');
+
+        $this->disconnect($newClient);
+    }
+
+    /**
+     * Trigger the drain endpoint on the test server.
+     */
+    protected function triggerDrain(): void
+    {
+        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
+        $httpClient->post('/_test/drain-connections', '');
+        $this->assertSame(200, $httpClient->getStatusCode());
+        $httpClient->close();
+    }
+
+    /**
+     * Read a value from the Swoole Table shared state via the test endpoint.
+     */
+    protected function readSharedState(string $key): ?int
+    {
+        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
+        $httpClient->get('/_test/shared-state/' . urlencode($key));
+
+        $body = json_decode($httpClient->body, associative: true);
+        $httpClient->close();
+
+        return $body['count'] ?? null;
+    }
 }
