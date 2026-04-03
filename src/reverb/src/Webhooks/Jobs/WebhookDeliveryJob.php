@@ -45,6 +45,7 @@ class WebhookDeliveryJob implements ShouldQueue
         int $retries = 3,
         int $retryDelay = 1,
         int $timeout = 5,
+        public array $headers = [],
     ) {
         $this->connection = 'redis';
         $this->queue = 'reverb-webhooks';
@@ -61,11 +62,21 @@ class WebhookDeliveryJob implements ShouldQueue
         $body = $this->payload->toJson();
         $signature = hash_hmac('sha256', $body, $this->appSecret);
 
+        $protected = ['x-pusher-key', 'x-pusher-signature', 'content-type'];
+        $safeHeaders = array_filter(
+            $this->headers,
+            fn ($value, $key) => ! in_array(strtolower($key), $protected, true),
+            ARRAY_FILTER_USE_BOTH
+        );
+
         $response = Http::timeout($this->httpTimeout)
-            ->withHeaders([
-                'X-Pusher-Key' => $this->appKey,
-                'X-Pusher-Signature' => $signature,
-            ])
+            ->withHeaders(array_merge(
+                $safeHeaders,
+                [
+                    'X-Pusher-Key' => $this->appKey,
+                    'X-Pusher-Signature' => $signature,
+                ]
+            ))
             ->withBody($body, 'application/json')
             ->post($this->url);
 
