@@ -14,6 +14,7 @@ final readonly class ChannelBroadcastPipeMessage
         public array $channels,
         public array $payload,
         public ?string $exceptSocketId,
+        public bool $internal = false,
     ) {
     }
 }

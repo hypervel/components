@@ -6,6 +6,7 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
@@ -73,9 +74,77 @@ class EventDispatcher
     }
 
     /**
+     * Notify all connections using broadcastInternally (no cache mutation).
+     *
+     * Used by the scaling path receiver for internal protocol events
+     * (member_added, member_removed) received via Redis pub/sub.
+     */
+    public static function dispatchInternallySynchronously(Application $app, array $payload, ?Connection $connection = null): void
+    {
+        $channels = Arr::wrap($payload['channels'] ?? $payload['channel'] ?? []);
+
+        unset($payload['channels']);
+
+        foreach ($channels as $channel) {
+            if (! $channel = app(ChannelManager::class)->for($app)->find($channel)) {
+                continue;
+            }
+
+            $payload['channel'] = $channel->name();
+
+            $channel->broadcastInternally($payload, $connection);
+        }
+
+        unset($payload['channel']);
+
+        static::fanOutToOtherWorkers($app, $channels, $payload, $connection, internal: true);
+    }
+
+    /**
+     * Dispatch an internal protocol message to a known channel instance.
+     *
+     * Uses broadcastInternally() instead of broadcast() so cache channels
+     * don't store the payload (e.g. member_added/member_removed should not
+     * overwrite the cached event payload).
+     *
+     * Takes the channel directly instead of resolving from the ChannelManager,
+     * since the channel may have already been removed (e.g. after vacate).
+     *
+     * In scaling mode, publishes to Redis with an 'internal' flag so the
+     * receiving handler uses broadcastInternally() on the remote node too.
+     */
+    public static function dispatchInternalToChannel(Application $app, Channel $channel, array $payload, ?Connection $connection = null): void
+    {
+        $server = app(ServerProviderManager::class);
+
+        if ($server->shouldNotPublishEvents()) {
+            $payload['channel'] = $channel->name();
+            $channel->broadcastInternally($payload, $connection);
+
+            unset($payload['channel']);
+            static::fanOutToOtherWorkers($app, [$channel->name()], $payload, $connection, internal: true);
+
+            return;
+        }
+
+        $data = [
+            'type' => 'message',
+            'internal' => true,
+            'app_id' => $app->id(),
+            'payload' => $payload,
+        ];
+
+        if ($connection?->id() !== null) {
+            $data['socket_id'] = $connection->id();
+        }
+
+        app(PubSubProvider::class)->publish($data);
+    }
+
+    /**
      * Send a broadcast pipe message to all other workers on this node.
      */
-    protected static function fanOutToOtherWorkers(Application $app, array $channels, array $payload, ?Connection $connection): void
+    protected static function fanOutToOtherWorkers(Application $app, array $channels, array $payload, ?Connection $connection, bool $internal = false): void
     {
         $server = app(Server::class);
         $workerNum = $server->setting['worker_num'] ?? 1;
@@ -90,6 +159,7 @@ class EventDispatcher
             channels: $channels,
             payload: $payload,
             exceptSocketId: $connection?->id(),
+            internal: $internal,
         );
 
         for ($workerId = 0; $workerId < $workerNum; ++$workerId) {

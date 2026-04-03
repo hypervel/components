@@ -52,11 +52,19 @@ class PusherPubSubIncomingMessageHandler implements PubSubIncomingMessageHandler
             ? app(ChannelManager::class)->for($application)->connections()[$event['socket_id']] ?? null
             : null;
 
-        EventDispatcher::dispatchSynchronously(
-            $application,
-            $event['payload'],
-            $except?->connection()
-        );
+        if ($event['internal'] ?? false) {
+            EventDispatcher::dispatchInternallySynchronously(
+                $application,
+                $event['payload'],
+                $except?->connection()
+            );
+        } else {
+            EventDispatcher::dispatchSynchronously(
+                $application,
+                $event['payload'],
+                $except?->connection()
+            );
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Protocols\Pusher\Channels\Concerns;
 
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\Protocols\Pusher\EventDispatcher;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 
 trait InteractsWithPresenceChannels
@@ -26,7 +27,9 @@ trait InteractsWithPresenceChannels
         $result = $this->lastSubscriptionResult();
 
         if ($result->memberAdded || $presenceUserId === '') {
-            parent::broadcastInternally(
+            EventDispatcher::dispatchInternalToChannel(
+                $connection->app(),
+                $this,
                 [
                     'event' => 'pusher_internal:member_added',
                     'data' => json_encode((object) $userData),
@@ -59,7 +62,9 @@ trait InteractsWithPresenceChannels
         }
 
         if ($result->memberRemoved) {
-            parent::broadcast(
+            EventDispatcher::dispatchInternalToChannel(
+                $connection->app(),
+                $this,
                 [
                     'event' => 'pusher_internal:member_removed',
                     'data' => json_encode(['user_id' => $presenceUserId]),

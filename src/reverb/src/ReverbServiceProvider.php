@@ -236,7 +236,11 @@ class ReverbServiceProvider extends ServiceProvider
                 $payload = $message->payload;
                 $payload['channel'] = $channel->name();
 
-                $channel->broadcast($payload, $except?->connection());
+                if ($message->internal) {
+                    $channel->broadcastInternally($payload, $except?->connection());
+                } else {
+                    $channel->broadcast($payload, $except?->connection());
+                }
             }
         });
     }
