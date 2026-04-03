@@ -154,7 +154,7 @@ class Channel
             return;
         }
 
-        $message = json_encode($payload);
+        $message = json_encode($payload, JSON_THROW_ON_ERROR);
 
         Log::info('Broadcasting To', $this->name());
         Log::message($message);
@@ -173,7 +173,7 @@ class Channel
      */
     public function broadcastToAll(array $payload): void
     {
-        $message = json_encode($payload);
+        $message = json_encode($payload, JSON_THROW_ON_ERROR);
 
         Log::info('Broadcasting To', $this->name());
         Log::message($message);

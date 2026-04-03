@@ -163,7 +163,7 @@ class RedisPubSubProvider implements PubSubProvider
             return 0;
         }
 
-        return (int) $this->redis->publish($this->channel, json_encode($payload));
+        return (int) $this->redis->publish($this->channel, json_encode($payload, JSON_THROW_ON_ERROR));
     }
 
     /**

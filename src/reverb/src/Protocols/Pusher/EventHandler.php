@@ -102,7 +102,7 @@ class EventHandler
     {
         if ($channel->hasCachedPayload()) {
             $connection->send(
-                json_encode($channel->cachedPayload())
+                json_encode($channel->cachedPayload(), JSON_THROW_ON_ERROR)
             );
 
             return;
@@ -116,7 +116,7 @@ class EventHandler
      */
     public function pong(Connection $connection): void
     {
-        static::send($connection, 'pong');
+        $this->send($connection, 'pong');
     }
 
     /**
@@ -126,7 +126,7 @@ class EventHandler
     {
         $connection->usesControlFrames()
             ? $connection->control()
-            : static::send($connection, 'ping');
+            : $this->send($connection, 'ping');
 
         $connection->ping();
     }
@@ -137,7 +137,7 @@ class EventHandler
     public function send(Connection $connection, string $event, array $data = [], ?string $channel = null): void
     {
         $connection->send(
-            static::formatPayload($event, $data, $channel)
+            $this->formatPayload($event, $data, $channel)
         );
     }
 
@@ -147,35 +147,37 @@ class EventHandler
     public function sendInternally(Connection $connection, string $event, array $data = [], ?string $channel = null): void
     {
         $connection->send(
-            static::formatInternalPayload($event, $data, $channel)
+            $this->formatInternalPayload($event, $data, $channel)
         );
     }
 
     /**
      * Format the payload for the given event.
      */
-    public function formatPayload(string $event, array $data = [], ?string $channel = null, string $prefix = 'pusher:'): string|false
+    public function formatPayload(string $event, array $data = [], ?string $channel = null, string $prefix = 'pusher:'): string
     {
         return json_encode(
             array_filter([
                 'event' => $prefix . $event,
-                'data' => empty($data) ? null : json_encode($data),
+                'data' => empty($data) ? null : json_encode($data, JSON_THROW_ON_ERROR),
                 'channel' => $channel,
-            ])
+            ]),
+            JSON_THROW_ON_ERROR
         );
     }
 
     /**
      * Format the internal payload for the given event.
      */
-    public function formatInternalPayload(string $event, array $data = [], ?string $channel = null): string|false
+    public function formatInternalPayload(string $event, array $data = [], ?string $channel = null): string
     {
         return json_encode(
             array_filter([
                 'event' => 'pusher_internal:' . $event,
-                'data' => json_encode((object) $data),
+                'data' => json_encode((object) $data, JSON_THROW_ON_ERROR),
                 'channel' => $channel,
-            ])
+            ]),
+            JSON_THROW_ON_ERROR
         );
     }
 }

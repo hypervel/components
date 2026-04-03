@@ -8,6 +8,7 @@ use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use JsonException;
 
 /**
  * @internal
@@ -136,5 +137,20 @@ class EventHandlerTest extends ReverbTestCase
             'event' => 'pusher_internal:foo',
             'data' => '{}',
         ]), $payload);
+    }
+
+    public function testFormatPayloadReturnsString()
+    {
+        $payload = $this->pusher->formatPayload('foo', ['bar' => 'baz']);
+
+        $this->assertIsString($payload);
+    }
+
+    public function testFormatPayloadThrowsOnUnencodableData()
+    {
+        $this->expectException(JsonException::class);
+
+        // NAN is not representable in JSON
+        $this->pusher->formatPayload('foo', ['value' => NAN]);
     }
 }
