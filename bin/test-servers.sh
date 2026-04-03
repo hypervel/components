@@ -110,13 +110,13 @@ start_reverb() {
 }
 
 # Parse arguments — no args means start everything
-GROUPS=("$@")
+SERVER_GROUPS=("$@")
 
-if [ ${#GROUPS[@]} -eq 0 ]; then
-    GROUPS=("engine" "reverb")
+if [ ${#SERVER_GROUPS[@]} -eq 0 ]; then
+    SERVER_GROUPS=("engine" "reverb")
 fi
 
-for group in "${GROUPS[@]}"; do
+for group in "${SERVER_GROUPS[@]}"; do
     case "$group" in
         engine) start_engine ;;
         reverb) start_reverb ;;
