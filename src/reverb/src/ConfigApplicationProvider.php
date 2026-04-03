@@ -24,9 +24,7 @@ class ConfigApplicationProvider implements ApplicationProvider
      */
     public function all(): Collection
     {
-        return $this->applications->map(function (array $app) {
-            return $this->findById($app['app_id']);
-        });
+        return $this->applications->map(fn (array $app) => $this->buildApplication($app));
     }
 
     /**
@@ -62,6 +60,14 @@ class ConfigApplicationProvider implements ApplicationProvider
             throw new InvalidApplication();
         }
 
+        return $this->buildApplication($app);
+    }
+
+    /**
+     * Build an Application instance from a raw config array.
+     */
+    protected function buildApplication(array $app): Application
+    {
         return new Application(
             $app['app_id'],
             $app['key'],
@@ -71,7 +77,7 @@ class ConfigApplicationProvider implements ApplicationProvider
             $app['allowed_origins'],
             (int) $app['max_message_size'],
             isset($app['max_connections']) ? (int) $app['max_connections'] : null,
-            $app['accept_client_events_from'] ?? 'all',
+            $app['accept_client_events_from'] ?? 'members',
             $app['rate_limiting'] ?? null,
             $app['options'] ?? [],
             $app['webhooks'] ?? [],

@@ -70,4 +70,23 @@ class ApplicationProviderTest extends ReverbTestCase
         $this->assertSame(10000, $app->maxMessageSize());
         $this->assertSame(100, $app->maxConnections());
     }
+
+    public function testDefaultsToMembersWhenAcceptClientEventsFromMissing()
+    {
+        $provider = new ConfigApplicationProvider(collect([
+            [
+                'app_id' => '123456',
+                'key' => 'reverb-key',
+                'secret' => 'reverb-secret',
+                'ping_interval' => 60,
+                'allowed_origins' => ['*'],
+                'max_message_size' => 10_000,
+                // accept_client_events_from intentionally omitted
+            ],
+        ]));
+
+        $app = $provider->findByKey('reverb-key');
+
+        $this->assertSame('members', $app->acceptClientEventsFrom());
+    }
 }
