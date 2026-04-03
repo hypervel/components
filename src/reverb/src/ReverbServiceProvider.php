@@ -35,6 +35,8 @@ use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketServer;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
+use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Support\ServiceProvider;
@@ -72,6 +74,15 @@ class ReverbServiceProvider extends ServiceProvider
         $this->app->bind(ChannelConnectionManager::class, ArrayChannelConnectionManager::class);
 
         $this->app->singleton(WebhookDispatcher::class, HttpWebhookDispatcher::class);
+
+        $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
+            $connectionName = (string) $app->make('config')
+                ->get('reverb.servers.reverb.scaling.connection', 'default');
+
+            return new WebhookBatchBuffer(
+                $app->make('redis')->connection($connectionName)
+            );
+        });
 
         $this->app->make(ServerProviderManager::class)->register();
     }
@@ -190,6 +201,7 @@ class ReverbServiceProvider extends ServiceProvider
                 PruneStaleConnections::dispatch();
                 PingInactiveConnections::dispatch();
                 $this->checkTableCapacity();
+                $this->recoverStaleWebhookBatches();
             });
         });
     }
@@ -257,6 +269,37 @@ class ReverbServiceProvider extends ServiceProvider
                 $stats['num'],
                 $sharedState->table()->getSize(),
             ));
+        }
+    }
+
+    /**
+     * Recover stale webhook batch processing keys from crashed flush jobs.
+     *
+     * Iterates all apps with batching enabled and checks for orphaned
+     * processing hashes. If recovered, schedules an immediate flush.
+     */
+    protected function recoverStaleWebhookBatches(): void
+    {
+        $buffer = $this->app->make(WebhookBatchBuffer::class);
+        $apps = $this->app->make(ApplicationProvider::class)->all();
+
+        foreach ($apps as $app) {
+            if (! $app->hasWebhooks()) {
+                continue;
+            }
+
+            $webhooks = $app->webhooks();
+
+            if (! ($webhooks['batching']['enabled'] ?? false)) {
+                continue;
+            }
+
+            $recovered = $buffer->recoverStaleProcessingKeys($app->id());
+
+            if ($recovered) {
+                FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
+                    ->onQueue('reverb-webhook-flush');
+            }
         }
     }
 }
