@@ -111,10 +111,15 @@ return [
                 | are signed with HMAC-SHA256 using the app secret and include
                 | an X-Pusher-Key header for app identification.
                 |
+                | Enable batching for production workloads — it consolidates
+                | many events into fewer HTTP requests, significantly reducing
+                | queue and network overhead at scale.
+                |
                 */
 
                 'webhooks' => [
                     'url' => env('REVERB_WEBHOOK_URL'),
+
                     'events' => [
                         // 'channel_occupied',
                         // 'channel_vacated',
@@ -122,9 +127,26 @@ return [
                         // 'member_removed',
                         // 'client_event',
                     ],
+
+                    'headers' => [
+                        // 'Authorization' => 'Bearer ' . env('REVERB_WEBHOOK_TOKEN'),
+                        // 'X-Webhook-Source' => 'reverb',
+                    ],
+
+                    'filter' => [
+                        'channel_name_starts_with' => env('REVERB_WEBHOOK_CHANNEL_PREFIX'),
+                    ],
+
                     'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
                     'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
                     'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+
+                    'batching' => [
+                        'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+                        'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+                        'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+                        'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+                    ],
                 ],
             ],
         ],
