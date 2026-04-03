@@ -52,6 +52,7 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Start Reverb test servers
+        shell: bash
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
