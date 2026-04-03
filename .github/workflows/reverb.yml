@@ -56,20 +56,16 @@ jobs:
           REDIS_HOST: redis
           REDIS_PORT: 6379
         run: |
-          REVERB_SERVER_PORT=19510 php tests/Integration/Reverb/server.php &
-          sleep 2
-          REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
-          sleep 2
-          REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php &
-          sleep 2
-          REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
-          sleep 2
-          REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
-          sleep 3
+          bin/test-servers.sh reverb &
+          # Wait for the last server to be ready
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:19514/up > /dev/null 2>&1 && break
+            sleep 1
+          done
 
       - name: Execute Reverb integration tests
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
-          ENGINE_TEST_SERVER_HOST: 127.0.0.1
+          TEST_SERVER_HOST: 127.0.0.1
         run: vendor/bin/phpunit tests/Integration/Reverb

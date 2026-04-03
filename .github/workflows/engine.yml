@@ -42,13 +42,10 @@ jobs:
 
       - name: Start test servers
         run: |
-          php src/engine/examples/http_server.php &
-          php src/engine/examples/tcp_packet_server.php &
-          php src/engine/examples/websocket_server.php &
-          php src/engine/examples/http_server_v2.php &
+          bin/test-servers.sh engine &
           sleep 3
 
       - name: Execute integration tests
         env:
-          ENGINE_TEST_SERVER_HOST: 127.0.0.1
+          TEST_SERVER_HOST: 127.0.0.1
         run: vendor/bin/phpunit tests/Integration/Engine
