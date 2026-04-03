@@ -1,4 +1,5 @@
 .idea
+_tmp/
 /.phpunit.cache
 /vendor
 composer.lock
