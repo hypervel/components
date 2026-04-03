@@ -26,7 +26,7 @@ class Middleware
     /**
      * The user defined global middleware stack.
      */
-    protected array $global = [];
+    protected ?array $global = null;
 
     /**
      * The middleware that should be prepended to the global middleware stack.
@@ -338,7 +338,7 @@ class Middleware
      */
     public function getGlobalMiddleware(): array
     {
-        $middleware = $this->global ?: array_values(array_filter([
+        $middleware = $this->global ?? array_values(array_filter([
             \Hypervel\Http\Middleware\ValidatePathEncoding::class,
             InvokeDeferredCallbacks::class,
             $this->trustHosts ? \Hypervel\Http\Middleware\TrustHosts::class : null,
