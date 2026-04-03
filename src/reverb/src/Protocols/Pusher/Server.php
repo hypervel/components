@@ -134,6 +134,7 @@ class Server
 
         if ($connection->hasAcquiredConnectionSlot()) {
             app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
+            $connection->clearConnectionSlotAcquired();
         }
 
         Log::info('Connection Closed', $connection->id());
