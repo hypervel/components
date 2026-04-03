@@ -17,7 +17,7 @@ use Throwable;
  * Usage: Add `use InteractsWithServer;` to your test case. Declare
  * `protected int $serverPort = 19510;` on the class to set the port.
  * The host defaults to 127.0.0.1 and can be overridden via the
- * ENGINE_TEST_SERVER_HOST environment variable.
+ * TEST_SERVER_HOST environment variable.
  */
 trait InteractsWithServer
 {
@@ -37,7 +37,7 @@ trait InteractsWithServer
     {
         if (static::$serverConnectionFailed) {
             $this->markTestSkipped(
-                'Server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST to enable ' . static::class
+                'Server connection failed with defaults. Set TEST_SERVER_HOST to enable ' . static::class
             );
         }
 
@@ -45,12 +45,12 @@ trait InteractsWithServer
             if ($this->isUsingDefaultServerConfig()) {
                 static::$serverConnectionFailed = true;
                 $this->markTestSkipped(
-                    'Server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST to enable ' . static::class
+                    'Server connection failed with defaults. Set TEST_SERVER_HOST to enable ' . static::class
                 );
             }
             // Explicit config exists but failed - throw so test fails (misconfiguration)
             $this->fail(sprintf(
-                'Cannot connect to server at %s:%d. Check your ENGINE_TEST_SERVER_HOST configuration.',
+                'Cannot connect to server at %s:%d. Check your TEST_SERVER_HOST configuration.',
                 $this->getServerHost(),
                 $this->getServerPort(),
             ));
@@ -79,7 +79,7 @@ trait InteractsWithServer
      */
     protected function isUsingDefaultServerConfig(): bool
     {
-        return env('ENGINE_TEST_SERVER_HOST') === null;
+        return env('TEST_SERVER_HOST') === null;
     }
 
     /**
@@ -87,7 +87,7 @@ trait InteractsWithServer
      */
     protected function getServerHost(): string
     {
-        return $this->serverHost ?? env('ENGINE_TEST_SERVER_HOST', '127.0.0.1');
+        return $this->serverHost ?? env('TEST_SERVER_HOST', '127.0.0.1');
     }
 
     /**
