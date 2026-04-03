@@ -6,9 +6,12 @@ namespace Hypervel\Tests\Reverb\Webhooks;
 
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use Mockery as m;
 
 /**
  * @internal
@@ -29,6 +32,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             return $job->url === 'https://example.com/webhook'
                 && $job->appKey === 'app-key'
                 && $job->appSecret === 'app-secret'
+                && $job->payload->webhookId !== ''
                 && $job->payload->events[0]['name'] === 'channel_occupied'
                 && $job->payload->events[0]['channel'] === 'test-channel'
                 && $job->payload->timeMs > 0;
@@ -112,6 +116,141 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
                 && $event['data'] === '{"user":"taylor"}'
                 && $event['socket_id'] === $connection->id();
         });
+    }
+
+    public function testChannelFilterSkipsNonMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_starts_with' => 'tenant-1-'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelFilterAllowsMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_starts_with' => 'tenant-1-'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelFilterDisabledWhenNull()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_starts_with' => null],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testCustomHeadersPassedToJob()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'headers' => ['Authorization' => 'Bearer test-token'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->headers === ['Authorization' => 'Bearer test-token'];
+        });
+    }
+
+    public function testBatchingAppendsToBufferAndSchedulesFlush()
+    {
+        Queue::fake([FlushWebhookBatchJob::class]);
+
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->shouldReceive('appendAndCheckSchedule')
+            ->once()
+            ->with('app-1', m::type('array'))
+            ->andReturn(true);
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'batching' => ['enabled' => true, 'max_delay_ms' => 250],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        // WebhookDeliveryJob should NOT be dispatched immediately
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+
+        // FlushWebhookBatchJob should be dispatched (lock was acquired)
+        Queue::assertPushed(FlushWebhookBatchJob::class, function (FlushWebhookBatchJob $job) {
+            return $job->appId === 'app-1'
+                && $job->queue === 'reverb-webhook-flush';
+        });
+    }
+
+    public function testBatchingDoesNotScheduleFlushWhenLockAlreadyHeld()
+    {
+        Queue::fake([FlushWebhookBatchJob::class]);
+
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->shouldReceive('appendAndCheckSchedule')
+            ->once()
+            ->andReturn(false);
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'batching' => ['enabled' => true],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+        Queue::assertNotPushed(FlushWebhookBatchJob::class);
+    }
+
+    public function testImmediateDispatchWhenBatchingDisabled()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'batching' => ['enabled' => false],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
     /**
