@@ -1,0 +1,133 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Reverb\Webhooks;
+
+use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
+use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Support\Facades\Queue;
+use Hypervel\Tests\Reverb\ReverbTestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class HttpWebhookDispatcherTest extends ReverbTestCase
+{
+    public function testDispatchesJobForAllowedEvent()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->url === 'https://example.com/webhook'
+                && $job->appKey === 'app-key'
+                && $job->appSecret === 'app-secret'
+                && $job->payload->events[0]['name'] === 'channel_occupied'
+                && $job->payload->events[0]['channel'] === 'test-channel'
+                && $job->payload->timeMs > 0;
+        });
+    }
+
+    public function testSkipsDispatchForDisallowedEvent()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'member_added', ['channel' => 'test-channel']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testSkipsWhenNoWebhookConfigured()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp();
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testJobUsesRedisConnectionAndDedicatedQueue()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->connection === 'redis'
+                && $job->queue === 'reverb-webhooks';
+        });
+    }
+
+    public function testDispatchesForAllEventsWhenAllowlistIsEmpty()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'member_added', ['channel' => 'presence-chat', 'user_id' => '42']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_added'
+                && $job->payload->events[0]['user_id'] === '42';
+        });
+    }
+
+    public function testClientEventIncludesSocketIdAndStringifiedData()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['client_event']]);
+        $connection = new \Hypervel\Tests\Reverb\Fixtures\FakeConnection();
+
+        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher->dispatch($app, 'client_event', [
+            'event' => 'client-typing',
+            'channel' => 'private-chat',
+            'data' => ['user' => 'taylor'],
+        ], $connection);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) use ($connection) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'client_event'
+                && $event['channel'] === 'private-chat'
+                && $event['event'] === 'client-typing'
+                && $event['data'] === '{"user":"taylor"}'
+                && $event['socket_id'] === $connection->id();
+        });
+    }
+
+    /**
+     * Create a test Application instance.
+     */
+    protected function makeApp(array $webhooks = []): Application
+    {
+        return new Application(
+            'app-1',
+            'app-key',
+            'app-secret',
+            60,
+            30,
+            ['*'],
+            10_000,
+            webhooks: $webhooks,
+        );
+    }
+}
