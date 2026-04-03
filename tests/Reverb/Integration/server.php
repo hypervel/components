@@ -214,6 +214,7 @@ $app = TestbenchApplication::create(
                     'channel' => $event['channel'] ?? null,
                     'url' => $job->url,
                     'appKey' => $job->appKey,
+                    'webhookId' => $job->payload->webhookId,
                 ];
             })->values()->all();
 
