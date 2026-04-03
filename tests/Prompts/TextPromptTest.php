@@ -14,7 +14,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\text;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -94,6 +93,17 @@ class TextPromptTest extends TestCase
         });
         $result = text('What is your name?');
         $this->assertSame('result', $result);
+    }
+
+    public function testCanDisableFallbackAfterEnablingIt()
+    {
+        TextPrompt::fallbackUsing(fn () => 'result');
+
+        Prompt::fallbackWhen(true);
+        $this->assertTrue(TextPrompt::shouldFallback());
+
+        Prompt::fallbackWhen(false);
+        $this->assertFalse(TextPrompt::shouldFallback());
     }
 
     public function testSupportsEmacsStyleKeyBinding(): void

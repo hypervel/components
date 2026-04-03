@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use stdClass;
@@ -68,6 +68,20 @@ class CacheArrayStoreTest extends TestCase
         $result = $store->get('foo');
 
         $this->assertNull($result);
+    }
+
+    public function testTouchExtendsTtl()
+    {
+        $store = new ArrayStore();
+
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store->put('key', 'value', 30);
+        $store->touch('key', 60);
+
+        Carbon::setTestNow($now->addSeconds(45));
+
+        $this->assertSame('value', $store->get('key'));
     }
 
     public function testStoreItemForeverProperlyStoresInArray()
@@ -172,6 +186,18 @@ class CacheArrayStoreTest extends TestCase
         $this->assertTrue($result);
         $this->assertNull($store->get('foo'));
         $this->assertNull($store->get('baz'));
+    }
+
+    public function testLocksCanBeFlushed()
+    {
+        $store = new ArrayStore();
+        $store->lock('foo', 10);
+        $store->lock('bar', 10);
+        $result = $store->flushLocks();
+        $this->assertTrue($result);
+        $this->assertNull($store->get('foo'));
+        $this->assertNull($store->get('bar'));
+        $this->assertEmpty($store->locks);
     }
 
     public function testCacheKey()
@@ -293,6 +319,77 @@ class CacheArrayStoreTest extends TestCase
         $wannabeOwner->forceRelease();
 
         $this->assertFalse($wannabeOwner->release());
+    }
+
+    public function testOwnerStatusCanBeCheckedAfterRestoringLock()
+    {
+        $store = new ArrayStore();
+        $firstLock = $store->lock('foo', 10);
+
+        $this->assertTrue($firstLock->get());
+        $owner = $firstLock->owner();
+
+        $secondLock = $store->restoreLock('foo', $owner);
+        $this->assertTrue($secondLock->isOwnedByCurrentProcess());
+    }
+
+    public function testOtherOwnerDoesNotOwnLockAfterRestore()
+    {
+        $store = new ArrayStore();
+        $firstLock = $store->lock('foo', 10);
+
+        $this->assertTrue($firstLock->get());
+
+        $secondLock = $store->restoreLock('foo', 'other_owner');
+
+        $this->assertFalse($secondLock->isOwnedByCurrentProcess());
+    }
+
+    public function testRestoringNonExistingLockDoesNotOwnAnything()
+    {
+        $store = new ArrayStore();
+        $firstLock = $store->restoreLock('foo', 'owner');
+
+        $this->assertFalse($firstLock->isOwnedByCurrentProcess());
+    }
+
+    public function testCanGetAll()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore(false);
+        $store->put('foo', 'bar', 10);
+
+        $this->assertEquals([
+            'foo' => ['value' => 'bar', 'expiresAt' => Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
+        ], $store->all());
+    }
+
+    public function testCanGetAllWhenSerialized()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore(true);
+        $store->put('foo', 'bar', 10);
+        $this->assertEquals([
+            'foo' => ['value' => 'bar', 'expiresAt' => $expiresAt = (Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000)],
+        ], $store->all());
+
+        // Now let's put a serializable value in there
+        $store->forget('foo');
+        $store->put('foo', Carbon::now(), 10);
+
+        $this->assertEquals([
+            'foo' => [
+                'value' => Carbon::now(),
+                'expiresAt' => $expiresAt,
+            ],
+        ], $store->all());
+
+        $this->assertEquals(
+            serialize(Carbon::now()),
+            $store->all(false)['foo']['value']
+        );
     }
 
     public function testLockImplementsRefreshableLock()

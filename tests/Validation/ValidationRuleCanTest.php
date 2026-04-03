@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Validator;
 use Mockery as m;
+use stdClass;
 
 /**
  * @internal
@@ -31,13 +32,13 @@ class ValidationRuleCanTest extends TestCase
 
         $this->user = m::mock(Authenticatable::class);
 
-        $this->app->bind(GateContract::class, function () {
+        $this->app->singleton(GateContract::class, function () {
             return new Gate($this->app, function () {
                 return $this->user;
             });
         });
 
-        $this->app->bind(
+        $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
                 new ArrayLoader(),
@@ -82,11 +83,37 @@ class ValidationRuleCanTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    {
+        $v = new Validator(
+            $this->app->make('translator'),
+            [
+                'company' => '1',
+                'company_fqcn' => '1',
+            ],
+            [
+                'company' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
+                'company_fqcn' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
+            ],
+            [
+                'company.can' => 'You dont have permission (dot notation)',
+                'company_fqcn.Hypervel\Validation\Rules\Can' => 'You dont have permission (fqcn)',
+            ]
+        );
+
+        $this->assertTrue($v->fails());
+
+        $this->assertSame([
+            'You dont have permission (dot notation)',
+            'You dont have permission (fqcn)',
+        ], $v->messages()->all());
+    }
+
     /**
      * Get the Gate instance from the container.
      */
     protected function gate()
     {
-        return $this->app->get(GateContract::class);
+        return $this->app->make(GateContract::class);
     }
 }

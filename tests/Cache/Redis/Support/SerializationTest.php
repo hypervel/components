@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\Support\Serialization;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Redis;
@@ -108,7 +108,7 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaUsesPackWhenSerializerConfigured(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('serialized')->andReturn(true);
         $connection->shouldReceive('pack')
             ->with(['test-value'])
@@ -123,7 +123,7 @@ class SerializationTest extends TestCase
             $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
         }
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
         $connection->shouldReceive('getOption')
@@ -138,7 +138,7 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaReturnsPhpSerializedWhenNoSerializerOrCompression(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
         $connection->shouldReceive('getOption')
@@ -150,7 +150,7 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaCastsNumericValuesToString(): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
         $connection->shouldReceive('getOption')
@@ -168,7 +168,7 @@ class SerializationTest extends TestCase
             $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
         }
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
         $connection->shouldReceive('getOption')
@@ -183,11 +183,11 @@ class SerializationTest extends TestCase
     }
 
     /**
-     * Create a mock RedisConnection with the given serialized flag.
+     * Create a mock PhpRedisConnection with the given serialized flag.
      */
-    private function createConnection(bool $serialized = false): RedisConnection
+    private function createConnection(bool $serialized = false): PhpRedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('serialized')->andReturn($serialized);
 
         return $connection;

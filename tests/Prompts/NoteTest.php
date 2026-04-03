@@ -10,7 +10,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\note;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

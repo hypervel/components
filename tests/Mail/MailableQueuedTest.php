@@ -4,23 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Queueable;
-use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemManager;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
-use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\Testbench\TestCase;
+use Hypervel\View\Factory;
+use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 /**
@@ -29,19 +23,16 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
  */
 class MailableQueuedTest extends TestCase
 {
-    protected function tearDown(): void
+    protected function setUp(): void
     {
-        m::close();
+        parent::setUp();
+        $this->app->instance(MailableContract::class, m::mock(MailableContract::class));
     }
 
     public function testQueuedMailableSent()
     {
-        $queueFake = new QueueFake($this->getContainer());
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage', 'to'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $queueFake->assertNothingPushed();
         $mailer->send($mailable);
@@ -50,12 +41,8 @@ class MailableQueuedTest extends TestCase
 
     public function testQueuedMailableWithAttachmentSent()
     {
-        $queueFake = new QueueFake($this->getContainer());
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
         $mailable->attach('foo.jpg', $attachmentOption);
@@ -67,21 +54,22 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
+    public function testQueuedMailableReceivesMailableInstance()
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStub();
+        $mailer->send($mailable);
+
+        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable) {
+            return $job->mailable === $mailable;
+        });
+    }
+
     public function testQueuedMailableWithAttachmentFromDiskSent()
     {
-        $app = $this->getContainer();
-        $this->getMockBuilder(Filesystem::class)
-            ->getMock();
-        $filesystemFactory = $this->getMockBuilder(FilesystemManager::class)
-            ->setConstructorArgs([$app])
-            ->getMock();
-        $app->set('filesystem', $filesystemFactory);
-        $queueFake = new QueueFake($app);
-        $mailer = $this->getMockBuilder(Mailer::class)
-            ->setConstructorArgs($this->getMocks())
-            ->onlyMethods(['createMessage'])
-            ->getMock();
-        $mailer->setQueue($queueFake);
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub();
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
 
@@ -96,23 +84,80 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    protected function getMocks()
+    public function testQueuedMailableForwardsMessageGroupFromMethodToQueueJob()
     {
-        return ['smtp', m::mock(ViewFactory::class), m::mock(TransportInterface::class)];
+        $mockedMessageGroupId = 'group-1';
+
+        $mailable = $this->getMockBuilder(MailableQueueableStubWithMessageGroup::class)->onlyMethods(['messageGroup'])->getMock();
+        $mailable->expects($this->once())->method('messageGroup')->willReturn($mockedMessageGroupId);
+
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertEquals($mockedMessageGroupId, $pushedJob->messageGroup);
     }
 
-    protected function getContainer(array $config = []): Container
+    public function testQueuedMailableForwardsMessageGroupFromPropertyOverridingMethodToQueueJob()
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config($config),
-                MailableContract::class => fn () => m::mock(MailableContract::class),
-            ])
-        );
+        $mockedMessageGroupId = 'group-1';
 
-        ApplicationContext::setContainer($container);
+        // Ensure the messageGroup method is not called when a messageGroup property is provided.
+        $mailable = $this->getMockBuilder(MailableQueueableStubWithMessageGroup::class)->onlyMethods(['messageGroup'])->getMock();
+        $mailable->expects($this->never())->method('messageGroup')->willReturn('this-should-not-be-used');
+        $mailable->onGroup($mockedMessageGroupId);
 
-        return $container;
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertEquals($mockedMessageGroupId, $pushedJob->messageGroup);
+    }
+
+    public function testQueuedMailableForwardsDeduplicatorToQueueJob()
+    {
+        $mockedDeduplicator = fn ($payload, $queue) => 'deduplication-id-1';
+
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = (new MailableQueueableStub())->withDeduplicator($mockedDeduplicator);
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertInstanceOf(SerializableClosure::class, $pushedJob->deduplicator);
+        $this->assertEquals($mockedDeduplicator, $pushedJob->deduplicator->getClosure());
+    }
+
+    public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob()
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStubWithDeduplication();
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertInstanceOf(SerializableClosure::class, $pushedJob->deduplicator);
+        $this->assertEquals($mailable->deduplicationId(...), $pushedJob->deduplicator->getClosure());
+    }
+
+    protected function getMocks()
+    {
+        return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
+    }
+
+    protected function createMailer(QueueFake $queueFake): Mailer
+    {
+        return (new Mailer(...$this->getMocks()))->setQueue($queueFake);
     }
 }
 
@@ -127,5 +172,43 @@ class MailableQueueableStub extends Mailable implements ShouldQueue
             ->to('foo@example.tld');
 
         return $this;
+    }
+}
+
+class MailableQueueableStubWithMessageGroup extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build(): static
+    {
+        $this->subject('lorem ipsum')
+            ->html('foo bar baz')
+            ->to('foo@example.tld');
+
+        return $this;
+    }
+
+    public function messageGroup(): string
+    {
+        return 'group-1';
+    }
+}
+
+class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build(): static
+    {
+        $this->subject('lorem ipsum')
+            ->html('foo bar baz')
+            ->to('foo@example.tld');
+
+        return $this;
+    }
+
+    public function deduplicationId($payload, $queue)
+    {
+        return hash('sha256', $payload);
     }
 }

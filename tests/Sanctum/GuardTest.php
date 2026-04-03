@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\AuthManager;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Sanctum\Sanctum;
@@ -15,9 +12,9 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\TestUser;
-use Mockery;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Tests\Sanctum\Fixtures\TestUser;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -26,7 +23,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 class GuardTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 
@@ -36,7 +32,7 @@ class GuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -48,24 +44,11 @@ class GuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
                 'sanctum.guard' => ['web'],
             ]);
 
         $this->createUsersTable();
         $this->defineTestRoutes();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroy('__sanctum.acting_as_user');
-        Context::destroy('__sanctum.acting_as_guard');
-
-        Mockery::close();
-        Sanctum::$accessTokenRetrievalCallback = null;
-        Sanctum::$accessTokenAuthenticationCallback = null;
     }
 
     /**
@@ -86,7 +69,7 @@ class GuardTest extends TestCase
      */
     protected function createUsersTable(): void
     {
-        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();
@@ -160,7 +143,7 @@ class GuardTest extends TestCase
         ]);
 
         // Set the user on the web guard
-        $authManager = $this->app->get(AuthManager::class);
+        $authManager = $this->app->make('auth');
         $authManager->guard('web')->setUser($user);
 
         // Make request without token - should use web guard
@@ -280,10 +263,10 @@ class GuardTest extends TestCase
         $tokenAuthenticatedFired = false;
 
         // Get the real event dispatcher
-        $realDispatcher = $this->app->get(EventDispatcherInterface::class);
+        $realDispatcher = $this->app->make(Dispatcher::class);
 
         // Create a partial mock that delegates to the real dispatcher
-        $events = Mockery::mock($realDispatcher);
+        $events = m::mock($realDispatcher);
         $events->makePartial(); // This makes it a partial mock
 
         // Only spy on dispatch calls, don't change behavior
@@ -296,7 +279,8 @@ class GuardTest extends TestCase
                 return $realDispatcher->dispatch($event);
             });
 
-        $this->app->instance(EventDispatcherInterface::class, $events);
+        $this->app->instance('events', $events);
+        $this->app->instance(Dispatcher::class, $events);
 
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
@@ -313,9 +297,7 @@ class GuardTest extends TestCase
         $this->assertTrue($tokenAuthenticatedFired, 'TokenAuthenticated event was not fired');
     }
 
-    /**
-     * @dataProvider invalidTokenDataProvider
-     */
+    #[DataProvider('invalidTokenDataProvider')]
     public function testAuthenticationFailsWithInvalidTokenFormat(string $invalidToken): void
     {
         $headers = $invalidToken ? ['Authorization' => $invalidToken] : [];

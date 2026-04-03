@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\View\Compilers\CompilerInterface;
-
 /**
  * @method static void compile(string $path)
  * @method static string compileString(string $value)
@@ -53,8 +51,8 @@ use Hypervel\View\Compilers\CompilerInterface;
  */
 class Blade extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return CompilerInterface::class;
+        return 'blade.compiler';
     }
 }

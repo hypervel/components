@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Carbon\Carbon;
 use Hypervel\Session\ArraySessionHandler;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use SessionHandlerInterface;
 
@@ -15,13 +15,6 @@ use SessionHandlerInterface;
  */
 class ArraySessionHandlerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Carbon::setTestNow(null);
-    }
-
     public function testIsSessionHandlerInterface()
     {
         $this->assertInstanceOf(
@@ -44,10 +37,20 @@ class ArraySessionHandlerTest extends TestCase
         $this->assertTrue($handler->close());
     }
 
+    public function testReadDataFromSession()
+    {
+        $handler = new ArraySessionHandler(10);
+
+        $handler->write('foo', 'bar');
+
+        $this->assertSame('bar', $handler->read('foo'));
+    }
+
     public function testReadDataFromAlmostExpiredSession()
     {
         $handler = new ArraySessionHandler(10);
 
+        Carbon::setTestNow(Carbon::now());
         $handler->write('foo', 'bar');
 
         Carbon::setTestNow(Carbon::now()->addMinutes(10));
@@ -59,6 +62,7 @@ class ArraySessionHandlerTest extends TestCase
     {
         $handler = new ArraySessionHandler(10);
 
+        Carbon::setTestNow(Carbon::now());
         $handler->write('foo', 'bar');
 
         Carbon::setTestNow(Carbon::now()->addMinutes(10)->addSecond());
@@ -88,6 +92,8 @@ class ArraySessionHandlerTest extends TestCase
     {
         $handler = new ArraySessionHandler(10);
 
+        $this->assertTrue($handler->destroy('foo'));
+
         $handler->write('foo', 'bar');
 
         $this->assertTrue($handler->destroy('foo'));
@@ -100,6 +106,7 @@ class ArraySessionHandlerTest extends TestCase
 
         $this->assertSame(0, $handler->gc(300));
 
+        Carbon::setTestNow(Carbon::now());
         $handler->write('foo', 'bar');
         $this->assertSame(0, $handler->gc(300));
         $this->assertSame('bar', $handler->read('foo'));

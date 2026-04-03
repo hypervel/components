@@ -1,0 +1,44 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Composer\InstalledVersions;
+
+// Load autoloader - check multiple locations for monorepo vs installed package
+$autoloadPaths = [
+    $_composer_autoload_path ?? null,
+    __DIR__ . '/../../../vendor/autoload.php',  // monorepo: src/testbench/bin -> components/vendor
+    __DIR__ . '/../../vendor/autoload.php',      // installed: testbench/bin -> testbench/vendor
+];
+
+foreach (array_filter($autoloadPaths) as $autoloadPath) {
+    if (is_file($autoloadPath)) {
+        require $autoloadPath;
+        break;
+    }
+}
+
+// Determine consumer package path
+$envPath = getenv('TESTBENCH_WORKING_PATH');
+$installedRootPath = InstalledVersions::getRootPackage()['install_path'] ?? null;
+
+$workingPath = match (true) {
+    is_string($envPath) && $envPath !== '' => $envPath,
+    is_string($installedRootPath) && $installedRootPath !== '' => $installedRootPath,
+    default => getcwd(),
+};
+
+$workingPath = realpath($workingPath) ?: $workingPath;
+
+define('TESTBENCH_WORKING_PATH', $workingPath);
+
+// Bootstrap Swoole environment (sets BASE_PATH, SWOOLE_HOOK_FLAGS, loads config)
+Hypervel\Testbench\Bootstrapper::bootstrap();
+
+$config = Hypervel\Testbench\Bootstrapper::getConfiguration()
+    ?? new Hypervel\Testbench\Foundation\Config();
+
+$commander = new Hypervel\Testbench\Console\Commander($config, $workingPath);
+
+$commander->handle();

@@ -14,7 +14,6 @@ use function Hypervel\Prompts\outro;
 use function Hypervel\Prompts\text;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

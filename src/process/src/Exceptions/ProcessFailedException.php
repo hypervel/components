@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Process\Exceptions;
 
-use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Contracts\Process\ProcessResult;
 use RuntimeException;
 
 class ProcessFailedException extends RuntimeException

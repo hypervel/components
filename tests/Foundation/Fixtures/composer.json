@@ -1,0 +1,9 @@
+{
+    "extra": {
+        "hypervel": {
+            "dont-discover": [
+                "vendor-a/package-d"
+            ]
+        }
+    }
+}

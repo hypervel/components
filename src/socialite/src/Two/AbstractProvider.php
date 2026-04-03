@@ -6,14 +6,13 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\HasProviderContext;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Psr\Http\Message\ResponseInterface;
 
 abstract class AbstractProvider implements ProviderContract
 {
@@ -54,16 +53,14 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Create a new provider instance.
      *
-     * @param RequestContract $request the HTTP request instance
-     * @param ResponseContract $response the HTTP response instance
+     * @param Request $request the HTTP request instance
      * @param string $clientId the client ID
      * @param string $clientSecret the client secret
      * @param string $redirectUrl the redirect URL
-     * @param array $guzzle array The custom Guzzle configuration options
+     * @param array $guzzle the custom Guzzle configuration options
      */
     public function __construct(
-        protected RequestContract $request,
-        protected ResponseContract $response,
+        protected Request $request,
         protected string $clientId,
         protected string $clientSecret,
         protected string $redirectUrl,
@@ -94,7 +91,7 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Redirect the user of the application to the provider's authentication screen.
      */
-    public function redirect(): ResponseInterface
+    public function redirect(): RedirectResponse
     {
         $state = null;
 
@@ -106,9 +103,7 @@ abstract class AbstractProvider implements ProviderContract
             $this->request->session()->put('code_verifier', $this->getCodeVerifier());
         }
 
-        return $this->response->redirect(
-            $this->getAuthUrl($state)
-        );
+        return new RedirectResponse($this->getAuthUrl($state));
     }
 
     /**
@@ -369,7 +364,7 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Set the request instance.
      */
-    public function setRequest(RequestContract $request): static
+    public function setRequest(Request $request): static
     {
         $this->request = $request;
 

@@ -10,7 +10,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\clear;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

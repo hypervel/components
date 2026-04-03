@@ -17,14 +17,14 @@ use Hypervel\Support\DateFactory;
  * @method static void useFactory(object $factory)
  * @method static \Hypervel\Support\Carbon create($year = 0, $month = 1, $day = 1, $hour = 0, $minute = 0, $second = 0, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromDate($year = null, $month = null, $day = null, $tz = null)
- * @method static false|\Hypervel\Support\Carbon createFromFormat($format, $time, $tz = null)
+ * @method static null|\Hypervel\Support\Carbon createFromFormat($format, $time, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromTime($hour = 0, $minute = 0, $second = 0, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromTimeString($time, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromTimestamp($timestamp, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromTimestampMs($timestamp, $tz = null)
  * @method static \Hypervel\Support\Carbon createFromTimestampUTC($timestamp)
  * @method static \Hypervel\Support\Carbon createMidnightDate($year = null, $month = null, $day = null, $tz = null)
- * @method static false|\Hypervel\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $tz = null)
+ * @method static null|\Hypervel\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $tz = null)
  * @method static void disableHumanDiffOption($humanDiffOption)
  * @method static void enableHumanDiffOption($humanDiffOption)
  * @method static mixed executeWithLocale($locale, $func)
@@ -73,9 +73,6 @@ use Hypervel\Support\DateFactory;
  * @method static void setTestNow($testNow = null)
  * @method static void setToStringFormat($format)
  * @method static void setTranslator(\Symfony\Contracts\Translation\TranslatorInterface $translator)
- * @method static void setUtf8($utf8)
- * @method static void setWeekEndsAt($day)
- * @method static void setWeekStartsAt($day)
  * @method static void setWeekendDays($days)
  * @method static bool shouldOverflowMonths()
  * @method static bool shouldOverflowYears()
@@ -96,7 +93,7 @@ class Date extends Facade
     /**
      * Get the registered name of the component.
      */
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return 'date';
     }
@@ -104,9 +101,9 @@ class Date extends Facade
     /**
      * Resolve the facade root instance from the container.
      */
-    protected static function resolveFacadeInstance(object|string $name): mixed
+    protected static function resolveFacadeInstance(string $name): mixed
     {
-        if (! isset(static::$resolvedInstance[$name])) {
+        if (! isset(static::$resolvedInstance[$name]) && ! isset(static::$app, static::$app[$name])) {
             $class = static::DEFAULT_FACADE;
 
             static::swap(new $class());

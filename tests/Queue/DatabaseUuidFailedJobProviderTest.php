@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
@@ -31,7 +31,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         parent::setUp();
 
         $this->provider = new DatabaseUuidFailedJobProvider(
-            $this->resolver = $this->app->get(ConnectionResolverInterface::class),
+            $this->resolver = $this->app->make('db'),
             'failed_jobs'
         );
     }
@@ -120,6 +120,22 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertCount(2, $this->provider->all());
 
         $this->provider->prune(Carbon::createFromDate(2024, 4, 30));
+
+        $this->assertEmpty($this->provider->all());
+    }
+
+    public function testPruningFailedJobsWithRelativeHoursAndMinutes()
+    {
+        Carbon::setTestNow(Carbon::create(2025, 8, 24, 12, 30, 0));
+
+        $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException());
+        $this->provider->log('connection-2', 'queue-2', json_encode(['uuid' => 'uuid-2']), new RuntimeException());
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 12, 30, 0));
+
+        $this->assertCount(2, $this->provider->all());
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 13, 0, 0));
 
         $this->assertEmpty($this->provider->all());
     }

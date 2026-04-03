@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
@@ -12,22 +12,12 @@ use Symfony\Component\Console\Exception\CommandNotFoundException;
 class ContainerCommandLoader implements CommandLoaderInterface
 {
     /**
-     * The container instance.
-     */
-    protected ContainerInterface $container;
-
-    /**
-     * A map of command names to classes.
-     */
-    protected array $commandMap;
-
-    /**
      * Create a new command loader instance.
      */
-    public function __construct(ContainerInterface $container, array $commandMap)
-    {
-        $this->container = $container;
-        $this->commandMap = $commandMap;
+    public function __construct(
+        protected Container $container,
+        protected array $commandMap,
+    ) {
     }
 
     /**
@@ -41,7 +31,7 @@ class ContainerCommandLoader implements CommandLoaderInterface
             throw new CommandNotFoundException(sprintf('Command "%s" does not exist.', $name));
         }
 
-        return $this->container->get($this->commandMap[$name]);
+        return $this->container->make($this->commandMap[$name]);
     }
 
     /**

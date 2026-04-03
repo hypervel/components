@@ -5,28 +5,30 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\StatefulGuard;
-use Hypervel\Auth\Guards\JwtGuard;
-use Hypervel\Auth\Guards\RequestGuard;
-use Hypervel\Auth\Guards\SessionGuard;
-use Hypervel\JWT\JWTManager;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Auth\Factory as FactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 
-class AuthManager implements AuthFactoryContract
+/**
+ * @mixin Guard
+ * @mixin StatefulGuard
+ */
+class AuthManager implements FactoryContract
 {
     use CreatesUserProviders;
 
     /**
-     * The array of created "drivers".
+     * Context key for the default guard override.
      */
-    protected array $guards = [];
+    public const string DEFAULT_GUARD_CONTEXT_KEY = '__auth.defaults.guard';
+
+    /**
+     * Context key for the user resolver callback override.
+     */
+    protected const string RESOLVER_CONTEXT_KEY = '__auth.resolver';
 
     /**
      * The registered custom driver creators.
@@ -34,24 +36,24 @@ class AuthManager implements AuthFactoryContract
     protected array $customCreators = [];
 
     /**
+     * The array of created "drivers".
+     */
+    protected array $guards = [];
+
+    /**
      * The user resolver shared by various services.
      *
-     * Determines the default user for Authenticatable contract.
+     * Determines the default user for Gate, Request, and the Authenticatable contract.
      */
     protected Closure $userResolver;
 
     /**
-     * The auth configuration.
+     * Create a new Auth manager instance.
      */
-    protected ConfigInterface $config;
-
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app,
     ) {
-        $this->config = $this->app->get(ConfigInterface::class);
-        $this->userResolver = function ($guard = null) {
-            return $this->guard($guard)->user();
-        };
+        $this->userResolver = fn ($guard = null) => $this->guard($guard)->user();
     }
 
     /**
@@ -61,7 +63,7 @@ class AuthManager implements AuthFactoryContract
     {
         $name = $name ?: $this->getDefaultDriver();
 
-        return $this->guards[$name] ?? $this->guards[$name] = $this->resolve($name);
+        return $this->guards[$name] ??= $this->resolve($name);
     }
 
     /**
@@ -69,9 +71,11 @@ class AuthManager implements AuthFactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name): Guard
+    protected function resolve(string $name): Guard|StatefulGuard
     {
-        if (! $config = $this->getConfig($name)) {
+        $config = $this->getConfig($name);
+
+        if (is_null($config)) {
             throw new InvalidArgumentException("Auth guard [{$name}] is not defined.");
         }
 
@@ -95,7 +99,7 @@ class AuthManager implements AuthFactoryContract
      */
     protected function callCustomCreator(string $name, array $config): mixed
     {
-        return $this->customCreators[$config['driver']]($name, $config);
+        return $this->customCreators[$config['driver']]($this->app, $name, $config);
     }
 
     /**
@@ -103,43 +107,156 @@ class AuthManager implements AuthFactoryContract
      */
     public function createSessionDriver(string $name, array $config): SessionGuard
     {
-        return new SessionGuard(
+        $guard = new SessionGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(SessionContract::class)
+            $this->app['session.store'],
+            $this->app,
+            rehashOnLogin: $this->app['config']->get('hashing.rehash_on_login', true),
+            timeboxDuration: $this->app['config']->get('auth.timebox_duration', 200000),
+            hashKey: $this->app['config']->get('app.key'),
+        );
+
+        // When using the remember me functionality of the authentication services we
+        // will need to be set the encryption instance of the guard, which allows
+        // secure, encrypted cookie values to get generated for those cookies.
+        $guard->setCookieJar($this->app['cookie']);
+
+        $guard->setDispatcher($this->app['events']);
+
+        if (isset($config['remember'])) {
+            $guard->setRememberDuration($config['remember']);
+        }
+
+        return $guard;
+    }
+
+    /**
+     * Create a token based authentication guard.
+     */
+    public function createTokenDriver(string $name, array $config): TokenGuard
+    {
+        // The token guard implements a basic API token based guard implementation
+        // that takes an API token field from the request and matches it to the
+        // user in the database or another persistence layer where users are.
+        return new TokenGuard(
+            $name,
+            $this->createUserProvider($config['provider'] ?? null),
+            $this->app,
+            $config['input_key'] ?? 'api_token',
+            $config['storage_key'] ?? 'api_token',
+            $config['hash'] ?? false,
         );
     }
 
     /**
-     * Create a jwt based authentication guard.
+     * Create a JWT based authentication guard.
      */
     public function createJwtDriver(string $name, array $config): JwtGuard
     {
         return new JwtGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->get(JWTManager::class),
-            $this->app->get(RequestInterface::class),
-            (int) $this->config->get('jwt.ttl', 120)
+            $this->app->make('jwt'),
+            $this->app,
+            (int) $this->app['config']->get('jwt.ttl', 120),
         );
     }
 
     /**
-     * Register a custom driver creator Closure.
+     * Get the guard configuration.
+     */
+    protected function getConfig(string $name): ?array
+    {
+        return $this->app['config']["auth.guards.{$name}"];
+    }
+
+    /**
+     * Get the default authentication driver name.
      *
-     * @return $this
+     * In Swoole, the default guard can be overridden per-request via Context
+     * (e.g. when middleware calls shouldUse()), falling back to config.
+     */
+    public function getDefaultDriver(): string
+    {
+        if ($driver = CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
+            return $driver;
+        }
+
+        return $this->app['config']['auth.defaults.guard'];
+    }
+
+    /**
+     * Set the default guard driver the factory should serve.
+     */
+    public function shouldUse(?string $name): void
+    {
+        $name = $name ?: $this->getDefaultDriver();
+
+        $this->setDefaultDriver($name);
+
+        $this->resolveUsersUsing(fn ($name = null) => $this->guard($name)->user());
+    }
+
+    /**
+     * Set the default authentication driver name.
+     *
+     * Uses coroutine Context so one request's override doesn't affect others.
+     */
+    public function setDefaultDriver(string $name): void
+    {
+        CoroutineContext::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
+    }
+
+    /**
+     * Register a new callback based request guard.
+     */
+    public function viaRequest(string $driver, callable $callback): static
+    {
+        return $this->extend($driver, function ($app, $name) use ($callback) {
+            return new RequestGuard($name, $callback, $app, $this->createUserProvider());
+        });
+    }
+
+    /**
+     * Get the user resolver callback.
+     *
+     * Checks coroutine Context first for per-request overrides, then falls
+     * back to the process-global default resolver.
+     */
+    public function userResolver(): Closure
+    {
+        if ($resolver = CoroutineContext::get(self::RESOLVER_CONTEXT_KEY)) {
+            return $resolver;
+        }
+
+        return $this->userResolver;
+    }
+
+    /**
+     * Set the callback to be used to resolve users.
+     *
+     * Uses coroutine Context so one request's override doesn't affect others.
+     */
+    public function resolveUsersUsing(Closure $userResolver): static
+    {
+        CoroutineContext::set(self::RESOLVER_CONTEXT_KEY, $userResolver);
+
+        return $this;
+    }
+
+    /**
+     * Register a custom driver creator Closure.
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback;
+        $this->customCreators[$driver] = $callback->bindTo($this, $this);
 
         return $this;
     }
 
     /**
      * Register a custom provider creator Closure.
-     *
-     * @return $this
      */
     public function provider(string $name, Closure $callback): static
     {
@@ -149,81 +266,26 @@ class AuthManager implements AuthFactoryContract
     }
 
     /**
-     * Get the default authentication driver name.
+     * Determine if any guards have already been resolved.
      */
-    public function getDefaultDriver(): string
+    public function hasResolvedGuards(): bool
     {
-        if ($driver = Context::get('__auth.defaults.guard')) {
-            return $driver;
-        }
-
-        return $this->config->get('auth.defaults.guard');
+        return count($this->guards) > 0;
     }
 
     /**
-     * Set the default guard the factory should serve.
+     * Forget all of the resolved guard instances.
      */
-    public function shouldUse(?string $name): void
+    public function forgetGuards(): static
     {
-        $name = $name ?: $this->getDefaultDriver();
-
-        $this->setDefaultDriver($name);
-
-        $this->resolveUsersUsing(function ($name = null) {
-            return $this->guard($name)->user();
-        });
-    }
-
-    /**
-     * Set the default authentication driver name.
-     */
-    public function setDefaultDriver(string $name): void
-    {
-        Context::set('__auth.defaults.guard', $name);
-    }
-
-    /**
-     * Register a new callback based request guard.
-     */
-    public function viaRequest(string $driver, callable $callback): static
-    {
-        return $this->extend($driver, function () use ($callback) {
-            return new RequestGuard($this->createUserProvider(), $callback);
-        });
-    }
-
-    /**
-     * Get the user resolver callback.
-     */
-    public function userResolver(): Closure
-    {
-        if ($resolver = Context::get('__auth.resolver')) {
-            return $resolver;
-        }
-
-        return $this->userResolver;
-    }
-
-    /**
-     * Get the user resolver callback.
-     *
-     * @return $this
-     */
-    public function resolveUsersUsing(Closure $userResolver): static
-    {
-        Context::set('__auth.resolver', $userResolver);
+        $this->guards = [];
 
         return $this;
     }
 
     /**
-     * Get the guard configuration.
+     * Get all of the created guard instances.
      */
-    protected function getConfig(string $name): array
-    {
-        return $this->config->get("auth.guards.{$name}", []);
-    }
-
     public function getGuards(): array
     {
         return $this->guards;
@@ -231,10 +293,8 @@ class AuthManager implements AuthFactoryContract
 
     /**
      * Set the application instance used by the manager.
-     *
-     * @return $this
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 
@@ -243,12 +303,8 @@ class AuthManager implements AuthFactoryContract
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->guard()->{$method}(...$parameters);
     }

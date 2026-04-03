@@ -8,10 +8,10 @@ use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\HttpMessage\Server\Response;
-use Hypervel\Router\Contracts\UrlRoutable;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\Macroable;
@@ -20,7 +20,6 @@ use InvalidArgumentException;
 use JsonSerializable;
 use League\Uri\Contracts\UriInterface;
 use League\Uri\Uri as LeagueUri;
-use Psr\Http\Message\ResponseInterface;
 use Stringable;
 
 class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
@@ -314,31 +313,9 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Create a redirect HTTP response for the given URI.
      */
-    public function redirect(int $status = 302, array $headers = []): ResponseInterface
+    public function redirect(int $status = 302, array $headers = []): RedirectResponse
     {
-        $response = (new Response())
-            ->withStatus($status)
-            ->withHeader('Location', $this->value());
-
-        foreach ($headers as $name => $value) {
-            $response = $response->withHeader($name, $value);
-        }
-
-        return $response;
-        // $toUrl = value(function () use ($toUrl, $schema) {
-        //     if (Str::startsWith($toUrl, ['http://', 'https://'])) {
-        //         return $toUrl;
-        //     }
-
-        //     $host = RequestContext::get()->getUri()->getAuthority();
-
-        //     // Build the url by $schema and host.
-        //     return $schema . '://' . $host . (Str::startsWith($toUrl, '/') ? $toUrl : '/' . $toUrl);
-        // });
-        // return $this->getResponse()->withStatus($status)->withAddedHeader('Location', $toUrl);
-        // app(ResponseContract::class)
-        //     ->redirect($toUrl, $status, $schema)
-        // return new RedirectResponse($this->value(), $status, $headers);
+        return new RedirectResponse($this->value(), $status, $headers);
     }
 
     /**
@@ -351,11 +328,10 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
 
     /**
      * Create an HTTP response that represents the URI object.
-     * @param mixed $request
      */
-    public function toResponse($request): ResponseInterface
+    public function toResponse(mixed $request): RedirectResponse
     {
-        return $this->redirect();
+        return new RedirectResponse($this->value());
     }
 
     /**
@@ -434,5 +410,14 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     public function __toString(): string
     {
         return $this->uri->toString();
+    }
+
+    /**
+     * Flush the URI helper's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$urlGeneratorResolver = null;
+        static::flushMacros();
     }
 }

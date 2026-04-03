@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\UsePusherChannelConventions;
+use Hypervel\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
 class UsePusherChannelsNamesTest extends TestCase
 {
     #[DataProvider('channelsProvider')]
-    public function testChannelNameNormalization($requestChannelName, $normalizedName)
+    public function testChannelNameNormalization($requestChannelName, $normalizedName, $guarded)
     {
         $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
 
@@ -34,6 +34,19 @@ class UsePusherChannelsNamesTest extends TestCase
         $this->assertSame(
             'private-123',
             $broadcaster->normalizeChannelName('private-encrypted-private-123')
+        );
+    }
+
+    public function testChannelNamePatternMatching()
+    {
+        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
+
+        $this->assertEquals(
+            0,
+            $broadcaster->testChannelNameMatchesPattern(
+                'TestChannel',
+                'Test.{id}'
+            )
         );
     }
 
@@ -96,17 +109,22 @@ class FakeBroadcasterUsingPusherChannelsNames extends Broadcaster
 {
     use UsePusherChannelConventions;
 
-    public function auth(RequestInterface $request): mixed
+    public function auth(Request $request): mixed
     {
         return null;
     }
 
-    public function validAuthenticationResponse(RequestInterface $request, mixed $result): mixed
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
         return null;
     }
 
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
+    }
+
+    public function testChannelNameMatchesPattern(string $channel, string $pattern): bool
+    {
+        return $this->channelNameMatchesPattern($channel, $pattern);
     }
 }

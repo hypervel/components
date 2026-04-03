@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
-use Hyperf\Di\Container;
-use Hyperf\Stringable\Str;
+use DateInterval;
+use DateTimeInterface;
+use Hypervel\Bus\Batchable;
+use Hypervel\Container\Container;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
-use Ramsey\Uuid\UuidFactoryInterface;
 use ReflectionClass;
 use stdClass;
 
@@ -27,22 +27,18 @@ use stdClass;
  */
 class QueueDatabaseQueueUnitTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        Uuid::setFactory(new UuidFactory());
-    }
-
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
-        $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime'])->setConstructorArgs([$resolver = m::mock(ConnectionResolverInterface::class), null, 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
         $queue->setContainer($container = m::spy(Container::class));
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
@@ -56,11 +52,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public static function pushJobsDataProvider()
@@ -76,33 +74,68 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testDelayedPushProperlyPushesJobOntoDatabase()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
-        $queue = $this->getMockBuilder(DatabaseQueue::class)
-            ->onlyMethods(['currentTime'])
-            ->setConstructorArgs([$resolver = m::mock(ConnectionResolverInterface::class), null, 'table', 'default'])
-            ->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
         $queue->setContainer($container = m::spy(Container::class));
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
 
-        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid) {
+        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $now) {
             $this->assertSame('default', $array['queue']);
-            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]), $array['payload']);
+            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 10]), $array['payload']);
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->later(10, 'foo', ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('bound')->with('events')->twice();
+    }
+
+    public function testPushIncludesBatchIdInPayloadForBatchableJob()
+    {
+        $uuid = Str::uuid()->toString();
+
+        Str::createUuidsUsing(fn () => $uuid);
+
+        $job = (new MyBatchableJob())->withBatchId('test-batch-id');
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer($container = m::spy(Container::class));
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
+            $payload = json_decode($array['payload'], true);
+            $this->assertSame('test-batch-id', $payload['data']['batchId']);
+
+            return 1;
+        });
+
+        $queue->push($job, ['data']);
+
+        $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
     public function testFailureToCreatePayloadFromObject()
@@ -138,35 +171,43 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testBulkBatchPushesOntoDatabase()
     {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+
         $uuid = Str::uuid();
 
-        $uuidFactory = m::mock(UuidFactoryInterface::class);
-        $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
-        Uuid::setFactory($uuidFactory);
+        Str::createUuidsUsing(fn () => $uuid);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime', 'availableAt'])->setConstructorArgs([$resolver, null, 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn(1732502704);
-        $queue->expects($this->any())->method('availableAt')->willReturn(1732502704);
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+            availableAt: 1732502704,
+        );
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
-        $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid) {
+        $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid, $now) {
             $this->assertEquals([[
                 'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]),
+                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]),
                 'attempts' => 0,
                 'reserved_at' => null,
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ], [
                 'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'bar', 'job' => 'bar', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data']]),
+                'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'bar', 'job' => 'bar', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]),
                 'attempts' => 0,
                 'reserved_at' => null,
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ]], $records);
+
+            return true;
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');
@@ -186,5 +227,34 @@ class MyTestJob
     public function handle()
     {
         // ...
+    }
+}
+
+class MyBatchableJob
+{
+    use Batchable;
+}
+
+class TestDatabaseQueue extends DatabaseQueue
+{
+    public function __construct(
+        ConnectionResolverInterface $resolver,
+        ?string $connection,
+        string $table,
+        string $default,
+        private readonly int $currentTime,
+        private readonly ?int $availableAt = null,
+    ) {
+        parent::__construct($resolver, $connection, $table, $default);
+    }
+
+    protected function currentTime(): int
+    {
+        return $this->currentTime;
+    }
+
+    protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int
+    {
+        return $this->availableAt ?? parent::availableAt($delay);
     }
 }

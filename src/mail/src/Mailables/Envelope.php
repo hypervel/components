@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Mail\Mailables;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Conditionable;
 
 class Envelope
 {
@@ -49,7 +49,7 @@ class Envelope
     public array $tags = [];
 
     /**
-     * The message's meta data.
+     * The message's metadata.
      */
     public array $metadata = [];
 
@@ -82,6 +82,19 @@ class Envelope
     }
 
     /**
+     * Normalize the given array of addresses.
+     *
+     * @param array<int, Address|string> $addresses
+     * @return array<int, Address>
+     */
+    protected function normalizeAddresses(array $addresses): array
+    {
+        return (new Collection($addresses))
+            ->map(fn ($address) => is_string($address) ? new Address($address) : $address)
+            ->all();
+    }
+
+    /**
      * Specify who the message will be "from".
      */
     public function from(Address|string $address, ?string $name = null): static
@@ -97,9 +110,7 @@ class Envelope
     public function to(Address|array|string $address, ?string $name = null): static
     {
         $this->to = array_merge($this->to, $this->normalizeAddresses(
-            is_string(
-                $name
-            ) ? [new Address($address, $name)] : Arr::wrap($address),
+            is_string($name) ? [new Address($address, $name)] : Arr::wrap($address),
         ));
 
         return $this;
@@ -163,8 +174,6 @@ class Envelope
 
     /**
      * Add a "tag" to the message.
-     *
-     * @return $this
      */
     public function tag(string $tag): static
     {
@@ -175,8 +184,6 @@ class Envelope
 
     /**
      * Add metadata to the message.
-     *
-     * @return $this
      */
     public function metadata(string $key, int|string $value): static
     {
@@ -187,8 +194,6 @@ class Envelope
 
     /**
      * Add a Symfony Message customization callback to the message.
-     *
-     * @return $this
      */
     public function using(Closure $callback): static
     {
@@ -253,22 +258,9 @@ class Envelope
     /**
      * Determine if the message has the given metadata.
      */
-    public function hasMetadata(string $key, string $value): bool
+    public function hasMetadata(string $key, int|string $value): bool
     {
-        return isset($this->metadata[$key]) && (string) $this->metadata[$key] === $value;
-    }
-
-    /**
-     * Normalize the given array of addresses.
-     *
-     * @param array<int, Address|string> $addresses
-     * @return array<int, Address>
-     */
-    protected function normalizeAddresses(array $addresses): array
-    {
-        return Collection::make($addresses)->map(function ($address) {
-            return is_string($address) ? new Address($address) : $address;
-        })->all();
+        return isset($this->metadata[$key]) && (string) $this->metadata[$key] === (string) $value;
     }
 
     /**
@@ -276,7 +268,7 @@ class Envelope
      */
     protected function hasRecipient(array $recipients, string $address, ?string $name = null): bool
     {
-        return Collection::make($recipients)->contains(function ($recipient) use ($address, $name) {
+        return (new Collection($recipients))->contains(function ($recipient) use ($address, $name) {
             if (is_null($name)) {
                 return $recipient->address === $address;
             }

@@ -7,31 +7,34 @@ namespace Hypervel\Broadcasting;
 use Ably\AblyRest;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
-use Hypervel\Broadcasting\Contracts\Broadcaster;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
-use Hypervel\Broadcasting\Contracts\ShouldBeUnique;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcastNow;
-use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Cache\Contracts\Factory as Cache;
-use Hypervel\Foundation\Http\Kernel;
-use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
+use Hypervel\Contracts\Broadcasting\Broadcaster;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
+use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
+use Hypervel\Contracts\Broadcasting\ShouldRescue;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Queue\Factory as Queue;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Contracts\Factory as Queue;
+use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
+use RuntimeException;
+use Throwable;
 
 /**
  * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
@@ -39,6 +42,8 @@ use Pusher\Pusher;
 class BroadcastManager implements BroadcastingFactoryContract
 {
     use HasPoolProxy;
+    use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
 
     /**
      * The array of resolved broadcast drivers.
@@ -64,34 +69,28 @@ class BroadcastManager implements BroadcastingFactoryContract
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app,
+        protected Container $app,
     ) {
     }
 
     /**
      * Register the routes for handling broadcast channel authentication and sockets.
      */
-    public function routes(array $attributes = []): void
+    public function routes(?array $attributes = null): void
     {
-        if ($this->app->has(Kernel::class)) {
-            $attributes = $attributes ?: [
-                'middleware' => ['web'],
-                'without_middleware' => [VerifyCsrfToken::class],
-            ];
+        if ($this->app instanceof CachesRoutes && $this->app->routesAreCached()) {
+            return;
         }
 
-        $kernels = $this->app->get(ConfigInterface::class)
-            ->get('server.kernels', []);
-        foreach (array_keys($kernels) as $kernel) {
-            $this->app->get(RouterDispatcherFactory::class)
-                ->getRouter($kernel)
-                ->addRoute(
-                    ['GET', 'POST'],
-                    '/broadcasting/auth',
-                    [BroadcastController::class, 'authenticate'],
-                    $attributes,
-                );
-        }
+        $attributes = $attributes ?: ['middleware' => ['web']];
+
+        $this->app['router']->group($attributes, function ($router) {
+            $router->match(
+                ['get', 'post'],
+                '/broadcasting/auth',
+                '\\' . BroadcastController::class . '@authenticate'
+            )->withoutMiddleware([PreventRequestForgery::class]);
+        });
     }
 
     /**
@@ -99,18 +98,19 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function userRoutes(?array $attributes = null): void
     {
-        $attributes = $attributes ?: [
-            'middleware' => ['web'],
-            'without_middleware' => [VerifyCsrfToken::class],
-        ];
+        if ($this->app instanceof CachesRoutes && $this->app->routesAreCached()) {
+            return;
+        }
 
-        $this->app->get(RouterDispatcherFactory::class)->getRouter()
-            ->addRoute(
-                ['GET', 'POST'],
+        $attributes = $attributes ?: ['middleware' => ['web']];
+
+        $this->app['router']->group($attributes, function ($router) {
+            $router->match(
+                ['get', 'post'],
                 '/broadcasting/user-auth',
-                [BroadcastController::class, 'authenticateUser'],
-                $attributes,
-            );
+                '\\' . BroadcastController::class . '@authenticateUser'
+            )->withoutMiddleware([PreventRequestForgery::class]);
+        });
     }
 
     /**
@@ -126,11 +126,15 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Get the socket ID for the given request.
      */
-    public function socket(?RequestInterface $request = null): ?string
+    public function socket(?Request $request = null): ?string
     {
-        $request ??= $this->app->get(RequestInterface::class);
+        if (! $request && ! $this->app->bound('request')) {
+            return null;
+        }
 
-        return $request?->header('X-Socket-ID');
+        $request = $request ?: $this->app['request'];
+
+        return $request->header('X-Socket-ID');
     }
 
     /**
@@ -138,7 +142,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function on(array|Channel|string $channels): AnonymousEvent
     {
-        return new AnonymousEvent($this, $channels);
+        return new AnonymousEvent($channels);
     }
 
     /**
@@ -163,7 +167,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function event(mixed $event = null): PendingBroadcast
     {
         return new PendingBroadcast(
-            $this->app->get(EventDispatcherInterface::class),
+            $this->app->make('events'),
             $event,
         );
     }
@@ -176,16 +180,30 @@ class BroadcastManager implements BroadcastingFactoryContract
         if ($event instanceof ShouldBroadcastNow
             || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
         ) {
-            $this->app->get(Dispatcher::class)->dispatchNow(new BroadcastEvent(clone $event));
+            $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(new BroadcastEvent(clone $event));
+
+            $event instanceof ShouldRescue
+                ? $this->rescue($dispatch)
+                : $dispatch();
+
             return;
         }
 
-        $queue = match (true) {
-            method_exists($event, 'broadcastQueue') => $event->broadcastQueue(),
-            isset($event->broadcastQueue) => $event->broadcastQueue,
-            isset($event->queue) => $event->queue,
-            default => null,
-        };
+        $queue = null;
+
+        if (method_exists($event, 'broadcastQueue')) {
+            $queue = $event->broadcastQueue();
+        } elseif (isset($event->broadcastQueue)) {
+            $queue = $event->broadcastQueue;
+        } elseif (isset($event->queue)) {
+            $queue = $event->queue;
+        }
+
+        if (is_null($queue)) {
+            $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')
+                ?? $this->resolveQueueFromQueueRoute($event)
+                ?? null;
+        }
 
         $broadcastEvent = new BroadcastEvent(clone $event);
 
@@ -197,17 +215,30 @@ class BroadcastManager implements BroadcastingFactoryContract
             }
         }
 
-        $this->app->get(Queue::class)
-            ->connection($event->connection ?? null)
+        $push = fn () => $this->app->make(Queue::class)
+            ->connection(
+                $event->connection
+                    ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
+                    ?? $this->resolveConnectionFromQueueRoute($event)
+                    ?? null
+            )
             ->pushOn($queue, $broadcastEvent);
+
+        $event instanceof ShouldRescue
+            ? $this->rescue($push)
+            : $push();
     }
 
     /**
      * Determine if the broadcastable event must be unique and determine if we can acquire the necessary lock.
      */
-    protected function mustBeUniqueAndCannotAcquireLock(UniqueBroadcastEvent $event): bool
+    protected function mustBeUniqueAndCannotAcquireLock(mixed $event): bool
     {
-        return ! (new UniqueLock($event->uniqueVia()))->acquire($event);
+        return ! (new UniqueLock(
+            method_exists($event, 'uniqueVia')
+                ? $event->uniqueVia()
+                : $this->app->make(Cache::class)
+        ))->acquire($event);
     }
 
     /**
@@ -252,18 +283,19 @@ class BroadcastManager implements BroadcastingFactoryContract
         return in_array($config['driver'], $this->poolables)
             ? $this->createPoolProxy(
                 $name,
-                fn () => $this->doResolve($config),
+                fn () => $this->doResolve($name, $config),
                 $config['pool'] ?? []
             )
-            : $this->doResolve($config);
+            : $this->doResolve($name, $config);
     }
 
     /**
      * Resolve the given broadcaster.
      *
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
-    protected function doResolve(array $config): Broadcaster
+    protected function doResolve(string $name, array $config): Broadcaster
     {
         if (isset($this->customCreators[$config['driver']])) {
             return $this->callCustomCreator($config);
@@ -275,7 +307,15 @@ class BroadcastManager implements BroadcastingFactoryContract
             throw new InvalidArgumentException("Driver [{$config['driver']}] is not supported.");
         }
 
-        return $this->{$driverMethod}($config);
+        try {
+            return $this->{$driverMethod}($config);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                "Failed to create broadcaster for connection \"{$name}\" with error: {$e->getMessage()}.",
+                0,
+                $e,
+            );
+        }
     }
 
     /**
@@ -327,7 +367,7 @@ class BroadcastManager implements BroadcastingFactoryContract
         );
 
         if ($config['log'] ?? false) {
-            $pusher->setLogger($this->app->get(LoggerInterface::class));
+            $pusher->setLogger($this->app->make(LoggerInterface::class));
         }
 
         return $pusher;
@@ -354,11 +394,14 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createRedisDriver(array $config): Broadcaster
     {
+        /** @var \Hypervel\Contracts\Redis\Factory $redis */
+        $redis = $this->app->make('redis');
+
         return new RedisBroadcaster(
             $this->app,
-            $this->app->get(RedisFactory::class),
+            $redis,
             $config['connection'] ?? 'default',
-            $this->app->get(ConfigInterface::class)->get('database.redis.options.prefix', ''),
+            $this->app['config']->get('database.redis.options.prefix', ''),
         );
     }
 
@@ -367,7 +410,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createLogDriver(array $config): Broadcaster
     {
-        return new LogBroadcaster($this->app->get(LoggerInterface::class));
+        return new LogBroadcaster($this->app->make(LoggerInterface::class));
     }
 
     /**
@@ -384,7 +427,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigInterface::class)->get("broadcasting.connections.{$name}");
+            return $this->app['config']["broadcasting.connections.{$name}"];
         }
 
         return ['driver' => 'null'];
@@ -395,7 +438,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)->get('broadcasting.default');
+        return $this->app['config']['broadcasting.default'];
     }
 
     /**
@@ -403,7 +446,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(ConfigInterface::class)->set('broadcasting.default', $name);
+        $this->app['config']['broadcasting.default'] = $name;
     }
 
     /**
@@ -421,15 +464,27 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback;
+        $this->customCreators[$driver] = $callback->bindTo($this, $this);
 
         return $this;
     }
 
     /**
+     * Execute the given callback using "rescue" if possible.
+     */
+    protected function rescue(Closure $callback): mixed
+    {
+        if (function_exists('rescue')) {
+            return rescue($callback);
+        }
+
+        return $callback();
+    }
+
+    /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -437,7 +492,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

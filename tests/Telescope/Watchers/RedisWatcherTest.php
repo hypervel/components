@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\RedisConnection;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -23,12 +22,16 @@ class RedisWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 RedisWatcher::class => true,
             ]);
-        $this->app->get(ConfigInterface::class)
-            ->set('redis.foo', []);
+        $this->app->make('config')
+            ->set('database.redis.foo', [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'db' => 0,
+            ]);
 
         RedisWatcher::enableRedisEvents($this->app);
 
@@ -38,19 +41,19 @@ class RedisWatcherTest extends FeatureTestCase
     public function testRegisterEnableRedisEvents()
     {
         $this->assertTrue(
-            $this->app->get(ConfigInterface::class)
-                ->get('redis.foo.event.enable', false)
+            $this->app->make('config')
+                ->get('database.redis.foo.event.enable', false)
         );
     }
 
     public function testRedisWatcherRegistersEntries()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new CommandExecuted(
                 'command',
                 ['foo', 'bar'],
                 0.0123,
-                m::mock(RedisConnection::class),
+                m::mock(PhpRedisConnection::class),
                 'connection',
                 'result',
                 null

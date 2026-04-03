@@ -6,10 +6,9 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
-use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\OpenIdTestProviderStub;
 use Hypervel\Tests\TestCase;
@@ -23,16 +22,9 @@ use Psr\Http\Message\StreamInterface;
  */
 class OpenIdProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
-    }
-
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
 
@@ -53,31 +45,26 @@ class OpenIdProviderTest extends TestCase
             return false;
         };
 
-        $response = m::mock(ResponseContract::class);
-        $response->shouldReceive('redirect')
-            ->once()
-            ->with(m::on(function ($url) use (&$state, &$nonce) {
-                return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&nonce={$nonce}";
-            }))->andReturn($redirectResponse = m::mock(ResponseInterface::class));
-
         $session->expects('put')->twice()->withArgs($closure);
         $provider = new OpenIdTestProviderStub(
             $request,
-            $response,
             'client_id',
             'client_secret',
             'redirect'
         );
 
+        $response = $provider->redirect();
+
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertSame(
-            $redirectResponse,
-            $provider->redirect()
+            "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&nonce={$nonce}",
+            $response->getTargetUrl()
         );
     }
 
     public function testUserReturnsAUserInstanceForTheAuthenticatedRequest()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
         $request->shouldReceive('has')
@@ -96,7 +83,6 @@ class OpenIdProviderTest extends TestCase
         $session->expects('get')->with('nonce')->andReturns('nonce');
         $provider = new OpenIdTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'

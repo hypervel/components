@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 /**
- * Tests real concurrency with coroutine-based parallel operations.
- *
- * Uses Hypervel's coroutine system instead of Laravel's process-based Concurrency.
+ * Tests Redis atomicity under concurrent coroutine operations.
  */
 final class ConcurrencyCheck implements CheckInterface
 {

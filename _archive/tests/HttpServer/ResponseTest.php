@@ -1,0 +1,268 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\HttpServer;
+
+use Hypervel\Container\Container;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Xmlable;
+use Hypervel\HttpMessage\Cookie\Cookie;
+use Hypervel\HttpMessage\Server\Request;
+use Hypervel\HttpMessage\Stream\SwooleStream;
+use Hypervel\HttpServer\Contracts\RequestInterface;
+use Hypervel\HttpServer\Contracts\ResponseInterface;
+use Hypervel\HttpServer\Response;
+use Hypervel\HttpServer\ResponseEmitter;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
+use ReflectionClass;
+use Stringable;
+use Swoole\Http\Response as SwooleResponse;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class ResponseTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        Context::set(PsrResponseInterface::class, null);
+        RequestContext::destroy();
+    }
+
+    public function testRedirect()
+    {
+        $container = m::mock(ContainerContract::class);
+        $request = m::mock(RequestInterface::class);
+        RequestContext::set(new Request('GET', 'http://127.0.0.1:9501'));
+        $container->shouldReceive('make')->with(RequestInterface::class)->andReturn($request);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $res = $response->redirect('https://www.baidu.com');
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame('https://www.baidu.com', $res->getHeaderLine('Location'));
+
+        $response = new Response();
+        $res = $response->redirect('http://www.baidu.com');
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame('http://www.baidu.com', $res->getHeaderLine('Location'));
+
+        $response = new Response();
+        $res = $response->redirect('/index');
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame('http://127.0.0.1:9501/index', $res->getHeaderLine('Location'));
+
+        $response = new Response();
+        $res = $response->redirect('index');
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame('http://127.0.0.1:9501/index', $res->getHeaderLine('Location'));
+    }
+
+    public function testToXml()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $reflectionClass = new ReflectionClass(Response::class);
+        $reflectionMethod = $reflectionClass->getMethod('toXml');
+
+        $expected = '<?xml version="1.0" encoding="utf-8"?>
+<root><kstring>string</kstring><kint1>1</kint1><kint0>0</kint0><kfloat>0.12345</kfloat><kfalse/><ktrue>1</ktrue><karray><kstring>string</kstring><kint1>1</kint1><kint0>0</kint0><kfloat>0.12345</kfloat><kfalse/><ktrue>1</ktrue></karray></root>';
+
+        // Array
+        $this->assertSame($expected, $reflectionMethod->invoke($response, [
+            'kstring' => 'string',
+            'kint1' => 1,
+            'kint0' => 0,
+            'kfloat' => 0.12345,
+            'kfalse' => false,
+            'ktrue' => true,
+            'karray' => [
+                'kstring' => 'string',
+                'kint1' => 1,
+                'kint0' => 0,
+                'kfloat' => 0.12345,
+                'kfalse' => false,
+                'ktrue' => true,
+            ],
+        ]));
+
+        // Arrayable
+        $arrayable = new class implements Arrayable {
+            public function toArray(): array
+            {
+                return [
+                    'kstring' => 'string',
+                    'kint1' => 1,
+                    'kint0' => 0,
+                    'kfloat' => 0.12345,
+                    'kfalse' => false,
+                    'ktrue' => true,
+                    'karray' => [
+                        'kstring' => 'string',
+                        'kint1' => 1,
+                        'kint0' => 0,
+                        'kfloat' => 0.12345,
+                        'kfalse' => false,
+                        'ktrue' => true,
+                    ],
+                ];
+            }
+        };
+        $this->assertSame($expected, $reflectionMethod->invoke($response, $arrayable));
+
+        // Xmlable
+        $xmlable = new class($expected) implements Stringable, Xmlable {
+            private $result;
+
+            public function __construct($result)
+            {
+                $this->result = $result;
+            }
+
+            public function __toString(): string
+            {
+                return $this->result;
+            }
+        };
+        $this->assertSame($expected, $reflectionMethod->invoke($response, $xmlable));
+    }
+
+    public function testToJson()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $json = $response->json([
+            'kstring' => 'string',
+            'kint1' => 1,
+            'kint0' => 0,
+            'kfloat' => 0.12345,
+            'kfalse' => false,
+            'ktrue' => true,
+            'karray' => [
+                'kstring' => 'string',
+                'kint1' => 1,
+                'kint0' => 0,
+                'kfloat' => 0.12345,
+                'kfalse' => false,
+                'ktrue' => true,
+            ],
+        ]);
+
+        $this->assertSame('{"kstring":"string","kint1":1,"kint0":0,"kfloat":0.12345,"kfalse":false,"ktrue":true,"karray":{"kstring":"string","kint1":1,"kint0":0,"kfloat":0.12345,"kfalse":false,"ktrue":true}}', (string) $json->getBody());
+    }
+
+    public function testHtml()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $html = $response->html('<h1>hello world</h1>');
+        $this->assertSame('<h1>hello world</h1>', (string) $html->getBody());
+
+        $html = $response->html('<h1>hello world</h1>', 'GBK');
+        $this->assertSame('<h1>hello world</h1>', (string) $html->getBody());
+        $this->assertSame('text/html; charset=GBK', $html->getHeaderLine('content-type'));
+    }
+
+    public function testObjectToJson()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $json = $response->json((object) ['id' => 1, 'name' => 'Hyperf']);
+
+        $this->assertSame('{"id":1,"name":"Hyperf"}', (string) $json->getBody());
+    }
+
+    public function testPsrResponse()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        Context::set(PsrResponseInterface::class, $psrResponse);
+
+        $response = new Response();
+        $response = $response->withBody(new SwooleStream('xxx'));
+
+        $this->assertInstanceOf(PsrResponseInterface::class, $response);
+        $this->assertInstanceOf(ResponseInterface::class, $response);
+    }
+
+    public function testCookiesAndHeaders()
+    {
+        $container = m::mock(ContainerContract::class);
+        Container::setInstance($container);
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $id = uniqid();
+        $cookie1 = new Cookie('Name', 'Hyperf');
+        $cookie2 = new Cookie('Request-Id', $id);
+        $cookie3 = new Cookie('Cleared', '');
+        $swooleResponse->shouldReceive('status')->with(200, 'OK')->andReturnUsing(function ($code) {
+            $this->assertSame($code, 200);
+            return true;
+        });
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->twice()->andReturnUsing(function ($name, $value) {
+            if ($name === 'X-Token') {
+                $this->assertSame($value, ['xxx']);
+            }
+            return true;
+        });
+        $swooleResponse->shouldReceive('rawcookie')->withAnyArgs()->times(3)->andReturnUsing(function ($name, $value, ...$args) use ($id) {
+            $this->assertTrue(in_array($name, ['Name', 'Request-Id', 'Cleared']));
+            $this->assertTrue(in_array($value, ['Hyperf', $id, 'deleted']));
+            return true;
+        });
+        $swooleResponse->shouldReceive('end')->once()->andReturn(true);
+
+        Context::set(PsrResponseInterface::class, $psrResponse = new \Hypervel\HttpMessage\Server\Response());
+
+        $response = new Response();
+        $response = $response->withCookie($cookie1)->withCookie($cookie2)->withCookie($cookie3)->withHeader('X-Token', 'xxx')->withStatus(200);
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(ResponseInterface::class, $response);
+
+        $response = $response->raw('Hello Hyperf.');
+        $this->assertNotInstanceOf(Response::class, $response);
+        $this->assertNotInstanceOf(ResponseInterface::class, $response);
+        $this->assertInstanceOf(PsrResponseInterface::class, $response);
+
+        $responseEmitter = new ResponseEmitter(null);
+        $responseEmitter->emit($response, $swooleResponse, true);
+
+        $this->assertSame($psrResponse, Context::get(PsrResponseInterface::class));
+    }
+}

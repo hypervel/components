@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
+use Hypervel\Notifications\Events\NotificationFailed;
+use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;
+use Symfony\Component\Mailer\Exception\HttpTransportException;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
  * @internal
@@ -22,11 +27,6 @@ use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;
  */
 class NotificationSenderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testItCanSendNotificationsWithAStringVia()
     {
         $notifiable = m::mock(Notifiable::class);
@@ -38,12 +38,53 @@ class NotificationSenderTest extends TestCase
             ->once();
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $events->shouldReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
 
         $sender->send($notifiable, new DummyNotificationWithStringVia());
+    }
+
+    public function testItCanSendQueuedNotificationsWithAStringVia()
+    {
+        $notifiable = m::mock(Notifiable::class);
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch');
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, new DummyQueuedNotificationWithStringVia());
+    }
+
+    public function testItCanSendQueuedNotificationsWithAnArrayVia()
+    {
+        $notifiable = m::mock(Notifiable::class);
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->queue === 'dummy' && $job->channels === ['database'] && $job->connection === 'redis';
+            });
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->queue === 'dummy' && $job->channels === ['mail'] && $job->connection === 'redis';
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, new DummyQueuedNotificationWithArrayVia());
     }
 
     public function testItCanSendNotificationsWithAnEmptyStringVia()
@@ -52,7 +93,7 @@ class NotificationSenderTest extends TestCase
         $manager = m::mock(ChannelManager::class);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldNotReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -66,7 +107,7 @@ class NotificationSenderTest extends TestCase
         $manager = m::mock(ChannelManager::class);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldNotReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -78,12 +119,15 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = m::mock(Notifiable::class);
         $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->withArgs(function ($job) {
                 return $job->middleware[0] instanceof TestNotificationMiddleware;
             });
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -94,6 +138,9 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = m::mock(Notifiable::class);
         $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->once()
@@ -110,7 +157,7 @@ class NotificationSenderTest extends TestCase
             ->withArgs(function ($job) {
                 return empty($job->middleware);
             });
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -121,23 +168,145 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = new AnonymousNotifiable();
         $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->once()
             ->withArgs(function ($job) {
-                return $job->connection === 'sync' && $job->channels === ['database'];
+                return $job->connection === 'sync' && $job->channels === ['database'] && $job->queue === 'dummy';
             });
         $bus->shouldReceive('dispatch')
             ->once()
             ->withArgs(function ($job) {
-                return $job->connection === null && $job->channels === ['mail'];
+                return $job->connection === 'redis' && $job->channels === ['mail'] && $job->queue === 'dummy';
             });
 
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 
         $sender->send($notifiable, new DummyNotificationWithViaConnections());
+    }
+
+    public function testItCanSendQueuedWithViaQueuesNotifications()
+    {
+        $notifiable = new AnonymousNotifiable();
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->queue === 'dummy' && $job->channels === ['database'] && $job->connection === 'redis';
+            });
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->queue === 'admin_notifications' && $job->channels === ['mail'] && $job->connection === 'redis';
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, new DummyNotificationWithViaQueues());
+    }
+
+    public function testItCanSendQueuedNotificationsWithQueueRoute()
+    {
+        $notifiable = new AnonymousNotifiable();
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn('notification-queue');
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn('notification-connection');
+
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->queue === 'notification-queue' && $job->channels === ['mail'] && $job->connection === 'notification-connection';
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, new DummyQueuedNotificationWithStringVia());
+    }
+
+    public function testNotificationFailedSentWithoutHttpTransportException()
+    {
+        $this->expectException(TransportException::class);
+
+        $notifiable = new AnonymousNotifiable();
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('driver')->andReturn($driver = m::mock());
+        $response = m::mock(ResponseInterface::class);
+        $driver->shouldReceive('send')->andThrow(new HttpTransportException('Transport error', $response));
+        $bus = m::mock(BusDispatcherContract::class);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
+        $events->shouldReceive('dispatch')->once()->withArgs(function ($event) {
+            return $event instanceof NotificationFailed && $event->data['exception'] instanceof TransportException;
+        });
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->sendNow($notifiable, new DummyNotificationWithViaConnections(), ['mail']);
+    }
+
+    public function testItPreservesNotificationStateMutatedInViaMethod()
+    {
+        $notifiable = new AnonymousNotifiable();
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('driver')->andReturn($driver = m::mock());
+        $driver->shouldReceive('send')->once()->withArgs(function ($notifiable, $notification) {
+            return $notification->channelData === 'default';
+        });
+        $bus = m::mock(BusDispatcherContract::class);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
+        $events->shouldReceive('dispatch')->once();
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->sendNow($notifiable, new DummyNotificationWithViaMutation());
+    }
+}
+
+class DummyQueuedNotificationWithStringVia extends Notification implements ShouldQueue
+{
+    use Queueable;
+
+    /**
+     * Get the notification channels.
+     * @param mixed $notifiable
+     */
+    public function via($notifiable)
+    {
+        return 'mail';
+    }
+}
+
+class DummyQueuedNotificationWithArrayVia extends Notification implements ShouldQueue
+{
+    use Queueable;
+
+    public function __construct()
+    {
+        $this->connection = 'redis';
+        $this->queue = 'dummy';
+    }
+
+    /**
+     * Get the notification channels.
+     * @param mixed $notifiable
+     */
+    public function via($notifiable)
+    {
+        return ['mail', 'database'];
     }
 }
 
@@ -193,6 +362,12 @@ class DummyNotificationWithViaConnections extends Notification implements Should
 {
     use Queueable;
 
+    public function __construct()
+    {
+        $this->connection = 'redis';
+        $this->queue = 'dummy';
+    }
+
     public function via($notifiable)
     {
         return ['mail', 'database'];
@@ -202,6 +377,29 @@ class DummyNotificationWithViaConnections extends Notification implements Should
     {
         return [
             'database' => 'sync',
+        ];
+    }
+}
+
+class DummyNotificationWithViaQueues extends Notification implements ShouldQueue
+{
+    use Queueable;
+
+    public function __construct()
+    {
+        $this->connection = 'redis';
+        $this->queue = 'dummy';
+    }
+
+    public function via($notifiable)
+    {
+        return ['mail', 'database'];
+    }
+
+    public function viaQueues()
+    {
+        return [
+            'mail' => 'admin_notifications',
         ];
     }
 }
@@ -267,5 +465,17 @@ class TestDatabaseNotificationMiddleware
     public function handle($command, $next)
     {
         return $next($command);
+    }
+}
+
+class DummyNotificationWithViaMutation extends Notification
+{
+    public ?string $channelData = null;
+
+    public function via($notifiable)
+    {
+        $this->channelData = $notifiable->routeConfig ?? 'default';
+
+        return 'mail';
     }
 }

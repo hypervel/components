@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\TagMode;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisFactory;
 use Redis;
 
 /**
@@ -135,9 +135,9 @@ class StoreContext
      */
     public function withConnection(callable $callback): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
-            ->get($this->connectionName)
+        return Container::getInstance()
+            ->make(RedisFactory::class)
+            ->connection($this->connectionName)
             ->withConnection($callback, transform: false);
     }
 
@@ -146,9 +146,10 @@ class StoreContext
      */
     public function isCluster(): bool
     {
-        return $this->withConnection(
-            fn (RedisConnection $connection) => $connection->isCluster()
-        );
+        return Container::getInstance()
+            ->make(RedisFactory::class)
+            ->connection($this->connectionName)
+            ->isCluster();
     }
 
     /**

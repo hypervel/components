@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**

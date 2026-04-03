@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CacheWatcher;
@@ -21,7 +20,7 @@ class CacheWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('telescope.watchers', [
                 CacheWatcher::class => [
                     'enabled' => true,
@@ -38,7 +37,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherRegistersMissedEntries()
     {
-        $this->app->get(FactoryContract::class)->get('empty-key');
+        $this->app->make(FactoryContract::class)->get('empty-key');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -49,7 +48,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherRegistersStoreEntries()
     {
-        $this->app->get(FactoryContract::class)->put('my-key', 'laravel', 1);
+        $this->app->make(FactoryContract::class)->put('my-key', 'laravel', 1);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -61,7 +60,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherRegistersHitEntries()
     {
-        $repository = $this->app->get(FactoryContract::class);
+        $repository = $this->app->make(FactoryContract::class);
 
         Telescope::withoutRecording(function () use ($repository) {
             $repository->put('telescope', 'laravel', 1);
@@ -79,7 +78,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherRegistersForgetEntries()
     {
-        $repository = $this->app->get(FactoryContract::class);
+        $repository = $this->app->make(FactoryContract::class);
 
         Telescope::withoutRecording(function () use ($repository) {
             $repository->put('outdated', 'value', 1);
@@ -96,7 +95,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherHidesHiddenValuesWhenSet()
     {
-        $this->app->get(FactoryContract::class)->put('my-hidden-value-key', 'laravel', 1);
+        $this->app->make(FactoryContract::class)->put('my-hidden-value-key', 'laravel', 1);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -108,7 +107,7 @@ class CacheWatcherTest extends FeatureTestCase
 
     public function testCacheWatcherHidesHiddenValuesWhenRetrieved()
     {
-        $repository = $this->app->get(FactoryContract::class);
+        $repository = $this->app->make(FactoryContract::class);
 
         Telescope::withoutRecording(function () use ($repository) {
             $repository->put('my-hidden-value-key', 'laravel', 1);

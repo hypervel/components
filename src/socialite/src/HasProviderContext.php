@@ -4,27 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait HasProviderContext
 {
     public function getContext(string $key, mixed $default = null): mixed
     {
-        return Context::get($this->getContextKey($key), $default);
+        return CoroutineContext::get($this->getContextKey($key), $default);
     }
 
     public function setContext(string $key, mixed $value): mixed
     {
-        return Context::set($this->getContextKey($key), $value);
+        return CoroutineContext::set($this->getContextKey($key), $value);
     }
 
     public function getOrSetContext(string $key, mixed $value): mixed
     {
-        return Context::getOrSet($this->getContextKey($key), $value);
+        return CoroutineContext::getOrSet($this->getContextKey($key), $value);
     }
 
     protected function getContextKey(string $key): string
     {
-        return 'socialite.providers.' . static::class . '.' . $key;
+        return '__socialite.providers.' . static::class . '.' . $key;
     }
 }

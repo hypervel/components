@@ -6,10 +6,12 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Scout\Exceptions\ScoutException;
+use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
  * Flush all model records from the search index.
  */
+#[AsCommand(name: 'scout:flush')]
 class FlushCommand extends Command
 {
     /**

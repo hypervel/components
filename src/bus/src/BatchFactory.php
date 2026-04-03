@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 
 class BatchFactory
 {
@@ -14,14 +13,12 @@ class BatchFactory
      * Create a new batch factory instance.
      */
     public function __construct(
-        protected QueueFactory $queue
+        protected QueueFactory $queue,
     ) {
     }
 
     /**
      * Create a new batch instance.
-     *
-     * @return Batch
      */
     public function make(
         BatchRepository $repository,
@@ -34,8 +31,8 @@ class BatchFactory
         array $options,
         CarbonImmutable $createdAt,
         ?CarbonImmutable $cancelledAt,
-        ?CarbonImmutable $finishedAt
-    ) {
+        ?CarbonImmutable $finishedAt,
+    ): Batch {
         return new Batch($this->queue, $repository, $id, $name, $totalJobs, $pendingJobs, $failedJobs, $failedJobIds, $options, $createdAt, $cancelledAt, $finishedAt);
     }
 }

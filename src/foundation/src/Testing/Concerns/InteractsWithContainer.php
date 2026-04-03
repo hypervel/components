@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
-use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Dispatcher\HttpDispatcher;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
-use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
+use Hypervel\Foundation\Vite;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\Facades\Vite as ViteFacade;
+use Hypervel\Support\HtmlString;
 use Mockery;
 use Mockery\MockInterface;
 
 trait InteractsWithContainer
 {
-    protected ?ApplicationContract $app = null;
+    /**
+     * The original Vite handler.
+     */
+    protected ?Vite $originalVite = null;
+
+    /**
+     * The original deferred callbacks collection.
+     */
+    protected ?DeferredCallbackCollection $originalDeferredCallbacksCollection = null;
 
     /**
      * Register an instance of an object in the container.
@@ -38,7 +44,7 @@ trait InteractsWithContainer
     protected function instance(string $abstract, mixed $instance): mixed
     {
         /* @phpstan-ignore-next-line */
-        $this->app->set($abstract, $instance);
+        $this->app->instance($abstract, $instance);
 
         return $instance;
     }
@@ -79,33 +85,143 @@ trait InteractsWithContainer
         return $this;
     }
 
-    protected function flushApplication(): void
+    /**
+     * Register a Vite handler that returns empty strings for all assets.
+     *
+     * @return $this
+     */
+    protected function withoutVite(): static
     {
-        $this->app = null;
-    }
+        if ($this->originalVite === null) {
+            $this->originalVite = app(Vite::class);
+        }
 
-    protected function refreshApplication(): void
-    {
-        $this->app = $this->createApplication();
-        /* @phpstan-ignore-next-line */
-        $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
-        $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+        ViteFacade::clearResolvedInstance();
 
-        $this->defineEnvironment($this->app);
+        $this->swap(Vite::class, new class extends Vite {
+            public function __invoke(string|array $entrypoints, ?string $buildDirectory = null): HtmlString
+            {
+                return new HtmlString('');
+            }
 
-        $this->app->get(ApplicationInterface::class);
+            public function __call(string $method, array $parameters): mixed
+            {
+                return '';
+            }
+
+            public function __toString(): string
+            {
+                return '';
+            }
+
+            public function useIntegrityKey(string|false $key): static
+            {
+                return $this;
+            }
+
+            public function useBuildDirectory(string $path): static
+            {
+                return $this;
+            }
+
+            public function useHotFile(string $path): static
+            {
+                return $this;
+            }
+
+            public function withEntryPoints(array $entryPoints): static
+            {
+                return $this;
+            }
+
+            public function useScriptTagAttributes(array|callable $attributes): static
+            {
+                return $this;
+            }
+
+            public function useStyleTagAttributes(array|callable $attributes): static
+            {
+                return $this;
+            }
+
+            public function usePreloadTagAttributes(array|callable|false $attributes): static
+            {
+                return $this;
+            }
+
+            public function preloadedAssets(): array
+            {
+                return [];
+            }
+
+            public function reactRefresh(): ?HtmlString
+            {
+                return new HtmlString('');
+            }
+
+            public function content(string $asset, ?string $buildDirectory = null): string
+            {
+                return '';
+            }
+
+            public function asset(string $asset, ?string $buildDirectory = null): string
+            {
+                return '';
+            }
+        });
+
+        return $this;
     }
 
     /**
-     * Define environment setup.
+     * Restore Vite in the container.
+     *
+     * @return $this
      */
-    protected function defineEnvironment(ApplicationContract $app): void
+    protected function withVite(): static
     {
-        // Override in subclass.
+        if ($this->originalVite) {
+            $this->app->instance(Vite::class, $this->originalVite);
+        }
+
+        return $this;
     }
 
-    protected function createApplication(): ApplicationContract
+    /**
+     * Execute deferred callbacks immediately.
+     */
+    protected function withoutDefer(): static
     {
-        return require BASE_PATH . '/bootstrap/app.php';
+        if ($this->originalDeferredCallbacksCollection === null) {
+            $this->originalDeferredCallbacksCollection = $this->app->make(DeferredCallbackCollection::class);
+        }
+
+        $this->app->forgetInstance(DeferredCallbackCollection::class);
+
+        $this->swap(DeferredCallbackCollection::class, new class extends DeferredCallbackCollection {
+            /**
+             * Set the callback with the given key.
+             */
+            public function offsetSet(mixed $offset, mixed $value): void
+            {
+                $value();
+            }
+        });
+
+        return $this;
+    }
+
+    /**
+     * Restore deferred callbacks.
+     */
+    protected function withDefer(): static
+    {
+        $this->app->forgetInstance(DeferredCallbackCollection::class);
+
+        if ($this->originalDeferredCallbacksCollection !== null) {
+            $this->app->instance(DeferredCallbackCollection::class, $this->originalDeferredCallbacksCollection);
+        }
+
+        return $this;
     }
 }

@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Http\Request;
+use Hypervel\Routing\Controller;
 use Hypervel\Support\Facades\Broadcast;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-class BroadcastController
+class BroadcastController extends Controller
 {
     /**
      * Authenticate the request for channel access.
      */
-    public function authenticate(RequestInterface $request): mixed
+    public function authenticate(Request $request): mixed
     {
+        if ($request->hasSession()) {
+            $request->session()->reflash();
+        }
+
         return Broadcast::auth($request);
     }
 
@@ -25,8 +30,12 @@ class BroadcastController
      *
      * @throws AccessDeniedHttpException
      */
-    public function authenticateUser(RequestInterface $request): array
+    public function authenticateUser(Request $request): array
     {
+        if ($request->hasSession()) {
+            $request->session()->reflash();
+        }
+
         return Broadcast::resolveAuthenticatedUser($request) ?? throw new AccessDeniedHttpException();
     }
 }

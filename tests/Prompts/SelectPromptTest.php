@@ -7,12 +7,12 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\select;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -82,9 +82,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    /**
-     * @dataProvider scrollOptionsProvider
-     */
+    #[DataProvider('scrollOptionsProvider')]
     public function testScrollsToBottomWhenDefaultValueIsNearEnd(int $scroll, array $outputContains): void
     {
         Prompt::fake([Key::ENTER]);

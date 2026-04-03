@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Messages;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Markdown;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Conditionable;
 
 class MailMessage extends SimpleMessage implements Renderable
 {
@@ -157,10 +157,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the "reply to" address of the message.
      */
-    public function replyTo(array|string $address, ?string $name = null): static
+    public function replyTo(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->replyTo += $this->parseAddresses($address);
+            $this->replyTo = array_merge($this->replyTo, $this->parseAddresses($address));
         } else {
             $this->replyTo[] = [$address, $name];
         }
@@ -171,10 +171,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the cc address for the mail message.
      */
-    public function cc(array|string $address, ?string $name = null): static
+    public function cc(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->cc += $this->parseAddresses($address);
+            $this->cc = array_merge($this->cc, $this->parseAddresses($address));
         } else {
             $this->cc[] = [$address, $name];
         }
@@ -185,10 +185,10 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Set the bcc address for the mail message.
      */
-    public function bcc(array|string $address, ?string $name = null): static
+    public function bcc(mixed $address, ?string $name = null): static
     {
         if ($this->arrayOfAddresses($address)) {
-            $this->bcc += $this->parseAddresses($address);
+            $this->bcc = array_merge($this->bcc, $this->parseAddresses($address));
         } else {
             $this->bcc[] = [$address, $name];
         }
@@ -306,18 +306,18 @@ class MailMessage extends SimpleMessage implements Renderable
     public function render(): string
     {
         if (isset($this->view)) {
-            return ApplicationContext::getContainer()
-                ->get('mailer')
+            return Container::getInstance()
+                ->make('mailer')
                 ->render(
                     $this->view,
                     $this->data()
                 );
         }
 
-        $markdown = ApplicationContext::getContainer()
-            ->get(Markdown::class);
+        $markdown = Container::getInstance()
+            ->make(Markdown::class);
 
-        return $markdown->theme($this->theme ?: $markdown->getTheme())
+        return (string) $markdown->theme($this->theme ?: $markdown->getTheme())
             ->render($this->markdown, $this->data());
     }
 

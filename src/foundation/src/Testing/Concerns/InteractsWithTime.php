@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Carbon\Carbon;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Foundation\Testing\Wormhole;
+use Hypervel\Support\Carbon;
 
 trait InteractsWithTime
 {
@@ -19,7 +19,9 @@ trait InteractsWithTime
      */
     public function freezeTime($callback = null)
     {
-        return $this->travelTo(Carbon::now(), $callback);
+        $result = $this->travelTo($now = Carbon::now(), $callback);
+
+        return $callback === null ? $now : $result;
     }
 
     /**
@@ -30,7 +32,9 @@ trait InteractsWithTime
      */
     public function freezeSecond($callback = null)
     {
-        return $this->travelTo(Carbon::now()->startOfSecond(), $callback);
+        $result = $this->travelTo($now = Carbon::now()->startOfSecond(), $callback);
+
+        return $callback === null ? $now : $result;
     }
 
     /**
@@ -44,7 +48,7 @@ trait InteractsWithTime
     /**
      * Travel to another time.
      *
-     * @param null|bool|\Carbon\Carbon|Closure|DateTimeInterface|string $date
+     * @param null|bool|Carbon|Closure|DateTimeInterface|string $date
      * @param null|callable $callback
      * @return mixed
      */

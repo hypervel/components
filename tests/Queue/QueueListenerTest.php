@@ -16,11 +16,6 @@ use Symfony\Component\Process\Process;
  */
 class QueueListenerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testRunProcessCallsProcess()
     {
         $process = m::mock(Process::class)->makePartial();

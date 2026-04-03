@@ -7,22 +7,18 @@ namespace Hypervel\Bus;
 use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Expression;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\PrunableBatchRepository;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Support\Str;
+use RuntimeException;
 use Throwable;
 
 class DatabaseBatchRepository implements PrunableBatchRepository
 {
     /**
      * Create a new batch repository instance.
-     *
-     * @param BatchFactory $factory the batch factory instance
-     * @param ConnectionResolverInterface $resolver the database connection resolver
-     * @param string $connection the connection name of database to use to store batch information
-     * @param string $table the database table to use to store batch information
      */
     public function __construct(
         protected BatchFactory $factory,
@@ -41,12 +37,13 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     {
         return $this->connection()->table($this->table)
             ->orderByDesc('id')
-            ->take($limit)
+            ->limit($limit)
             ->when($before, fn ($q) => $q->where('id', '<', $before))
             ->get()
             ->map(function ($batch) {
                 return $this->toBatch($batch);
-            })->all();
+            })
+            ->all();
     }
 
     /**
@@ -65,7 +62,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Store a new pending batch.
      */
-    public function store(PendingBatch $batch): ?Batch
+    public function store(PendingBatch $batch): Batch
     {
         $id = (string) Str::orderedUuid();
 
@@ -82,7 +79,13 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             'finished_at' => null,
         ]);
 
-        return $this->find($id);
+        $storedBatch = $this->find($id);
+
+        if ($storedBatch === null) {
+            throw new RuntimeException("Failed to retrieve stored batch [{$id}].");
+        }
+
+        return $storedBatch;
     }
 
     /**
@@ -192,7 +195,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         $totalDeleted = 0;
 
         do {
-            $deleted = $query->take(1000)->delete();
+            $deleted = $query->limit(1000)->delete();
 
             $totalDeleted += $deleted;
         } while ($deleted !== 0);
@@ -212,7 +215,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         $totalDeleted = 0;
 
         do {
-            $deleted = $query->take(1000)->delete();
+            $deleted = $query->limit(1000)->delete();
 
             $totalDeleted += $deleted;
         } while ($deleted !== 0);
@@ -232,7 +235,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         $totalDeleted = 0;
 
         do {
-            $deleted = $query->take(1000)->delete();
+            $deleted = $query->limit(1000)->delete();
 
             $totalDeleted += $deleted;
         } while ($deleted !== 0);
@@ -263,18 +266,9 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     {
         $serialized = serialize($value);
 
-        return $this->isPostgresConnection()
+        return $this->connection() instanceof PostgresConnection
             ? base64_encode($serialized)
             : $serialized;
-    }
-
-    /**
-     * Check if the connection is a Postgres connection.
-     */
-    protected function isPostgresConnection(): bool
-    {
-        /* @phpstan-ignore-next-line */
-        return in_array($this->connection()->getDriverName(), ['pgsql', 'pgsql-swoole']);
     }
 
     /**
@@ -282,7 +276,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     protected function unserialize(string $serialized): mixed
     {
-        if ($this->isPostgresConnection()
+        if ($this->connection() instanceof PostgresConnection
             && ! Str::contains($serialized, [':', ';'])
         ) {
             $serialized = base64_decode($serialized);

@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Session\Session;
+use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\MessageBag;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Uri;
 use Hypervel\Support\ViewErrorBag;
+use RuntimeException;
 use SessionHandlerInterface;
 use stdClass;
 use UnitEnum;
@@ -23,6 +29,31 @@ class Store implements Session
     use Macroable;
 
     /**
+     * The context key used to store the active session for the current request.
+     */
+    public const CONTEXT_KEY = '__session.store';
+
+    /**
+     * Context key for whether the session has been started.
+     */
+    public const STARTED_CONTEXT_KEY = '__session.store.started';
+
+    /**
+     * Context key for the session attributes.
+     */
+    public const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
+
+    /**
+     * Context key for the session ID.
+     */
+    public const ID_CONTEXT_KEY = '__session.store.id';
+
+    /**
+     * The length of session ID strings.
+     */
+    protected const SESSION_ID_LENGTH = 40;
+
+    /**
      * Create a new session instance.
      *
      * @param string $name the session name
@@ -32,8 +63,10 @@ class Store implements Session
     public function __construct(
         protected string $name,
         protected SessionHandlerInterface $handler,
+        ?string $id = null,
         protected string $serialization = 'php'
     ) {
+        $this->setId($id);
     }
 
     /**
@@ -47,7 +80,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set('_session.store.started', true);
+        return CoroutineContext::set(self::STARTED_CONTEXT_KEY, true);
     }
 
     /**
@@ -55,7 +88,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get('_session.store.attributes', []);
+        return CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -63,7 +96,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set('_session.store.attributes', $attributes);
+        CoroutineContext::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
     }
 
     /**
@@ -71,9 +104,9 @@ class Store implements Session
      */
     protected function replaceAttributes(array $attributes): void
     {
-        Context::set(
-            '_session.store.attributes',
-            array_replace(Context::get('_session.store.attributes', []), $attributes)
+        CoroutineContext::set(
+            self::ATTRIBUTES_CONTEXT_KEY,
+            array_replace(CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
         );
     }
 
@@ -148,7 +181,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set('_session.store.started', false);
+        CoroutineContext::set(self::STARTED_CONTEXT_KEY, false);
     }
 
     /**
@@ -439,6 +472,14 @@ class Store implements Session
     }
 
     /**
+     * Get the session cache instance.
+     */
+    public function cache(): CacheRepository
+    {
+        return Cache::store('session');
+    }
+
+    /**
      * Remove an item from the session, returning its value.
      */
     public function remove(UnitEnum|string $key): mixed
@@ -511,7 +552,18 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get('_session.store.started', false);
+        return CoroutineContext::get(self::STARTED_CONTEXT_KEY, false);
+    }
+
+    /**
+     * Flush per-request session state from context.
+     */
+    public static function flushState(): void
+    {
+        CoroutineContext::forget(self::CONTEXT_KEY);
+        CoroutineContext::forget(self::STARTED_CONTEXT_KEY);
+        CoroutineContext::forget(self::ID_CONTEXT_KEY);
+        CoroutineContext::forget(self::ATTRIBUTES_CONTEXT_KEY);
     }
 
     /**
@@ -543,7 +595,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get('_session.store.id', null);
+        return CoroutineContext::get(self::ID_CONTEXT_KEY, null);
     }
 
     /**
@@ -551,8 +603,8 @@ class Store implements Session
      */
     public function setId(?string $id): void
     {
-        Context::set(
-            '_session.store.id',
+        CoroutineContext::set(
+            self::ID_CONTEXT_KEY,
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }
@@ -562,7 +614,7 @@ class Store implements Session
      */
     public function isValidId(?string $id): bool
     {
-        return is_string($id) && ctype_alnum($id) && strlen($id) === 40;
+        return is_string($id) && ctype_alnum($id) && strlen($id) === self::SESSION_ID_LENGTH;
     }
 
     /**
@@ -570,7 +622,7 @@ class Store implements Session
      */
     protected function generateSessionId(): string
     {
-        return Str::random(40);
+        return Str::random(self::SESSION_ID_LENGTH);
     }
 
     /**
@@ -596,7 +648,7 @@ class Store implements Session
      */
     public function regenerateToken(): void
     {
-        $this->put('_token', Str::random(40));
+        $this->put('_token', Str::random(self::SESSION_ID_LENGTH));
     }
 
     /**
@@ -605,6 +657,20 @@ class Store implements Session
     public function hasPreviousUri(): bool
     {
         return ! is_null($this->previousUrl());
+    }
+
+    /**
+     * Get the previous URL from the session as a URI instance.
+     *
+     * @throws RuntimeException
+     */
+    public function previousUri(): Uri
+    {
+        if ($previousUrl = $this->previousUrl()) {
+            return Uri::of($previousUrl);
+        }
+
+        throw new RuntimeException('Unable to generate URI instance for previous URL. No previous URL detected.');
     }
 
     /**
@@ -624,11 +690,27 @@ class Store implements Session
     }
 
     /**
+     * Get the previous route name from the session.
+     */
+    public function previousRoute(): ?string
+    {
+        return $this->get('_previous.route');
+    }
+
+    /**
+     * Set the "previous" route name in the session.
+     */
+    public function setPreviousRoute(?string $route): void
+    {
+        $this->put('_previous.route', $route);
+    }
+
+    /**
      * Specify that the user has confirmed their password.
      */
     public function passwordConfirmed(): void
     {
-        $this->put('auth.password_confirmed_at', time());
+        $this->put('auth.password_confirmed_at', Date::now()->unix());
     }
 
     /**
@@ -645,5 +727,23 @@ class Store implements Session
     public function setHandler(SessionHandlerInterface $handler): SessionHandlerInterface
     {
         return $this->handler = $handler;
+    }
+
+    /**
+     * Determine if the session handler needs a request.
+     */
+    public function handlerNeedsRequest(): bool
+    {
+        return $this->handler instanceof CookieSessionHandler;
+    }
+
+    /**
+     * Set the request on the handler instance.
+     */
+    public function setRequestOnHandler(Request $request): void
+    {
+        if ($this->handler instanceof CookieSessionHandler) {
+            $this->handler->setRequest($request);
+        }
     }
 }

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Foundation\Precognition;
 
 /**
  * Provides default implementation of ValidatesWhenResolved contract.
@@ -23,6 +24,10 @@ trait ValidatesWhenResolvedTrait
         }
 
         $instance = $this->getValidatorInstance();
+
+        if ($this->isPrecognitive()) {
+            $instance->after(Precognition::afterValidationHook($this));
+        }
 
         if ($instance->fails()) {
             $this->failedValidation($instance);
@@ -68,7 +73,7 @@ trait ValidatesWhenResolvedTrait
     /**
      * Determine if the request passes the authorization check.
      */
-    protected function passesAuthorization(): bool
+    protected function passesAuthorization(): bool|Response
     {
         if (method_exists($this, 'authorize')) {
             return $this->authorize();

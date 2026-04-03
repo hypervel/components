@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -22,8 +22,10 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->registerCommands();
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerCommands();
+            $this->registerPublishing();
+        }
 
         if (! config('telescope.enabled')) {
             return;
@@ -42,7 +44,7 @@ class TelescopeServiceProvider extends ServiceProvider
                 Telescope::BATCH_ID => null,
             ];
             foreach ($keys as $key => $default) {
-                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+                CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
     }
@@ -52,14 +54,10 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            config('telescope.path'),
-            __DIR__ . '/../routes/web.php',
-            [
-                'namespace' => 'Hypervel\Telescope\Http\Controllers',
-                'middleware' => config('telescope.middleware', []),
-            ]
-        );
+        Route::middleware(config('telescope.middleware', []))
+            ->prefix(config('telescope.path'))
+            ->namespace('Hypervel\Telescope\Http\Controllers')
+            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**
@@ -162,19 +160,19 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseDriver(): void
     {
-        $this->app->bind(
+        $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             ClearableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             PrunableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
     }
 }

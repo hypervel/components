@@ -5,17 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\HtmlString;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
-use Hypervel\View\Contracts\Factory as FactoryContract;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Mockery as m;
@@ -38,25 +36,12 @@ class ComponentTest extends TestCase
         $this->viewFactory = m::mock(Factory::class);
         $this->config = m::mock(Config::class);
 
-        $container = new Container(
-            new DefinitionSource([
-                'config' => fn () => $this->config,
-                'view' => fn () => $this->viewFactory,
-                FactoryContract::class => fn () => $this->viewFactory,
-            ])
-        );
+        $container = new Container();
+        $container->instance('config', $this->config);
+        $container->instance('view', $this->viewFactory);
+        $container->instance(FactoryContract::class, $this->viewFactory);
 
-        ApplicationContext::setContainer($container);
-    }
-
-    protected function tearDown(): void
-    {
-        m::close();
-
-        Component::flushCache();
-        Component::forgetFactory();
-
-        parent::tearDown();
+        Container::setInstance($container);
     }
 
     public function testInlineViewsGetCreated()
@@ -146,7 +131,7 @@ class ComponentTest extends TestCase
 
     public function testResolveWithUnresolvableDependency()
     {
-        $this->expectException(InvalidDefinitionException::class);
+        $this->expectException(BindingResolutionException::class);
 
         TestInlineViewComponentWhereRenderDependsOnProps::resolve([]);
     }

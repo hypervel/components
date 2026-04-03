@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
@@ -18,11 +18,6 @@ use Symfony\Component\Mime\Part\File;
 class Message
 {
     use ForwardsCalls;
-
-    /**
-     * CIDs of files embedded in the message.
-     */
-    protected array $embeddedFiles = [];
 
     /**
      * Create a new message instance.
@@ -58,8 +53,6 @@ class Message
 
     /**
      * Set the "return path" of the message.
-     *
-     * @return $this
      */
     public function returnPath(string $address): static
     {
@@ -177,7 +170,7 @@ class Message
         if (is_array($address)) {
             $type = lcfirst($type);
 
-            $addresses = collect($address)->map(function ($address, $key) {
+            $addresses = (new Collection($address))->map(function ($address, $key) {
                 if (is_string($key) && is_string($address)) {
                     return new Address($key, $address);
                 }
@@ -276,31 +269,29 @@ class Message
         if ($file instanceof Attachment) {
             return $file->attachWith(
                 function ($path) use ($file) {
-                    $cid = $file->as ?? Str::random();
+                    $part = (new DataPart(new File($path), $file->as, $file->mime))->asInline();
 
-                    $this->message->addPart(
-                        (new DataPart(new File($path), $cid, $file->mime))->asInline()
-                    );
+                    $this->message->addPart($part);
 
-                    return "cid:{$cid}";
+                    return "cid:{$part->getContentId()}";
                 },
                 function ($data) use ($file) {
                     $this->message->addPart(
-                        (new DataPart($data(), $file->as, $file->mime))->asInline()
+                        $part = (new DataPart($data(), $file->as, $file->mime))->asInline()
                     );
 
-                    return "cid:{$file->as}";
+                    return "cid:{$part->getContentId()}";
                 }
             );
         }
 
-        $cid = Str::random(10);
+        $fileObject = new File($file);
 
         $this->message->addPart(
-            (new DataPart(new File($file), $cid))->asInline()
+            $part = (new DataPart($fileObject, $fileObject->getFilename()))->asInline()
         );
 
-        return "cid:{$cid}";
+        return "cid:{$part->getContentId()}";
     }
 
     /**
@@ -308,11 +299,11 @@ class Message
      */
     public function embedData(mixed $data, string $name, ?string $contentType = null): string
     {
-        $this->message->addPart(
-            (new DataPart($data, $name, $contentType))->asInline()
-        );
+        $part = (new DataPart($data, $name, $contentType))->asInline();
 
-        return "cid:{$name}";
+        $this->message->addPart($part);
+
+        return "cid:{$part->getContentId()}";
     }
 
     /**
@@ -328,11 +319,6 @@ class Message
      */
     public function __call(string $method, array $parameters)
     {
-        $result = $this->forwardCallTo($this->message, $method, $parameters);
-        if ($result === $this->message) {
-            return $this;
-        }
-
-        return $result;
+        return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }
 }

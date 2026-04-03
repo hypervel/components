@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Redis\Redis;
 use Hypervel\Cache\RedisLock;
+use Hypervel\Redis\PhpRedisConnection;
+use Hypervel\Redis\Redis;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -16,19 +17,12 @@ use RuntimeException;
  */
 class RedisLockTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
-    }
-
     public function testAcquireWithExpirationUsesSETWithNXAndEX(): void
     {
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(true);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -41,7 +35,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(false);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -77,11 +71,20 @@ class RedisLockTest extends TestCase
 
     public function testReleaseUsesLuaScriptToAtomicallyCheckOwnership(): void
     {
-        $redis = m::mock(Redis::class);
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(['owner123'])
+            ->andReturn(['packed-owner123']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'lock:foo', 'packed-owner123')
             ->andReturn(1);
+
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');
 
@@ -90,11 +93,20 @@ class RedisLockTest extends TestCase
 
     public function testReleaseReturnsFalseWhenNotOwner(): void
     {
-        $redis = m::mock(Redis::class);
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(['owner123'])
+            ->andReturn(['packed-owner123']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'lock:foo', 'packed-owner123')
             ->andReturn(0);
+
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');
 
@@ -134,14 +146,22 @@ class RedisLockTest extends TestCase
 
     public function testGetCallsAcquireAndExecutesCallbackOnSuccess(): void
     {
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
+            ->once()
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->andReturn(1);
+
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(true);
-        $redis->shouldReceive('eval')
+        $redis->shouldReceive('withConnection')
             ->once()
-            ->andReturn(1);
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
 
@@ -155,7 +175,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
-            ->with('lock:foo', m::type('string'), ['EX' => 60, 'NX'])
+            ->with('lock:foo', m::type('string'), 'EX', 60, 'NX')
             ->andReturn(false);
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
@@ -167,13 +187,21 @@ class RedisLockTest extends TestCase
 
     public function testGetReleasesLockAfterCallbackEvenOnException(): void
     {
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
+            ->once()
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->andReturn(1);
+
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('set')
             ->once()
             ->andReturn(true);
-        $redis->shouldReceive('eval')
+        $redis->shouldReceive('withConnection')
             ->once()
-            ->andReturn(1);
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
 
@@ -182,5 +210,15 @@ class RedisLockTest extends TestCase
         $lock->get(function () {
             throw new RuntimeException('test exception');
         });
+    }
+
+    public function testGetConnectionNameReturnsConnectionName(): void
+    {
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('getName')->once()->andReturn('default');
+
+        $lock = new RedisLock($redis, 'lock:foo', 60);
+
+        $this->assertSame('default', $lock->getConnectionName());
     }
 }

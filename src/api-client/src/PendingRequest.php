@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\ApiClient;
 
 use GuzzleHttp\Promise\PromiseInterface;
-use Hypervel\HttpClient\ConnectionException;
-use Hypervel\HttpClient\PendingRequest as ClientPendingRequest;
-use Hypervel\HttpClient\Request;
+use Hypervel\Container\Container;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
+use Hypervel\Http\Client\Request;
+use Hypervel\Pipeline\Pipeline;
 use Hypervel\Support\Facades\Http;
-use Hypervel\Support\Pipeline;
 use Hypervel\Support\Traits\Conditionable;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -58,7 +59,7 @@ class PendingRequest
         $this->enableMiddleware = $this->client->getEnableMiddleware();
         $this->requestMiddleware = $this->client->getRequestMiddleware();
         $this->responseMiddleware = $this->client->getResponseMiddleware();
-        $this->pipeline = $pipeline ?? Pipeline::make();
+        $this->pipeline = $pipeline ?? new Pipeline(Container::getInstance());
     }
 
     /**
@@ -246,7 +247,7 @@ class PendingRequest
     /**
      * Flush the cached middleware instances.
      */
-    public function flushCache(): void
+    public static function flushCache(): void
     {
         static::$cachedMiddleware = [];
     }

@@ -1,0 +1,50 @@
+{
+    "packages": [
+        {
+            "name": "vendor-a/package-a",
+            "version": "v1.0.1",
+            "type": "library",
+            "extra": {
+                "hypervel": {
+                    "providers": [
+                        "Hypervel\\Tests\\Testbench\\Fixtures\\Providers\\ChildServiceProvider"
+                    ],
+                    "aliases": {
+                        "PackageAlias": "PackageClass"
+                    }
+                }
+            }
+        },
+        {
+            "name": "vendor-a/package-b",
+            "version": "v2.3.0",
+            "type": "library",
+            "extra": {
+                "hypervel": {
+                    "providers": [
+                        "Hypervel\\Tests\\Testbench\\Fixtures\\Providers\\ParentServiceProvider"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "vendor-a/package-c",
+            "version": "v0.5.0",
+            "type": "library",
+            "extra": {
+                "hypervel": {
+                    "providers": [
+                        "Hypervel\\Tests\\Testbench\\Fixtures\\Providers\\MissingServiceProvider"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "vendor-a/package-d",
+            "version": "v3.1.4",
+            "type": "library"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}

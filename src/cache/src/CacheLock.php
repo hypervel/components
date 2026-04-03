@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 
 class CacheLock extends Lock
 {
@@ -68,7 +68,7 @@ class CacheLock extends Lock
     /**
      * Returns the owner value written into the driver for this lock.
      */
-    protected function getCurrentOwner(): string
+    protected function getCurrentOwner(): ?string
     {
         return $this->store->get($this->name);
     }

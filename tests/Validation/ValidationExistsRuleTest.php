@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hyperf\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
@@ -13,6 +12,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
+use UnitEnum;
 
 /**
  * @internal
@@ -86,7 +86,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
@@ -118,7 +118,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
@@ -155,7 +155,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
@@ -188,7 +188,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
@@ -224,7 +224,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => $rule]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 3]);
@@ -267,7 +267,7 @@ class ValidationExistsRuleTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['id_column' => ['required', $rule]]);
         $v->setPresenceVerifier(new DatabasePresenceVerifier(
-            $this->app->get(ConnectionResolverInterface::class)
+            $this->app->make('db')
         ));
 
         $v->setData(['id_column' => 1]);
@@ -308,7 +308,7 @@ class UserWithPrefixedTable extends Eloquent
 
 class UserWithConnection extends User
 {
-    protected ?string $connection = 'mysql';
+    protected UnitEnum|string|null $connection = 'mysql';
 }
 
 class NoTableNameModel extends Eloquent

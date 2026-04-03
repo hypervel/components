@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use RuntimeException;
 use Swoole\Runtime;
 
@@ -30,11 +30,9 @@ function parallel(array $callables, int $concurrent = 0): array
  */
 function wait(Closure $closure, ?float $timeout = null)
 {
-    if (ApplicationContext::hasContainer()) {
-        $waiter = ApplicationContext::getContainer()->get(Waiter::class);
-        return $waiter->wait($closure, $timeout);
-    }
-    return (new Waiter())->wait($closure, $timeout);
+    return Container::getInstance()
+        ->make(Waiter::class)
+        ->wait($closure, $timeout);
 }
 
 function co(callable $callable): bool|int
@@ -43,10 +41,10 @@ function co(callable $callable): bool|int
     return $id > 0 ? $id : false;
 }
 
-function defer(callable $callable): void
-{
-    Coroutine::defer($callable);
-}
+// defer() wrapper was removed intentionally. Use Coroutine::defer() directly for
+// coroutine-exit cleanup. The global defer() helper in foundation provides Laravel-style
+// lifecycle-aware deferred callbacks — having two functions named "defer" with different
+// semantics caused import ambiguity bugs. Do not re-add this wrapper.
 
 function go(callable $callable): bool|int
 {

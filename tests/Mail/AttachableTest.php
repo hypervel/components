@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Http\Testing\File;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Mailable;
 use PHPUnit\Framework\TestCase;
 
@@ -109,5 +110,60 @@ class AttachableTest extends TestCase
             'text/css',
             99,
         ], $notification->dataArgs);
+    }
+
+    public function testFromUrlMethod()
+    {
+        $mailable = new class extends Mailable {
+            public function build()
+            {
+                $this->attach(new class implements Attachable {
+                    public function toMailAttachment(): Attachment
+                    {
+                        return Attachment::fromUrl('https://example.com/file.pdf')
+                            ->as('example.pdf')
+                            ->withMime('application/pdf');
+                    }
+                });
+            }
+        };
+
+        $mailable->build();
+
+        $this->assertSame([
+            'file' => 'https://example.com/file.pdf',
+            'options' => [
+                'as' => 'example.pdf',
+                'mime' => 'application/pdf',
+            ],
+        ], $mailable->attachments[0]);
+    }
+
+    public function testFromUploadedFileMethod()
+    {
+        $mailable = new class extends Mailable {
+            public function build()
+            {
+                $this->attach(new class implements Attachable {
+                    public function toMailAttachment(): Attachment
+                    {
+                        return Attachment::fromUploadedFile(
+                            File::createWithContent('example.pdf', 'content')
+                                ->mimeType('application/pdf')
+                        );
+                    }
+                });
+            }
+        };
+
+        $mailable->build();
+
+        $this->assertSame([
+            'data' => 'content',
+            'name' => 'example.pdf',
+            'options' => [
+                'mime' => 'application/pdf',
+            ],
+        ], $mailable->rawAttachments[0]);
     }
 }

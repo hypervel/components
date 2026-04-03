@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Events;
 
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
 
 class JobReleasedAfterException
 {
@@ -13,7 +13,8 @@ class JobReleasedAfterException
      */
     public function __construct(
         public string $connectionName,
-        public Job $job
+        public Job $job,
+        public ?int $backoff = null,
     ) {
     }
 }

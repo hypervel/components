@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Transport;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage;

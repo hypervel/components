@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Traits;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
 /**
@@ -21,6 +18,8 @@ class CanConfigureMigrationCommandsTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->traitObject = new CanConfigureMigrationCommandsTestMockClass();
     }
 
@@ -32,27 +31,27 @@ class CanConfigureMigrationCommandsTest extends TestCase
         );
     }
 
-    public function testMigrateFreshUsingDefault(): void
+    public function testMigrateFreshUsingDefault()
     {
         $migrateFreshUsingReflection = $this->__reflectAndSetupAccessibleForProtectedTraitMethod('migrateFreshUsing');
 
         $expected = [
             '--drop-views' => false,
+            '--drop-types' => false,
             '--seed' => false,
-            '--database' => 'default',
         ];
 
         $this->assertEquals($expected, $migrateFreshUsingReflection->invoke($this->traitObject));
     }
 
-    public function testMigrateFreshUsingWithPropertySets(): void
+    public function testMigrateFreshUsingWithPropertySets()
     {
         $migrateFreshUsingReflection = $this->__reflectAndSetupAccessibleForProtectedTraitMethod('migrateFreshUsing');
 
         $expected = [
             '--drop-views' => true,
+            '--drop-types' => false,
             '--seed' => false,
-            '--database' => 'default',
         ];
 
         $this->traitObject->dropViews = true;
@@ -61,47 +60,19 @@ class CanConfigureMigrationCommandsTest extends TestCase
 
         $expected = [
             '--drop-views' => false,
+            '--drop-types' => false,
             '--seed' => false,
-            '--database' => 'default',
         ];
 
         $this->traitObject->dropViews = false;
 
         $this->assertEquals($expected, $migrateFreshUsingReflection->invoke($this->traitObject));
     }
-
-    protected function getConfig(array $config = []): Config
-    {
-        return new Config(array_merge([
-            'database' => [
-                'default' => 'default',
-            ],
-        ], $config));
-    }
 }
 
 class CanConfigureMigrationCommandsTestMockClass
 {
     use CanConfigureMigrationCommands;
-    use HasMockedApplication;
 
     public bool $dropViews = false;
-
-    public $app;
-
-    public function __construct()
-    {
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-        ]);
-    }
-
-    protected function getConfig(array $config = []): Config
-    {
-        return new Config(array_merge([
-            'database' => [
-                'default' => 'default',
-            ],
-        ], $config));
-    }
 }

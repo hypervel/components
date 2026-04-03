@@ -5,20 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View\Blade;
 
 use Closure;
-use Hypervel\Container\DefinitionSource;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory;
+use Hypervel\Contracts\View\View;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
-use Hypervel\View\Contracts\Factory;
-use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Stringable;
 
 /**
@@ -723,7 +722,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         };
 
         $model = new class extends Model {
-            public function getEventDispatcher(): ?EventDispatcherInterface
+            public static function getEventDispatcher(): ?Dispatcher
             {
                 return null;
             }
@@ -759,19 +758,11 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->never();
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs([
-                new DefinitionSource([
-                    Factory::class => fn () => $factory,
-                ]),
-                'bath_path',
-            ])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
+        $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $attributes = new ComponentAttributeBag(['userId' => 'bar', 'other' => 'ok']);
 
@@ -804,19 +795,11 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->never();
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs([
-                new DefinitionSource([
-                    Factory::class => fn () => $factory,
-                ]),
-                'bath_path',
-            ])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
+        $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $attributes = new ComponentAttributeBag(['userId' => 'bar', 'other' => 'ok']);
 
@@ -867,19 +850,11 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
             $factory->shouldReceive('exists')->andReturn(...$exists);
         }
 
-        $container = $this->getMockBuilder(Application::class)
-            ->setConstructorArgs([
-                new DefinitionSource([
-                    Factory::class => fn () => $factory,
-                ]),
-                'bath_path',
-            ])
-            ->onlyMethods(['getNamespace'])
-            ->getMock();
-        $container->method('getNamespace')->willReturn('App\\');
+        $container = new TestBladeApplication('bath_path');
+        $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
     }
 
     protected function compiler(array $aliases = [], array $namespaces = [], ?BladeCompiler $blade = null)
@@ -947,12 +922,20 @@ class TestContainerComponent extends Component
     }
 }
 
+class TestBladeApplication extends Application
+{
+    public function getNamespace(): string
+    {
+        return 'App\\';
+    }
+}
+
 namespace App\View\Components\Card;
 
 use Closure;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
 use Hypervel\View\Component;
-use Hypervel\View\Contracts\View;
 
 class Card extends Component
 {

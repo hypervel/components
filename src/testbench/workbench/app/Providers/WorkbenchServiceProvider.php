@@ -4,28 +4,26 @@ declare(strict_types=1);
 
 namespace Workbench\App\Providers;
 
-use Hypervel\Router\RouteFileCollector;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Testbench\Bootstrapper;
 
 class WorkbenchServiceProvider extends ServiceProvider
 {
+    /**
+     * Register services.
+     */
+    public function register(): void
+    {
+        $this->loadMigrationsFrom(realpath(__DIR__ . '/../../database/migrations'));
+    }
+
+    /**
+     * Bootstrap services.
+     */
     public function boot(): void
     {
-        $config = Bootstrapper::getConfig()['workbench']['discover'] ?? [];
-
-        if ($config['web'] ?? false) {
-            $this->app->get(RouteFileCollector::class)
-                ->addRouteFile(dirname(__DIR__, 2) . '/routes/web.php');
-        }
-
-        if ($config['api'] ?? false) {
-            $this->app->get(RouteFileCollector::class)
-                ->addRouteFile(dirname(__DIR__, 2) . '/routes/api.php');
-        }
-
-        if ($config['commands'] ?? false) {
-            require dirname(__DIR__, 2) . '/routes/console.php';
-        }
+        Route::macro('text', function (string $url, string $content) {
+            return $this->get($url, fn () => response($content)->header('Content-Type', 'text/plain')); /* @phpstan-ignore method.notFound */
+        });
     }
 }

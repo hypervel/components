@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 use Swoole\Table;
 
 class SwooleTableManager
@@ -14,7 +13,7 @@ class SwooleTableManager
     protected array $tables = [];
 
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -55,7 +54,7 @@ class SwooleTableManager
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigInterface::class)->get("cache.swoole_tables.{$name}");
+            return $this->app->make('config')->get("cache.swoole_tables.{$name}");
         }
 
         return null;

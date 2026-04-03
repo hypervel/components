@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Database\Schema\SchemaProxy;
-
 /**
  * @method static void defaultStringLength(int $length)
  * @method static bool hasTable(string $table)
@@ -32,16 +30,32 @@ use Hypervel\Database\Schema\SchemaProxy;
  * @method static bool enableForeignKeyConstraints()
  * @method static bool disableForeignKeyConstraints()
  * @method static array getForeignKeys(string $table)
- * @method static \Hyperf\Database\Connection getConnection()
- * @method static \Hyperf\Database\Schema\Builder setConnection(\Hyperf\Database\Connection $connection)
+ * @method static \Hypervel\Database\Connection getConnection()
+ * @method static \Hypervel\Database\Schema\Builder setConnection(\Hypervel\Database\Connection $connection)
  * @method static void blueprintResolver(\Closure $resolver)
  *
- * @see \Hyperf\Database\Schema\Builder
+ * @see \Hypervel\Database\Schema\Builder
  */
 class Schema extends Facade
 {
-    protected static function getFacadeAccessor()
+    /**
+     * Indicates if the resolved facade should be cached.
+     */
+    protected static bool $cached = false;
+
+    /**
+     * Get a schema builder instance for a connection.
+     */
+    public static function connection(?string $name = null): \Hypervel\Database\Schema\Builder
     {
-        return SchemaProxy::class;
+        return static::$app['db']->connection($name)->getSchemaBuilder();
+    }
+
+    /**
+     * Get the registered name of the component.
+     */
+    protected static function getFacadeAccessor(): string
+    {
+        return 'db.schema';
     }
 }

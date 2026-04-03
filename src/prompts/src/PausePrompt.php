@@ -25,6 +25,6 @@ class PausePrompt extends Prompt
      */
     public function value(): bool
     {
-        return static::$interactive;
+        return static::isInteractive() ?? false;
     }
 }

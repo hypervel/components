@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Process\Exceptions;
 
-use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Contracts\Process\ProcessResult;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Exception\RuntimeException;
 

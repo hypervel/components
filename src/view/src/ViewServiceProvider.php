@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
-use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\FileEngine;
@@ -33,13 +31,13 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerFactory(): void
     {
-        $this->app->bind(FactoryContract::class, function ($app) {
+        $this->app->singleton('view', function ($app) {
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
-            $resolver = $app->get(EngineResolver::class);
+            $resolver = $app['view.engine.resolver'];
 
-            $finder = $app->get(ViewFinderInterface::class);
+            $finder = $app['view.finder'];
 
             $factory = $this->createFactory($resolver, $finder, $app['events']);
 
@@ -67,7 +65,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerViewFinder(): void
     {
-        $this->app->bind(ViewFinderInterface::class, function ($app) {
+        $this->app->bind('view.finder', function ($app) {
             return new FileViewFinder($app['files'], $app['config']['view.paths']);
         });
     }
@@ -77,7 +75,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerBladeCompiler(): void
     {
-        $this->app->bind(CompilerInterface::class, function ($app) {
+        $this->app->singleton('blade.compiler', function ($app) {
             return tap(new BladeCompiler(
                 $app['files'],
                 $app['config']['view.compiled'],
@@ -95,7 +93,7 @@ class ViewServiceProvider extends ServiceProvider
      */
     protected function registerEngineResolver(): void
     {
-        $this->app->bind(EngineResolver::class, function () {
+        $this->app->singleton('view.engine.resolver', function () {
             $resolver = new EngineResolver();
 
             // Next, we will register the various view engines with the resolver so that the
@@ -115,7 +113,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerFileEngine(EngineResolver $resolver): void
     {
         $resolver->register('file', function () {
-            return new FileEngine(Container::getInstance()->get('files'));
+            return new FileEngine(Container::getInstance()->make('files'));
         });
     }
 
@@ -125,7 +123,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerPhpEngine(EngineResolver $resolver): void
     {
         $resolver->register('php', function () {
-            return new PhpEngine(Container::getInstance()->get('files'));
+            return new PhpEngine(Container::getInstance()->make('files'));
         });
     }
 
@@ -138,8 +136,8 @@ class ViewServiceProvider extends ServiceProvider
             $app = Container::getInstance();
 
             return new CompilerEngine(
-                $app->get(CompilerInterface::class),
-                $app->get('files'),
+                $app->make('blade.compiler'),
+                $app->make('files'),
             );
         });
     }

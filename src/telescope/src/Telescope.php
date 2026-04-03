@@ -6,25 +6,25 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Context\Context;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
-use Psr\Container\ContainerInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function event;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
-use function Hypervel\Event\event;
 
 class Telescope
 {
@@ -120,7 +120,7 @@ class Telescope
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
-    public static function start(ContainerInterface $app): void
+    public static function start(ContainerContract $app): void
     {
         if (! config('telescope.enabled')) {
             return;
@@ -131,7 +131,7 @@ class Telescope
         static::registerMailableTagExtractor();
 
         static::$started = true;
-        static::$store = $app->get(EntriesRepository::class);
+        static::$store = $app->make(EntriesRepository::class);
     }
 
     /**
@@ -163,16 +163,16 @@ class Telescope
     /**
      * Determine if the application is handling an approved request.
      */
-    public static function handlingApprovedRequest(ContainerInterface $app): bool
+    public static function handlingApprovedRequest(ContainerContract $app): bool
     {
-        return static::requestIsToApprovedDomain($request = $app->get(RequestContract::class))
+        return static::requestIsToApprovedDomain($request = $app->make(Request::class))
             && static::requestIsToApprovedUri($request);
     }
 
     /**
      * Determine if the request is to an approved domain.
      */
-    protected static function requestIsToApprovedDomain(RequestContract $request): bool
+    protected static function requestIsToApprovedDomain(Request $request): bool
     {
         return is_null(config('telescope.domain'))
             || config('telescope.domain') !== $request->getHost();
@@ -181,7 +181,7 @@ class Telescope
     /**
      * Determine if the request is to an approved URI.
      */
-    protected static function requestIsToApprovedUri(RequestContract $request): bool
+    protected static function requestIsToApprovedUri(Request $request): bool
     {
         if (! empty($only = config('telescope.only_paths', []))) {
             return $request->is($only);
@@ -215,7 +215,7 @@ class Telescope
      */
     public static function startRecording(): void
     {
-        if (Context::get(static::SHOULD_RECORD, null)) {
+        if (CoroutineContext::get(static::SHOULD_RECORD, null)) {
             return;
         }
 
@@ -228,7 +228,7 @@ class Telescope
         } catch (Exception) {
         }
 
-        Context::set(static::SHOULD_RECORD, ! $recordingPaused);
+        CoroutineContext::set(static::SHOULD_RECORD, ! $recordingPaused);
         // Ensure batch ID is set when starting recording
         static::getBatchId();
     }
@@ -238,7 +238,7 @@ class Telescope
      */
     public static function stopRecording(): void
     {
-        Context::set(static::SHOULD_RECORD, false);
+        CoroutineContext::set(static::SHOULD_RECORD, false);
     }
 
     /**
@@ -253,7 +253,7 @@ class Telescope
         try {
             return call_user_func($callback);
         } finally {
-            Context::set(static::SHOULD_RECORD, $shouldRecord);
+            CoroutineContext::set(static::SHOULD_RECORD, $shouldRecord);
         }
     }
 
@@ -266,7 +266,7 @@ class Telescope
             return false;
         }
 
-        return Context::get(static::SHOULD_RECORD, false);
+        return CoroutineContext::get(static::SHOULD_RECORD, false);
     }
 
     /**
@@ -278,18 +278,18 @@ class Telescope
             return;
         }
 
-        if (Context::get(static::IS_RECORDING, false)) {
+        if (CoroutineContext::get(static::IS_RECORDING, false)) {
             return;
         }
 
-        if (! Context::get(static::HAS_STORED, false)) {
-            defer(function () {
+        if (! CoroutineContext::get(static::HAS_STORED, false)) {
+            Coroutine::defer(function () {
                 static::store(static::$store);
             });
-            Context::set(static::HAS_STORED, true);
+            CoroutineContext::set(static::HAS_STORED, true);
         }
 
-        Context::set(static::IS_RECORDING, true);
+        CoroutineContext::set(static::IS_RECORDING, true);
 
         try {
             if (Auth::hasUser()) {
@@ -305,7 +305,7 @@ class Telescope
 
         static::withoutRecording(function () use ($entry) {
             if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                Context::override(static::ENTRIES_QUEUE, function ($entries) use ($entry) {
+                CoroutineContext::override(static::ENTRIES_QUEUE, function ($entries) use ($entry) {
                     return array_merge($entries ?? [], [$entry]);
                 });
             }
@@ -315,7 +315,7 @@ class Telescope
             }
         });
 
-        Context::set(static::IS_RECORDING, false);
+        CoroutineContext::set(static::IS_RECORDING, false);
     }
 
     /**
@@ -323,7 +323,7 @@ class Telescope
      */
     public static function getEntriesQueue(): array
     {
-        return Context::get(static::ENTRIES_QUEUE, []);
+        return CoroutineContext::get(static::ENTRIES_QUEUE, []);
     }
 
     /**
@@ -331,7 +331,7 @@ class Telescope
      */
     public static function getUpdatesQueue(): array
     {
-        return Context::get(static::UPDATES_QUEUE, []);
+        return CoroutineContext::get(static::UPDATES_QUEUE, []);
     }
 
     /**
@@ -343,7 +343,7 @@ class Telescope
             return;
         }
 
-        Context::override(static::UPDATES_QUEUE, function ($updates) use ($update) {
+        CoroutineContext::override(static::UPDATES_QUEUE, function ($updates) use ($update) {
             return array_merge($updates ?? [], [$update]);
         });
     }
@@ -497,7 +497,7 @@ class Telescope
      */
     public static function flushEntries(): static
     {
-        Context::set(static::ENTRIES_QUEUE, []);
+        CoroutineContext::set(static::ENTRIES_QUEUE, []);
 
         return new static();
     }
@@ -507,7 +507,7 @@ class Telescope
      */
     public static function flushUpdates(): static
     {
-        Context::set(static::UPDATES_QUEUE, []);
+        CoroutineContext::set(static::UPDATES_QUEUE, []);
 
         return new static();
     }
@@ -583,7 +583,7 @@ class Telescope
         }
 
         if (config('telescope.defer', true)) {
-            defer(fn () => static::executeStore($storage));
+            Coroutine::defer(fn () => static::executeStore($storage));
             return;
         }
 
@@ -614,8 +614,8 @@ class Telescope
                             ->onQueue(config('telescope.queue.queue'))
                             ->delay(is_numeric($delay) && $delay > 0 ? now()->addSeconds($delay) : null);
                     } catch (Throwable $e) {
-                        ApplicationContext::getContainer()
-                            ->get(ExceptionHandler::class)
+                        Container::getInstance()
+                            ->make(ExceptionHandler::class)
                             ->report($e);
                     }
                 }
@@ -626,8 +626,8 @@ class Telescope
 
                 Collection::make(static::$afterStoringHooks)->every->__invoke(static::getEntriesQueue(), $batchId);
             } catch (Throwable $e) {
-                ApplicationContext::getContainer()
-                    ->get(ExceptionHandler::class)
+                Container::getInstance()
+                    ->make(ExceptionHandler::class)
                     ->report($e);
             }
         });
@@ -664,7 +664,7 @@ class Telescope
 
     protected static function getBatchId(): string
     {
-        return Context::getOrSet(static::BATCH_ID, Str::orderedUuid()->toString());
+        return CoroutineContext::getOrSet(static::BATCH_ID, Str::orderedUuid()->toString());
     }
 
     /**
@@ -734,6 +734,35 @@ class Telescope
         Avatar::register($callback);
 
         return new static();
+    }
+
+    /**
+     * Flush all static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$filterUsing = [];
+        static::$filterBatchUsing = [];
+        static::$afterRecordingHook = null;
+        static::$afterStoringHooks = [];
+        static::$tagUsing = [];
+        static::$hiddenRequestHeaders = [
+            'authorization',
+            'php-auth-pw',
+        ];
+        static::$hiddenRequestParameters = [
+            'password',
+            'password_confirmation',
+        ];
+        static::$hiddenResponseParameters = [];
+        static::$ignoreFrameworkEvents = true;
+        static::$useDarkTheme = false;
+        static::$started = false;
+        static::$ignoredUris = [];
+        static::$store = null;
+        static::$authUsing = null;
+        static::flushWatchers();
+        Avatar::flushState();
     }
 
     /**

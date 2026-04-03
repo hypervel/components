@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
-use Hypervel\Validation\Contracts\Rule as RuleContract;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
 use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
 use Mockery as m;
@@ -24,7 +23,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(TranslatorContract::class, function () {
+        $this->app->singleton('translator', function () {
             return new Translator(
                 new ArrayLoader(),
                 'en'
@@ -243,7 +242,7 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make('translator'),
             ['my_password' => 'Nuno'],
             ['my_password' => ['nullable', 'confirmed', Password::min(3)->letters()]]
         );
@@ -274,14 +273,14 @@ class ValidationPasswordRuleTest extends TestCase
 
         $this->passes(Password::default(), ['abcd', '454qb^', '接2133手田']);
         $this->assertSame($password, Password::default());
-        $this->assertSame(['required', $password], Password::required());
-        $this->assertSame(['sometimes', $password], Password::sometimes());
+        $this->assertInstanceOf(Password::class, Password::required());
+        $this->assertInstanceOf(Password::class, Password::sometimes());
 
         Password::defaults($password2);
         $this->passes(Password::default(), ['Nn', 'Mn', 'âA']);
         $this->assertSame($password2, Password::default());
-        $this->assertSame(['required', $password2], Password::required());
-        $this->assertSame(['sometimes', $password2], Password::sometimes());
+        $this->assertInstanceOf(Password::class, Password::required());
+        $this->assertInstanceOf(Password::class, Password::sometimes());
     }
 
     public function testItCannotSetDefaultUsingGivenString()
@@ -299,7 +298,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => '1234'],
             $rules
         );
@@ -307,7 +306,7 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v1 = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make('translator'),
             ['password' => '123412@45#341111'],
             $rules
         );
@@ -327,7 +326,7 @@ class ValidationPasswordRuleTest extends TestCase
         ];
 
         $v = new Validator(
-            $this->app->get(TranslatorContract::class),
+            $this->app->make('translator'),
             ['my_password' => '1234'],
             $rules,
             $messages,
@@ -411,6 +410,129 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
     }
 
+    public function testRequired()
+    {
+        $this->fails(Password::required(), [null], [
+            'validation.required',
+        ]);
+
+        $this->passes(Password::required(), ['12345678', 'password123']);
+
+        $this->fails([Password::required()], ['short'], [
+            'validation.min.string',
+        ]);
+
+        $this->passes(Password::required()->mixedCase()->numbers(), ['Password1']);
+
+        // Ensure it still correct when using array
+        $this->passes([Password::required()], ['12345678', 'password123']);
+
+        $this->fails([Password::required()], ['short'], [
+            'validation.min.string',
+        ]);
+
+        $this->passes(['string', Password::required()], ['12345678', 'password123']);
+
+        $this->passes([Password::required()->mixedCase()->numbers()], ['Password1']);
+
+        // Test with custom defaults
+        Password::defaults(Password::min(6)->letters());
+
+        $this->fails(Password::required(), [null], [
+            'validation.required',
+        ]);
+
+        $this->passes(Password::required(), ['Password123', 'password123']);
+        $this->passes([Password::required()], ['Password123', 'password123']);
+    }
+
+    public function testSometimes()
+    {
+        $this->fails(Password::sometimes(), ['short'], [
+            'validation.min.string',
+        ]);
+
+        $this->passes(Password::sometimes(), ['12345678', 'password123']);
+
+        $this->fails([Password::sometimes()], ['12345'], [
+            'validation.min.string',
+        ]);
+
+        $this->passes(Password::sometimes()->mixedCase()->numbers(), ['Password1']);
+
+        // Ensure it still correct when using array
+        $this->passes([Password::sometimes()], ['12345678', 'password123']);
+
+        $this->fails([Password::sometimes()], ['12345'], [
+            'validation.min.string',
+        ]);
+
+        $this->passes(['string', Password::sometimes()], ['12345678', 'password123']);
+
+        $this->passes([Password::sometimes()->mixedCase()->numbers()], ['Password1']);
+
+        // Test with custom defaults
+        Password::defaults(Password::min(6)->letters());
+
+        $this->passes(Password::sometimes(), ['Password123', 'password123']);
+        $this->passes([Password::sometimes()], ['Password123', 'password123']);
+    }
+
+    public function testRequiredWithMissingValue()
+    {
+        $v = new Validator(
+            $this->app->make('translator'),
+            [],
+            ['password' => [Password::required()]]
+        );
+
+        $this->assertFalse($v->passes());
+        $this->assertArrayHasKey('password', $v->messages()->toArray());
+        $this->assertStringContainsString('required', $v->messages()->first('password'));
+
+        $v = \Hypervel\Support\Facades\Validator::make(
+            [],
+            [
+                'password' => [Password::required()],
+            ]
+        );
+
+        $this->assertFalse($v->passes());
+    }
+
+    public function testNullableWithEmptyString()
+    {
+        $v = new Validator(
+            $this->app->make('translator'),
+            ['password' => ''],
+            ['password' => ['nullable', Password::min(8)->letters()->numbers()]]
+        );
+
+        $this->assertTrue($v->passes());
+
+        $v = new Validator(
+            $this->app->make('translator'),
+            ['password' => null],
+            ['password' => ['nullable', Password::min(8)->letters()->numbers()]]
+        );
+
+        $this->assertTrue($v->passes());
+
+        $v = new Validator(
+            $this->app->make('translator'),
+            ['password' => ''],
+            ['password' => ['nullable', Password::sometimes()->min(8)->letters()->numbers()]]
+        );
+
+        $this->assertTrue($v->passes());
+    }
+
+    public function testItCanReturnsAsUnpackedArray()
+    {
+        $this->assertSame(['required', 'string', 'min:8'], [...Password::required()]);
+        $this->assertSame(['sometimes', 'string', 'min:8'], [...Password::sometimes()]);
+    }
+
     protected function passes($rule, $values)
     {
         $this->assertValidationRules($rule, $values, true, []);
@@ -425,7 +547,7 @@ class ValidationPasswordRuleTest extends TestCase
     {
         foreach ($values as $value) {
             $v = new Validator(
-                $this->app->get(TranslatorContract::class),
+                $this->app->make('translator'),
                 ['my_password' => $value, 'my_password_confirmation' => $value],
                 ['my_password' => is_object($rule) ? clone $rule : $rule]
             );

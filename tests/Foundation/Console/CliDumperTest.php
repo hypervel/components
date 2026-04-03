@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\CliDumper;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use stdClass;
@@ -21,8 +20,6 @@ use Symfony\Component\VarDumper\Cloner\VarCloner;
  */
 class CliDumperTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected $config;
 
     protected $container;
@@ -33,9 +30,8 @@ class CliDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
-        ]);
+        $this->container = new Application();
+        $this->container->singleton('config', fn () => $this->config);
 
         CliDumper::resolveDumpSourceUsing(function () {
             return [
@@ -183,7 +179,7 @@ class CliDumperTest extends TestCase
 
     public function testGetOriginalViewCompiledFile()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
         $output = new BufferedOutput();
@@ -201,7 +197,7 @@ class CliDumperTest extends TestCase
 
     public function testWhenGetOriginalViewCompiledFileFails()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view-without-source-map.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
         $output = new BufferedOutput();
@@ -228,6 +224,23 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
+    public function testUnresolvableLine()
+    {
+        CliDumper::resolveDumpSourceUsing(function () {
+            return [
+                '/my-work-directory/resources/views/welcome.blade.php',
+                'resources/views/welcome.blade.php',
+                null,
+            ];
+        });
+
+        $output = $this->dump('hey from view');
+
+        $expected = "\"hey from view\" // resources/views/welcome.blade.php\n";
+
+        $this->assertSame($expected, $output);
+    }
+
     protected function dump($value)
     {
         $compiledViewPath = $this->config->get('view.config.view_path');
@@ -240,10 +253,5 @@ class CliDumperTest extends TestCase
         $dumper->dumpWithSource($cloner->cloneVar($value));
 
         return $output->fetch();
-    }
-
-    protected function tearDown(): void
-    {
-        CliDumper::resolveDumpSourceUsing(null);
     }
 }

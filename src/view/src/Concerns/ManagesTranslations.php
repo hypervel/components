@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait ManagesTranslations
 {
     /**
      * Context key for translation replacements.
      */
-    protected const TRANSLATION_REPLACEMENTS_CONTEXT_KEY = 'translation_replacements';
+    protected const TRANSLATION_REPLACEMENTS_CONTEXT_KEY = '__view.translation_replacements';
 
     /**
      * Start a translation block.
@@ -20,7 +20,7 @@ trait ManagesTranslations
     {
         ob_start();
 
-        Context::set(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, $replacements);
+        CoroutineContext::set(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, $replacements);
     }
 
     /**
@@ -28,9 +28,9 @@ trait ManagesTranslations
      */
     public function renderTranslation(): string
     {
-        return $this->container->get('translator')->get(
+        return $this->container->make('translator')->get(
             trim(ob_get_clean()),
-            Context::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
+            CoroutineContext::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
         );
     }
 }

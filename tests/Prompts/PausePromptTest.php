@@ -12,7 +12,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\pause;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

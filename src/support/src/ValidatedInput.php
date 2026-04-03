@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayIterator;
-use Hypervel\Support\Contracts\ValidatedData;
+use Hypervel\Contracts\Support\ValidatedData;
 use Hypervel\Support\Traits\InteractsWithData;
 use Symfony\Component\VarDumper\VarDumper;
 use Traversable;

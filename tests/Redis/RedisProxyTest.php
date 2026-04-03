@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hypervel\Context\Context;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Redis\PhpRedisConnection;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\Redis as HypervelRedis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -25,13 +25,11 @@ use Redis;
  */
 class RedisProxyTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
-        Context::destroy('redis.connection.cache');
+        CoroutineContext::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default');
+        CoroutineContext::forget(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache');
     }
 
     public function testProxyUsesSpecifiedPoolName(): void
@@ -72,16 +70,32 @@ class RedisProxyTest extends TestCase
         $proxy->pipeline();
 
         // Context key should use the pool name
-        $this->assertTrue(Context::has('redis.connection.cache'));
-        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertTrue(CoroutineContext::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'cache'));
+        $this->assertFalse(CoroutineContext::has(HypervelRedis::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testIsClusterReadsCorrectPoolConfig(): void
+    {
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('getConfig')->andReturn([
+            'cluster' => ['enable' => true, 'seeds' => ['127.0.0.1:6379']],
+        ]);
+        $pool->shouldReceive('get')->never();
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('cache')->andReturn($pool);
+
+        $proxy = new RedisProxy($poolFactory, 'cache');
+
+        $this->assertTrue($proxy->isCluster());
     }
 
     /**
-     * Create a mock RedisConnection with standard expectations.
+     * Create a mock PhpRedisConnection with standard expectations.
      */
-    private function mockConnection(): m\MockInterface|RedisConnection
+    private function mockConnection(): m\MockInterface|PhpRedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('shouldTransform')->andReturnSelf();

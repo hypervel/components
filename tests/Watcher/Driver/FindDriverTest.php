@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Watcher\Driver;
+
+use Hypervel\Engine\Channel;
+use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
+use Hypervel\Tests\Watcher\Fixtures\FindDriverStub;
+use Hypervel\Watcher\Driver\FindDriver;
+use Hypervel\Watcher\Option;
+use InvalidArgumentException;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class FindDriverTest extends TestCase
+{
+    public function testWatch()
+    {
+        $container = ContainerStub::getContainer(FindDriver::class);
+        $option = new Option($container->make('config')->get('watcher'), [], []);
+        $channel = new Channel(10);
+
+        try {
+            $driver = new FindDriverStub($option);
+            $driver->watch($channel);
+
+            $this->assertSame('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
+        } catch (InvalidArgumentException $e) {
+            if (str_contains($e->getMessage(), 'find not exists')) {
+                $this->markTestSkipped();
+            }
+            throw $e;
+        } finally {
+            if (isset($driver)) {
+                $driver->stop();
+            }
+            $channel->close();
+        }
+    }
+}

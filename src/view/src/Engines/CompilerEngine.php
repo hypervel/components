@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
-use Hyperf\Database\Exception\MultipleRecordsFoundException;
-use Hyperf\Database\Exception\RecordsNotFoundException;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\HttpMessage\Exception\HttpException;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\RecordNotFoundException;
+use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Str;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class CompilerEngine extends PhpEngine
@@ -21,7 +20,14 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    protected const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
+    public const COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
+
+    /**
+     * The view paths that were compiled or are not expired, keyed by the path.
+     *
+     * @var array<string, true>
+     */
+    protected static array $compiledOrNotExpired = [];
 
     /**
      * Create a new compiler engine instance.
@@ -45,7 +51,7 @@ class CompilerEngine extends PhpEngine
         // If this given view has expired, which means it has simply been edited since
         // it was last compiled, we will re-compile the views so we can evaluate a
         // fresh copy of the view. We'll pass the compiler the path of the view.
-        if ($this->compiler->isExpired($path)) {
+        if (! isset(static::$compiledOrNotExpired[$path]) && $this->compiler->isExpired($path)) {
             $this->compiler->compile($path);
         }
 
@@ -60,10 +66,16 @@ class CompilerEngine extends PhpEngine
                 throw $e;
             }
 
+            if (! isset(static::$compiledOrNotExpired[$path])) {
+                throw $e;
+            }
+
             $this->compiler->compile($path);
 
             $results = $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
         }
+
+        static::$compiledOrNotExpired[$path] = true;
 
         $this->popCompiledPath();
 
@@ -72,16 +84,16 @@ class CompilerEngine extends PhpEngine
 
     protected function pushCompiledPath(string $path): void
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
         $stack[] = $path;
-        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
     protected function popCompiledPath(): void
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
         array_pop($stack);
-        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -93,9 +105,8 @@ class CompilerEngine extends PhpEngine
     {
         if ($e instanceof HttpException
             || $e instanceof HttpResponseException
-            || $e instanceof MultipleRecordsFoundException
+            || $e instanceof RecordNotFoundException
             || $e instanceof RecordsNotFoundException
-            || $e instanceof ModelNotFoundException
         ) {
             parent::handleViewException($e, $obLevel);
         }
@@ -110,7 +121,7 @@ class CompilerEngine extends PhpEngine
      */
     protected function getMessage(Throwable $e): string
     {
-        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY);
 
         return $e->getMessage() . ' (View: ' . realpath(last($stack)) . ')';
     }
@@ -121,5 +132,13 @@ class CompilerEngine extends PhpEngine
     public function getCompiler(): CompilerInterface
     {
         return $this->compiler;
+    }
+
+    /**
+     * Clear the cache of views that were compiled or not expired.
+     */
+    public static function forgetCompiledOrNotExpired(): void
+    {
+        static::$compiledOrNotExpired = [];
     }
 }

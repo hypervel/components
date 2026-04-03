@@ -13,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -25,30 +29,36 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
+        "dragonmantank/cron-expression": "^3.4",
         "guzzlehttp/guzzle": "^7.8.2",
-        "hyperf/command": "~3.1.0",
-        "hypervel/cache": "^0.3",
-        "hypervel/coroutine": "^0.3",
-        "hypervel/foundation": "^0.3",
-        "hypervel/queue": "^0.3",
-        "dragonmantank/cron-expression": "^3.3.2",
-        "symfony/console": "^5.4|^6.4|^7.0",
-        "friendsofhyperf/command-signals": "~3.1.0"
-    },
-    "suggest": {
-        "hypervel/prompt": "Required to run schedule:test command.",
-        "friendsofhyperf/pretty-console": "Required to run schedule:run command. (~3.1.0)"
+        "symfony/console": "^8.0",
+        "hypervel/bus": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/prompts": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Console\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Console\\ConsoleServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

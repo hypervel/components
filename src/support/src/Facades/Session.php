@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Session\Contracts\Factory as SessionManagerContract;
-
 /**
- * @method static \Hypervel\Session\Contracts\Session store(string|null $name = null)
+ * @method static \Hypervel\Contracts\Session\Session store(string|null $name = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()
@@ -18,8 +16,8 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Session\SessionManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Session\SessionManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Session\SessionManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Session\SessionManager forgetDrivers()
  * @method static bool start()
  * @method static void save()
@@ -46,6 +44,7 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  * @method static void reflash()
  * @method static void keep(array|mixed $keys = null)
  * @method static void flashInput(array $value)
+ * @method static \Hypervel\Contracts\Cache\Repository cache()
  * @method static mixed remove(\UnitEnum|string $key)
  * @method static void forget(\UnitEnum|array|string $keys)
  * @method static void flush()
@@ -63,8 +62,11 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  * @method static string|null token()
  * @method static void regenerateToken()
  * @method static bool hasPreviousUri()
+ * @method static \Hypervel\Support\Uri previousUri()
  * @method static string|null previousUrl()
  * @method static void setPreviousUrl(string $url)
+ * @method static string|null previousRoute()
+ * @method static void setPreviousRoute(string|null $route)
  * @method static void passwordConfirmed()
  * @method static \SessionHandlerInterface getHandler()
  * @method static \SessionHandlerInterface setHandler(\SessionHandlerInterface $handler)
@@ -76,8 +78,8 @@ use Hypervel\Session\Contracts\Factory as SessionManagerContract;
  */
 class Session extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return SessionManagerContract::class;
+        return 'session';
     }
 }

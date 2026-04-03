@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Redis\Operations;
 
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Redis\Stub\FakeRedisClient;
-use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -23,7 +25,7 @@ class SafeScanTest extends TestCase
      */
     private function createConnection(FakeRedisClient $client): RedisConnection
     {
-        $connection = new RedisConnectionStub();
+        $connection = new PhpRedisConnectionStub();
         $connection->setActiveConnection($client);
 
         return $connection;
@@ -222,5 +224,104 @@ class SafeScanTest extends TestCase
         iterator_to_array($safeScan->execute('cache:*'));
 
         $this->assertSame(1000, $client->getScanCalls()[0]['count']);
+    }
+
+    // --- Cluster tests ---
+
+    /**
+     * Create a PhpRedisClusterConnection wrapping a FakeRedisClusterClient.
+     */
+    private function createClusterConnection(FakeRedisClusterClient $client): RedisConnection
+    {
+        $connection = new PhpRedisClusterConnectionStub();
+        $connection->setActiveConnection($client);
+
+        return $connection;
+    }
+
+    public function testClusterScanIteratesAllMasterNodes(): void
+    {
+        $client = new FakeRedisClusterClient(
+            masters: [['127.0.0.1', 6379], ['127.0.0.1', 6380]],
+            scanResults: [
+                '127.0.0.1:6379' => [
+                    ['keys' => ['key1', 'key2'], 'iterator' => 0],
+                ],
+                '127.0.0.1:6380' => [
+                    ['keys' => ['key3'], 'iterator' => 0],
+                ],
+            ],
+        );
+
+        $safeScan = new SafeScan($this->createClusterConnection($client), '');
+        $keys = iterator_to_array($safeScan->execute('*'));
+
+        $this->assertSame(['key1', 'key2', 'key3'], $keys);
+
+        // Verify both nodes were scanned
+        $scanCalls = $client->getScanCalls();
+        $this->assertCount(2, $scanCalls);
+        $this->assertSame(['127.0.0.1', 6379], $scanCalls[0]['node']);
+        $this->assertSame(['127.0.0.1', 6380], $scanCalls[1]['node']);
+    }
+
+    public function testClusterScanStripsOptPrefix(): void
+    {
+        $client = new FakeRedisClusterClient(
+            masters: [['127.0.0.1', 6379]],
+            scanResults: [
+                '127.0.0.1:6379' => [
+                    ['keys' => ['myapp:cache:key1', 'myapp:cache:key2'], 'iterator' => 0],
+                ],
+            ],
+            optPrefix: 'myapp:',
+        );
+
+        $safeScan = new SafeScan($this->createClusterConnection($client), 'myapp:');
+        $keys = iterator_to_array($safeScan->execute('cache:*'));
+
+        $this->assertSame(['cache:key1', 'cache:key2'], $keys);
+        $this->assertSame('myapp:cache:*', $client->getScanCalls()[0]['pattern']);
+    }
+
+    public function testClusterScanHandlesMultipleBatchesPerNode(): void
+    {
+        $client = new FakeRedisClusterClient(
+            masters: [['127.0.0.1', 6379]],
+            scanResults: [
+                '127.0.0.1:6379' => [
+                    ['keys' => ['key1'], 'iterator' => 42],  // More to scan
+                    ['keys' => ['key2'], 'iterator' => 0],    // Done
+                ],
+            ],
+        );
+
+        $safeScan = new SafeScan($this->createClusterConnection($client), '');
+        $keys = iterator_to_array($safeScan->execute('*'));
+
+        $this->assertSame(['key1', 'key2'], $keys);
+
+        // Two scan calls to the same node
+        $this->assertCount(2, $client->getScanCalls());
+    }
+
+    public function testClusterScanHandlesEmptyNodes(): void
+    {
+        $client = new FakeRedisClusterClient(
+            masters: [['127.0.0.1', 6379], ['127.0.0.1', 6380]],
+            scanResults: [
+                '127.0.0.1:6379' => [
+                    ['keys' => [], 'iterator' => 0],
+                ],
+                '127.0.0.1:6380' => [
+                    ['keys' => ['key1'], 'iterator' => 0],
+                ],
+            ],
+        );
+
+        $safeScan = new SafeScan($this->createClusterConnection($client), '');
+        $keys = iterator_to_array($safeScan->execute('*'));
+
+        $this->assertSame(['key1'], $keys);
     }
 }

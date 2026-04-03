@@ -13,7 +13,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\search;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

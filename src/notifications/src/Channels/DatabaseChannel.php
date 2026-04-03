@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Channels;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Notification;
 use RuntimeException;
 
@@ -31,7 +31,9 @@ class DatabaseChannel
                 ? $notification->databaseType($notifiable) // @phpstan-ignore-line
                 : get_class($notification),
             'data' => $this->getData($notifiable, $notification),
-            'read_at' => null,
+            'read_at' => method_exists($notification, 'initialDatabaseReadAtValue')
+                ? $notification->initialDatabaseReadAtValue($notifiable) // @phpstan-ignore-line
+                : null,
         ];
     }
 

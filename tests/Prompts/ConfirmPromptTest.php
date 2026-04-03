@@ -13,7 +13,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\confirm;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

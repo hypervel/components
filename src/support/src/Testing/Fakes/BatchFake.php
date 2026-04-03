@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Carbon\CarbonInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Collection\Enumerable;
+use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Throwable;
 
 class BatchFake extends Batch
@@ -35,9 +34,9 @@ class BatchFake extends Batch
         public int $failedJobs,
         public array $failedJobIds,
         public array $options,
-        public CarbonInterface $createdAt,
-        public ?CarbonInterface $cancelledAt = null,
-        public ?CarbonInterface $finishedAt = null
+        public CarbonImmutable $createdAt,
+        public ?CarbonImmutable $cancelledAt = null,
+        public ?CarbonImmutable $finishedAt = null
     ) {
     }
 
@@ -85,7 +84,7 @@ class BatchFake extends Batch
     /**
      * Record that a job within the batch failed to finish successfully, executing any callbacks if necessary.
      */
-    public function recordFailedJob(string $jobId, Throwable $e): void
+    public function recordFailedJob(string $jobId, ?Throwable $e): void
     {
     }
 
@@ -102,7 +101,7 @@ class BatchFake extends Batch
      */
     public function cancel(): void
     {
-        $this->cancelledAt = Carbon::now();
+        $this->cancelledAt = CarbonImmutable::now();
     }
 
     /**

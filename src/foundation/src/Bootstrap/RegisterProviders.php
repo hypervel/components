@@ -4,65 +4,83 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Providers\FoundationServiceProvider;
-use Hypervel\Support\Composer;
-use Throwable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\ServiceProvider;
 
 class RegisterProviders
 {
     /**
-     * Register App Providers.
+     * The service providers that should be merged before registration.
+     *
+     * @var array<int, class-string>
+     */
+    protected static array $merge = [];
+
+    /**
+     * The path to the bootstrap provider configuration file.
+     */
+    protected static ?string $bootstrapProviderPath = null;
+
+    /**
+     * Bootstrap the given application.
      */
     public function bootstrap(ApplicationContract $app): void
     {
-        $providers = [];
-        $packagesToIgnore = $this->packagesToIgnore();
-
-        if (! in_array('*', $packagesToIgnore)) {
-            $providers = array_map(
-                fn (array $package) => Arr::wrap($package['hypervel']['providers'] ?? []),
-                Composer::getMergedExtra()
-            );
-            $providers = array_filter(
-                $providers,
-                fn ($package) => ! in_array($package, $packagesToIgnore),
-                ARRAY_FILTER_USE_KEY
-            );
-            $providers = Arr::flatten($providers);
+        if (! $app->bound('config_loaded_from_cache')
+            || $app->make('config_loaded_from_cache') === false) {
+            $this->mergeAdditionalProviders($app);
         }
 
-        $providers = array_unique(
-            array_merge(
-                $providers,
-                $app->get(ConfigInterface::class)->get('app.providers', [])
-            )
-        );
-
-        // Ensure that FoundationServiceProvider is registered first.
-        $foundationKey = array_search(FoundationServiceProvider::class, $providers);
-        if ($foundationKey !== false) {
-            unset($providers[$foundationKey]);
-            array_unshift($providers, FoundationServiceProvider::class);
-        }
-
-        foreach ($providers as $providerClass) {
-            $app->register($providerClass);
-        }
+        $app->registerConfiguredProviders();
     }
 
-    protected function packagesToIgnore(): array
+    /**
+     * Merge the additional configured providers into the configuration.
+     */
+    protected function mergeAdditionalProviders(ApplicationContract $app): void
     {
-        $packages = Composer::getMergedExtra('hypervel')['dont-discover'] ?? [];
+        if (static::$bootstrapProviderPath
+            && file_exists(static::$bootstrapProviderPath)) {
+            $bootstrapProviders = require static::$bootstrapProviderPath;
 
-        try {
-            $project = Composer::getJsonContent()['extra']['hypervel']['dont-discover'] ?? [];
-        } catch (Throwable) {
-            $project = [];
+            foreach ($bootstrapProviders as $index => $provider) {
+                if (! class_exists($provider)) {
+                    unset($bootstrapProviders[$index]);
+                }
+            }
         }
 
-        return array_merge($packages, $project);
+        $app->make('config')->set(
+            'app.providers',
+            array_merge(
+                $app->make('config')->get('app.providers') ?? ServiceProvider::defaultProviders()->toArray(),
+                static::$merge,
+                array_values($bootstrapProviders ?? []),
+            ),
+        );
+    }
+
+    /**
+     * Merge the given providers into the provider configuration before registration.
+     *
+     * @param array<int, class-string|string> $providers
+     */
+    public static function merge(array $providers, ?string $bootstrapProviderPath = null): void
+    {
+        static::$bootstrapProviderPath = $bootstrapProviderPath;
+
+        static::$merge = array_values(array_filter(array_unique(
+            array_merge(static::$merge, $providers)
+        )));
+    }
+
+    /**
+     * Flush the bootstrapper's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$bootstrapProviderPath = null;
+
+        static::$merge = [];
     }
 }

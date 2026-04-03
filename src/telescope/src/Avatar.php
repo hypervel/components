@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 class Avatar
 {
@@ -36,6 +36,14 @@ class Avatar
     public static function register(Closure $callback): void
     {
         static::$callback = $callback;
+    }
+
+    /**
+     * Flush the avatar callback.
+     */
+    public static function flushState(): void
+    {
+        static::$callback = null;
     }
 
     /**

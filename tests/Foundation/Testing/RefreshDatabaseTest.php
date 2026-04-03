@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ConnectionInterface;
-use Hyperf\DbConnection\Db;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PDO;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
@@ -24,11 +23,14 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class RefreshDatabaseTest extends TestCase
 {
-    use HasMockedApplication;
     use RefreshDatabase;
     use InteractsWithConsole;
 
+    protected bool $runTestsInCoroutine = false;
+
     protected bool $dropViews = false;
+
+    protected bool $dropTypes = false;
 
     protected bool $seed = false;
 
@@ -39,6 +41,7 @@ class RefreshDatabaseTest extends TestCase
     public function tearDown(): void
     {
         $this->dropViews = false;
+        $this->dropTypes = false;
         $this->seed = false;
         $this->seeder = null;
 
@@ -59,15 +62,14 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
 
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
-        ]);
+        $this->app = new Application();
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -81,14 +83,33 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => true,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
-        ]);
+        $this->app = new Application();
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
+
+        $this->refreshTestDatabase();
+    }
+
+    public function testRefreshTestDatabaseWithDropTypesOption()
+    {
+        $this->dropTypes = true;
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', [
+                '--drop-views' => false,
+                '--drop-types' => true,
+                '--seed' => false,
+            ])->andReturn(0);
+        $this->app = new Application();
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -102,14 +123,13 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
-        ]);
+        $this->app = new Application();
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
@@ -123,33 +143,23 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
-        ]);
+        $this->app = new Application();
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
     }
 
-    protected function getConfig(array $config = []): Config
-    {
-        return new Config(array_merge([
-            'database' => [
-                'default' => 'default',
-            ],
-        ], $config));
-    }
-
-    protected function getMockedDatabase(): Db
+    protected function getMockedDatabase(): DatabaseManager
     {
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('getEventDispatcher')
             ->twice()
-            ->andReturn($eventDispatcher = m::mock(EventDispatcherInterface::class));
+            ->andReturn($eventDispatcher = m::mock(Dispatcher::class));
         $connection->shouldReceive('unsetEventDispatcher')
             ->twice();
         $connection->shouldReceive('beginTransaction')
@@ -159,6 +169,8 @@ class RefreshDatabaseTest extends TestCase
         $connection->shouldReceive('setEventDispatcher')
             ->twice()
             ->with($eventDispatcher);
+        $connection->shouldReceive('setTransactionManager')
+            ->once();
 
         $pdo = m::mock(PDO::class);
         $pdo->shouldReceive('inTransaction')
@@ -167,7 +179,7 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->andReturn($pdo);
 
-        $db = m::mock(Db::class);
+        $db = m::mock(DatabaseManager::class);
         $db->shouldReceive('connection')
             ->twice()
             ->with(null)

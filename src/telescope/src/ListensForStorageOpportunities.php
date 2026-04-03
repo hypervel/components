@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
-use Hyperf\Command\Event\BeforeHandle as BeforeHandleCommand;
-use Hyperf\Context\Context;
-use Hyperf\HttpServer\Event\RequestReceived;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
+use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Telescope\Contracts\EntriesRepository;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 trait ListensForStorageOpportunities
 {
@@ -30,7 +30,7 @@ trait ListensForStorageOpportunities
     /**
      * Register listeners that store the recorded Telescope entries.
      */
-    public static function listenForStorageOpportunities(ContainerInterface $app): void
+    public static function listenForStorageOpportunities(Container $app): void
     {
         static::recordEntriesForRequests($app);
         static::manageRecordingStateForCommands($app);
@@ -60,12 +60,12 @@ trait ListensForStorageOpportunities
     /**
      * Record the entries in queue before the request termination.
      */
-    public static function recordEntriesForRequests(ContainerInterface $app): void
+    public static function recordEntriesForRequests(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(RequestReceived::class, function ($event) use ($app) {
                 if (static::shouldListen()
-                    && static::requestIsToApprovedUri($app->get(RequestContract::class))
+                    && static::requestIsToApprovedUri($app->make(Request::class))
                 ) {
                     static::startRecording();
                 }
@@ -75,9 +75,9 @@ trait ListensForStorageOpportunities
     /**
      * Manage starting and stopping the recording state for commands.
      */
-    public static function manageRecordingStateForCommands(ContainerInterface $app): void
+    public static function manageRecordingStateForCommands(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(BeforeHandleCommand::class, function () {
                 if (static::shouldListen()
                     && static::runningApprovedArtisanCommand()
@@ -85,10 +85,10 @@ trait ListensForStorageOpportunities
                     static::startRecording();
                 }
             });
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, function () use ($app) {
                 static::store(
-                    $app->get(EntriesRepository::class)
+                    $app->make(EntriesRepository::class)
                 );
             });
     }
@@ -98,7 +98,7 @@ trait ListensForStorageOpportunities
      */
     protected static function getProcessingJobs(): array
     {
-        return Context::get(static::PROCESSING_JOBS, []);
+        return CoroutineContext::get(static::PROCESSING_JOBS, []);
     }
 
     /**
@@ -106,7 +106,7 @@ trait ListensForStorageOpportunities
      */
     protected static function addProcessingJob(): array
     {
-        return Context::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
             $jobs = $jobs ?? [];
             $jobs[] = true;
 
@@ -119,7 +119,7 @@ trait ListensForStorageOpportunities
      */
     protected static function popProcessingJob(): array
     {
-        return Context::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
             $jobs = $jobs ?? [];
             array_pop($jobs);
 
@@ -130,9 +130,9 @@ trait ListensForStorageOpportunities
     /**
      * Store entries after the queue worker loops.
      */
-    protected static function storeEntriesAfterWorkerLoop(ContainerInterface $app): void
+    protected static function storeEntriesAfterWorkerLoop(Container $app): void
     {
-        $event = $app->get(EventDispatcherInterface::class);
+        $event = $app->make(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             if (static::shouldListen() && $event->connectionName !== 'sync') {
                 static::startRecording();
@@ -165,12 +165,12 @@ trait ListensForStorageOpportunities
     /**
      * Store the recorded entries if totally done processing the current job.
      */
-    protected static function storeIfDoneProcessingJob(JobFailed|JobProcessed $event, ContainerInterface $app): void
+    protected static function storeIfDoneProcessingJob(JobFailed|JobProcessed $event, Container $app): void
     {
         static::popProcessingJob();
 
         if (empty(static::getProcessingJobs()) && $event->connectionName !== 'sync') {
-            static::store($app->get(EntriesRepository::class));
+            static::store($app->make(EntriesRepository::class));
             static::stopRecording();
         }
     }

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Support\Environment;
+use Hypervel\Http\Request;
 
 trait AuthorizesRequests
 {
@@ -29,12 +27,10 @@ trait AuthorizesRequests
     /**
      * Determine if the given request can access the Telescope dashboard.
      */
-    public static function check(RequestContract $request): bool
+    public static function check(Request $request): bool
     {
         return (static::$authUsing ?: function () {
-            return ApplicationContext::getContainer()
-                ->get(Environment::class)
-                ->isLocal();
+            return app()->isLocal();
         })($request);
     }
 }

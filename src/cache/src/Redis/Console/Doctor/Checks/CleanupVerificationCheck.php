@@ -12,7 +12,6 @@ use Redis;
  * Verifies that cleanup properly removes all test data.
  *
  * This check runs AFTER cleanup to ensure no test keys remain in Redis.
- * It catches regressions in cleanup logic that could leave orphaned test data.
  */
 final class CleanupVerificationCheck implements CheckInterface
 {

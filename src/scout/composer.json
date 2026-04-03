@@ -17,6 +17,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -29,17 +33,25 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hypervel/config": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/core": "^0.3",
-        "hypervel/coroutine": "^0.3",
-        "hypervel/event": "^0.3",
-        "hypervel/queue": "^0.3",
-        "hypervel/support": "^0.3"
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/pagination": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4",
+        "symfony/console": "^8.0"
     },
     "suggest": {
-        "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.0)",
+        "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.16)",
         "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },
     "config": {
@@ -47,7 +59,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Carbon\Carbon;
+use Hypervel\Support\Carbon;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;

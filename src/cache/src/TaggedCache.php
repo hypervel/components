@@ -6,9 +6,9 @@ namespace Hypervel\Cache;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -102,6 +102,10 @@ class TaggedCache extends Repository
      */
     protected function event(object $event): void
     {
-        parent::event($event->setTags($this->tags->getNames()));
+        if (method_exists($event, 'setTags')) {
+            $event->setTags($this->tags->getNames());
+        }
+
+        parent::event($event);
     }
 }

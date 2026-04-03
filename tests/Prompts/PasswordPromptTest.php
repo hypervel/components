@@ -13,7 +13,6 @@ use PHPUnit\Framework\TestCase;
 use function Hypervel\Prompts\password;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

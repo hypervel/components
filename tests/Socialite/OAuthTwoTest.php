@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
-use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Socialite\Two\Token;
 use Hypervel\Socialite\Two\User;
@@ -28,16 +27,9 @@ use Psr\Http\Message\StreamInterface;
  */
 class OAuthTwoTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
-    }
-
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->once()
             ->andReturn($session = m::mock(SessionContract::class));
@@ -53,31 +45,26 @@ class OAuthTwoTest extends TestCase
             return false;
         };
 
-        $response = m::mock(ResponseContract::class);
-        $response->shouldReceive('redirect')
-            ->once()
-            ->with(m::on(function ($url) use (&$state) {
-                return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}";
-            }))->andReturn($redirectResponse = m::mock(ResponseInterface::class));
-
         $session->expects('put')->withArgs($closure);
         $provider = new OAuthTwoTestProviderStub(
             $request,
-            $response,
             'client_id',
             'client_secret',
             'redirect'
         );
 
+        $response = $provider->redirect();
+
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertSame(
-            $redirectResponse,
-            $provider->redirect()
+            "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}",
+            $response->getTargetUrl()
         );
     }
 
     public function testRedirectGeneratesTheProperRedirectResponseWithPKCE()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
 
@@ -98,14 +85,6 @@ class OAuthTwoTest extends TestCase
             return false;
         };
 
-        $response = m::mock(ResponseContract::class);
-        $response->shouldReceive('redirect')
-            ->once()
-            ->with(m::on(function ($url) use (&$state, &$codeVerifier) {
-                $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
-                return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&code_challenge={$codeChallenge}&code_challenge_method=S256";
-            }))->andReturn(m::mock(ResponseInterface::class));
-
         $session->expects('put')->twice()->withArgs($sessionPutClosure);
         $session->expects('get')->once()->with('code_verifier')->andReturnUsing(function () use (&$codeVerifier) {
             return $codeVerifier;
@@ -113,18 +92,24 @@ class OAuthTwoTest extends TestCase
 
         $provider = new OAuthTwoWithPKCETestProviderStub(
             $request,
-            $response,
             'client_id',
             'client_secret',
             'redirect'
         );
 
-        $provider->redirect();
+        $response = $provider->redirect();
+
+        $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
+        $this->assertInstanceOf(RedirectResponse::class, $response);
+        $this->assertSame(
+            "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&code_challenge={$codeChallenge}&code_challenge_method=S256",
+            $response->getTargetUrl()
+        );
     }
 
     public function testTokenRequestIncludesPKCECodeVerifier()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('has')
             ->andReturn(true);
         $request->shouldReceive('input')
@@ -143,7 +128,6 @@ class OAuthTwoTest extends TestCase
         $session->expects('pull')->with('code_verifier')->andReturns($codeVerifier);
         $provider = new OAuthTwoWithPKCETestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'
@@ -168,7 +152,7 @@ class OAuthTwoTest extends TestCase
 
     public function testUserReturnsAUserInstanceForTheAuthenticatedRequest()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
         $request->shouldReceive('has')
@@ -185,7 +169,6 @@ class OAuthTwoTest extends TestCase
         $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
         $provider = new OAuthTwoTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'
@@ -210,7 +193,7 @@ class OAuthTwoTest extends TestCase
 
     public function testUserReturnsAUserInstanceForTheAuthenticatedFacebookRequest()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
         $request->shouldReceive('has')
@@ -226,7 +209,6 @@ class OAuthTwoTest extends TestCase
         $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
         $provider = new FacebookTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'
@@ -252,7 +234,7 @@ class OAuthTwoTest extends TestCase
     {
         $this->expectException(InvalidStateException::class);
 
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
         $request->shouldReceive('has')
@@ -265,7 +247,6 @@ class OAuthTwoTest extends TestCase
         $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
         $provider = new OAuthTwoTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect'
@@ -277,13 +258,12 @@ class OAuthTwoTest extends TestCase
     {
         $this->expectException(InvalidStateException::class);
 
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->shouldReceive('session')
             ->andReturn($session = m::mock(SessionContract::class));
         $session->expects('pull')->with('state');
         $provider = new OAuthTwoTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect'
@@ -293,10 +273,9 @@ class OAuthTwoTest extends TestCase
 
     public function testUserRefreshesToken()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $provider = new OAuthTwoTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'
@@ -320,10 +299,9 @@ class OAuthTwoTest extends TestCase
 
     public function testUserRefreshesGoogleToken()
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $provider = new GoogleTestProviderStub(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect_uri'

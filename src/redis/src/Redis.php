@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Exception\InvalidRedisConnectionException;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Context\Context;
+use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Redis\Connection as ConnectionContract;
+use Hypervel\Contracts\Redis\Factory as FactoryContract;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
+use Hypervel\Redis\Limiters\DurationLimiterBuilder;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
+use Hypervel\Support\Arr;
 use Throwable;
 use UnitEnum;
 
@@ -18,9 +26,14 @@ use function Hypervel\Support\enum_value;
 /**
  * @mixin \Hypervel\Redis\RedisConnection
  */
-class Redis
+class Redis implements FactoryContract, ConnectionContract
 {
     use MultiExec;
+
+    /**
+     * Context key prefix for per-connection pool state.
+     */
+    public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     protected string $poolName = 'default';
 
@@ -29,9 +42,70 @@ class Redis
     ) {
     }
 
+    /**
+     * Get the connection name.
+     */
+    public function getName(): string
+    {
+        return $this->poolName;
+    }
+
+    /**
+     * Determine if this connection uses Redis Cluster.
+     */
+    public function isCluster(): bool
+    {
+        $config = $this->factory->getPool($this->poolName)->getConfig();
+
+        return $config['cluster']['enable'] ?? false;
+    }
+
+    /**
+     * Scan keys matching a pattern.
+     * @param mixed $cursor
+     */
+    public function scan($cursor, ...$arguments)
+    {
+        return $this->__call('scan', [$cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan hash fields matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function hScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('hScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan sorted set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function zScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('zScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
+     */
+    public function sScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('sScan', [$key, $cursor, ...$arguments]);
+    }
+
     public function __call($name, $arguments)
     {
-        $hasContextConnection = Context::has($this->getContextKey());
+        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
+            return $this->handleSubscribe($name, $arguments);
+        }
+
+        $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
         $start = (float) microtime(true);
@@ -62,11 +136,11 @@ class Redis
                 // Connection is already in context, don't release
             } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
                 // On success with same-connection command: store in context for reuse
-                if ($name === 'select' && $db = $arguments[0]) {
-                    $connection->setDatabase((int) $db);
+                if ($name === 'select' && array_key_exists(0, $arguments)) {
+                    $connection->setDatabase((int) $arguments[0]);
                 }
-                Context::set($this->getContextKey(), $connection);
-                defer(function () {
+                CoroutineContext::set($this->getContextKey(), $connection);
+                Coroutine::defer(function () {
                     $this->releaseContextConnection();
                 });
             } else {
@@ -88,11 +162,42 @@ class Redis
     protected function releaseContextConnection(): void
     {
         $contextKey = $this->getContextKey();
-        $connection = Context::get($contextKey);
+        $connection = CoroutineContext::get($contextKey);
 
         if ($connection) {
-            Context::set($contextKey, null);
+            CoroutineContext::set($contextKey, null);
             $connection->release();
+        }
+    }
+
+    /**
+     * Handle subscribe/psubscribe using the coroutine-native subscriber.
+     *
+     * Creates a dedicated socket connection (not from the pool) and bridges
+     * the channel-based subscriber to the Laravel-style callback API.
+     */
+    protected function handleSubscribe(string $name, array $arguments): void
+    {
+        $channels = Arr::wrap($arguments[0]);
+        $callback = $arguments[1];
+
+        $subscriber = $this->subscriber();
+
+        try {
+            if ($name === 'subscribe') {
+                $subscriber->subscribe(...$channels);
+            } else {
+                $subscriber->psubscribe(...$channels);
+            }
+
+            $channel = $subscriber->channel();
+            while ($message = $channel->pop()) {
+                $callback($message->payload, $message->channel);
+            }
+        } finally {
+            if (! $subscriber->closed) {
+                $subscriber->close();
+            }
         }
     }
 
@@ -106,7 +211,7 @@ class Redis
             'multi',
             'pipeline',
             'select',
-        ]);
+        ], true);
     }
 
     /**
@@ -118,7 +223,7 @@ class Redis
     protected function getConnection(bool $hasContextConnection, bool $transform = true): RedisConnection
     {
         $connection = $hasContextConnection
-            ? Context::get($this->getContextKey())
+            ? CoroutineContext::get($this->getContextKey())
             : null;
 
         $connection = $connection
@@ -136,7 +241,7 @@ class Redis
      */
     protected function getContextKey(): string
     {
-        return sprintf('redis.connection.%s', $this->poolName);
+        return self::CONNECTION_CONTEXT_PREFIX . $this->poolName;
     }
 
     /**
@@ -156,7 +261,7 @@ class Redis
      */
     public function withConnection(callable $callback, bool $transform = true): mixed
     {
-        $hasContextConnection = Context::has($this->getContextKey());
+        $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection, $transform);
 
         try {
@@ -169,13 +274,135 @@ class Redis
     }
 
     /**
+     * Pin a pool connection in coroutine context for the duration of a callback.
+     *
+     * All Redis operations inside the callback will reuse the same connection,
+     * avoiding multiple pool checkouts. Re-entrant: if a connection is already
+     * pinned, the callback runs on it without re-pinning.
+     */
+    public function withPinnedConnection(callable $callback): mixed
+    {
+        $contextKey = $this->getContextKey();
+        $hadContextConnection = CoroutineContext::has($contextKey);
+        $connection = $this->getConnection($hadContextConnection);
+
+        if (! $hadContextConnection) {
+            CoroutineContext::set($contextKey, $connection);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if (! $hadContextConnection) {
+                CoroutineContext::set($contextKey, null);
+                $connection->release();
+            }
+        }
+    }
+
+    /**
+     * Execute a callback with serialization and compression temporarily disabled.
+     *
+     * Pins a pool connection and disables phpredis serialization and compression
+     * for the duration of the callback, then restores settings and releases.
+     *
+     * This is needed for rate limiter counters which must be stored as raw
+     * integers — phpredis serialization (e.g., igbinary) would corrupt them.
+     */
+    public function withoutSerializationOrCompression(callable $callback): mixed
+    {
+        return $this->withPinnedConnection(function () use ($callback) {
+            $contextKey = $this->getContextKey();
+            $connection = CoroutineContext::get($contextKey);
+
+            return $connection->withoutSerializationOrCompression($callback);
+        });
+    }
+
+    /**
+     * Create a coroutine-native Redis subscriber.
+     *
+     * Returns a Subscriber with its own dedicated socket connection (not from
+     * the pool). Use for the channel-based pub/sub API:
+     *
+     *     $sub = Redis::subscriber();
+     *     $sub->subscribe('channel');
+     *     while ($message = $sub->channel()->pop()) { ... }
+     *     $sub->close();
+     */
+    public function subscriber(): Subscriber
+    {
+        $config = $this->factory->getPool($this->poolName)->getConfig();
+        $options = $config['options'] ?? [];
+
+        return new Subscriber(
+            host: $config['host'],
+            port: (int) $config['port'],
+            password: (string) ($config['password'] ?? ''),
+            timeout: (float) ($config['timeout'] ?? 5.0),
+            prefix: (string) ($options['prefix'] ?? ''),
+        );
+    }
+
+    /**
      * Get a Redis connection by name.
      */
-    public function connection(UnitEnum|string $name = 'default'): RedisProxy
+    public function connection(UnitEnum|string|null $name = null): RedisProxy
     {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
-            ->get(enum_value($name));
+        return Container::getInstance()
+            ->make(RedisFactory::class)
+            ->get(enum_value($name) ?? 'default');
+    }
+
+    /**
+     * Subscribe to a set of given channels for messages.
+     */
+    public function subscribe(array|string $channels, Closure $callback): void
+    {
+        $this->__call('subscribe', [$channels, $callback]);
+    }
+
+    /**
+     * Subscribe to a set of given channels with wildcards.
+     */
+    public function psubscribe(array|string $channels, Closure $callback): void
+    {
+        $this->__call('psubscribe', [$channels, $callback]);
+    }
+
+    /**
+     * Run a command against the Redis database.
+     */
+    public function command(string $method, array $parameters = []): mixed
+    {
+        return $this->__call($method, $parameters);
+    }
+
+    /**
+     * Throttle a callback for a maximum number of executions over a given duration.
+     */
+    public function throttle(string $name): DurationLimiterBuilder
+    {
+        return new DurationLimiterBuilder($this->resolveConnection(), $name);
+    }
+
+    /**
+     * Funnel a callback for a maximum number of simultaneous executions.
+     */
+    public function funnel(string $name): ConcurrencyLimiterBuilder
+    {
+        return new ConcurrencyLimiterBuilder($this->resolveConnection(), $name);
+    }
+
+    /**
+     * Resolve this instance to a concrete connection proxy.
+     *
+     * If already a RedisProxy (named connection), return self.
+     * If the base Redis instance (manager), resolve the default connection.
+     */
+    private function resolveConnection(): RedisProxy
+    {
+        return $this instanceof RedisProxy ? $this : $this->connection();
     }
 
     /**

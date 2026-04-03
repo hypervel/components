@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-use Hypervel\View\Contracts\ViewCompilationException;
+use Hypervel\Contracts\View\ViewCompilationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

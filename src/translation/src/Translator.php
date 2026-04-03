@@ -6,14 +6,14 @@ namespace Hypervel\Translation;
 
 use Closure;
 use Countable;
-use Hyperf\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Translation\Loader;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\NamespacedItemResolver;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
-use Hypervel\Translation\Contracts\Loader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
@@ -22,6 +22,11 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 {
     use Macroable;
     use ReflectsClosures;
+
+    /**
+     * Context key for the per-request locale override.
+     */
+    protected const LOCALE_CONTEXT_KEY = '__translation.locale';
 
     /**
      * The fallback locale used by the translator.
@@ -381,7 +386,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     {
         $locales = array_filter([$locale ?: $this->getLocale(), $this->fallback]);
 
-        return call_user_func($this->determineLocalesUsing ?: fn () => $locales, $locales);
+        $determined = call_user_func($this->determineLocalesUsing ?: fn () => $locales, $locales);
+
+        return array_values(array_unique($determined));
     }
 
     /**
@@ -433,7 +440,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function getLocale(): string
     {
-        return (string) (Context::get('__translator.locale') ?? $this->locale);
+        return (string) (CoroutineContext::get(self::LOCALE_CONTEXT_KEY) ?? $this->locale);
     }
 
     /**
@@ -447,7 +454,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
 
-        Context::set('__translator.locale', $locale);
+        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**
@@ -487,23 +494,5 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         }
 
         $this->stringableHandlers[$class] = $handler;
-    }
-
-    /**
-     * Get the translation for a given key.
-     */
-    public function trans(string $key, array $replace = [], ?string $locale = null): array|string
-    {
-        return $this->get($key, $replace, $locale);
-    }
-
-    /**
-     * Get a translation according to an integer value.
-     *
-     * @param array|Countable|int $number
-     */
-    public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
-    {
-        return $this->choice($key, $number, $replace, $locale);
     }
 }

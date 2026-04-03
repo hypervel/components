@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Events;
 
+use Throwable;
+
 class QueueFailedOver
 {
     /**
@@ -11,7 +13,8 @@ class QueueFailedOver
      */
     public function __construct(
         public ?string $connectionName,
-        public object|string $command,
+        public mixed $command,
+        public Throwable $exception,
     ) {
     }
 }

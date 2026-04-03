@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Tests\TestCase;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use TypeError;
 
 /**
@@ -16,7 +17,7 @@ use TypeError;
 class QueueableTest extends TestCase
 {
     #[DataProvider('connectionDataProvider')]
-    public function testOnConnection(mixed $connection, ?string $expected): void
+    public function testOnConnection(mixed $connection, ?string $expected)
     {
         $job = new FakeJob();
         $job->onConnection($connection);
@@ -25,7 +26,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('connectionDataProvider')]
-    public function testAllOnConnection(mixed $connection, ?string $expected): void
+    public function testAllOnConnection(mixed $connection, ?string $expected)
     {
         $job = new FakeJob();
         $job->allOnConnection($connection);
@@ -44,7 +45,7 @@ class QueueableTest extends TestCase
         ];
     }
 
-    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -52,7 +53,7 @@ class QueueableTest extends TestCase
         $job->onConnection(IntConnectionEnum::Redis);
     }
 
-    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -61,7 +62,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('queuesDataProvider')]
-    public function testOnQueue(mixed $queue, ?string $expected): void
+    public function testOnQueue(mixed $queue, ?string $expected)
     {
         $job = new FakeJob();
         $job->onQueue($queue);
@@ -70,7 +71,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('queuesDataProvider')]
-    public function testAllOnQueue(mixed $queue, ?string $expected): void
+    public function testAllOnQueue(mixed $queue, ?string $expected)
     {
         $job = new FakeJob();
         $job->allOnQueue($queue);
@@ -89,7 +90,7 @@ class QueueableTest extends TestCase
         ];
     }
 
-    public function testOnQueueWithIntBackedEnumThrowsTypeError(): void
+    public function testOnQueueWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
@@ -97,12 +98,76 @@ class QueueableTest extends TestCase
         $job->onQueue(IntQueueEnum::High);
     }
 
-    public function testAllOnQueueWithIntBackedEnumThrowsTypeError(): void
+    public function testAllOnQueueWithIntBackedEnumThrowsTypeError()
     {
         $job = new FakeJob();
 
         $this->expectException(TypeError::class);
         $job->allOnQueue(IntQueueEnum::High);
+    }
+
+    #[DataProvider('groupDataProvider')]
+    public function testOnGroup(mixed $group, string $expected)
+    {
+        $job = new FakeJob();
+        $job->onGroup($group);
+
+        $this->assertSame($expected, $job->messageGroup);
+    }
+
+    public static function groupDataProvider(): array
+    {
+        return [
+            'uses string' => ['group-1', 'group-1'],
+            'uses string-backed enum' => [GroupEnum::Alpha, 'alpha'],
+            'uses unit enum' => [UnitGroupEnum::Beta, 'Beta'],
+        ];
+    }
+
+    public function testWithDeduplicatorClosure()
+    {
+        $job = new FakeJob();
+        $job->withDeduplicator(fn () => 'dedup-id');
+
+        $this->assertInstanceOf(SerializableClosure::class, $job->deduplicator);
+    }
+
+    public function testWithDeduplicatorNull()
+    {
+        $job = new FakeJob();
+        $job->withDeduplicator(null);
+
+        $this->assertNull($job->deduplicator);
+    }
+
+    // REMOVED: testWithDeduplicatorRejectsNonClosureCallable - withDeduplicator() now accepts array|callable|null to match Laravel, which includes string callables
+
+    public function testPrependToChainWithMultipleJobs()
+    {
+        $job = new FakeJob();
+        $job->chain([new FakeJob()]);
+
+        $job->prependToChain([new FakeJob(), new FakeJob()]);
+
+        $this->assertCount(3, $job->chained);
+        // The two prepended jobs should be first, in the order they were given
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[0]));
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[1]));
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[2]));
+    }
+
+    public function testAppendToChainWithMultipleJobs()
+    {
+        $job = new FakeJob();
+        $job->chain([new FakeJob()]);
+
+        $job->appendToChain([new FakeJob(), new FakeJob()]);
+
+        $this->assertCount(3, $job->chained);
+        // The two appended jobs should be at the end
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[0]));
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[1]));
+        $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[2]));
     }
 }
 
@@ -145,4 +210,16 @@ enum UnitQueueEnum
 {
     case Default;
     case Low;
+}
+
+enum GroupEnum: string
+{
+    case Alpha = 'alpha';
+    case Beta = 'beta';
+}
+
+enum UnitGroupEnum
+{
+    case Alpha;
+    case Beta;
 }

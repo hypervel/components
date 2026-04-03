@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
-use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Queue\MaxAttemptsExceededException;
+use Hypervel\Queue\TimeoutExceededException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  */
 class QueueExceptionTest extends TestCase
 {
-    public function testCreateTimeoutExceptionForJob()
+    public function testItCanCreateTimeoutExceptionForJob()
     {
         $e = TimeoutExceededException::forJob($job = new MyFakeRedisJob());
 
@@ -23,7 +23,7 @@ class QueueExceptionTest extends TestCase
         $this->assertSame($job, $e->job);
     }
 
-    public function testCreateMaxAttemptsExceptionForJob()
+    public function testItCanCreateMaxAttemptsExceptionForJob()
     {
         $e = MaxAttemptsExceededException::forJob($job = new MyFakeRedisJob());
 

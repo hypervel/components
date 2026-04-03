@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Redis\Redis;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\Redis;
+use Hypervel\Redis\RedisConnection;
 use InvalidArgumentException;
 
 class RedisLock extends Lock implements RefreshableLock
@@ -31,7 +32,7 @@ class RedisLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         if ($this->seconds > 0) {
-            return $this->redis->set($this->name, $this->owner, ['EX' => $this->seconds, 'NX']) == true;
+            return $this->redis->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') == true;
         }
 
         return $this->redis->setnx($this->name, $this->owner) == true;
@@ -42,7 +43,14 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function release(): bool
     {
-        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
+        return $this->redis->withConnection(function (RedisConnection $connection) {
+            return (bool) $connection->eval(
+                LuaScripts::releaseLock(),
+                1,
+                $this->name,
+                ...$connection->pack([$this->owner])
+            );
+        });
     }
 
     /**
@@ -56,7 +64,7 @@ class RedisLock extends Lock implements RefreshableLock
     /**
      * Returns the owner value written into the driver for this lock.
      */
-    protected function getCurrentOwner(): string
+    protected function getCurrentOwner(): ?string
     {
         return $this->redis->get($this->name);
     }
@@ -81,7 +89,17 @@ class RedisLock extends Lock implements RefreshableLock
             );
         }
 
-        return (bool) $this->redis->eval(LuaScripts::refreshLock(), [$this->name, $this->owner, $seconds], 1);
+        return $this->redis->withConnection(function (RedisConnection $connection) use ($seconds) {
+            $packedOwner = $connection->pack([$this->owner])[0];
+
+            return (bool) $connection->eval(
+                LuaScripts::refreshLock(),
+                1,
+                $this->name,
+                $packedOwner,
+                $seconds,
+            );
+        });
     }
 
     /**
@@ -97,5 +115,13 @@ class RedisLock extends Lock implements RefreshableLock
         }
 
         return (float) $ttl;
+    }
+
+    /**
+     * Get the name of the Redis connection being used to manage the lock.
+     */
+    public function getConnectionName(): string
+    {
+        return $this->redis->getName();
     }
 }

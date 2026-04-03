@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Exception;
+
+class {{ class }} extends Exception
+{
+    //
+}

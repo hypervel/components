@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Validations;
 
-use Carbon\Carbon;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Support\Facades\Date;
 
 class NotBeforeCliam extends AbstractValidation
 {
@@ -15,7 +15,7 @@ class NotBeforeCliam extends AbstractValidation
             return;
         }
 
-        if ($this->timestamp($nbf)->subSeconds($this->config['leeway'] ?? 0) > Carbon::now()) {
+        if ($this->timestamp($nbf)->subSeconds($this->config['leeway'] ?? 0) > Date::now()) {
             throw new TokenInvalidException('Not Before (nbf) timestamp cannot be in the future');
         }
     }

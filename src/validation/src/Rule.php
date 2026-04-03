@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Validation\InvokableRule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Validation\Contracts\InvokableRule;
-use Hypervel\Validation\Contracts\ValidationRule;
 use Hypervel\Validation\Rules\AnyOf;
 use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Can;
@@ -49,8 +50,8 @@ class Rule
      */
     public static function when(
         bool|callable $condition,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $rules,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules = []
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $rules, $defaultRules);
     }
@@ -60,9 +61,9 @@ class Rule
      */
     public static function unless(
         bool|callable $condition,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $rules,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules = []
-    ) {
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+    ): ConditionalRules {
         return new ConditionalRules($condition, $defaultRules, $rules);
     }
 
@@ -268,5 +269,13 @@ class Rule
         }
 
         return $parser->explode(ValidationRuleParser::filterConditionalRules($rules, $data));
+    }
+
+    /**
+     * Flush the rule builder's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

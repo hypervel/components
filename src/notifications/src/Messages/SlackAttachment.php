@@ -7,7 +7,7 @@ namespace Hypervel\Notifications\Messages;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class SlackAttachment
 {

@@ -5,7 +5,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "validation",
         "swoole",
         "hypervel"
@@ -14,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -26,27 +29,32 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-filter": "*",
         "ext-mbstring": "*",
-        "brick/math": "^0.11|^0.12",
-        "egulias/email-validator": "^3.2.5|^4.0",
-        "hypervel/support": "^0.3",
-        "hypervel/translation": "^0.3"
+        "brick/math": "^0.16",
+        "egulias/email-validator": "^4.0",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/translation": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Validation\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Validation\\ValidationServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
-    },
-    "suggest": {
-        "hyperf/database": "Required to use the database presence verifier (^3.1.0).",
-        "ramsey/uuid": "Required to use Validator::validateUuid() (^4.7)."
     }
 }

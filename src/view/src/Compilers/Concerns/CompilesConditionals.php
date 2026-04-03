@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Str;
 
 trait CompilesConditionals
@@ -12,7 +12,7 @@ trait CompilesConditionals
     /**
      * Identifier for the first case in the switch statement.
      */
-    protected const FIRST_CASE_IN_SWITCH_CONTEXT_KEY = 'first_case_in_switch';
+    protected const FIRST_CASE_IN_SWITCH_CONTEXT_KEY = '__view.first_case_in_switch';
 
     /**
      * Compile the if-auth statements into valid PHP.
@@ -187,7 +187,7 @@ trait CompilesConditionals
      */
     protected function compileSwitch(string $expression): string
     {
-        Context::set(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY, true);
+        CoroutineContext::set(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY, true);
 
         return "<?php switch{$expression}:";
     }
@@ -197,8 +197,8 @@ trait CompilesConditionals
      */
     protected function compileCase(string $expression): string
     {
-        if (Context::get(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY)) {
-            Context::set(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY, false);
+        if (CoroutineContext::get(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY)) {
+            CoroutineContext::set(static::FIRST_CASE_IN_SWITCH_CONTEXT_KEY, false);
 
             return "case {$expression}: ?>";
         }

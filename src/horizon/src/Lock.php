@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Closure;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Redis\RedisProxy;
 
 class Lock
 {
     /**
      * Create a Horizon lock manager.
      *
-     * @param RedisFactory $redis the Redis factory implementation
+     * @param Redis $redis the Redis factory implementation
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -47,7 +47,9 @@ class Lock
      */
     public function get(string $key, int $seconds = 60): bool
     {
-        if ($result = $this->connection()->setNx($key, 1)) {
+        $result = $this->connection()->setNx($key, '1') === 1;
+
+        if ($result) {
             $this->connection()->expire($key, $seconds);
         }
 
@@ -67,6 +69,6 @@ class Lock
      */
     public function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

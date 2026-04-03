@@ -1,0 +1,61 @@
+{
+    "name": "hypervel/auth",
+    "description": "The auth package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "auth",
+        "swoole",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "nesbot/carbon": "^3.8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/hashing": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/jwt": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/support": "^0.4"
+    },
+    "suggest": {
+        "hypervel/session": "Required to use session guard. (^0.4)"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Auth\\": "src/"
+        },
+        "files": [
+            "src/Functions.php"
+        ]
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Auth\\AuthServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

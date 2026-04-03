@@ -122,6 +122,7 @@ class Listener
             "--memory={$options->memory}",
             "--sleep={$options->sleep}",
             "--tries={$options->maxTries}",
+            $options->force ? '--force' : null,
         ], function ($value) {
             return ! is_null($value);
         });
@@ -130,7 +131,7 @@ class Listener
     /**
      * Run the given process.
      */
-    public function runProcess(Process $process, int $memory): void
+    public function runProcess(Process $process, float $memory): void
     {
         $process->run(function ($type, $line) {
             $this->handleWorkerOutput($type, $line);
@@ -157,7 +158,7 @@ class Listener
     /**
      * Determine if the memory limit has been exceeded.
      */
-    public function memoryExceeded(int $memoryLimit): bool
+    public function memoryExceeded(float $memoryLimit): bool
     {
         return (memory_get_usage(true) / 1024 / 1024) >= $memoryLimit;
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Mailables;
 
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 
 class Content
 {

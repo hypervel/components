@@ -4,7 +4,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "testbench",
         "swoole",
         "hypervel"
@@ -17,35 +16,69 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hypervel/framework": "^0.3",
-        "mockery/mockery": "^1.6.10",
-        "phpunit/phpunit": "^10.0.7",
-        "symfony/yaml": "^7.3",
-        "vlucas/phpdotenv": "^5.6.1"
+        "php": "^8.4",
+        "mockery/mockery": "1.6.x-dev",
+        "phpunit/phpunit": "^13.0.3",
+        "symfony/yaml": "^8.0",
+        "vlucas/phpdotenv": "^5.6.1",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/framework": "^0.4",
+        "hypervel/process": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "autoload": {
+        "files": [
+            "src/functions.php"
+        ],
         "psr-4": {
             "Hypervel\\Testbench\\": "src/",
-            "Workbench\\App\\": "workbench/app/"
+            "Workbench\\App\\": "workbench/app/",
+            "Workbench\\Database\\Factories\\": "workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"
         }
     },
     "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Testbench\\TestbenchServiceProvider"
+            ]
+        },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {
         "sort-packages": true
     },
-    "bin": [
-        "bin/testbench-sync"
-    ],
     "scripts": {
-        "sync": "@php bin/testbench-sync"
+        "post-autoload-dump": [
+            "@clear",
+            "@prepare"
+        ],
+        "clear": "@php bin/testbench package:purge-skeleton --ansi",
+        "prepare": "@php bin/testbench package:discover --ansi",
+        "serve": [
+            "@clear",
+            "@php bin/testbench serve --ansi"
+        ]
     },
+    "bin": [
+        "bin/testbench"
+    ],
     "minimum-stability": "dev"
 }

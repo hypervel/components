@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\Process\Factory

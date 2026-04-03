@@ -4,29 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Contracts\Factory as Cache;
-use Hypervel\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
 {
     /**
      * The unique lock identifier.
      */
-    public string $uniqueId;
+    public string $uniqueId = '';
 
     /**
      * The number of seconds the unique lock should be maintained.
      */
-    public int $uniqueFor;
+    public int $uniqueFor = 0;
 
     /**
      * Create a new event instance.
      */
     public function __construct(mixed $event)
     {
-        $this->uniqueId = get_class($event);
-
         if (method_exists($event, 'uniqueId')) {
             $this->uniqueId .= $event->uniqueId();
         } elseif (property_exists($event, 'uniqueId')) {
@@ -45,10 +43,10 @@ class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
     /**
      * Resolve the cache implementation that should manage the event's uniqueness.
      */
-    public function uniqueVia(): Cache
+    public function uniqueVia(): Repository
     {
         return method_exists($this->event, 'uniqueVia')
             ? $this->event->uniqueVia()
-            : ApplicationContext::getContainer()->get(Cache::class);
+            : Container::getInstance()->make(Repository::class);
     }
 }

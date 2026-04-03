@@ -33,4 +33,12 @@ class Argon2IdHasher extends ArgonHasher
     {
         return PASSWORD_ARGON2ID;
     }
+
+    /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'argon2id';
+    }
 }

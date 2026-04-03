@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Query\Builder;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\DatabaseUserProvider;
 use Hypervel\Auth\GenericUser;
-use Hypervel\Auth\Providers\DatabaseUserProvider;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use stdClass;
 
 /**
  * @internal
@@ -21,10 +22,10 @@ class AuthDatabaseUserProviderTest extends TestCase
 {
     public function testRetrieveByIDReturnsUserWhenUserIsFound()
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'Dayle']);
         $conn = m::mock(ConnectionInterface::class);
-        $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'Dayle']);
         $hasher = m::mock(Hasher::class);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = $provider->retrieveById(1);
@@ -36,10 +37,10 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testRetrieveByIDReturnsNullWhenUserIsNotFound()
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('find')->once()->with(1)->andReturn(null);
         $conn = m::mock(ConnectionInterface::class);
-        $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
         $hasher = m::mock(Hasher::class);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = $provider->retrieveById(1);
@@ -47,14 +48,59 @@ class AuthDatabaseUserProviderTest extends TestCase
         $this->assertNull($user);
     }
 
+    public function testRetrieveByTokenReturnsUser()
+    {
+        $mockUser = new stdClass();
+        $mockUser->remember_token = 'a';
+
+        $conn = m::mock(ConnectionInterface::class);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('find')->once()->with(1)->andReturn($mockUser);
+        $hasher = m::mock(Hasher::class);
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $user = $provider->retrieveByToken(1, 'a');
+
+        $this->assertEquals(new GenericUser((array) $mockUser), $user);
+    }
+
+    public function testRetrieveTokenWithBadIdentifierReturnsNull()
+    {
+        $conn = m::mock(ConnectionInterface::class);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $hasher = m::mock(Hasher::class);
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $user = $provider->retrieveByToken(1, 'a');
+
+        $this->assertNull($user);
+    }
+
+    public function testRetrieveByBadTokenReturnsNull()
+    {
+        $mockUser = new stdClass();
+        $mockUser->remember_token = null;
+
+        $conn = m::mock(ConnectionInterface::class);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('find')->once()->with(1)->andReturn($mockUser);
+        $hasher = m::mock(Hasher::class);
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $user = $provider->retrieveByToken(1, 'a');
+
+        $this->assertNull($user);
+    }
+
     public function testRetrieveByCredentialsReturnsUserWhenUserIsFound()
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->once()->with('username', 'dayle');
-        $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
-        $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('where')->once()->with('username', 'dayle');
+        $query->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
+        $query->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
         $hasher = m::mock(Hasher::class);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = $provider->retrieveByCredentials(['username' => 'dayle', 'password' => 'foo', 'group' => ['one', 'two']]);
@@ -66,12 +112,12 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testRetrieveByCredentialsAcceptsCallback()
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->once()->with('username', 'dayle');
-        $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
-        $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('where')->once()->with('username', 'dayle');
+        $query->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
+        $query->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
         $hasher = m::mock(Hasher::class);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
 
@@ -87,11 +133,11 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testRetrieveByCredentialsReturnsNullWhenUserIsFound()
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->once()->with('username', 'dayle');
-        $builder->shouldReceive('first')->once()->andReturn(null);
         $conn = m::mock(ConnectionInterface::class);
-        $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
+        $query = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($query);
+        $query->shouldReceive('where')->once()->with('username', 'dayle');
+        $query->shouldReceive('first')->once()->andReturn(null);
         $hasher = m::mock(Hasher::class);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = $provider->retrieveByCredentials(['username' => 'dayle']);
@@ -123,5 +169,75 @@ class AuthDatabaseUserProviderTest extends TestCase
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
 
         $this->assertTrue($result);
+    }
+
+    public function testCredentialValidationFails()
+    {
+        $conn = m::mock(ConnectionInterface::class);
+        $hasher = m::mock(Hasher::class);
+        $hasher->shouldReceive('check')->once()->with('plain', 'hash')->andReturn(false);
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthPassword')->once()->andReturn('hash');
+        $result = $provider->validateCredentials($user, ['password' => 'plain']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testCredentialValidationFailsGracefullyWithNullPassword()
+    {
+        $conn = m::mock(ConnectionInterface::class);
+        $hasher = m::mock(Hasher::class);
+        $hasher->shouldReceive('check')->never();
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthPassword')->once()->andReturn(null);
+        $result = $provider->validateCredentials($user, ['password' => 'plain']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testRehashPasswordIfRequired()
+    {
+        $hasher = m::mock(Hasher::class);
+        $hasher->shouldReceive('needsRehash')->once()->with('hash')->andReturn(true);
+        $hasher->shouldReceive('make')->once()->with('plain')->andReturn('rehashed');
+
+        $conn = m::mock(ConnectionInterface::class);
+        $table = m::mock(Builder::class);
+        $conn->shouldReceive('table')->once()->with('foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('id', 1)->andReturnSelf();
+        $table->shouldReceive('update')->once()->with(['password_attribute' => 'rehashed']);
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifierName')->once()->andReturn('id');
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(1);
+        $user->shouldReceive('getAuthPassword')->once()->andReturn('hash');
+        $user->shouldReceive('getAuthPasswordName')->once()->andReturn('password_attribute');
+
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $provider->rehashPasswordIfRequired($user, ['password' => 'plain']);
+    }
+
+    public function testDontRehashPasswordIfNotRequired()
+    {
+        $hasher = m::mock(Hasher::class);
+        $hasher->shouldReceive('needsRehash')->once()->with('hash')->andReturn(false);
+        $hasher->shouldNotReceive('make');
+
+        $conn = m::mock(ConnectionInterface::class);
+        $table = m::mock(Builder::class);
+        $conn->shouldNotReceive('table');
+        $table->shouldNotReceive('where');
+        $table->shouldNotReceive('update');
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthPassword')->once()->andReturn('hash');
+        $user->shouldNotReceive('getAuthIdentifierName');
+        $user->shouldNotReceive('getAuthIdentifier');
+        $user->shouldNotReceive('getAuthPasswordName');
+
+        $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
+        $provider->rehashPasswordIfRequired($user, ['password' => 'plain']);
     }
 }

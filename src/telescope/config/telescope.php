@@ -5,8 +5,6 @@ declare(strict_types=1);
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Watchers;
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -152,7 +150,12 @@ return [
             'hidden' => [],
         ],
 
-        Watchers\ClientRequestWatcher::class => env('TELESCOPE_GUZZLE_HTTP_CLIENT_ASPECT', true),
+        Watchers\ClientRequestWatcher::class => [
+            'enabled' => env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
+            'ignore_hosts' => [],
+            'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
+            'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
+        ],
 
         Watchers\CommandWatcher::class => [
             'enabled' => env('TELESCOPE_COMMAND_WATCHER', true),
@@ -176,12 +179,6 @@ return [
             'ignore_abilities' => [],
             'ignore_packages' => true,
             'ignore_paths' => [],
-        ],
-
-        Watchers\HttpClientWatcher::class => [
-            'enabled' => env('TELESCOPE_HTTP_CLIENT_WATCHER', true),
-            'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
-            'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
         ],
 
         Watchers\JobWatcher::class => env('TELESCOPE_JOB_WATCHER', true),

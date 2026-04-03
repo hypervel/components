@@ -8,22 +8,12 @@ use Symfony\Component\Mime\Email;
 
 class MessageSending
 {
-    public bool $shouldSend = true;
-
     /**
      * Create a new event instance.
      */
     public function __construct(
         public Email $message,
-        public array $data = []
+        public array $data = [],
     ) {
-    }
-
-    /**
-     * Determine if the message should be sent.
-     */
-    public function shouldSend(): bool
-    {
-        return $this->shouldSend;
     }
 }

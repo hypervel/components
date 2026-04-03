@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Contracts\Cache\LockProvider;
 
 class NullStore extends TaggableStore implements LockProvider
 {
@@ -64,6 +64,14 @@ class NullStore extends TaggableStore implements LockProvider
     public function restoreLock(string $name, string $owner): NoLock
     {
         return $this->lock($name, 0, $owner);
+    }
+
+    /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        return false;
     }
 
     /**

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
-use Hypervel\Queue\Exceptions\ManuallyFailedException;
-use Hypervel\Queue\Exceptions\TimeoutExceededException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Queue\ManuallyFailedException;
+use Hypervel\Queue\TimeoutExceededException;
+use Hypervel\Support\InteractsWithTime;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -27,7 +27,7 @@ abstract class Job implements JobContract
     /**
      * The IoC container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * Indicates if the job has been deleted.
@@ -169,6 +169,12 @@ abstract class Job implements JobContract
             }
         }
 
+        if ($this->shouldRollBackDatabaseTransaction($e)) {
+            $this->container->make('db')
+                ->connection($this->container['config']['queue.failed.database'])
+                ->rollBack(toLevel: 0);
+        }
+
         try {
             // If the job has failed, we will delete it, call the "failed" method and then call
             // an event indicating the job has failed so it can be logged if needed. This is
@@ -177,13 +183,24 @@ abstract class Job implements JobContract
 
             $this->failed($e);
         } finally {
-            $this->resolve(EventDispatcherInterface::class)
+            $this->resolve(Dispatcher::class)
                 ->dispatch(new JobFailed(
                     $this->connectionName,
                     $this,
                     $e ?: new ManuallyFailedException()
                 ));
         }
+    }
+
+    /**
+     * Determine if the current database transaction should be rolled back to level zero.
+     */
+    protected function shouldRollBackDatabaseTransaction(?Throwable $e): bool
+    {
+        return $e instanceof TimeoutExceededException
+            && $this->container['config']['queue.failed.database']
+            && in_array($this->container['config']['queue.failed.driver'], ['database', 'database-uuids'])
+            && $this->container->bound('db');
     }
 
     /**
@@ -196,7 +213,7 @@ abstract class Job implements JobContract
         [$class, $method] = JobName::parse($payload['job']);
 
         if (method_exists($this->instance = $this->resolve($class), 'failed')) {
-            $this->instance->failed($payload['data'], $e, $payload['uuid'] ?? '');
+            $this->instance->failed($payload['data'], $e, $payload['uuid'] ?? '', $this);
         }
     }
 
@@ -205,7 +222,7 @@ abstract class Job implements JobContract
      */
     protected function resolve(string $class): mixed
     {
-        return $this->container->get($class);
+        return $this->container->make($class);
     }
 
     /**
@@ -293,6 +310,16 @@ abstract class Job implements JobContract
     }
 
     /**
+     * Get the class of the queued job.
+     *
+     * Resolves the class of "wrapped" jobs such as class-based handlers.
+     */
+    public function resolveQueuedJobClass(): string
+    {
+        return JobName::resolveClassName($this->getName(), $this->payload());
+    }
+
+    /**
      * Get the name of the connection the job belongs to.
      */
     public function getConnectionName(): string
@@ -311,7 +338,7 @@ abstract class Job implements JobContract
     /**
      * Get the service container instance.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }

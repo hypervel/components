@@ -8,7 +8,6 @@ use Hypervel\Prompts\Concerns\Truncation;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */

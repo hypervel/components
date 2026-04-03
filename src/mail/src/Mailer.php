@@ -7,28 +7,27 @@ namespace Hypervel\Mail;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Mail\Contracts\Mailable;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
-use Hypervel\Mail\Contracts\MailQueue as MailQueueContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Mail\Mailable;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Mail\MailQueue as MailQueueContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
-use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
 
-use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
+use function value;
 
 class Mailer implements MailerContract, MailQueueContract
 {
@@ -65,13 +64,13 @@ class Mailer implements MailerContract, MailQueueContract
      * @param string $name the name that is configured for the mailer
      * @param FactoryContract $views the view factory instance
      * @param TransportInterface $transport the Symfony Transport instance
-     * @param null|EventDispatcherInterface $events the event dispatcher instance
+     * @param null|Dispatcher $events the event dispatcher instance
      */
     public function __construct(
         protected string $name,
         protected FactoryContract $views,
         protected TransportInterface $transport,
-        protected ?EventDispatcherInterface $events = null
+        protected ?Dispatcher $events = null
     ) {
     }
 
@@ -170,7 +169,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Render the given message as a view.
      */
-    public function render(array|string $view, array $data = []): string
+    public function render(array|Closure|string $view, array $data = []): string
     {
         // First we need to parse the view, which could either be a string or an array
         // containing both an HTML and plain text versions of the view which should
@@ -190,10 +189,10 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function replaceEmbeddedAttachments(string $renderedView, array $attachments): string
     {
-        if (preg_match_all('/<img.+?src=[\'"]cid:([^\'"]+)[\'"].*?>/i', $renderedView, $matches)) {
+        if (preg_match_all('/<img.+?src=[\'"]cid:([^\'"]+)[\'"].*?>/is', $renderedView, $matches)) {
             foreach (array_unique($matches[1]) as $image) {
                 foreach ($attachments as $attachment) {
-                    if ($attachment->getFilename() === $image) {
+                    if ($attachment->getContentId() === $image || $attachment->getFilename() === $image) {
                         $renderedView = str_replace(
                             'cid:' . $image,
                             'data:' . $attachment->getContentType() . ';base64,' . $attachment->bodyToString(),
@@ -269,6 +268,7 @@ class Mailer implements MailerContract, MailQueueContract
     protected function sendMailable(MailableContract $mailable): ?SentMessage
     {
         $mailable = $mailable->mailer($this->name);
+
         if ($mailable instanceof ShouldQueue) {
             $mailable->queue($this->queue);
             return null;
@@ -467,9 +467,9 @@ class Mailer implements MailerContract, MailQueueContract
             return true;
         }
 
-        return tap(new MessageSending($message, $data), function ($event) {
-            $this->events->dispatch($event);
-        })->shouldSend();
+        return $this->events->until(
+            new MessageSending($message, $data)
+        ) !== false;
     }
 
     /**
@@ -514,5 +514,13 @@ class Mailer implements MailerContract, MailQueueContract
         $this->queue = $queue;
 
         return $this;
+    }
+
+    /**
+     * Flush the mailer's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

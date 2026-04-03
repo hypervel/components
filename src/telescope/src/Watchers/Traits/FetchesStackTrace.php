@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers\Traits;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 trait FetchesStackTrace
 {
@@ -33,7 +33,6 @@ trait FetchesStackTrace
     {
         $ignoredPaths = $this->shouldIgnoredVendorPath()
             ? [
-                base_path('vendor' . DIRECTORY_SEPARATOR . 'hyperf'),
                 base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
             ]
             : [];

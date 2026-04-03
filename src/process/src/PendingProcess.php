@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
+use Carbon\CarbonInterval;
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
-use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
-use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
 use Traversable;
-
-use function Hyperf\Tappable\tap;
 
 class PendingProcess
 {
@@ -120,9 +119,9 @@ class PendingProcess
     /**
      * Specify the maximum number of seconds the process may run.
      */
-    public function timeout(int $timeout): static
+    public function timeout(CarbonInterval|int $timeout): static
     {
-        $this->timeout = $timeout;
+        $this->timeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
 
         return $this;
     }
@@ -130,9 +129,9 @@ class PendingProcess
     /**
      * Specify the maximum number of seconds a process may go without returning output.
      */
-    public function idleTimeout(int $timeout): static
+    public function idleTimeout(CarbonInterval|int $timeout): static
     {
-        $this->idleTimeout = $timeout;
+        $this->idleTimeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
 
         return $this;
     }
@@ -206,7 +205,7 @@ class PendingProcess
     /**
      * Run the process.
      *
-     * @throws \Hypervel\Process\Exceptions\ProcessTimedOutException
+     * @throws ProcessTimedOutException
      * @throws RuntimeException
      */
     public function run(array|string|null $command = null, ?callable $output = null): ProcessResultContract
@@ -287,6 +286,14 @@ class PendingProcess
         }
 
         return $process;
+    }
+
+    /**
+     * Determine whether TTY is supported on the current operating system.
+     */
+    public function supportsTty(): bool
+    {
+        return Process::isTtySupported();
     }
 
     /**

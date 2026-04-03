@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Encryption;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Encryption\Encrypter;
-use Hypervel\Encryption\Exceptions\DecryptException;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 /**
@@ -21,6 +22,18 @@ class EncrypterTest extends TestCase
         $encrypted = $e->encrypt('foo');
         $this->assertNotSame('foo', $encrypted);
         $this->assertSame('foo', $e->decrypt($encrypted));
+
+        $encrypted = $e->encrypt('');
+        $this->assertSame('', $e->decrypt($encrypted));
+
+        $longString = str_repeat('a', 1000);
+        $encrypted = $e->encrypt($longString);
+        $this->assertSame($longString, $e->decrypt($encrypted));
+
+        $data = ['foo' => 'bar', 'baz' => 'qux'];
+        $encryptedArray = $e->encrypt($data);
+        $this->assertNotSame($data, $encryptedArray);
+        $this->assertSame($data, $e->decrypt($encryptedArray));
     }
 
     public function testRawStringEncryption()
@@ -235,10 +248,7 @@ class EncrypterTest extends TestCase
         $this->assertTrue(Encrypter::supported($key, 'aes-128-cbc'));
     }
 
-    /**
-     * @dataProvider provideTamperedData
-     * @param mixed $payload
-     */
+    #[DataProvider('provideTamperedData')]
     public function testTamperedPayloadWillGetRejected($payload)
     {
         $this->expectException(DecryptException::class);
@@ -262,5 +272,35 @@ class EncrypterTest extends TestCase
             [['iv' => $validIv, 'value' => '', 'mac' => '', 'tag' => ['value_in_array']]],
             [['iv' => $validIv, 'value' => '', 'mac' => '', 'tag' => -1]],
         ];
+    }
+
+    public function testEncryptedReturnsTrueForEncryptedValue()
+    {
+        $e = new Encrypter(str_repeat('a', 16));
+        $encrypted = $e->encrypt('foo');
+
+        $this->assertTrue(Encrypter::appearsEncrypted($encrypted));
+    }
+
+    public function testEncryptedReturnsTrueForEncryptedArray()
+    {
+        $e = new Encrypter(str_repeat('a', 16));
+        $encrypted = $e->encrypt(['foo' => 'bar']);
+
+        $this->assertTrue(Encrypter::appearsEncrypted($encrypted));
+    }
+
+    public function testEncryptedReturnsFalseForPlainText()
+    {
+        $this->assertFalse(Encrypter::appearsEncrypted('foo'));
+        $this->assertFalse(Encrypter::appearsEncrypted('APP_NAME=Hypervel'));
+        $this->assertFalse(Encrypter::appearsEncrypted("APP_NAME=Hypervel\nAPP_ENV=local"));
+    }
+
+    public function testEncryptedReturnsFalseForNonString()
+    {
+        $this->assertFalse(Encrypter::appearsEncrypted(123));
+        $this->assertFalse(Encrypter::appearsEncrypted(['foo' => 'bar']));
+        $this->assertFalse(Encrypter::appearsEncrypted(null));
     }
 }

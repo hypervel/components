@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Supervisor;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use stdClass;
 
@@ -18,7 +18,7 @@ class RedisSupervisorRepository implements SupervisorRepository
      * Create a new repository instance.
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
     }
 
@@ -149,6 +149,6 @@ class RedisSupervisorRepository implements SupervisorRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
+use Hypervel\Contracts\View\View;
+
 class AnonymousComponent extends Component
 {
     /**
      * Create a new anonymous component instance.
      */
     public function __construct(
-        protected string $view,
+        protected View|string $view,
         protected array $data = []
     ) {
     }
@@ -18,7 +20,7 @@ class AnonymousComponent extends Component
     /**
      * Get the view / view contents that represent the component.
      */
-    public function render(): string
+    public function render(): View|string
     {
         return $this->view;
     }

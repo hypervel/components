@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Translation;
 
 use Countable;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 
 /**
  * Translate the given message.
  */
 function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|null
 {
-    return ApplicationContext::getContainer()
-        ->get(TranslatorContract::class)
-        ->trans($key, $replace, $locale);
+    if (is_null($key)) {
+        return $key;
+    }
+
+    return Container::getInstance()
+        ->make('translator')
+        ->get($key, $replace, $locale);
 }
 
 /**
@@ -26,12 +30,12 @@ function __(?string $key = null, array $replace = [], ?string $locale = null): a
 function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
 {
     if (is_null($key)) {
-        ApplicationContext::getContainer()
-            ->get(TranslatorContract::class);
+        return Container::getInstance()
+            ->make('translator');
     }
 
-    return ApplicationContext::getContainer()
-        ->get(TranslatorContract::class)
+    return Container::getInstance()
+        ->make('translator')
         ->get($key, $replace, $locale);
 }
 
@@ -40,7 +44,7 @@ function trans(?string $key = null, array $replace = [], ?string $locale = null)
  */
 function trans_choice(string $key, array|Countable|float|int $number, array $replace = [], ?string $locale = null): string
 {
-    return ApplicationContext::getContainer()
-        ->get(TranslatorContract::class)
-        ->transChoice($key, $number, $replace, $locale);
+    return Container::getInstance()
+        ->make('translator')
+        ->choice($key, $number, $replace, $locale);
 }

@@ -1,0 +1,52 @@
+{
+    "name": "hypervel/http-message",
+    "type": "library",
+    "description": "The HTTP message package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "http-message",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\HttpMessage\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/laminas-mime": "^0.1.0",
+        "psr/http-message": "^2.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\HttpMessage\\HttpMessageServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}
