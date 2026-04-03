@@ -115,4 +115,29 @@ class ChannelControllerTest extends ReverbTestCase
         $body = $response->json();
         $this->assertTrue($body['occupied']);
     }
+
+    public function testReturnsUserCountForPresenceChannel()
+    {
+        $this->subscribeConnection('presence-info-test', ['user_id' => 1, 'user_info' => ['name' => 'A']]);
+        $this->subscribeConnection('presence-info-test', ['user_id' => 2, 'user_info' => ['name' => 'B']]);
+
+        $response = $this->signedRequest('channels/presence-info-test?info=user_count');
+
+        $response->assertStatus(200);
+
+        $body = $response->json();
+        $this->assertSame(2, $body['user_count']);
+    }
+
+    public function testReturnsUserCountForPresenceCacheChannel()
+    {
+        $this->subscribeConnection('presence-cache-info-test', ['user_id' => 1, 'user_info' => ['name' => 'A']]);
+
+        $response = $this->signedRequest('channels/presence-cache-info-test?info=user_count');
+
+        $response->assertStatus(200);
+
+        $body = $response->json();
+        $this->assertSame(1, $body['user_count']);
+    }
 }

@@ -76,7 +76,7 @@ trait InteractsWithChannelInformation
      */
     protected function isPresenceChannel(Channel $channel): bool
     {
-        return in_array(InteractsWithPresenceChannels::class, class_uses($channel));
+        return in_array(InteractsWithPresenceChannels::class, class_uses_recursive($channel));
     }
 
     /**
