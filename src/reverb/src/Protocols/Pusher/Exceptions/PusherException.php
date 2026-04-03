@@ -31,14 +31,4 @@ abstract class PusherException extends Exception
             ]),
         ];
     }
-
-    /**
-     * Get the encoded Pusher formatted error payload.
-     */
-    public function message()
-    {
-        return json_encode(
-            $this->payload()
-        );
-    }
 }
