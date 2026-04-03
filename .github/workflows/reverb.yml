@@ -59,6 +59,12 @@ jobs:
           REVERB_SERVER_PORT=19510 php tests/Integration/Reverb/server.php &
           sleep 2
           REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
+          sleep 2
+          REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php &
+          sleep 2
+          REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
+          sleep 2
+          REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php &
           sleep 3
 
       - name: Execute Reverb integration tests
