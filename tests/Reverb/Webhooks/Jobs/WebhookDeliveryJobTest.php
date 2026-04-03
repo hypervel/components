@@ -167,4 +167,23 @@ class WebhookDeliveryJobTest extends ReverbTestCase
                 && $event->exception->getMessage() === 'Connection timed out';
         });
     }
+
+    public function testThrowsOnHttpFailure()
+    {
+        Http::fake([
+            'example.com/webhook' => Http::response('Internal Server Error', 500),
+        ]);
+
+        $payload = new WebhookPayload(
+            webhookId: 'test-webhook-id',
+            timeMs: 1712000000000,
+            events: [['name' => 'channel_occupied', 'channel' => 'test-channel']],
+        );
+
+        $job = new WebhookDeliveryJob($payload, 'https://example.com/webhook', 'app-key', 'app-secret');
+
+        $this->expectException(\Hypervel\Http\Client\RequestException::class);
+
+        $job->handle();
+    }
 }

@@ -80,9 +80,7 @@ class WebhookDeliveryJob implements ShouldQueue
             ->withBody($body, 'application/json')
             ->post($this->url);
 
-        if ($response->failed()) {
-            $this->release($this->backoff);
-        }
+        $response->throw();
     }
 
     /**
