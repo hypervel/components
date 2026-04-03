@@ -69,6 +69,24 @@ REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Int
 PIDS+=($!)
 echo "  Reverb Redis WebSocket server started on port 19511 (PID: $!)"
 
+sleep 2
+
+REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+PIDS+=($!)
+echo "  Reverb multi-worker server started on port 19512 (PID: $!)"
+
+sleep 2
+
+REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+PIDS+=($!)
+echo "  Reverb scaling server A started on port 19513 (PID: $!)"
+
+sleep 2
+
+REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+PIDS+=($!)
+echo "  Reverb scaling server B started on port 19514 (PID: $!)"
+
 echo ""
 echo "All servers running. Press Ctrl+C to stop."
 echo ""
