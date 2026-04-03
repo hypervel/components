@@ -125,7 +125,6 @@ class Kernel implements KernelContract
 
         try {
             $request->enableHttpMethodParameterOverride();
-
             $response = $this->sendRequestThroughRouter($request);
         } catch (Throwable $e) {
             $this->reportException($e);
@@ -133,9 +132,13 @@ class Kernel implements KernelContract
             $response = $this->renderException($request, $e);
         }
 
-        $this->app['events']->dispatch(
-            new RequestHandled($request, $response)
-        );
+        $events = $this->app['events'];
+
+        if ($events->hasListeners(RequestHandled::class)) {
+            $events->dispatch(
+                new RequestHandled($request, $response)
+            );
+        }
 
         return $response;
     }
@@ -146,10 +149,15 @@ class Kernel implements KernelContract
     protected function sendRequestThroughRouter(Request $request): Response
     {
         $this->bootstrap();
+        $middleware = $this->app->shouldSkipMiddleware() ? [] : $this->middleware;
+
+        if ($middleware === []) {
+            return ($this->dispatchToRouter())($request);
+        }
 
         return (new Pipeline($this->app))
             ->send($request)
-            ->through($this->app->shouldSkipMiddleware() ? [] : $this->middleware)
+            ->through($middleware)
             ->then($this->dispatchToRouter());
     }
 
@@ -185,13 +193,17 @@ class Kernel implements KernelContract
      */
     public function terminate(Request $request, Response $response): void
     {
-        $this->app['events']->dispatch(new Terminating());
+        $events = $this->app['events'];
 
+        if ($events->hasListeners(Terminating::class)) {
+            $events->dispatch(new Terminating());
+        }
         $this->terminateMiddleware($request, $response);
-
         $this->app->terminate();
 
-        if ($this->requestStartedAt === null) {
+        if ($this->requestStartedAt === null || $this->requestLifecycleDurationHandlers === []) {
+            $this->requestStartedAt = null;
+
             return;
         }
 
@@ -213,10 +225,17 @@ class Kernel implements KernelContract
      */
     protected function terminateMiddleware(Request $request, Response $response): void
     {
-        $middlewares = $this->app->shouldSkipMiddleware() ? [] : array_merge(
-            $this->gatherRouteMiddleware($request),
-            $this->middleware
-        );
+        if ($this->app->shouldSkipMiddleware()) {
+            return;
+        }
+
+        $routeMiddleware = $this->gatherRouteMiddleware($request);
+
+        if ($routeMiddleware === [] && $this->middleware === []) {
+            return;
+        }
+
+        $middlewares = [...$routeMiddleware, ...$this->middleware];
 
         foreach ($middlewares as $middleware) {
             if (! is_string($middleware)) {
