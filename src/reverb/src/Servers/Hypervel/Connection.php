@@ -45,12 +45,16 @@ class Connection implements WebSocketConnection
     /**
      * Close the connection.
      */
-    public function close(mixed $message = null): void
+    public function close(mixed $message = null, ?int $code = null, ?string $reason = null): void
     {
         if ($message !== null) {
             $this->send($message);
         }
 
-        $this->sender->disconnect($this->fd);
+        if ($code !== null) {
+            $this->sender->disconnect($this->fd, $code, $reason ?? '');
+        } else {
+            $this->sender->disconnect($this->fd);
+        }
     }
 }

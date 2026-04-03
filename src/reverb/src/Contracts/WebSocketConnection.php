@@ -24,5 +24,5 @@ interface WebSocketConnection
     /**
      * Close the connection.
      */
-    public function close(mixed $message = null): void;
+    public function close(mixed $message = null, ?int $code = null, ?string $reason = null): void;
 }

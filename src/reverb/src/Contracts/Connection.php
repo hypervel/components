@@ -65,7 +65,7 @@ abstract class Connection
     /**
      * Terminate a connection.
      */
-    abstract public function terminate(): void;
+    abstract public function terminate(?int $code = null, ?string $reason = null): void;
 
     /**
      * Get the application the connection belongs to.
@@ -131,9 +131,9 @@ abstract class Connection
     /**
      * Disconnect and unsubscribe from all channels.
      */
-    public function disconnect(): void
+    public function disconnect(?int $code = null, ?string $reason = null): void
     {
-        $this->terminate();
+        $this->terminate($code, $reason);
     }
 
     /**

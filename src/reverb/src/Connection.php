@@ -60,8 +60,8 @@ class Connection extends ConnectionContract
     /**
      * Terminate a connection.
      */
-    public function terminate(): void
+    public function terminate(?int $code = null, ?string $reason = null): void
     {
-        $this->connection->close();
+        $this->connection->close(code: $code, reason: $reason);
     }
 }

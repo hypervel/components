@@ -113,7 +113,7 @@ class FakeConnection extends BaseConnection
     /**
      * Terminate a connection.
      */
-    public function terminate(): void
+    public function terminate(?int $code = null, ?string $reason = null): void
     {
         $this->wasTerminated = true;
     }
