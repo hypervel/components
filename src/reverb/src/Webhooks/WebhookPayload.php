@@ -12,6 +12,7 @@ final readonly class WebhookPayload
      * @param array<int, array<string, mixed>> $events
      */
     public function __construct(
+        public string $webhookId,
         public int $timeMs,
         public array $events,
     ) {
@@ -23,6 +24,7 @@ final readonly class WebhookPayload
     public function toJson(): string
     {
         return json_encode([
+            'webhook_id' => $this->webhookId,
             'time_ms' => $this->timeMs,
             'events' => $this->events,
         ], JSON_THROW_ON_ERROR);
