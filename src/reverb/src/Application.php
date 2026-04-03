@@ -126,7 +126,7 @@ class Application
     /**
      * Get the application options.
      */
-    public function options(): ?array
+    public function options(): array
     {
         return $this->options;
     }
