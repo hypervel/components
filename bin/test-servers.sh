@@ -21,24 +21,41 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Track child PIDs for cleanup
+# Track child PIDs for cleanup (these are session leaders via setsid)
 PIDS=()
+SIGNAL_RECEIVED=0
 
 cleanup() {
+    # One-shot guard — prevent double-run from INT+EXIT
+    trap - INT TERM EXIT
+
     echo ""
     echo "Stopping test servers..."
     rm -f /tmp/test-servers-ready
+
+    # Send SIGTERM to each server's process group (negative PID).
+    # setsid makes each server a session leader, so -$pid targets
+    # the master process and all its worker children.
     for pid in "${PIDS[@]}"; do
-        kill "$pid" 2>/dev/null || true
+        kill -TERM -- "-$pid" 2>/dev/null || true
     done
-    # Swoole servers need a moment for graceful shutdown, then force-kill stragglers
-    sleep 1
+
+    # Grace period for Swoole's graceful shutdown path.
+    # Must be longer than server.settings.max_wait_time (default 3s).
+    sleep 5
+
     for pid in "${PIDS[@]}"; do
-        kill -9 "$pid" 2>/dev/null || true
+        kill -9 -- "-$pid" 2>/dev/null || true
     done
-    exit 0
+
+    # Only force exit 0 for intentional signal shutdown (Ctrl+C).
+    # On error (set -e), let the original exit status propagate.
+    if [ "$SIGNAL_RECEIVED" -eq 1 ]; then
+        exit 0
+    fi
 }
 
+trap 'SIGNAL_RECEIVED=1; cleanup' INT TERM
 trap cleanup EXIT
 
 # Wait for a server to respond on a given port before continuing.
@@ -62,19 +79,19 @@ wait_for_server() {
 start_engine() {
     echo "Starting engine test servers..."
 
-    php "$PROJECT_DIR/src/engine/examples/http_server.php" &
+    setsid php "$PROJECT_DIR/src/engine/examples/http_server.php" &
     PIDS+=($!)
     echo "  HTTP server started on port 19501 (PID: $!)"
 
-    php "$PROJECT_DIR/src/engine/examples/tcp_packet_server.php" &
+    setsid php "$PROJECT_DIR/src/engine/examples/tcp_packet_server.php" &
     PIDS+=($!)
     echo "  TCP packet server started on port 19502 (PID: $!)"
 
-    php "$PROJECT_DIR/src/engine/examples/websocket_server.php" &
+    setsid php "$PROJECT_DIR/src/engine/examples/websocket_server.php" &
     PIDS+=($!)
     echo "  WebSocket server started on port 19503 (PID: $!)"
 
-    php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
+    setsid php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
     PIDS+=($!)
     echo "  HTTP v2 server started on port 19505 (PID: $!)"
 }
@@ -85,32 +102,32 @@ start_reverb() {
     # Reverb servers are started serially with readiness checks.
     # They share Bootstrapper temp paths and race if started concurrently.
 
-    REVERB_SERVER_PORT=19510 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19510 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb server starting on port 19510 (PID: $!)..."
     wait_for_server 19510 "Reverb"
 
-    REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb Redis server starting on port 19511 (PID: $!)..."
     wait_for_server 19511 "Reverb Redis"
 
-    REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb multi-worker server starting on port 19512 (PID: $!)..."
     wait_for_server 19512 "Reverb multi-worker"
 
-    REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling server A starting on port 19513 (PID: $!)..."
     wait_for_server 19513 "Reverb scaling A"
 
-    REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling server B starting on port 19514 (PID: $!)..."
     wait_for_server 19514 "Reverb scaling B"
 
-    REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2 php "$PROJECT_DIR/tests/Integration/Reverb/server.php" &
+    setsid sh -c "REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling+multi-worker server starting on port 19515 (PID: $!)..."
     wait_for_server 19515 "Reverb scaling+multi-worker"
