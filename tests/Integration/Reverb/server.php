@@ -11,12 +11,13 @@ declare(strict_types=1);
  * Configuration via environment variables:
  *   REVERB_SERVER_PORT        — Port to listen on (default: 19510)
  *   REVERB_SCALING_ENABLED    — Enable Redis scaling (default: false)
+ *   REVERB_TEST_WORKER_NUM    — Number of Swoole workers (default: 1, uses SWOOLE_PROCESS when > 1)
  *
  * Usage:
  *   php tests/Integration/Reverb/server.php
  *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
+ *   REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php
  *
- * The server starts with a single worker (SWOOLE_BASE mode) for test determinism.
  * Stop with Ctrl+C.
  */
 
@@ -53,10 +54,11 @@ putenv('APP_RUNNING_IN_CONSOLE=false');
 $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
 $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
-// Read port and scaling flag from environment (set by caller or defaulted).
+// Read port, scaling flag, and worker count from environment.
 $port = (string) (env('REVERB_SERVER_PORT') ?: '19510');
 $scaling = env('REVERB_SCALING_ENABLED') === true;
-$label = $scaling ? 'Reverb Redis test server' : 'Reverb test server';
+$workerNum = (int) (env('REVERB_TEST_WORKER_NUM') ?: 1);
+$label = $scaling ? 'Reverb Redis test server' : ($workerNum > 1 ? "Reverb multi-worker test server ({$workerNum} workers)" : 'Reverb test server');
 
 // Set Reverb app env vars BEFORE boot so the config file picks them up.
 // These survive the worker-start config reload (ReloadDotenvAndConfig)
@@ -86,7 +88,7 @@ foreach ($defaults as $key => $value) {
 
 // Boot a fully bootstrapped Hypervel app with Reverb enabled.
 $app = TestbenchApplication::create(
-    resolvingCallback: function ($app) {
+    resolvingCallback: function ($app) use ($workerNum) {
         // Resolve ReloadDotenvAndConfig to register the config tracking callback
         // BEFORE any config()->set() calls. This ensures runtime config mutations
         // (like the server config below) are tracked and replayed when the worker
@@ -103,16 +105,16 @@ $app = TestbenchApplication::create(
         // from REVERB_SERVER_PORT (set above via env vars → config).
         $app->register(ReverbServiceProvider::class);
 
-        // Enable webhooks on the default app for webhook integration tests.
-        $app->make('config')->set('reverb.apps.apps.0.webhooks', [
-            'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
-        ]);
+        // Webhook inspection only works with worker_num=1 (no fork).
+        // Queue::fake() creates an in-memory fake that doesn't survive forking.
+        if ($workerNum === 1) {
+            $app->make('config')->set('reverb.apps.apps.0.webhooks', [
+                'url' => 'https://example.com/webhook',
+                'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
+            ]);
 
-        // Fake the queue so webhook jobs are captured instead of dispatched.
-        // This persists into the worker because SWOOLE_BASE with worker_num=1
-        // doesn't fork — the instance binding survives.
-        Queue::fake([WebhookDeliveryJob::class]);
+            Queue::fake([WebhookDeliveryJob::class]);
+        }
 
         // Add additional test apps (env vars only support one app).
         // These mutations are tracked by ReloadDotenvAndConfig and survive worker restart.
@@ -194,42 +196,84 @@ $app = TestbenchApplication::create(
             return new \Hypervel\Http\JsonResponse(['ok' => true]);
         });
 
-        // Test-only route: reset the faked queue's recorded jobs for test isolation.
-        $app->make(ReverbRouter::class)->post('/_test/queue-reset', function () {
-            Queue::fake([WebhookDeliveryJob::class]);
+        // Webhook test routes — only available on single-worker servers.
+        if ($workerNum === 1) {
+            $app->make(ReverbRouter::class)->post('/_test/queue-reset', function () {
+                Queue::fake([WebhookDeliveryJob::class]);
 
-            return new \Hypervel\Http\JsonResponse(['ok' => true]);
+                return new \Hypervel\Http\JsonResponse(['ok' => true]);
+            });
+
+            $app->make(ReverbRouter::class)->get('/_test/queued-jobs', function () {
+                /** @var \Hypervel\Support\Testing\Fakes\QueueFake $fake */
+                $fake = Queue::getFacadeRoot();
+
+                $jobs = $fake->pushed(WebhookDeliveryJob::class)->map(function (WebhookDeliveryJob $job) {
+                    $event = $job->payload->events[0] ?? [];
+
+                    return [
+                        'event' => $event['name'] ?? null,
+                        'channel' => $event['channel'] ?? null,
+                        'url' => $job->url,
+                        'appKey' => $job->appKey,
+                        'webhookId' => $job->payload->webhookId,
+                    ];
+                })->values()->all();
+
+                return new \Hypervel\Http\JsonResponse(['jobs' => $jobs]);
+            });
+        }
+
+        // Test-only: shared-state endpoint for Swoole Table counter assertions.
+        // Reads directly from shared memory — visible from any worker.
+        $app->make(ReverbRouter::class)->get('/_test/shared-state/{key}', function (\Hypervel\Http\Request $request, string $key) use ($app) {
+            $sharedState = $app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
+
+            if (! $sharedState instanceof \Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState) {
+                return new \Hypervel\Http\JsonResponse(['error' => 'Not using Swoole Table'], 400);
+            }
+
+            $value = $sharedState->table()->get($key, 'count');
+
+            return new \Hypervel\Http\JsonResponse(['key' => $key, 'count' => $value !== false ? $value : null]);
         });
 
-        // Test-only route: return queued WebhookDeliveryJob payloads.
-        $app->make(ReverbRouter::class)->get('/_test/queued-jobs', function () {
-            /** @var \Hypervel\Support\Testing\Fakes\QueueFake $fake */
-            $fake = Queue::getFacadeRoot();
-
-            $jobs = $fake->pushed(WebhookDeliveryJob::class)->map(function (WebhookDeliveryJob $job) {
-                $event = $job->payload->events[0] ?? [];
-
-                return [
-                    'event' => $event['name'] ?? null,
-                    'channel' => $event['channel'] ?? null,
-                    'url' => $job->url,
-                    'appKey' => $job->appKey,
-                    'webhookId' => $job->payload->webhookId,
-                ];
-            })->values()->all();
-
-            return new \Hypervel\Http\JsonResponse(['jobs' => $jobs]);
-        });
-
-        // Override specific Swoole settings for test determinism. The Reverb server
-        // entry and default settings/callbacks are inherited from config/server.php
-        // and ReverbServiceProvider::registerWebSocketServer().
+        // Override Swoole settings for test determinism.
         $config = $app->make('config');
-        $config->set('server.mode', SWOOLE_BASE);
-        $config->set('server.settings.' . \Swoole\Constant::OPTION_WORKER_NUM, 1);
+        if ($workerNum > 1) {
+            $config->set('server.mode', SWOOLE_PROCESS);
+        } else {
+            $config->set('server.mode', SWOOLE_BASE);
+        }
+        $config->set('server.settings.' . \Swoole\Constant::OPTION_WORKER_NUM, $workerNum);
         // Disable HTTP compression so Content-Length headers reflect the raw body
         // size, allowing integration tests to assert exact Content-Length values.
         $config->set('server.settings.' . \Swoole\Constant::OPTION_HTTP_COMPRESSION, false);
+
+        // Test-only: extend WebSocketHandler to intercept pusher:test_worker_id.
+        // Responds with the worker ID of the worker that owns the connection.
+        // Used by multi-worker tests to verify cross-worker distribution.
+        $app->singleton(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, function ($app) {
+            return new class($app->make(\Hypervel\Contracts\Container\Container::class), $app->make(\Hypervel\Reverb\Protocols\Pusher\Server::class), $app->make(ApplicationProvider::class)) extends \Hypervel\Reverb\Servers\Hypervel\WebSocketHandler {
+                public function onMessage(\Swoole\WebSocket\Server $server, \Swoole\WebSocket\Frame $frame): void
+                {
+                    if ($frame->opcode === WEBSOCKET_OPCODE_TEXT) {
+                        $data = json_decode($frame->data, true);
+
+                        if (($data['event'] ?? null) === 'pusher:test_worker_id') {
+                            $server->push($frame->fd, json_encode([
+                                'event' => 'pusher:test_worker_id',
+                                'data' => json_encode(['worker_id' => $server->worker_id]),
+                            ]));
+
+                            return;
+                        }
+                    }
+
+                    parent::onMessage($server, $frame);
+                }
+            };
+        });
     },
 );
 
