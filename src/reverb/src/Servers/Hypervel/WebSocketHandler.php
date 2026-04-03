@@ -135,14 +135,13 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
      */
     public function onClose(Server $server, int $fd, int $reactorId): void
     {
-        $connection = static::$connections[$fd] ?? null;
+        $connection = static::takeConnection($fd);
 
         if (! $connection) {
             return;
         }
 
         $this->server->close($connection);
-        unset(static::$connections[$fd]);
     }
 
     /**
@@ -153,6 +152,21 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
     public static function connections(): array
     {
         return static::$connections;
+    }
+
+    /**
+     * Atomically take and remove a connection from the registry.
+     *
+     * Returns the connection if found (and removes it), or null if
+     * already taken. Used by both onClose and the graceful drain
+     * to ensure Server::close() runs exactly once per connection.
+     */
+    public static function takeConnection(int $fd): ?\Hypervel\Reverb\Connection
+    {
+        $connection = static::$connections[$fd] ?? null;
+        unset(static::$connections[$fd]);
+
+        return $connection;
     }
 
     /**
