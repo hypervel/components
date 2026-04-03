@@ -36,9 +36,9 @@ class CliLogger implements Logger
     /**
      * Log an error message.
      */
-    public function error(string $string): void
+    public function error(string $message): void
     {
-        $this->output->error($string);
+        $this->output->error($message);
     }
 
     /**

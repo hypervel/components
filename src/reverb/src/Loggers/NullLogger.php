@@ -18,7 +18,7 @@ class NullLogger implements Logger
     /**
      * Log an error message.
      */
-    public function error(string $string): void
+    public function error(string $message): void
     {
     }
 
