@@ -11,11 +11,6 @@ use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 class ArrayChannelConnectionManager implements ChannelConnectionManager
 {
     /**
-     * The channel name.
-     */
-    protected string $name;
-
-    /**
      * The underlying connections.
      *
      * @var array<string, ChannelConnection>
@@ -27,8 +22,6 @@ class ArrayChannelConnectionManager implements ChannelConnectionManager
      */
     public function for(string $name): ChannelConnectionManager
     {
-        $this->name = $name;
-
         return $this;
     }
 
