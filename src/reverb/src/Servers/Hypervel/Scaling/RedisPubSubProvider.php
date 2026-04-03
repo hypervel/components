@@ -188,6 +188,10 @@ class RedisPubSubProvider implements PubSubProvider
 
         Sleep::sleep(1);
 
+        if (! $this->shouldRetry) { // @phpstan-ignore booleanNot.alwaysFalse (coroutine yield: disconnect() can set shouldRetry=false during sleep)
+            return;
+        }
+
         $this->connect();
     }
 
