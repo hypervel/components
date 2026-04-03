@@ -238,6 +238,13 @@ $app = TestbenchApplication::create(
             return new \Hypervel\Http\JsonResponse(['key' => $key, 'count' => $value !== false ? $value : null]);
         });
 
+        // Test-only: drain all connections on this worker using the production drain method.
+        $app->make(ReverbRouter::class)->post('/_test/drain-connections', function () use ($app) {
+            $app->getProvider(ReverbServiceProvider::class)->drainConnections();
+
+            return new \Hypervel\Http\JsonResponse(['ok' => true]);
+        });
+
         // Override Swoole settings for test determinism.
         $config = $app->make('config');
         if ($workerNum > 1) {
