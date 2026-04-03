@@ -48,7 +48,7 @@ class EventDispatcher
      * In single-node mode, also sends a pipe message to all other workers
      * so they can broadcast to their local connections.
      */
-    public static function dispatchSynchronously(Application $app, array $payload, ?Connection $connection = null): void
+    public static function dispatchSynchronously(Application $app, array $payload, ?Connection $connection = null, bool $fanOut = true): void
     {
         $channels = Arr::wrap($payload['channels'] ?? $payload['channel'] ?? []);
 
@@ -66,6 +66,10 @@ class EventDispatcher
             $channel->broadcast($payload, $connection);
         }
 
+        if (! $fanOut) {
+            return;
+        }
+
         // Fan out to other workers — pass the base payload without a channel
         // name baked in. The receiver sets the correct channel per iteration.
         unset($payload['channel']);
@@ -76,10 +80,10 @@ class EventDispatcher
     /**
      * Notify all connections using broadcastInternally (no cache mutation).
      *
-     * Used by the scaling path receiver for internal protocol events
-     * (member_added, member_removed) received via Redis pub/sub.
+     * Used for internal protocol events (member_added, member_removed)
+     * that should not populate cache channel payloads.
      */
-    public static function dispatchInternallySynchronously(Application $app, array $payload, ?Connection $connection = null): void
+    public static function dispatchInternallySynchronously(Application $app, array $payload, ?Connection $connection = null, bool $fanOut = true): void
     {
         $channels = Arr::wrap($payload['channels'] ?? $payload['channel'] ?? []);
 
@@ -93,6 +97,10 @@ class EventDispatcher
             $payload['channel'] = $channel->name();
 
             $channel->broadcastInternally($payload, $connection);
+        }
+
+        if (! $fanOut) {
+            return;
         }
 
         unset($payload['channel']);

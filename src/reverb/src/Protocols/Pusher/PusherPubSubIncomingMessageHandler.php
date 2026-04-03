@@ -52,17 +52,22 @@ class PusherPubSubIncomingMessageHandler implements PubSubIncomingMessageHandler
             ? app(ChannelManager::class)->for($application)->connections()[$event['socket_id']] ?? null
             : null;
 
+        // Redis already delivered this message to every worker on every node.
+        // Pass fanOut: false to prevent pipe fan-out to sibling workers,
+        // which would cause duplicate delivery in scaling + multi-worker mode.
         if ($event['internal'] ?? false) {
             EventDispatcher::dispatchInternallySynchronously(
                 $application,
                 $event['payload'],
-                $except?->connection()
+                $except?->connection(),
+                fanOut: false,
             );
         } else {
             EventDispatcher::dispatchSynchronously(
                 $application,
                 $event['payload'],
-                $except?->connection()
+                $except?->connection(),
+                fanOut: false,
             );
         }
     }
