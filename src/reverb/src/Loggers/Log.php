@@ -17,7 +17,7 @@ class Log
     /**
      * The logger instance.
      */
-    protected static Logger $logger;
+    protected static ?Logger $logger = null;
 
     /**
      * Proxy method calls to the logger instance.
@@ -27,5 +27,13 @@ class Log
         static::$logger ??= app(Logger::class);
 
         return static::$logger->{$method}(...$arguments);
+    }
+
+    /**
+     * Reset the cached logger instance.
+     */
+    public static function flushState(): void
+    {
+        static::$logger = null;
     }
 }
