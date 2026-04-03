@@ -7,6 +7,7 @@ namespace Hypervel\Reverb;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Framework\Events\OnPipeMessage;
+use Hypervel\Framework\Events\OnWorkerStop;
 use Hypervel\Reverb\Console\Commands\InstallCommand;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
@@ -26,7 +27,9 @@ use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\HealthCheckController;
 use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\UsersTerminateController;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\HttpServer;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
@@ -40,6 +43,7 @@ use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Support\ServiceProvider;
+use Throwable;
 
 class ReverbServiceProvider extends ServiceProvider
 {
@@ -181,6 +185,7 @@ class ReverbServiceProvider extends ServiceProvider
 
         $this->registerPeriodicTasks();
         $this->registerPipeMessageListener();
+        $this->registerShutdownHandler();
     }
 
     /**
@@ -243,6 +248,109 @@ class ReverbServiceProvider extends ServiceProvider
                 }
             }
         });
+    }
+
+    /**
+     * Register the graceful shutdown handler for worker stop.
+     */
+    protected function registerShutdownHandler(): void
+    {
+        $events = $this->app->make('events');
+
+        $events->listen(OnWorkerStop::class, function (OnWorkerStop $event) {
+            if ($event->server->taskworker) {
+                return;
+            }
+
+            try {
+                $this->drainConnections();
+            } catch (Throwable $e) {
+                Log::error('Shutdown: connection drain failed — ' . $e->getMessage());
+            }
+
+            try {
+                $this->disconnectScalingSubscriber();
+            } catch (Throwable $e) {
+                Log::error('Shutdown: scaling subscriber disconnect failed — ' . $e->getMessage());
+            }
+
+            try {
+                $this->flushWebhookBuffers();
+            } catch (Throwable $e) {
+                Log::error('Shutdown: webhook buffer flush failed — ' . $e->getMessage());
+            }
+        });
+    }
+
+    /**
+     * Drain all active WebSocket connections on this worker.
+     *
+     * Atomically takes each connection from the registry, runs Reverb
+     * cleanup (channel unsubscribe, slot release, presence events),
+     * then closes the transport with a 1001 Going Away close code.
+     */
+    public function drainConnections(): void
+    {
+        $pusherServer = $this->app->make(PusherServer::class);
+
+        foreach (array_keys(WebSocketHandler::connections()) as $fd) {
+            try {
+                $connection = WebSocketHandler::takeConnection($fd);
+
+                if ($connection === null) {
+                    continue;
+                }
+
+                $pusherServer->close($connection);
+
+                $connection->disconnect(1001, 'Server restarting');
+            } catch (Throwable $e) {
+                Log::error("Shutdown: failed to drain connection fd={$fd} — " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Disconnect the Redis pub/sub subscriber if scaling is enabled.
+     */
+    protected function disconnectScalingSubscriber(): void
+    {
+        $serverProvider = $this->app->make(ServerProviderManager::class);
+
+        if ($serverProvider->subscribesToEvents()) {
+            $this->app->make(PubSubProvider::class)->disconnect();
+        }
+    }
+
+    /**
+     * Flush any buffered webhook events to the queue.
+     *
+     * Reduces recovery delay from 60s to immediate by scheduling
+     * flush jobs before the worker dies.
+     */
+    protected function flushWebhookBuffers(): void
+    {
+        $apps = $this->app->make(ApplicationProvider::class)->all();
+        $buffer = $this->app->make(WebhookBatchBuffer::class);
+
+        foreach ($apps as $app) {
+            if (! $app->hasWebhooks()) {
+                continue;
+            }
+
+            $webhooks = $app->webhooks();
+
+            if (! ($webhooks['batching']['enabled'] ?? false)) {
+                continue;
+            }
+
+            $buffer->clearFlushLock($app->id());
+
+            if ($buffer->hasRemaining($app->id())) {
+                FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
+                    ->onQueue('reverb-webhook-flush');
+            }
+        }
     }
 
     /**
