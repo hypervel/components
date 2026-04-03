@@ -108,7 +108,7 @@ class PresenceChannelTest extends ReverbTestCase
 
     public function testSendsNotificationOfSubscription()
     {
-        $channel = new PresenceChannel('presence-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
 
         $this->channelConnectionManager->shouldReceive('add')
             ->once()
@@ -128,7 +128,7 @@ class PresenceChannelTest extends ReverbTestCase
 
     public function testSendsNotificationOfSubscriptionWithData()
     {
-        $channel = new PresenceChannel('presence-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['name' => 'Joe']);
 
         $this->channelConnectionManager->shouldReceive('add')
@@ -153,7 +153,7 @@ class PresenceChannelTest extends ReverbTestCase
 
     public function testSendsNotificationOfAnUnsubscribe()
     {
-        $channel = new PresenceChannel('presence-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Joe'], 'user_id' => 1]);
 
         $channel->subscribe(
