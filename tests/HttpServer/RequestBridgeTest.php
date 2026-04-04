@@ -162,6 +162,7 @@ class RequestBridgeTest extends TestCase
 
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
+        $this->assertSame('/users', $request->server->get('REQUEST_URI'));
         $this->assertSame('/users', $request->getPathInfo());
     }
 
@@ -175,6 +176,7 @@ class RequestBridgeTest extends TestCase
 
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
+        $this->assertSame('/users?page=1&sort=name', $request->server->get('REQUEST_URI'));
         $this->assertSame('/users', $request->getPathInfo());
         $this->assertSame('1', $request->query->get('page'));
         $this->assertSame('name', $request->query->get('sort'));
@@ -190,6 +192,7 @@ class RequestBridgeTest extends TestCase
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
         // Root path "/" should NOT be stripped to ""
+        $this->assertSame('/', $request->server->get('REQUEST_URI'));
         $this->assertSame('/', $request->getPathInfo());
     }
 
