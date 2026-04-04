@@ -286,6 +286,19 @@ class RepositoryTest extends TestCase
         $this->assertSame(1, $events[0]->seconds);
     }
 
+    public function testFakedCacheEventsAreStillRecordedWithoutRealListeners()
+    {
+        Event::fake([KeyWritten::class]);
+
+        Cache::driver('array')->put('foo', 'bar', 60);
+
+        Event::assertDispatched(KeyWritten::class, function (KeyWritten $event) {
+            return $event->key === 'foo'
+                && $event->value === 'bar'
+                && $event->seconds === 60;
+        });
+    }
+
     public function testWorksWithEnumKey()
     {
         $cache = Cache::driver('array');
