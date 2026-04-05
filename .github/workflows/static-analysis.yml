@@ -29,6 +29,9 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
+      - name: Setup PHP extensions
+        uses: ./.github/actions/setup-php
+
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
