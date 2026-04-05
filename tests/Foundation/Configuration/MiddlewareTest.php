@@ -312,6 +312,15 @@ class MiddlewareTest extends TestCase
         ], $middleware->getGlobalMiddleware());
     }
 
+    public function testExplicitEmptyGlobalMiddlewareOverridesDefaults()
+    {
+        $middleware = new Middleware();
+
+        $middleware->use([]);
+
+        $this->assertSame([], $middleware->getGlobalMiddleware());
+    }
+
     public function testDefaultWebMiddlewareGroup()
     {
         $middleware = new Middleware();

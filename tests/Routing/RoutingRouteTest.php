@@ -2228,16 +2228,12 @@ class RoutingRouteTest extends RoutingTestCase
         $response = $router->dispatch($request);
 
         $this->assertSame('hello', $response->getContent());
-        $this->assertCount(2, $preparing);
+        $this->assertCount(1, $preparing);
         $this->assertSame($request, $preparing[0]->request);
         $this->assertSame('hello', $preparing[0]->response);
-        $this->assertSame($request, $preparing[1]->request);
-        $this->assertSame($response, $preparing[1]->response);
-        $this->assertCount(2, $prepared);
+        $this->assertCount(1, $prepared);
         $this->assertSame($request, $prepared[0]->request);
         $this->assertSame($response, $prepared[0]->response);
-        $this->assertSame($request, $prepared[1]->request);
-        $this->assertSame($response, $prepared[1]->response);
     }
 
     protected function getRouter($container = null)

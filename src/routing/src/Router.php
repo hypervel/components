@@ -687,13 +687,16 @@ class Router implements BindingRegistrar, RegistrarContract
 
         $middleware = $shouldSkipMiddleware ? [] : $this->gatherRouteMiddleware($route);
 
+        if ($middleware === []) {
+            return $route->run();
+        }
+
         return (new Pipeline($this->container))
             ->send($request)
             ->through($middleware)
-            ->then(fn ($request) => $this->prepareResponse(
-                $request,
-                $route->run()
-            ));
+            ->then(function ($request) use ($route) {
+                return $this->prepareResponse($request, $route->run());
+            });
     }
 
     /**
@@ -773,11 +776,13 @@ class Router implements BindingRegistrar, RegistrarContract
             $this->events->dispatch(new PreparingResponse($request, $response));
         }
 
-        return tap(static::toResponse($request, $response), function (SymfonyResponse $response) use ($request): void {
-            if ($this->events->hasListeners(ResponsePrepared::class)) {
-                $this->events->dispatch(new ResponsePrepared($request, $response));
-            }
-        });
+        $response = static::toResponse($request, $response);
+
+        if ($this->events->hasListeners(ResponsePrepared::class)) {
+            $this->events->dispatch(new ResponsePrepared($request, $response));
+        }
+
+        return $response;
     }
 
     /**

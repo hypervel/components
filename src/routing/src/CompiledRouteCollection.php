@@ -213,17 +213,23 @@ class CompiledRouteCollection extends AbstractRouteCollection
     }
 
     /**
-     * Get a cloned instance of the given request without any trailing slash on the URI.
+     * Get the given request without any trailing slash on the URI.
      */
     protected function requestWithoutTrailingSlash(Request $request): Request
     {
-        $trimmedRequest = $request->duplicate();
+        $requestUri = $request->server->get('REQUEST_URI', '');
+        $parts = explode('?', $requestUri, 2);
+        $path = $parts[0];
 
-        $parts = explode('?', $request->server->get('REQUEST_URI'), 2);
+        if ($requestUri === '' || $path === '/' || ! str_ends_with($path, '/')) {
+            return $request;
+        }
+
+        $trimmedRequest = $request->duplicate();
 
         $trimmedRequest->server->set(
             'REQUEST_URI',
-            rtrim($parts[0], '/') . (isset($parts[1]) ? '?' . $parts[1] : '')
+            rtrim($path, '/') . (isset($parts[1]) ? '?' . $parts[1] : '')
         );
 
         return $trimmedRequest;

@@ -18,7 +18,6 @@ class RequestBridge
         $server = static::normalizeTrailingSlash(
             static::transformServerParams($swooleRequest->server ?? [], $swooleRequest->header ?? [])
         );
-
         $content = $swooleRequest->rawContent();
 
         return new Request(
