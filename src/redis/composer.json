@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-redis": "*",
+        "ext-redis": "^6.1",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
         "hypervel/container": "^0.4",
