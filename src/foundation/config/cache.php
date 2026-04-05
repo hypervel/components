@@ -63,9 +63,9 @@ return [
 
         'redis' => [
             'driver' => 'redis',
-            'connection' => env('REDIS_CACHE_CONNECTION', 'default'),
+            'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
             'tag_mode' => env('REDIS_CACHE_TAG_MODE', 'all'), // Redis 8.0+ and PhpRedis 6.3.0+ required for 'any'
-            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'cache'),
         ],
 
         'swoole' => [

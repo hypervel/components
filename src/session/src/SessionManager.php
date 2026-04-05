@@ -97,9 +97,10 @@ class SessionManager extends Manager
     protected function createRedisDriver(): Store
     {
         $handler = $this->createCacheHandler('redis');
+        $connection = $this->config->get('session.connection');
 
         $handler->getCache()->getStore()->setConnection( // @phpstan-ignore method.notFound (RedisStore::setConnection — always Redis here)
-            $this->config->get('session.connection')
+            $connection ?? 'session'
         );
 
         return $this->buildSession($handler);

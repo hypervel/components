@@ -21,6 +21,7 @@ use Hypervel\Engine\Http\FdGetter;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
+use Hypervel\Routing\Router;
 use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
@@ -114,8 +115,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             // dispatchToCallback() performs the full Router context lifecycle
             // (findRoute, context setup, RouteMatched event, middleware pipeline)
             // but calls our handshake handler instead of the route's controller.
-            $router = $this->container->make('router');
-            $httpResponse = $router->dispatchToCallback(
+            $httpResponse = $this->getRouter()->dispatchToCallback(
                 $httpRequest,
                 fn (HttpRequest $req) => $this->coreMiddleware->handleHandshake($req)
             );
@@ -230,6 +230,17 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     public function getSender(): Sender
     {
         return $this->container->make(Sender::class);
+    }
+
+    /**
+     * Get the router instance for WebSocket handshake route matching.
+     *
+     * Override in subclasses to use an isolated router for packages
+     * that register their own server entry (e.g. Reverb).
+     */
+    protected function getRouter(): Router
+    {
+        return $this->container->make('router');
     }
 
     /**
