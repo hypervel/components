@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use GuzzleHttp\Client as GuzzleClient;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -39,10 +40,14 @@ class ScoutServiceProvider extends ServiceProvider
 
         $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->make('config');
+            $settings = $config->get('scout.typesense.client-settings', []);
 
-            return new TypesenseClient(
-                $config->get('scout.typesense.client-settings', [])
-            );
+            // Explicitly inject Guzzle as the HTTP client so Typesense never
+            // falls back to PSR-18 auto-discovery, which may resolve to
+            // Symfony's CurlHttpClient (unsafe with Swoole coroutines).
+            $settings['client'] ??= new GuzzleClient();
+
+            return new TypesenseClient($settings);
         });
     }
 
