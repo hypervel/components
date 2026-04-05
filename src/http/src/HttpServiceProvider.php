@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
+use Http\Discovery\ClassDiscovery;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Http\Discovery\GuzzlePsr18Strategy;
 use Hypervel\Support\ServiceProvider;
 
 class HttpServiceProvider extends ServiceProvider
@@ -15,8 +17,29 @@ class HttpServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->registerPsr18Discovery();
         $this->registerRequestFactory();
         $this->registerResponseFactory();
+    }
+
+    /**
+     * Register Guzzle as the preferred PSR-18 client for auto-discovery.
+     *
+     * Symfony's CurlHttpClient uses a shared CurlMultiHandle that is unsafe
+     * when reused across Swoole coroutines. This ensures any package using
+     * PSR-18 auto-discovery gets Guzzle instead.
+     */
+    protected function registerPsr18Discovery(): void
+    {
+        if (! class_exists(ClassDiscovery::class)) {
+            return;
+        }
+
+        $strategies = ClassDiscovery::getStrategies();
+
+        if (! in_array(GuzzlePsr18Strategy::class, $strategies, true)) {
+            ClassDiscovery::prependStrategy(GuzzlePsr18Strategy::class);
+        }
     }
 
     /**
