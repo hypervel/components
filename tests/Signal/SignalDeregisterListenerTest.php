@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Signal;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Framework\Events\OnWorkerExit;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\Signal\SignalDeregisterListener;
 use Hypervel\Signal\SignalManager;

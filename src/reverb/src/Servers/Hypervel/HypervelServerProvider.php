@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Servers\Hypervel;
 
-use Hypervel\Framework\Events\AfterWorkerStart;
+use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Reverb\Contracts\ServerProvider;
 use Hypervel\Reverb\Protocols\Pusher\PusherPubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;

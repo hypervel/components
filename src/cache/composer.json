@@ -43,7 +43,7 @@
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/filesystem": "^0.4",
-        "hypervel/framework": "^0.4",
+        "hypervel/core": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4"

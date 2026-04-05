@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\WebSocketServer\Listeners;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Framework\Events\OnPipeMessage;
+use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\WebSocketServer\Sender;
 use Hypervel\WebSocketServer\SenderPipeMessage;
 use Throwable;

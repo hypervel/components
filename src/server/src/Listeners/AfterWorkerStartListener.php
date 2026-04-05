@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Server\Listeners;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Engine\Constants\SocketType;
-use Hypervel\Framework\Events\AfterWorkerStart;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Server\ServerManager;
 use Psr\Log\LoggerInterface;

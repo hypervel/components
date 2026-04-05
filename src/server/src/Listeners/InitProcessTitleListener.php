@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Server\Listeners;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Framework\Events\AfterWorkerStart;
-use Hypervel\Framework\Events\OnManagerStart;
-use Hypervel\Framework\Events\OnStart;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnManagerStart;
+use Hypervel\Core\Events\OnStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 
 class InitProcessTitleListener

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Signal;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Framework\Events\OnWorkerExit;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 
 class SignalDeregisterListener

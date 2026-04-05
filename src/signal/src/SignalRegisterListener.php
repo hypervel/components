@@ -6,7 +6,7 @@ namespace Hypervel\Signal;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
-use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 
 class SignalRegisterListener

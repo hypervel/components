@@ -255,7 +255,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         // providers run, so the binding must exist here.
         $this->singleton(
             \Hypervel\Contracts\Log\StdoutLoggerInterface::class,
-            \Hypervel\Framework\Logger\StdoutLogger::class
+            \Hypervel\Core\Logger\StdoutLogger::class
         );
     }
 

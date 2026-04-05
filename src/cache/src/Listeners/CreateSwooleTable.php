@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Listeners;
 
 use Hypervel\Cache\SwooleTableManager;
-use Hypervel\Framework\Events\BeforeServerStart;
+use Hypervel\Core\Events\BeforeServerStart;
 
 class CreateSwooleTable extends BaseListener
 {

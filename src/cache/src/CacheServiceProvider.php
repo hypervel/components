@@ -13,8 +13,8 @@ use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
-use Hypervel\Framework\Events\BeforeServerStart;
-use Hypervel\Framework\Events\OnManagerStart;
+use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Core\Events\OnManagerStart;
 use Hypervel\Support\ServiceProvider;
 
 class CacheServiceProvider extends ServiceProvider

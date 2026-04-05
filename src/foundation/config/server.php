@@ -38,8 +38,8 @@ return [
         Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024,
     ],
     'callbacks' => [
-        Event::ON_WORKER_START => [Hypervel\Framework\Bootstrap\WorkerStartCallback::class, 'onWorkerStart'],
-        Event::ON_PIPE_MESSAGE => [Hypervel\Framework\Bootstrap\PipeMessageCallback::class, 'onPipeMessage'],
-        Event::ON_WORKER_EXIT => [Hypervel\Framework\Bootstrap\WorkerExitCallback::class, 'onWorkerExit'],
+        Event::ON_WORKER_START => [Hypervel\Core\Bootstrap\WorkerStartCallback::class, 'onWorkerStart'],
+        Event::ON_PIPE_MESSAGE => [Hypervel\Core\Bootstrap\PipeMessageCallback::class, 'onPipeMessage'],
+        Event::ON_WORKER_EXIT => [Hypervel\Core\Bootstrap\WorkerExitCallback::class, 'onWorkerExit'],
     ],
 ];

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
-use Hypervel\Framework\Events\AfterWorkerStart;
-use Hypervel\Framework\Events\OnManagerStart;
-use Hypervel\Framework\Events\OnStart;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnManagerStart;
+use Hypervel\Core\Events\OnStart;
 use Hypervel\Server\Commands\ServerReloadCommand;
 use Hypervel\Server\Commands\ServerStartCommand;
 use Hypervel\Server\Listeners\AfterWorkerStartListener;

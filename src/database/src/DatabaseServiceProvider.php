@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Console\DbCommand;
 use Hypervel\Database\Console\DumpCommand;
@@ -32,7 +33,6 @@ use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\SchemaProxy;
-use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\ServiceProvider;
 
 class DatabaseServiceProvider extends ServiceProvider

@@ -7,7 +7,7 @@ namespace Hypervel\ServerProcess\Listeners;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
-use Hypervel\Framework\Events\BeforeMainServerStart;
+use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\ProcessManager;
 
 class BootProcessListener

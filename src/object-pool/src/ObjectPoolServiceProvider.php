@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hypervel\Framework\Events\AfterWorkerStart;
+use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Listeners\StartRecycler;

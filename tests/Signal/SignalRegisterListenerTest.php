@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Signal;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Signal\SignalHandlerInterface;
-use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Signal\SignalRegisterListener;

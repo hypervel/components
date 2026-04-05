@@ -7,7 +7,7 @@ namespace Hypervel\Database\Listeners;
 use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Framework\Events\BeforeWorkerStart;
+use Hypervel\Core\Events\BeforeWorkerStart;
 
 /**
  * Clears database connection context when task workers start.

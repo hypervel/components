@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Listeners;
 
 use Hypervel\Config\Repository;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
-use Hypervel\Framework\Events\BeforeWorkerStart;
 use Hypervel\Support\DotenvManager;
 
 class ReloadDotenvAndConfig

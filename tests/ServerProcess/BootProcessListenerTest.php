@@ -6,7 +6,7 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Framework\Events\BeforeMainServerStart;
+use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\ServerProcess\Fixtures\FooProcess;

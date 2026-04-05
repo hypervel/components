@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
-use Hypervel\Framework\Events\AfterWorkerStart;
-use Hypervel\Framework\Events\OnPipeMessage;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\WebSocketServer\Listeners\InitSenderListener;
 use Hypervel\WebSocketServer\Listeners\OnPipeMessageListener;

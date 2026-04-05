@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
-use Hypervel\Framework\Events\OnPipeMessage;
+use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;

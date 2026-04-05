@@ -35,7 +35,7 @@
         "hypervel/database": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
-        "hypervel/framework": "^0.4",
+        "hypervel/core": "^0.4",
         "hypervel/process": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/routing": "^0.4",

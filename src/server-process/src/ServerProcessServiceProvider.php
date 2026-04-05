@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ServerProcess;
 
-use Hypervel\Framework\Events\BeforeMainServerStart;
+use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;

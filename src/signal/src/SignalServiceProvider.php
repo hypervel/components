@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Signal;
 
-use Hypervel\Framework\Events\BeforeWorkerStart;
-use Hypervel\Framework\Events\OnWorkerExit;
+use Hypervel\Core\Events\BeforeWorkerStart;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;

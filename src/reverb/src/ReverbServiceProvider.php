@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Reverb;
 
 use Hypervel\Coordinator\Timer;
-use Hypervel\Framework\Events\AfterWorkerStart;
-use Hypervel\Framework\Events\OnPipeMessage;
-use Hypervel\Framework\Events\OnWorkerStop;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnPipeMessage;
+use Hypervel\Core\Events\OnWorkerStop;
 use Hypervel\Reverb\Console\Commands\InstallCommand;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
