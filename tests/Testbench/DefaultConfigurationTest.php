@@ -76,6 +76,18 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function itPopulatesExpectedRedisConnections(): void
+    {
+        $connections = $this->app['config']['database.redis'];
+
+        $this->assertArrayHasKey('default', $connections);
+        $this->assertArrayHasKey('cache', $connections);
+        $this->assertArrayHasKey('session', $connections);
+        $this->assertArrayHasKey('queue', $connections);
+        $this->assertArrayHasKey('reverb', $connections);
+    }
+
+    #[Test]
     public function itUsesMutableDatesByDefault(): void
     {
         $date = Date::parse('2023-01-01');

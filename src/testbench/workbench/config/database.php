@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Support\Str;
-
 return [
     'default' => env('DB_CONNECTION', 'sqlite'),
     'connections' => [
@@ -104,45 +102,5 @@ return [
     'migrations' => [
         'table' => 'migrations',
         'update_date_on_publish' => true,
-    ],
-
-    'redis' => [
-        'options' => [
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'hypervel'), '_') . '_database_'),
-        ],
-
-        'default' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', 'localhost'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => (int) env('REDIS_PORT', 6379),
-            'database' => (int) env('REDIS_DB', 0),
-            'pool' => [
-                'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
-                'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
-            ],
-        ],
-
-        'queue' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', 'localhost'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => (int) env('REDIS_PORT', 6379),
-            'database' => (int) env('REDIS_DB', 0),
-            'pool' => [
-                'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
-                'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
-            ],
-        ],
     ],
 ];
