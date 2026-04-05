@@ -237,7 +237,35 @@ class EventFake implements Fake, DispatcherContract
      */
     public function hasListeners(string $eventName): bool
     {
-        return $this->dispatcher->hasListeners($eventName);
+        if ($this->dispatcher->hasListeners($eventName)) {
+            return true;
+        }
+
+        if ($this->eventsToFake === []) {
+            if ($this->eventsToDispatch === []) {
+                return true;
+            }
+
+            foreach ($this->eventsToDispatch as $event) {
+                if ($event instanceof Closure) {
+                    return true;
+                }
+
+                if ($event === $eventName) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        foreach ($this->eventsToFake as $event) {
+            if ($event instanceof Closure || $event === $eventName) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
