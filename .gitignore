@@ -1,6 +1,5 @@
 .idea
 .DS_Store
-_tmp/
 .env
 !tests/Support/envs/**/.env
 !tests/Foundation/Fixtures/envs/.env
