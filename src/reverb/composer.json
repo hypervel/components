@@ -1,0 +1,61 @@
+{
+    "name": "hypervel/reverb",
+    "type": "library",
+    "description": "Hypervel Reverb provides a real-time WebSocket communication backend for Hypervel applications.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "websocket",
+        "reverb",
+        "pusher",
+        "real-time",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Reverb\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/broadcasting": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/redis": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/websocket-server": "^0.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Reverb\\ReverbServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}
