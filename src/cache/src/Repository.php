@@ -112,7 +112,7 @@ class Repository implements ArrayAccess, CacheContract
 
         $key = enum_value($key);
 
-        $this->event(new RetrievingKey($this->getName(), $key));
+        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
 
         $value = $this->store->get($this->itemKey($key));
 
@@ -120,11 +120,11 @@ class Repository implements ArrayAccess, CacheContract
         // the default value for this cache value. This default could be a callback
         // so we will execute the value function which will resolve it if needed.
         if (is_null($value)) {
-            $this->event(new CacheMissed($this->getName(), $key));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
 
             $value = value($default);
         } else {
-            $this->event(new CacheHit($this->getName(), $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
         }
 
         return $value;
@@ -140,7 +140,10 @@ class Repository implements ArrayAccess, CacheContract
             return is_string($key) ? $key : (string) enum_value($value);
         })->values()->all();
 
-        $this->event(new RetrievingManyKeys($this->getName(), $resolvedKeys));
+        $this->event(
+            RetrievingManyKeys::class,
+            fn (): RetrievingManyKeys => new RetrievingManyKeys($this->getName(), $resolvedKeys)
+        );
 
         $values = $this->store->many($resolvedKeys);
 
@@ -307,13 +310,22 @@ class Repository implements ArrayAccess, CacheContract
             return $this->forget($key);
         }
 
-        $this->event(new WritingKey($this->getName(), $key, $value, $seconds));
+        $this->event(
+            WritingKey::class,
+            fn (): WritingKey => new WritingKey($this->getName(), $key, $value, $seconds)
+        );
 
         $result = $this->store->put($this->itemKey($key), $value, $seconds);
         if ($result) {
-            $this->event(new KeyWritten($this->getName(), $key, $value, $seconds));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value, $seconds)
+            );
         } else {
-            $this->event(new KeyWriteFailed($this->getName(), $key, $value, $seconds));
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value, $seconds)
+            );
         }
 
         return $result;
@@ -342,20 +354,29 @@ class Repository implements ArrayAccess, CacheContract
             return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
-        $this->event(new WritingManyKeys(
-            $this->getName(),
-            array_map(static fn ($key) => (string) $key, array_keys($values)),
-            array_values($values),
-            $seconds
-        ));
+        $this->event(
+            WritingManyKeys::class,
+            fn (): WritingManyKeys => new WritingManyKeys(
+                $this->getName(),
+                array_map(static fn ($key) => (string) $key, array_keys($values)),
+                array_values($values),
+                $seconds
+            )
+        );
 
         $result = $this->store->putMany($values, $seconds);
 
         foreach ($values as $key => $value) {
             if ($result) {
-                $this->event(new KeyWritten($this->getName(), (string) $key, $value, $seconds));
+                $this->event(
+                    KeyWritten::class,
+                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, $value, $seconds)
+                );
             } else {
-                $this->event(new KeyWriteFailed($this->getName(), (string) $key, $value, $seconds));
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, $value, $seconds)
+                );
             }
         }
 
@@ -428,14 +449,17 @@ class Repository implements ArrayAccess, CacheContract
     {
         $key = enum_value($key);
 
-        $this->event(new WritingKey($this->getName(), $key, $value));
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, $value));
 
         $result = $this->store->forever($this->itemKey($key), $value);
 
         if ($result) {
-            $this->event(new KeyWritten($this->getName(), $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value));
         } else {
-            $this->event(new KeyWriteFailed($this->getName(), $key, $value));
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value)
+            );
         }
 
         return $result;
@@ -609,13 +633,16 @@ class Repository implements ArrayAccess, CacheContract
     {
         $key = enum_value($key);
 
-        $this->event(new ForgettingKey($this->getName(), $key));
+        $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
 
         return tap($this->store->forget($this->itemKey($key)), function ($result) use ($key) {
             if ($result) {
-                $this->event(new KeyForgotten($this->getName(), $key));
+                $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
             } else {
-                $this->event(new KeyForgetFailed($this->getName(), $key));
+                $this->event(
+                    KeyForgetFailed::class,
+                    fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+                );
             }
         });
     }
@@ -640,14 +667,17 @@ class Repository implements ArrayAccess, CacheContract
 
     public function clear(): bool
     {
-        $this->event(new CacheFlushing($this->getName()));
+        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
         $result = $this->store->flush();
 
         if ($result) {
-            $this->event(new CacheFlushed($this->getName()));
+            $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
         } else {
-            $this->event(new CacheFlushFailed($this->getName()));
+            $this->event(
+                CacheFlushFailed::class,
+                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName())
+            );
         }
 
         return $result;
@@ -666,14 +696,20 @@ class Repository implements ArrayAccess, CacheContract
             throw new BadMethodCallException('This cache store does not support flushing locks.');
         }
 
-        $this->event(new CacheLocksFlushing($this->getName()));
+        $this->event(CacheLocksFlushing::class, fn (): CacheLocksFlushing => new CacheLocksFlushing($this->getName()));
 
         $result = $store->flushLocks(); // @phpstan-ignore method.notFound (flushLocks() is on CanFlushLocks, verified by supportsFlushingLocks() above)
 
         if ($result) {
-            $this->event(new CacheLocksFlushed($this->getName()));
+            $this->event(
+                CacheLocksFlushed::class,
+                fn (): CacheLocksFlushed => new CacheLocksFlushed($this->getName())
+            );
         } else {
-            $this->event(new CacheLocksFlushFailed($this->getName()));
+            $this->event(
+                CacheLocksFlushFailed::class,
+                fn (): CacheLocksFlushFailed => new CacheLocksFlushFailed($this->getName())
+            );
         }
 
         return $result;
@@ -831,7 +867,7 @@ class Repository implements ArrayAccess, CacheContract
         // the default value for this cache value. This default could be a callback
         // so we will execute the value function which will resolve it if needed.
         if (is_null($value)) {
-            $this->event(new CacheMissed($this->getName(), $key));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
 
             return (isset($keys[$key]) && ! array_is_list($keys)) ? value($keys[$key]) : null;
         }
@@ -839,7 +875,7 @@ class Repository implements ArrayAccess, CacheContract
         // If we found a valid value we will fire the "hit" event and return the value
         // back from this function. The "hit" event gives developers an opportunity
         // to listen for every possible cache "hit" throughout this applications.
-        $this->event(new CacheHit($this->getName(), $key, $value));
+        $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
 
         return $value;
     }
@@ -887,9 +923,13 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Fire an event for this cache instance.
      */
-    protected function event(object $event): void
+    protected function event(string $eventClass, Closure $event): void
     {
-        $this->events?->dispatch($event);
+        if (! $this->events?->hasListeners($eventClass)) {
+            return;
+        }
+
+        $this->events->dispatch($event());
     }
 
     /**

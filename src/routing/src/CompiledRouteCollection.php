@@ -154,31 +154,33 @@ class CompiledRouteCollection extends AbstractRouteCollection
      * RequestContext would race under coroutine interleaving. The allocation
      * cost of one small object per request is negligible.
      *
-     * No $request->duplicate() — trailing slash already normalized by RequestBridge.
+     * No request duplication needed — trailing slashes are trimmed via rtrim()
+     * on the path string and passed to match() directly, avoiding the overhead
+     * of cloning the entire Request object. RequestBridge also normalizes
+     * trailing slashes for real HTTP requests upstream.
      *
      * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
      * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
      */
     public function match(Request $request): Route
     {
-        $trimmedRequest = $this->requestWithoutTrailingSlash($request);
-
         $context = new RequestContext(
-            method: $trimmedRequest->getMethod(),
-            host: $trimmedRequest->getHost(),
-            scheme: $trimmedRequest->getScheme(),
-            httpPort: $trimmedRequest->isSecure() ? 443 : (int) $trimmedRequest->getPort(),
-            httpsPort: $trimmedRequest->isSecure() ? (int) $trimmedRequest->getPort() : 443,
-            path: $trimmedRequest->getPathInfo(),
-            queryString: $trimmedRequest->server->get('QUERY_STRING', ''),
+            method: $request->getMethod(),
+            host: $request->getHost(),
+            scheme: $request->getScheme(),
+            httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
+            httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
+            path: $request->getPathInfo(),
+            queryString: $request->server->get('QUERY_STRING', ''),
         );
 
         $matcher = new CompiledUrlMatcher($this->compiled, $context);
+        $path = rtrim($request->getPathInfo(), '/') ?: '/';
 
         $route = null;
 
         try {
-            if ($result = $matcher->matchRequest($trimmedRequest)) {
+            if ($result = $matcher->match($path)) {
                 $route = $this->getByName($result['_route']);
             }
         } catch (ResourceNotFoundException|MethodNotAllowedException) {
@@ -210,29 +212,6 @@ class CompiledRouteCollection extends AbstractRouteCollection
         }
 
         return $this->handleMatchedRoute($request, $route);
-    }
-
-    /**
-     * Get the given request without any trailing slash on the URI.
-     */
-    protected function requestWithoutTrailingSlash(Request $request): Request
-    {
-        $requestUri = $request->server->get('REQUEST_URI', '');
-        $parts = explode('?', $requestUri, 2);
-        $path = $parts[0];
-
-        if ($requestUri === '' || $path === '/' || ! str_ends_with($path, '/')) {
-            return $request;
-        }
-
-        $trimmedRequest = $request->duplicate();
-
-        $trimmedRequest->server->set(
-            'REQUEST_URI',
-            rtrim($path, '/') . (isset($parts[1]) ? '?' . $parts[1] : '')
-        );
-
-        return $trimmedRequest;
     }
 
     /**

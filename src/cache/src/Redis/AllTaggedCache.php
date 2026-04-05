@@ -66,7 +66,7 @@ class AllTaggedCache extends TaggedCache
             );
 
             if ($result) {
-                $this->event(new KeyWritten(null, $key, $value));
+                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
             }
 
             return $result;
@@ -104,7 +104,7 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($result) {
-            $this->event(new KeyWritten(null, $key, $value, $seconds));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
         return $result;
@@ -134,7 +134,7 @@ class AllTaggedCache extends TaggedCache
 
         if ($result) {
             foreach ($values as $key => $value) {
-                $this->event(new KeyWritten(null, (string) $key, $value, $seconds));
+                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, $value, $seconds));
             }
         }
 
@@ -179,7 +179,7 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($result) {
-            $this->event(new KeyWritten(null, $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
         return $result;
@@ -190,11 +190,11 @@ class AllTaggedCache extends TaggedCache
      */
     public function flush(): bool
     {
-        $this->event(new CacheFlushing(null));
+        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing(null));
 
         $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
 
-        $this->event(new CacheFlushed(null));
+        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed(null));
 
         return true;
     }
@@ -242,10 +242,10 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
         } else {
-            $this->event(new CacheMissed(null, $key));
-            $this->event(new KeyWritten(null, $key, $value, $seconds));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
         return $value;
@@ -271,10 +271,10 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
         } else {
-            $this->event(new CacheMissed(null, $key));
-            $this->event(new KeyWritten(null, $key, $value));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
         return $value;

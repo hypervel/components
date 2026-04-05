@@ -328,7 +328,10 @@ class CacheEventsTest extends TestCase
 
     protected function getDispatcher()
     {
-        return m::mock(Dispatcher::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+
+        return $dispatcher;
     }
 
     protected function getRepository($dispatcher)

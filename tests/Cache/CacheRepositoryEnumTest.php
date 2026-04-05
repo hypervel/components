@@ -409,6 +409,7 @@ class CacheRepositoryEnumTest extends TestCase
     protected function getRepository(): Repository
     {
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
         $dispatcher->shouldReceive('dispatch')->with(m::any())->andReturnNull();
         $repository = new Repository(m::mock(Store::class));
 
