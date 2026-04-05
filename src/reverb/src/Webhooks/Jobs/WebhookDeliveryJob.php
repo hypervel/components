@@ -88,6 +88,8 @@ class WebhookDeliveryJob implements ShouldQueue
      */
     public function failed(Throwable $exception): void
     {
-        WebhookFailed::dispatch($this->payload, $this->url, $exception);
+        if (app('events')->hasListeners(WebhookFailed::class)) {
+            WebhookFailed::dispatch($this->payload, $this->url, $exception);
+        }
     }
 }
