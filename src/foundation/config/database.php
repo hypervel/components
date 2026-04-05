@@ -193,5 +193,22 @@ return [
                 'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
             ],
         ],
+
+        'reverb' => [
+            'url' => env('REDIS_REVERB_URL', env('REDIS_URL')),
+            'host' => env('REDIS_REVERB_HOST', env('REDIS_HOST', 'localhost')),
+            'username' => env('REDIS_REVERB_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('REDIS_REVERB_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => (int) env('REDIS_REVERB_PORT', env('REDIS_PORT', 6379)),
+            'database' => (int) env('REDIS_REVERB_DB', env('REDIS_DB', 0)),
+            'pool' => [
+                'min_connections' => (int) env('REDIS_REVERB_MIN_CONNECTIONS', env('REDIS_MIN_CONNECTIONS', 1)),
+                'max_connections' => (int) env('REDIS_REVERB_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1,
+                'max_idle_time' => (float) env('REDIS_REVERB_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+            ],
+        ],
     ],
 ];

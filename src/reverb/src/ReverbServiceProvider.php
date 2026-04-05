@@ -81,7 +81,7 @@ class ReverbServiceProvider extends ServiceProvider
 
         $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
             $connectionName = (string) $app->make('config')
-                ->get('reverb.servers.reverb.scaling.connection', 'default');
+                ->get('reverb.servers.reverb.scaling.connection', 'reverb');
 
             return new WebhookBatchBuffer(
                 $app->make('redis')->connection($connectionName)

@@ -51,10 +51,33 @@ return [
                 'tls' => [],
             ],
             'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+            /*
+            |--------------------------------------------------------------
+            | Multi-Instance Scaling via Redis
+            |--------------------------------------------------------------
+            |
+            | Hypervel Reverb automatically scales across all Swoole
+            | workers on a single server using shared memory — no
+            | external dependencies required. This is sufficient for
+            | most workloads.
+            |
+            | Enable this only when running multiple Reverb instances
+            | behind a load balancer. When enabled, Redis pub/sub
+            | coordinates broadcasts across instances, replacing the
+            | shared-memory coordination used in single-instance mode.
+            |
+            | Shared memory is significantly faster than Redis, so
+            | scaling a single instance by increasing the worker count
+            | will often outperform adding more instances. Use the
+            | 'reverb' connection in database.redis to configure
+            | which Redis server to use.
+            |
+            */
+
             'scaling' => [
                 'enabled' => env('REVERB_SCALING_ENABLED', false),
                 'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
-                'connection' => env('REVERB_SCALING_CONNECTION', 'default'),
+                'connection' => env('REVERB_SCALING_CONNECTION', 'reverb'),
             ],
             'table' => [
                 'rows' => env('REVERB_TABLE_ROWS', 65536),

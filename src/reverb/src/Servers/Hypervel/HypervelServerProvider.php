@@ -105,13 +105,13 @@ class HypervelServerProvider extends ServerProvider
     /**
      * Get the Redis connection for scaling operations.
      *
-     * Uses the connection name from the scaling config, defaulting to 'default'.
+     * Uses the connection name from the scaling config, defaulting to 'reverb'.
      * This ensures subscribe, publish, and shared-state all use the same
      * Redis connection with consistent prefix, auth, and host settings.
      */
     protected function scalingRedisConnection(): \Hypervel\Redis\RedisProxy
     {
-        $connectionName = (string) ($this->config['scaling']['connection'] ?? 'default');
+        $connectionName = (string) ($this->config['scaling']['connection'] ?? 'reverb');
 
         return Redis::connection($connectionName);
     }
