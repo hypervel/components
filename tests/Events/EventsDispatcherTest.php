@@ -476,6 +476,46 @@ class EventsDispatcherTest extends TestCase
         $this->assertTrue($d->hasListeners('foo.bar'));
     }
 
+    public function testCatchAllWildcardIsPassiveForHasListeners()
+    {
+        $d = new Dispatcher;
+        $d->listen('*', function () {});
+
+        // Catch-all '*' is passive — not counted by hasListeners()
+        $this->assertFalse($d->hasListeners('Foo'));
+        $this->assertFalse($d->hasWildcardListeners('Foo'));
+
+        // Adding a real listener makes it true
+        $d->listen('Foo', function () {});
+        $this->assertTrue($d->hasListeners('Foo'));
+    }
+
+    public function testCatchAllWildcardStillReceivesDispatchedEvents()
+    {
+        $d = new Dispatcher;
+        $received = false;
+
+        $d->listen('*', function () use (&$received) {
+            $received = true;
+        });
+
+        $d->dispatch('Foo');
+        $this->assertTrue($received);
+    }
+
+    public function testTargetedWildcardIsNotPassiveForHasListeners()
+    {
+        $d = new Dispatcher;
+        $d->listen('App\Events\*', function () {});
+
+        // Targeted wildcard is counted
+        $this->assertTrue($d->hasListeners('App\Events\UserCreated'));
+        $this->assertTrue($d->hasWildcardListeners('App\Events\UserCreated'));
+
+        // But not for non-matching events
+        $this->assertFalse($d->hasListeners('Other\Event'));
+    }
+
     public function testHasListenersCachesFalseResult(): void
     {
         $d = new Dispatcher;
