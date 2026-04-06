@@ -183,6 +183,15 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Determine if a given event has listeners.
+     *
+     * Catch-all wildcard listeners ('*') are treated as passive observers
+     * and excluded from this check. They still receive events during dispatch,
+     * but are not considered "interested" listeners for the purpose of deciding
+     * whether to construct and fire an event. This prevents observability tools
+     * (e.g. Telescope's EventWatcher) from defeating hasListeners() guards
+     * that skip event construction when no real consumer exists.
+     *
+     * Targeted wildcard patterns (e.g. 'App\Events\*') are still counted.
      */
     public function hasListeners(string $eventName): bool
     {
@@ -201,6 +210,10 @@ class Dispatcher implements DispatcherContract
     public function hasWildcardListeners(string $eventName): bool
     {
         foreach ($this->wildcards as $key => $listeners) {
+            if ($key === '*') {
+                continue;
+            }
+
             if (Str::is($key, $eventName)) {
                 return true;
             }
