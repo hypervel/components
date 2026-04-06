@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Dotenv\Exception\InvalidFileException;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -113,26 +115,33 @@ class LoadEnvironmentVariablesTest extends TestCase
 
     public function testSkipsWhenConfigIsCached()
     {
-        $app = $this->createApp();
+        $tempDir = ParallelTesting::tempDir('LoadEnvVarsTest');
+        $filesystem = new Filesystem();
 
-        // Create a fake cached config file so configurationIsCached() returns true.
-        $cachePath = $app->getCachedConfigPath();
-        $cacheDir = dirname($cachePath);
-
-        if (! is_dir($cacheDir)) {
-            mkdir($cacheDir, 0755, true);
-        }
-
-        file_put_contents($cachePath, '<?php return [];');
+        // Copy fixture .env files to a temp dir so getCachedConfigPath()
+        // writes to temp instead of the test source tree.
+        $filesystem->copyDirectory(__DIR__ . '/../Fixtures/envs', $tempDir);
 
         try {
+            $app = new Application($tempDir);
+
+            // Create a fake cached config file so configurationIsCached() returns true.
+            $cachePath = $app->getCachedConfigPath();
+            $cacheDir = dirname($cachePath);
+
+            if (! is_dir($cacheDir)) {
+                mkdir($cacheDir, 0755, true);
+            }
+
+            file_put_contents($cachePath, '<?php return [];');
+
             (new LoadEnvironmentVariables())->bootstrap($app);
 
             // Env vars should NOT be loaded since config is cached.
             $this->assertNull(env('APP_NAME'));
             $this->assertNull(env('TEST_KEY'));
         } finally {
-            @unlink($cachePath);
+            $filesystem->deleteDirectory($tempDir);
         }
     }
 

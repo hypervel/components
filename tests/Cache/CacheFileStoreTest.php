@@ -10,6 +10,7 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -437,21 +438,28 @@ class CacheFileStoreTest extends TestCase
 
     public function testItHandlesForgettingNonFlexibleKeys()
     {
-        $store = new FileStore(new Filesystem(), __DIR__);
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        mkdir($tempDir, 0777, true);
 
-        $key = Str::random();
-        $path = $store->path($key);
-        $flexiblePath = $store->path("hypervel:cache:flexible:created:{$key}");
+        try {
+            $store = new FileStore(new Filesystem(), $tempDir);
 
-        $store->put($key, 'value', 5);
+            $key = Str::random();
+            $path = $store->path($key);
+            $flexiblePath = $store->path("hypervel:cache:flexible:created:{$key}");
 
-        $this->assertFileExists($path);
-        $this->assertFileDoesNotExist($flexiblePath);
+            $store->put($key, 'value', 5);
 
-        $store->forget($key);
+            $this->assertFileExists($path);
+            $this->assertFileDoesNotExist($flexiblePath);
 
-        $this->assertFileDoesNotExist($path);
-        $this->assertFileDoesNotExist($flexiblePath);
+            $store->forget($key);
+
+            $this->assertFileDoesNotExist($path);
+            $this->assertFileDoesNotExist($flexiblePath);
+        } finally {
+            (new Filesystem())->deleteDirectory($tempDir);
+        }
     }
 
     protected function mockFilesystem()
