@@ -167,6 +167,10 @@ return [
             'always' => env('TELESCOPE_DUMP_WATCHER_ALWAYS', false),
         ],
 
+        // Hypervel skips firing most events when no listeners are registered,
+        // as a performance optimization. EventWatcher uses a catch-all wildcard
+        // listener and is treated as a passive observer, so it will not cause
+        // listener-guarded events to be fired just for Telescope.
         Watchers\EventWatcher::class => [
             'enabled' => env('TELESCOPE_EVENT_WATCHER', true),
             'ignore' => [],
