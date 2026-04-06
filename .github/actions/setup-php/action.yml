@@ -11,7 +11,7 @@ runs:
         apt-get install -y -qq libgmp-dev libicu-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev libsqlite3-dev > /dev/null
 
         # Core extensions (installed via docker-php-ext-install)
-        core_extensions="pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath gd fileinfo ftp"
+        core_extensions="pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath gd fileinfo"
         to_install=""
         for ext in $core_extensions; do
           if ! php -m 2>/dev/null | grep -qi "^${ext}$"; then
