@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Auth;
+namespace Hypervel\JWT;
 
+use Hypervel\Auth\GuardHelpers;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
