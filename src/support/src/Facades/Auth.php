@@ -7,7 +7,6 @@ namespace Hypervel\Support\Facades;
 /**
  * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(string|null $name = null)
  * @method static \Hypervel\Auth\SessionGuard createSessionDriver(string $name, array $config)
- * @method static \Hypervel\Auth\JwtGuard createJwtDriver(string $name, array $config)
  * @method static \Hypervel\Auth\TokenGuard createTokenDriver(string $name, array $config)
  * @method static \Hypervel\Auth\AuthManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Auth\AuthManager provider(string $name, \Closure $callback)
