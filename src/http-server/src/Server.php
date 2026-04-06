@@ -104,11 +104,15 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             }
             ResponseContext::set($response);
 
-            $this->option?->isEnableRequestLifecycle() && $this->event?->dispatch(new RequestReceived(
-                request: $request,
-                response: $response,
-                server: $this->serverName
-            ));
+            if ($this->option?->isEnableRequestLifecycle()
+                && $this->event?->hasListeners(RequestReceived::class)
+            ) {
+                $this->event->dispatch(new RequestReceived(
+                    request: $request,
+                    response: $response,
+                    server: $this->serverName
+                ));
+            }
 
             // Dispatch through the Kernel (global middleware → Router → response)
             $response = $this->kernel->handle($request);
@@ -118,19 +122,23 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             $response = new SymfonyResponse('Internal Server Error', 500);
         } finally {
             if (isset($request) && $this->option?->isEnableRequestLifecycle()) {
-                Coroutine::defer(fn () => $this->event?->dispatch(new RequestTerminated(
-                    request: $request,
-                    response: $response ?? null,
-                    exception: $throwable ?? null,
-                    server: $this->serverName
-                )));
+                if ($this->event?->hasListeners(RequestTerminated::class)) {
+                    Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
+                        request: $request,
+                        response: $response ?? null,
+                        exception: $throwable ?? null,
+                        server: $this->serverName
+                    )));
+                }
 
-                $this->event?->dispatch(new RequestHandled(
-                    request: $request,
-                    response: $response ?? null,
-                    exception: $throwable ?? null,
-                    server: $this->serverName
-                ));
+                if ($this->event?->hasListeners(RequestHandled::class)) {
+                    $this->event->dispatch(new RequestHandled(
+                        request: $request,
+                        response: $response ?? null,
+                        exception: $throwable ?? null,
+                        server: $this->serverName
+                    ));
+                }
             }
 
             // Send HttpFoundation response back through Swoole

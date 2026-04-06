@@ -190,6 +190,9 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('terminate');
 
         $eventDispatcher = m::mock(EventDispatcherContract::class);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(true);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(true);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(true);
         $eventDispatcher->shouldReceive('dispatch')
             ->andReturnUsing(function ($event) use (&$dispatchedEvents) {
                 $dispatchedEvents[] = get_class($event);
@@ -217,6 +220,37 @@ class ServerTest extends TestCase
         // RequestTerminated is deferred, so it may not be in the list yet.
         $this->assertContains(RequestReceived::class, $dispatchedEvents);
         $this->assertContains(RequestHandled::class, $dispatchedEvents);
+    }
+
+    public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered()
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+
+        $eventDispatcher = m::mock(EventDispatcherContract::class);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(false);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(false);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(false);
+        $eventDispatcher->shouldNotReceive('dispatch');
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate');
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setOption($server, Option::make(['enable_request_lifecycle' => true]));
+
+        $swooleRequest = $this->createSwooleRequest();
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->withAnyArgs();
+        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('end')->withAnyArgs();
+
+        $server->onRequest($swooleRequest, $swooleResponse);
     }
 
     public function testOnRequestDoesNotDispatchLifecycleEventsWhenDisabled()
