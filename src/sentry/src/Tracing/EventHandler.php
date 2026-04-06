@@ -66,6 +66,10 @@ class EventHandler
     public function subscribe(Dispatcher $dispatcher): void
     {
         foreach (static::$eventHandlerMap as $eventName => $handler) {
+            if ($eventName === DatabaseEvents\QueryExecuted::class && ! $this->traceSqlQueries) {
+                continue;
+            }
+
             $dispatcher->listen($eventName, [$this, $handler]);
         }
     }
@@ -110,10 +114,6 @@ class EventHandler
      */
     protected function queryExecutedHandler(DatabaseEvents\QueryExecuted $query): void
     {
-        if (! $this->traceSqlQueries) {
-            return;
-        }
-
         $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
         // If there is no sampled span there is no need to handle the event
