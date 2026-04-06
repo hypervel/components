@@ -467,6 +467,10 @@ class Mailer implements MailerContract, MailQueueContract
             return true;
         }
 
+        if (! $this->events->hasListeners(MessageSending::class)) {
+            return true;
+        }
+
         return $this->events->until(
             new MessageSending($message, $data)
         ) !== false;
@@ -477,9 +481,11 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function dispatchSentEvent(SentMessage $message, array $data = []): void
     {
-        $this->events?->dispatch(
-            new MessageSent($message, $data)
-        );
+        if ($this->events && $this->events->hasListeners(MessageSent::class)) {
+            $this->events->dispatch(
+                new MessageSent($message, $data)
+            );
+        }
     }
 
     /**

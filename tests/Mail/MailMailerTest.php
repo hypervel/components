@@ -296,8 +296,27 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(true);
         $events->shouldReceive('until')->once()->with(m::type(MessageSending::class));
+        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(true);
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
+
+        $mailer = new Mailer('array', $view, new ArrayTransport, $events);
+
+        $mailer->send('foo', ['data'], function (Message $message) {
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
+        });
+    }
+
+    public function testEventsAreSkippedWhenNoListenersAreRegistered()
+    {
+        $view = $this->mockView();
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(false);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(false);
+        $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
 
         $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
