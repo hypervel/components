@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
+use Closure;
 use Hypervel\Auth\Events\Attempting;
 use Hypervel\Auth\Events\Authenticated;
 use Hypervel\Auth\Events\CurrentDeviceLogout;
@@ -559,7 +560,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         // If we have an event dispatcher instance, we can fire off the logout event
         // so any further processing can be done. This allows the developer to be
         // listening for anytime a user signs out of this application manually.
-        $this->events?->dispatch(new Logout($this->name, $user));
+        $this->dispatchIfListening(Logout::class, fn () => new Logout($this->name, $user));
 
         // Once we have fired the logout event we will clear the users out of memory
         // so they are no longer available as the user is no longer considered as
@@ -583,7 +584,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         // If we have an event dispatcher instance, we can fire off the logout event
         // so any further processing can be done. This allows the developer to be
         // listening for anytime a user signs out of this application manually.
-        $this->events?->dispatch(new CurrentDeviceLogout($this->name, $user));
+        $this->dispatchIfListening(CurrentDeviceLogout::class, fn () => new CurrentDeviceLogout($this->name, $user));
 
         // Once we have fired the logout event we will clear the users out of memory
         // so they are no longer available as the user is no longer considered as
@@ -679,7 +680,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireAttemptEvent(array $credentials, bool $remember = false): void
     {
-        $this->events?->dispatch(new Attempting($this->name, $credentials, $remember));
+        $this->dispatchIfListening(Attempting::class, fn () => new Attempting($this->name, $credentials, $remember));
     }
 
     /**
@@ -687,7 +688,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireValidatedEvent(AuthenticatableContract $user): void
     {
-        $this->events?->dispatch(new Validated($this->name, $user));
+        $this->dispatchIfListening(Validated::class, fn () => new Validated($this->name, $user));
     }
 
     /**
@@ -695,7 +696,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireLoginEvent(AuthenticatableContract $user, bool $remember = false): void
     {
-        $this->events?->dispatch(new Login($this->name, $user, $remember));
+        $this->dispatchIfListening(Login::class, fn () => new Login($this->name, $user, $remember));
     }
 
     /**
@@ -703,7 +704,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireAuthenticatedEvent(AuthenticatableContract $user): void
     {
-        $this->events?->dispatch(new Authenticated($this->name, $user));
+        $this->dispatchIfListening(Authenticated::class, fn () => new Authenticated($this->name, $user));
     }
 
     /**
@@ -711,7 +712,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireOtherDeviceLogoutEvent(AuthenticatableContract $user): void
     {
-        $this->events?->dispatch(new OtherDeviceLogout($this->name, $user));
+        $this->dispatchIfListening(OtherDeviceLogout::class, fn () => new OtherDeviceLogout($this->name, $user));
     }
 
     /**
@@ -719,7 +720,17 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function fireFailedEvent(?AuthenticatableContract $user, array $credentials): void
     {
-        $this->events?->dispatch(new Failed($this->name, $user, $credentials));
+        $this->dispatchIfListening(Failed::class, fn () => new Failed($this->name, $user, $credentials));
+    }
+
+    /**
+     * Dispatch the given event if listeners are registered.
+     */
+    protected function dispatchIfListening(string $eventClass, Closure $event): void
+    {
+        if ($this->events?->hasListeners($eventClass)) {
+            $this->events->dispatch($event());
+        }
     }
 
     /**
