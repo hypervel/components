@@ -48,7 +48,7 @@ class RoleMiddlewareTest extends PermissionTestCase
 
         $this->middleware = new RoleMiddleware($this->container);
         $this->request = Request::create('http://example.com');
-        $this->response = new Response();
+        $this->response = new Response;
         $this->next = fn () => $this->response;
     }
 

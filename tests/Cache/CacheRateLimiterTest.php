@@ -22,7 +22,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('get')->once()->with('key', 0)->andReturn(1);
         $cache->shouldReceive('has')->once()->with('key:timer')->andReturn(true);
         $cache->shouldReceive('add')->never();
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $this->assertTrue($rateLimiter->tooManyAttempts('key', 1));
@@ -34,7 +34,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->once()->with('key:timer', m::type('int'), 1)->andReturn(true);
         $cache->shouldReceive('add')->once()->with('key', 0, 1)->andReturn(true);
         $cache->shouldReceive('increment')->once()->with('key', 1)->andReturn(1);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $rateLimiter->hit('key', 1);
@@ -46,7 +46,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->once()->with('key:timer', m::type('int'), 1)->andReturn(true);
         $cache->shouldReceive('add')->once()->with('key', 0, 1)->andReturn(true);
         $cache->shouldReceive('increment')->once()->with('key', 5)->andReturn(5);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $rateLimiter->increment('key', 1, 5);
@@ -58,7 +58,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->once()->with('key:timer', m::type('int'), 1)->andReturn(true);
         $cache->shouldReceive('add')->once()->with('key', 0, 1)->andReturn(true);
         $cache->shouldReceive('increment')->once()->with('key', -5)->andReturn(-5);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $rateLimiter->decrement('key', 1, 5);
@@ -71,7 +71,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->once()->with('key', 0, 1)->andReturn(false);
         $cache->shouldReceive('increment')->once()->with('key', 1)->andReturn(1);
         $cache->shouldReceive('put')->once()->with('key', 1, 1);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $rateLimiter->hit('key', 1);
@@ -81,7 +81,7 @@ class CacheRateLimiterTest extends TestCase
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('get')->with('key', 0)->andReturn(5);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $rateLimiter = new RateLimiter($cache);
 
@@ -93,7 +93,7 @@ class CacheRateLimiterTest extends TestCase
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('get')->once()->with('key', 0)->andReturn(3);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $this->assertEquals(2, $rateLimiter->retriesLeft('key', 5));
@@ -126,7 +126,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->once()->with('key:timer', m::type('int'), 1);
         $cache->shouldReceive('add')->once()->with('key', 0, 1)->andReturns(1);
         $cache->shouldReceive('increment')->once()->with('key', 1)->andReturn(1);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $executed = false;
 
@@ -145,7 +145,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('add')->times(6)->with('key:timer', m::type('int'), 1);
         $cache->shouldReceive('add')->times(6)->with('key', 0, 1)->andReturns(1);
         $cache->shouldReceive('increment')->times(6)->with('key', 1)->andReturn(1);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $rateLimiter = new RateLimiter($cache);
 
@@ -179,7 +179,7 @@ class CacheRateLimiterTest extends TestCase
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('get')->once()->with('key', 0)->andReturn(2);
         $cache->shouldReceive('has')->once()->with('key:timer')->andReturn(true);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $executed = false;
 
@@ -197,7 +197,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('get')->once()->with('john', 0)->andReturn(1);
         $cache->shouldReceive('has')->once()->with('john:timer')->andReturn(true);
         $cache->shouldReceive('add')->never();
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
         $rateLimiter = new RateLimiter($cache);
 
         $this->assertTrue($rateLimiter->tooManyAttempts('jôhn', 1));
@@ -214,7 +214,7 @@ class CacheRateLimiterTest extends TestCase
         $cache->shouldReceive('get')->once()->with($cleanedKey, 0)->andReturn(1);
         $cache->shouldReceive('has')->once()->with("{$cleanedKey}:timer")->andReturn(true);
         $cache->shouldReceive('add')->never();
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $this->assertTrue($rateLimiter->tooManyAttempts($key, 1));
     }

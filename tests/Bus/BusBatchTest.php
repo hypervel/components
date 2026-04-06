@@ -464,11 +464,11 @@ class BusBatchTest extends TestCase
 
         $batch = $this->createTestBatch($queue);
 
-        $chainHeadJob = new ChainHeadJob();
+        $chainHeadJob = new ChainHeadJob;
 
-        $secondJob = new SecondTestJob();
+        $secondJob = new SecondTestJob;
 
-        $thirdJob = new ThirdTestJob();
+        $thirdJob = new ThirdTestJob;
 
         $queue->shouldReceive('connection')->once()
             ->with('test-connection')
@@ -499,8 +499,8 @@ class BusBatchTest extends TestCase
         Queue::fake();
 
         Bus::chain([
-            Bus::batch([new TestBatchJob()])->name('Batch 1'),
-            Bus::batch([new TestBatchJob()])->name('Batch 2'),
+            Bus::batch([new TestBatchJob])->name('Batch 1'),
+            Bus::batch([new TestBatchJob])->name('Batch 2'),
             function () {
             },
         ])->dispatch();

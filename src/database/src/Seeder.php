@@ -120,7 +120,7 @@ abstract class Seeder
 
             $instance->setContainer($this->container);
         } else {
-            $instance = new $class();
+            $instance = new $class;
         }
 
         if (isset($this->command)) {

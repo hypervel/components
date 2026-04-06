@@ -30,7 +30,7 @@ class ModelViolationReportersTest extends SentryTestCase
     {
         $reporter = Integration::discardedAttributeViolationReporter(null, true, false);
 
-        $reporter(new ViolationReporterTestModel(), 'foo');
+        $reporter(new ViolationReporterTestModel, 'foo');
 
         $this->assertCount(1, $this->getCapturedSentryEvents());
 
@@ -45,7 +45,7 @@ class ModelViolationReportersTest extends SentryTestCase
     {
         $reporter = Integration::discardedAttributeViolationReporter(null, true, false);
 
-        $reporter(new ViolationReporterTestModel(), ['foo', 'bar']);
+        $reporter(new ViolationReporterTestModel, ['foo', 'bar']);
 
         $this->assertCount(1, $this->getCapturedSentryEvents());
 
@@ -64,7 +64,7 @@ class ModelViolationReportersTest extends SentryTestCase
             $callbackCalled = true;
         }, false, false);
 
-        $reporter(new ViolationReporterTestModel(), 'attribute');
+        $reporter(new ViolationReporterTestModel, 'attribute');
 
         $this->assertTrue($callbackCalled);
     }
@@ -73,8 +73,8 @@ class ModelViolationReportersTest extends SentryTestCase
     {
         $reporter = Integration::missingAttributeViolationReporter(null, true, false);
 
-        $reporter(new ViolationReporterTestModel(), 'attribute');
-        $reporter(new ViolationReporterTestModel(), 'attribute');
+        $reporter(new ViolationReporterTestModel, 'attribute');
+        $reporter(new ViolationReporterTestModel, 'attribute');
 
         $this->assertCount(1, $this->getCapturedSentryEvents());
     }
@@ -83,8 +83,8 @@ class ModelViolationReportersTest extends SentryTestCase
     {
         $reporter = Integration::missingAttributeViolationReporter(null, false, false);
 
-        $reporter(new ViolationReporterTestModel(), 'attribute');
-        $reporter(new ViolationReporterTestModel(), 'attribute');
+        $reporter(new ViolationReporterTestModel, 'attribute');
+        $reporter(new ViolationReporterTestModel, 'attribute');
 
         $this->assertCount(2, $this->getCapturedSentryEvents());
     }

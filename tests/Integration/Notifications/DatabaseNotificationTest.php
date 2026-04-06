@@ -32,7 +32,7 @@ class DatabaseNotificationTest extends TestCase
 
         $user = UuidUserFactoryStub::new()->create();
 
-        $user->notify(new NotificationStub());
+        $user->notify(new NotificationStub);
 
         Notification::assertSentTo($user, NotificationStub::class, function ($notification, $channels, $notifiable) use ($user) {
             return $notifiable === $user;

@@ -18,7 +18,7 @@ class ResponseBindingTest extends TestCase
 {
     public function testContainerResolvesResponseFromContext()
     {
-        $contextResponse = new Response();
+        $contextResponse = new Response;
         ResponseContext::set($contextResponse);
 
         try {
@@ -32,7 +32,7 @@ class ResponseBindingTest extends TestCase
 
     public function testContainerResolvesSymfonyResponseFromContext()
     {
-        $contextResponse = new Response();
+        $contextResponse = new Response;
         ResponseContext::set($contextResponse);
 
         try {

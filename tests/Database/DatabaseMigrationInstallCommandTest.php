@@ -21,7 +21,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 {
     public function testFireCallsRepositoryToInstall()
     {
-        $app = new ApplicationDatabaseInstallStub();
+        $app = new ApplicationDatabaseInstallStub;
         $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
         $command->setHypervel($app);
         $repo->shouldReceive('setSource')->once()->with('foo');
@@ -33,7 +33,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 
     public function testFireCallsRepositoryToInstallExists()
     {
-        $app = new ApplicationDatabaseInstallStub();
+        $app = new ApplicationDatabaseInstallStub;
         $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
         $command->setHypervel($app);
         $repo->shouldReceive('setSource')->once()->with('foo');
@@ -44,7 +44,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 
     protected function runCommand($command, $options = [])
     {
-        return $command->run(new ArrayInput($options), new NullOutput());
+        return $command->run(new ArrayInput($options), new NullOutput);
     }
 }
 

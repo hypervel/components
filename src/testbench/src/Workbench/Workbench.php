@@ -126,7 +126,7 @@ class Workbench
                         $exception = null;
 
                         try {
-                            Event::dispatch(new DiagnosingHealth());
+                            Event::dispatch(new DiagnosingHealth);
                         } catch (Throwable $error) {
                             if (app()->hasDebugModeEnabled()) {
                                 throw $error;
@@ -250,7 +250,7 @@ class Workbench
 
         $namespace = rtrim(static::detectNamespace('app') ?? 'Workbench\App\\', '\\');
 
-        foreach ((new Finder())->in([workbench_path('app', 'Console', 'Commands')])->files() as $command) {
+        foreach ((new Finder)->in([workbench_path('app', 'Console', 'Commands')])->files() as $command) {
             $command = $namespace . str_replace(
                 ['/', '.php'],
                 ['\\', ''],

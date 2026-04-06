@@ -117,7 +117,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $app = $this->createApp($this->app);
 
-        $command = new StubAttributedCommand();
+        $command = new StubAttributedCommand;
         $result = $app->resolve($command);
 
         $this->assertSame($command, $result);
@@ -316,7 +316,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $artisan = $this->createApp($this->app);
 
-        $artisan->addCommands([$command = new FakeCommandWithInputPrompting()]);
+        $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
         $command->setHypervel($this->app);
 
         $exitCode = $artisan->call('fake-command-for-testing');
@@ -330,7 +330,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $artisan = $this->createApp($this->app);
 
-        $artisan->addCommands([$command = new FakeCommandWithInputPrompting()]);
+        $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing', [
             'name' => 'foo',
@@ -345,7 +345,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $artisan = $this->createApp($this->app);
 
-        $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting()]);
+        $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting]);
         $command->setHypervel($this->app);
 
         $exitCode = $artisan->call('fake-command-for-testing-array');
@@ -359,7 +359,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $artisan = $this->createApp($this->app);
 
-        $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting()]);
+        $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing-array', [
             'names' => ['foo', 'bar', 'baz'],
@@ -374,7 +374,7 @@ class ConsoleApplicationResolveTest extends TestCase
     {
         $artisan = $this->createApp($this->app);
 
-        $artisan->addCommands([$command = new FakeCommandWithInputPrompting()]);
+        $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
         $command->setHypervel($this->app);
 
         $exitCode = $artisan->call($command);

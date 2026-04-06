@@ -64,7 +64,7 @@ class TappableClass
 
     public static function make()
     {
-        return new static();
+        return new static;
     }
 
     public function setName(string $name): void

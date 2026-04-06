@@ -107,7 +107,7 @@ class JwtGuard implements Guard
      */
     public function user(): ?AuthenticatableContract
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $token = $this->parseToken();
         $contextKey = $this->getContextKeyForToken($token);
@@ -243,7 +243,7 @@ class JwtGuard implements Guard
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $cached = CoroutineContext::get($this->getContextKeyForToken($this->parseToken()));
 

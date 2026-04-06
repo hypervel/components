@@ -26,7 +26,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -204,7 +204,7 @@ class HasOneInverseParentModel extends Model
 
     protected static function newFactory(): HasOneInverseParentModelFactory
     {
-        return new HasOneInverseParentModelFactory();
+        return new HasOneInverseParentModelFactory;
     }
 
     public function child(): HasOne
@@ -233,7 +233,7 @@ class HasOneRelationInverseChildModel extends Model
 
     protected static function newFactory(): HasOneRelationInverseChildModelFactory
     {
-        return new HasOneRelationInverseChildModelFactory();
+        return new HasOneRelationInverseChildModelFactory;
     }
 
     public function parent(): BelongsTo

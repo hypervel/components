@@ -70,7 +70,7 @@ class ReverbServiceProvider extends ServiceProvider
             fn ($app) => $app->make(ApplicationManager::class)->driver()
         );
 
-        $this->app->instance(Logger::class, new NullLogger());
+        $this->app->instance(Logger::class, new NullLogger);
 
         $this->app->singleton(ServerProviderManager::class);
 
@@ -200,7 +200,7 @@ class ReverbServiceProvider extends ServiceProvider
                 return;
             }
 
-            $timer = new Timer();
+            $timer = new Timer;
 
             $timer->tick(60.0, function () {
                 PruneStaleConnections::dispatch();

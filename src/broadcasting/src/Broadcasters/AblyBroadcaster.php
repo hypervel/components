@@ -36,7 +36,7 @@ class AblyBroadcaster extends Broadcaster
         if (empty($request->input('channel_name'))
             || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
         ) {
-            throw new AccessDeniedHttpException();
+            throw new AccessDeniedHttpException;
         }
 
         return parent::verifyUserCanAccessChannel(
@@ -120,7 +120,7 @@ class AblyBroadcaster extends Broadcaster
      */
     protected function buildAblyMessage(string $event, array $payload = []): AblyMessage
     {
-        return tap(new AblyMessage(), function ($message) use ($event, $payload) {
+        return tap(new AblyMessage, function ($message) use ($event, $payload) {
             $message->name = $event;
             $message->data = $payload;
             $message->connectionKey = data_get($payload, 'socket');

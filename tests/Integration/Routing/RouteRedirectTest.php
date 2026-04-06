@@ -48,7 +48,7 @@ class RouteRedirectTest extends RoutingTestCase
         Route::middleware([SubstituteBindings::class])->group(function () {
             Route::redirect('users/{user}', 'users/{user}/overview');
         });
-        Route::bind('user', fn ($id) => (new User())->setAttribute('id', '999'));
+        Route::bind('user', fn ($id) => (new User)->setAttribute('id', '999'));
 
         $response = $this->get('users/1');
 

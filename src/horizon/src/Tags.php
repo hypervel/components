@@ -140,7 +140,7 @@ class Tags
     {
         return isset($job->data[0]) && is_object($job->data[0])
                         ? $job->data[0]
-                        : new stdClass();
+                        : new stdClass;
     }
 
     /**

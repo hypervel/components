@@ -124,7 +124,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $collection = isset($key) ? $this->pluck($key) : $this;
 
-        $counts = new static();
+        $counts = new static;
 
         // @phpstan-ignore offsetAssign.valueType (PHPStan infers empty collection as Collection<*NEVER*, *NEVER*>)
         $collection->each(fn ($value) => $counts[$value] = isset($counts[$value]) ? $counts[$value] + 1 : 1);
@@ -155,7 +155,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     public function collapseWithKeys(): static
     {
         if (! $this->items) {
-            return new static();
+            return new static;
         }
 
         $results = [];
@@ -171,7 +171,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         if (! $results) {
-            return new static();
+            return new static;
         }
 
         return new static(array_replace(...$results));
@@ -325,7 +325,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $compare = $this->duplicateComparator($strict);
 
-        $duplicates = new static();
+        $duplicates = new static;
 
         foreach ($items as $key => $value) {
             if ($uniqueItems->isNotEmpty() && $compare($value, $uniqueItems->first())) {
@@ -530,7 +530,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 };
 
                 if (! array_key_exists($groupKey, $results)) {
-                    $results[$groupKey] = new static();
+                    $results[$groupKey] = new static;
                 }
 
                 $results[$groupKey]->offsetSet($preserveKeys ? $key : null, $value);
@@ -870,7 +870,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function multiply(int $multiplier): static
     {
-        $new = new static();
+        $new = new static;
 
         for ($i = 0; $i < $multiplier; ++$i) {
             $new->push(...$this->items);
@@ -977,7 +977,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     public function pop(int $count = 1): mixed
     {
         if ($count < 1) {
-            return new static();
+            return new static;
         }
 
         if ($count === 1) {
@@ -985,7 +985,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         if ($this->isEmpty()) {
-            return new static();
+            return new static;
         }
 
         $results = [];
@@ -1219,7 +1219,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         if ($count === 0) {
-            return new static();
+            return new static;
         }
 
         if ($count === 1) {
@@ -1319,10 +1319,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         if ($this->isEmpty()) {
-            return new static();
+            return new static;
         }
 
-        $groups = new static();
+        $groups = new static;
 
         $groupSize = (int) floor($this->count() / $numberOfGroups);
 
@@ -1383,7 +1383,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         $count = $items->count();
 
         if ($count === 0) {
-            throw new ItemNotFoundException();
+            throw new ItemNotFoundException;
         }
 
         if ($count > 1) {
@@ -1424,12 +1424,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             ? $this->operatorForWhere(...func_get_args())
             : $key;
 
-        $placeholder = new stdClass();
+        $placeholder = new stdClass;
 
         $item = $this->first($filter, $placeholder);
 
         if ($item === $placeholder) {
-            throw new ItemNotFoundException();
+            throw new ItemNotFoundException;
         }
 
         return $item;
@@ -1443,7 +1443,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     public function chunk(int $size, bool $preserveKeys = true): static
     {
         if ($size <= 0) {
-            return new static();
+            return new static;
         }
 
         $chunks = [];

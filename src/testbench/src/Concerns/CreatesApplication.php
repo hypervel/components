@@ -302,8 +302,8 @@ trait CreatesApplication
             return static fn (): null => null;
         }
 
-        $originalServerValue = $_SERVER['APP_ENV'] ?? new UndefinedValue();
-        $originalEnvironmentValue = $_ENV['APP_ENV'] ?? new UndefinedValue();
+        $originalServerValue = $_SERVER['APP_ENV'] ?? new UndefinedValue;
+        $originalEnvironmentValue = $_ENV['APP_ENV'] ?? new UndefinedValue;
         $originalProcessValue = getenv('APP_ENV');
 
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
@@ -360,7 +360,7 @@ trait CreatesApplication
     protected function resolveApplicationHttpMiddlewares(ApplicationContract $app): void
     {
         $app->afterResolving(HttpKernelContract::class, function ($kernel): void {
-            $middleware = (new \Hypervel\Foundation\Configuration\Middleware())
+            $middleware = (new \Hypervel\Foundation\Configuration\Middleware)
                 ->redirectGuestsTo(fn () => route('login'));
 
             $kernel->setGlobalMiddleware($middleware->getGlobalMiddleware());

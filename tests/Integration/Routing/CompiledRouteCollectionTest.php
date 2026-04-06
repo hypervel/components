@@ -34,7 +34,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $this->router = $this->app['router'];
 
-        $this->routeCollection = new RouteCollection();
+        $this->routeCollection = new RouteCollection;
     }
 
     protected function tearDown(): void

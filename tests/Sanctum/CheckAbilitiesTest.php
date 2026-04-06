@@ -41,7 +41,7 @@ class CheckAbilitiesTest extends TestCase
         };
 
         $request = Request::create('http://example.com');
-        $response = new Response();
+        $response = new Response;
 
         $guard = m::mock(Guard::class);
         $guard->shouldReceive('user')->andReturn($user);

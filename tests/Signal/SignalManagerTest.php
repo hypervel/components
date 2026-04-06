@@ -82,10 +82,10 @@ class SignalManagerTest extends TestCase
         $container = m::mock(ContainerContract::class);
 
         $container->shouldReceive('make')->with(SignalHandlerStub::class)->andReturnUsing(function () {
-            return new SignalHandlerStub();
+            return new SignalHandlerStub;
         });
         $container->shouldReceive('make')->with(SignalHandler2Stub::class)->andReturnUsing(function () {
-            return new SignalHandler2Stub();
+            return new SignalHandler2Stub;
         });
 
         return $container;

@@ -27,41 +27,41 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testBuilderCallbackIsNotAppliedWhenInverseRelationIsNotSet()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
         $builder->shouldReceive('afterQuery')->never();
 
-        new HasInverseRelationStub($builder, new HasInverseRelationParentStub());
+        new HasInverseRelationStub($builder, new HasInverseRelationParentStub);
     }
 
     public function testBuilderCallbackIsNotSetIfInverseRelationIsEmptyString()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
         $builder->shouldReceive('afterQuery')->never();
 
         $this->expectException(RelationNotFoundException::class);
 
-        (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()))->inverse('');
+        (new HasInverseRelationStub($builder, new HasInverseRelationParentStub))->inverse('');
     }
 
     public function testBuilderCallbackIsNotSetIfInverseRelationshipDoesNotExist()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
         $builder->shouldReceive('afterQuery')->never();
 
         $this->expectException(RelationNotFoundException::class);
 
-        (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()))->inverse('foo');
+        (new HasInverseRelationStub($builder, new HasInverseRelationParentStub))->inverse('foo');
     }
 
     public function testWithoutInverseMethodRemovesInverseRelation()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
         $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
         $this->assertNull($relation->getInverseRelationship());
 
         $relation->inverse('test');
@@ -73,10 +73,10 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
     public function testBuilderCallbackIsAppliedWhenInverseRelationIsSet()
     {
-        $parent = new HasInverseRelationParentStub();
+        $parent = new HasInverseRelationParentStub;
 
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
         $builder->shouldReceive('afterQuery')->withArgs(function (Closure $callback) use ($parent) {
             $relation = (new ReflectionFunction($callback))->getClosureThis();
 
@@ -89,7 +89,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testBuilderCallbackAppliesInverseRelationToAllModelsInResult()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
 
         // Capture the callback so that we can manually call it.
         $afterQuery = null;
@@ -97,10 +97,10 @@ class DatabaseEloquentInverseRelationTest extends TestCase
             return (bool) $afterQuery = $callback;
         })->once()->andReturnSelf();
 
-        $parent = new HasInverseRelationParentStub();
+        $parent = new HasInverseRelationParentStub;
         (new HasInverseRelationStub($builder, $parent))->inverse('test');
 
-        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub()));
+        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub));
 
         foreach ($results as $model) {
             $this->assertEmpty($model->getRelations());
@@ -119,7 +119,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testInverseRelationIsNotSetIfInverseRelationIsUnset()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
 
         // Capture the callback so that we can manually call it.
         $afterQuery = null;
@@ -127,11 +127,11 @@ class DatabaseEloquentInverseRelationTest extends TestCase
             return (bool) $afterQuery = $callback;
         })->once()->andReturnSelf();
 
-        $parent = new HasInverseRelationParentStub();
+        $parent = new HasInverseRelationParentStub;
         $relation = (new HasInverseRelationStub($builder, $parent));
         $relation->inverse('test');
 
-        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub()));
+        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub));
         foreach ($results as $model) {
             $this->assertEmpty($model->getRelations());
         }
@@ -144,7 +144,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         // Reset the inverse relation
         $relation->withoutInverse();
 
-        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub()));
+        $results = new Collection(array_fill(0, 5, new HasInverseRelationRelatedStub));
         foreach ($results as $model) {
             $this->assertEmpty($model->getRelations());
         }
@@ -156,9 +156,9 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testProvidesPossibleInverseRelationBasedOnParent()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new InverseRelationChildModel());
+        $builder->shouldReceive('getModel')->andReturn(new InverseRelationChildModel);
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
 
         $possibleRelations = ['hasInverseRelationParentStub', 'parentStub', 'owner'];
         $this->assertSame($possibleRelations, array_values($relation->exposeGetPossibleInverseRelations()));
@@ -167,9 +167,9 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testProvidesPossibleInverseRelationBasedOnForeignKey()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationParentStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationParentStub);
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub(), 'test_id'));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub, 'test_id'));
 
         $this->assertTrue(in_array('test', $relation->exposeGetPossibleInverseRelations()));
     }
@@ -177,9 +177,9 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testProvidesPossibleRecursiveRelationsIfRelatedIsTheSameClassAsParent()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationParentStub());
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationParentStub);
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
 
         $this->assertTrue(in_array('parent', $relation->exposeGetPossibleInverseRelations()));
     }
@@ -193,7 +193,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('getModel')->andReturn($related);
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
 
         $this->assertSame($guessedRelation, $relation->exposeGuessInverseRelation());
     }
@@ -206,7 +206,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('getModel')->andReturn($related);
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub(), 'test_id'));
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub, 'test_id'));
 
         $this->assertSame('test', $relation->exposeGuessInverseRelation());
     }
@@ -238,7 +238,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         $builder->shouldReceive('getModel')->andReturn($related);
         $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub()))->inverse();
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub))->inverse();
 
         $this->assertSame($guessedRelation, $relation->getInverseRelationship());
     }
@@ -277,7 +277,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         $builder->shouldReceive('getModel')->andReturn($related);
         $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
 
-        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub(), 'test_id'))->inverse();
+        $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub, 'test_id'))->inverse();
 
         $this->assertSame('test', $relation->getInverseRelationship());
     }
@@ -285,22 +285,22 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     public function testOnlyHydratesInverseRelationOnModels()
     {
         $relation = m::mock(HasInverseRelationStub::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $relation->shouldReceive('getParent')->andReturn(new HasInverseRelationParentStub());
+        $relation->shouldReceive('getParent')->andReturn(new HasInverseRelationParentStub);
         $relation->shouldReceive('applyInverseRelationToModel')->times(6);
         $relation->exposeApplyInverseRelationToCollection([
-            new HasInverseRelationRelatedStub(),
+            new HasInverseRelationRelatedStub,
             12345,
-            new HasInverseRelationRelatedStub(),
-            new HasInverseRelationRelatedStub(),
+            new HasInverseRelationRelatedStub,
+            new HasInverseRelationRelatedStub,
             Model::class,
-            new HasInverseRelationRelatedStub(),
+            new HasInverseRelationRelatedStub,
             true,
             [],
-            new HasInverseRelationRelatedStub(),
+            new HasInverseRelationRelatedStub,
             'foo',
             new class {
             },
-            new HasInverseRelationRelatedStub(),
+            new HasInverseRelationRelatedStub,
         ]);
     }
 }

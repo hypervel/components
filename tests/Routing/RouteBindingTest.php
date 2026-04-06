@@ -58,7 +58,7 @@ class ExplicitRouteBindingUser extends Model
 {
     public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        return new static();
+        return new static;
     }
 }
 
@@ -73,6 +73,6 @@ class ExplicitRouteBindingSoftDeletableUser extends Model
 
     public function resolveSoftDeletableRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        return new static();
+        return new static;
     }
 }

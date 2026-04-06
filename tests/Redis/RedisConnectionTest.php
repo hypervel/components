@@ -1329,7 +1329,7 @@ class RedisConnectionTest extends TestCase
 
     public function testIsClusterReturnsTrueForRedisCluster(): void
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
 
         $this->assertTrue($connection->isCluster());
     }
@@ -1954,7 +1954,7 @@ class RedisConnectionTest extends TestCase
 
     public function testClusterTransformFiresInAtomicMode()
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->shouldTransform(true);
 
         // In atomic mode, isQueueingMode() returns false, so transforms fire
@@ -2066,7 +2066,7 @@ class RedisConnectionTest extends TestCase
 
     protected function getContainer(array $definitions = []): Container
     {
-        $container = new Container();
+        $container = new Container;
 
         foreach ($definitions as $abstract => $concrete) {
             $container->singleton($abstract, $concrete);

@@ -33,7 +33,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
     protected function createMockQueryBuilder(): Builder
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new ScopablePost());
+        $builder->shouldReceive('getModel')->andReturn(new ScopablePost);
         $builder->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => 'posts.' . $column);
 
         return $builder;
@@ -176,7 +176,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate = $this->getGate();
         $gate->policy(ScopablePost::class, ScopablePostPolicy::class);
 
-        $result = $gate->select('edit', new ScopablePost());
+        $result = $gate->select('edit', new ScopablePost);
 
         $this->assertInstanceOf(Expression::class, $result);
     }

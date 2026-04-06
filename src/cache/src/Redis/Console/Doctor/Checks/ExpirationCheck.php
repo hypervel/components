@@ -31,7 +31,7 @@ final class ExpirationCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $tag = $context->prefixed('expire-' . Str::random(8));
         $key = $context->prefixed('expire:' . Str::random(8));

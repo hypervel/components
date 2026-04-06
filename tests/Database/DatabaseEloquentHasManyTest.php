@@ -312,9 +312,9 @@ class DatabaseEloquentHasManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->id = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -325,9 +325,9 @@ class DatabaseEloquentHasManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('string');
         $relation->getQuery()->shouldReceive('whereIn')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->id = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -336,18 +336,18 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
 
-        $result1 = new ModelStub();
+        $result1 = new ModelStub;
         $result1->foreign_key = 1;
-        $result2 = new ModelStub();
+        $result2 = new ModelStub;
         $result2->foreign_key = 2;
-        $result3 = new ModelStub();
+        $result3 = new ModelStub;
         $result3->foreign_key = 2;
 
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->id = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->id = 2;
-        $model3 = new ModelStub();
+        $model3 = new ModelStub;
         $model3->id = 3;
 
         $relation->getRelated()->shouldReceive('newCollection')->andReturnUsing(function ($array) {
@@ -371,7 +371,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         ];
 
         $relation = $this->getRelation();
-        $relation->getRelated()->shouldReceive('newCollection')->once()->andReturn(new Collection());
+        $relation->getRelated()->shouldReceive('newCollection')->once()->andReturn(new Collection);
 
         $taylor = $this->expectCreatedModel($relation, ['name' => 'taylor']);
         $colin = $this->expectCreatedModel($relation, ['name' => 'colin']);
@@ -406,7 +406,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
 
         // Use concrete stub instead of mock
-        $related = new RelatedStub();
+        $related = new RelatedStub;
         $builder->shouldReceive('getModel')->andReturn($related);
 
         $parent = m::mock(Model::class);
@@ -471,7 +471,7 @@ class RelatedStub extends Model
 
     public function newInstance(mixed $attributes = [], mixed $exists = false): static
     {
-        $instance = new static();
+        $instance = new static;
         $instance->exists = $exists;
         $instance->setRawAttributes((array) $attributes, true);
 

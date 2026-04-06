@@ -176,7 +176,7 @@ class Rule
      */
     public static function date(): Date
     {
-        return new Date();
+        return new Date;
     }
 
     /**
@@ -184,7 +184,7 @@ class Rule
      */
     public static function dateTime(): Date
     {
-        return (new Date())->format('Y-m-d H:i:s');
+        return (new Date)->format('Y-m-d H:i:s');
     }
 
     /**
@@ -192,7 +192,7 @@ class Rule
      */
     public static function email(): Email
     {
-        return new Email();
+        return new Email;
     }
 
     /**
@@ -210,7 +210,7 @@ class Rule
      */
     public static function file(): File
     {
-        return new File();
+        return new File;
     }
 
     /**
@@ -234,7 +234,7 @@ class Rule
      */
     public static function numeric(): Numeric
     {
-        return new Numeric();
+        return new Numeric;
     }
 
     /**

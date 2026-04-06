@@ -479,7 +479,7 @@ class Migrator
     {
         $class = $this->getMigrationClass($file);
 
-        return new $class();
+        return new $class;
     }
 
     /**
@@ -490,7 +490,7 @@ class Migrator
         $class = $this->getMigrationClass($this->getMigrationName($path));
 
         if (class_exists($class) && realpath($path) == (new ReflectionClass($class))->getFileName()) {
-            return new $class();
+            return new $class;
         }
 
         $migration = static::$requiredPathCache[$path] ??= $this->files->getRequire($path);
@@ -501,7 +501,7 @@ class Migrator
                 : clone $migration;
         }
 
-        return new $class();
+        return new $class;
     }
 
     /**

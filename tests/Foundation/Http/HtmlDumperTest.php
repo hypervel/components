@@ -30,7 +30,7 @@ class HtmlDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = new Application();
+        $this->container = new Application;
         $this->container->singleton('config', fn () => $this->config);
 
         HtmlDumper::resolveDumpSourceUsing(function () {
@@ -97,7 +97,7 @@ class HtmlDumperTest extends TestCase
 
     public function testObject()
     {
-        $user = new stdClass();
+        $user = new stdClass;
         $user->name = 'Guus';
 
         $output = $this->dump($user);
@@ -294,7 +294,7 @@ class HtmlDumperTest extends TestCase
 
         $dumper->setOutput($outputFile);
 
-        $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper->dumpWithSource($cloner->cloneVar($value));
 

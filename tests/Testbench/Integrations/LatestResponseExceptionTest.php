@@ -89,7 +89,7 @@ class LatestResponseExceptionTest extends TestCase
     #[Test]
     public function itRendersAuthorizationExceptionsWithStatusButWithoutResponse(): void
     {
-        Route::get('test-route', fn () => throw (new AuthorizationException())->withStatus(418));
+        Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(418));
 
         // HTTP request...
         $this->get('test-route')
@@ -107,7 +107,7 @@ class LatestResponseExceptionTest extends TestCase
     #[Test]
     public function itHasFallbackErrorMessageForUnknownStatusCodes(): void
     {
-        Route::get('test-route', fn () => throw (new AuthorizationException())->withStatus(399));
+        Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(399));
 
         // HTTP request...
         $this->get('test-route')

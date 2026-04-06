@@ -58,7 +58,7 @@ trait ResolvesRouteDependencies
 
         $values = array_values($parameters);
 
-        $skippableValue = new stdClass();
+        $skippableValue = new stdClass;
 
         foreach ($reflectedParameters as $key => $parameter) {
             $instance = $this->transformDependency($parameter, $parameters, $skippableValue);

@@ -3538,7 +3538,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 0]]);
         $results = $builder->from('users')->doesntExistOr(function () {
-            throw new RuntimeException();
+            throw new RuntimeException;
         });
         $this->assertTrue($results);
     }
@@ -3554,7 +3554,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 1]]);
         $results = $builder->from('users')->existsOr(function () {
-            throw new RuntimeException();
+            throw new RuntimeException;
         });
         $this->assertTrue($results);
     }
@@ -6726,7 +6726,7 @@ SQL;
     {
         $connection = $this->getConnection(prefix: $prefix);
         $grammar = new MySqlGrammar($connection);
-        $processor = new MySqlProcessor();
+        $processor = new MySqlProcessor;
 
         return new Builder($connection, $grammar, $processor);
     }
@@ -6735,7 +6735,7 @@ SQL;
     {
         $connection = $this->getConnection(prefix: $prefix);
         $grammar = new PostgresGrammar($connection);
-        $processor = new PostgresProcessor();
+        $processor = new PostgresProcessor;
 
         return new Builder($connection, $grammar, $processor);
     }

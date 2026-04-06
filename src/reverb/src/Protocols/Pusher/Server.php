@@ -183,7 +183,7 @@ class Server
         );
 
         if (! $allowed) {
-            throw new ConnectionLimitExceeded();
+            throw new ConnectionLimitExceeded;
         }
 
         $connection->markConnectionSlotAcquired();
@@ -209,7 +209,7 @@ class Server
                 $connection->terminate();
             }
 
-            throw new RateLimitExceeded();
+            throw new RateLimitExceeded;
         }
 
         $this->rateLimiter->increment($key, $config['decay_seconds'] ?? 1);
@@ -234,6 +234,6 @@ class Server
             }
         }
 
-        throw new InvalidOrigin();
+        throw new InvalidOrigin;
     }
 }

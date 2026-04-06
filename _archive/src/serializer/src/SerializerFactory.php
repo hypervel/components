@@ -23,10 +23,10 @@ class SerializerFactory
     public function __invoke(): Serializer
     {
         return new $this->serializer([
-            new ExceptionNormalizer(),
-            new ObjectNormalizer(),
-            new ArrayDenormalizer(),
-            new ScalarNormalizer(),
+            new ExceptionNormalizer,
+            new ObjectNormalizer,
+            new ArrayDenormalizer,
+            new ScalarNormalizer,
         ]);
     }
 }

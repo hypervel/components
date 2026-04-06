@@ -26,10 +26,10 @@ class PruneBatchesCommandTest extends TestCase
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new PruneBatchesCommand();
+        $command = new PruneBatchesCommand;
         $command->setHypervel($this->app);
 
-        $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput());
+        $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput);
     }
 
     public function testAllowPruningAllCancelledBatches()
@@ -40,10 +40,10 @@ class PruneBatchesCommandTest extends TestCase
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new PruneBatchesCommand();
+        $command = new PruneBatchesCommand;
         $command->setHypervel($this->app);
 
-        $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput());
+        $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput);
 
         $repo->shouldHaveReceived('pruneCancelled')->once();
     }

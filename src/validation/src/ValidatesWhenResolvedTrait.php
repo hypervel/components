@@ -89,6 +89,6 @@ trait ValidatesWhenResolvedTrait
      */
     protected function failedAuthorization(): void
     {
-        throw new UnauthorizedException();
+        throw new UnauthorizedException;
     }
 }

@@ -45,7 +45,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $request = Request::create('/login', 'GET');
         $response = new Response('ok');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => $response);
 
         $this->assertSame($response, $result);
@@ -57,7 +57,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $request = Request::create('/login', 'GET');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame(302, $result->getStatusCode());
@@ -71,7 +71,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $request = Request::create('/login', 'GET');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame(302, $result->getStatusCode());
@@ -84,7 +84,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $request = Request::create('/login', 'GET');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         // No 'dashboard' or 'home' routes registered, so it falls back to '/'
@@ -106,7 +106,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $request = Request::create('/login', 'GET');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => new Response('should not reach'), 'web', 'api');
 
         $this->assertSame(302, $result->getStatusCode());
@@ -128,7 +128,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $request = Request::create('/login', 'GET');
         $response = new Response('ok');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => $response, 'web', 'api');
 
         $this->assertSame($response, $result);
@@ -145,7 +145,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $request = Request::create('/login', 'GET');
 
-        $middleware = new RedirectIfAuthenticated();
+        $middleware = new RedirectIfAuthenticated;
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame(302, $result->getStatusCode());

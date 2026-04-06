@@ -128,7 +128,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     /**
      * Create a new generator command instance.
      */
-    public function __construct(Filesystem $files = new Filesystem())
+    public function __construct(Filesystem $files = new Filesystem)
     {
         parent::__construct();
 

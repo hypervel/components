@@ -32,10 +32,10 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRelated(): void
     {
-        $source = new SourceModel();
+        $source = new SourceModel;
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
             [456],
         );
@@ -65,10 +65,10 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodAssociatesExistingRelated(): void
     {
-        $source = new SourceModel();
+        $source = new SourceModel;
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -80,7 +80,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $source->getConnection()
             ->expects('select')
@@ -112,11 +112,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRelatedAlreadyAssociated(): void
     {
-        $source = new SourceModel();
+        $source = new SourceModel;
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -157,11 +157,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRelatedAssociatedJustNow(): void
     {
-        $source = new SourceModel();
+        $source = new SourceModel;
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -173,7 +173,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $source->getConnection()
             ->expects('select')
@@ -192,7 +192,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $source->getConnection()
             ->expects('select')
@@ -229,11 +229,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRelatedAndAssociatesIt(): void
     {
-        $source = new SourceModel();
+        $source = new SourceModel;
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -317,7 +317,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -384,7 +384,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         };
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
 
@@ -425,7 +425,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         };
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new RelatedModel()],
+            [$source, new RelatedModel],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -453,7 +453,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
         $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
-        $processor = new $processorClass();
+        $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);

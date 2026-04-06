@@ -23,7 +23,7 @@ class Option
             return $options;
         }
 
-        return tap(new self(), function (Option $option) use ($options) {
+        return tap(new self, function (Option $option) use ($options) {
             $option->setSendChannelCapacity($options['send_channel_capacity'] ?? 0);
             $option->setEnableRequestLifecycle($options['enable_request_lifecycle'] ?? false);
         });

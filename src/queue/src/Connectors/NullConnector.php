@@ -14,6 +14,6 @@ class NullConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return new NullQueue();
+        return new NullQueue;
     }
 }

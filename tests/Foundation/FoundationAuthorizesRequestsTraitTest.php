@@ -30,7 +30,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
             return true;
         });
 
-        $response = (new AuthorizeTraitClass())->authorize('baz');
+        $response = (new AuthorizeTraitClass)->authorize('baz');
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait']);
@@ -48,7 +48,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
             return true;
         });
 
-        $response = (new AuthorizeTraitClass())->authorize(Ability::BAZ);
+        $response = (new AuthorizeTraitClass)->authorize(Ability::BAZ);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait.enum']);
@@ -65,7 +65,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
             return false;
         });
 
-        (new AuthorizeTraitClass())->authorize('baz');
+        (new AuthorizeTraitClass)->authorize('baz');
     }
 
     public function testPoliciesMayBeCalled()
@@ -76,7 +76,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
 
         $gate->policy(AuthorizesRequestTestClass::class, AuthorizesRequestTestPolicy::class);
 
-        $response = (new AuthorizeTraitClass())->authorize('update', new AuthorizesRequestTestClass());
+        $response = (new AuthorizeTraitClass)->authorize('update', new AuthorizesRequestTestClass);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
@@ -90,7 +90,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
 
         $gate->policy(AuthorizesRequestTestClass::class, AuthorizesRequestTestPolicy::class);
 
-        $response = (new AuthorizeTraitClass())->authorize(new AuthorizesRequestTestClass());
+        $response = (new AuthorizeTraitClass)->authorize(new AuthorizesRequestTestClass);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
@@ -104,7 +104,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
 
         $gate->policy('\\' . AuthorizesRequestTestClass::class, AuthorizesRequestTestPolicy::class);
 
-        $response = (new AuthorizeTraitClass())->authorize('\\' . AuthorizesRequestTestClass::class);
+        $response = (new AuthorizeTraitClass)->authorize('\\' . AuthorizesRequestTestClass::class);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
@@ -118,14 +118,14 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
 
         $gate->policy(AuthorizesRequestTestClass::class, AuthorizesRequestTestPolicy::class);
 
-        (new AuthorizeTraitClass())->store(new AuthorizesRequestTestClass());
+        (new AuthorizeTraitClass)->store(new AuthorizesRequestTestClass);
 
         $this->assertTrue($_SERVER['_test.authorizes.trait.policy']);
     }
 
     public function getBasicGate(): Gate
     {
-        $container = Container::setInstance(new Container());
+        $container = Container::setInstance(new Container);
 
         $gate = new Gate($container, function () {
             return (object) ['id' => 1];

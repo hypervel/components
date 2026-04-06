@@ -25,7 +25,7 @@ class PrivateCacheChannelTest extends ReverbTestCase
     {
         parent::setUp();
 
-        $this->connection = new FakeConnection();
+        $this->connection = new FakeConnection;
         $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
         $this->channelConnectionManager->shouldReceive('for')
             ->andReturn($this->channelConnectionManager);

@@ -81,7 +81,7 @@ class ConfigTest extends TestCase
     #[Test]
     public function itCanLoadDefaultConfiguration(): void
     {
-        $config = new Config();
+        $config = new Config;
 
         $this->assertNull($config['hypervel']);
         $this->assertSame([], $config['env']);

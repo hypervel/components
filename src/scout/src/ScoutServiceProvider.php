@@ -45,7 +45,7 @@ class ScoutServiceProvider extends ServiceProvider
             // Explicitly inject Guzzle as the HTTP client so Typesense never
             // falls back to PSR-18 auto-discovery, which may resolve to
             // Symfony's CurlHttpClient (unsafe with Swoole coroutines).
-            $settings['client'] ??= new GuzzleClient();
+            $settings['client'] ??= new GuzzleClient;
 
             return new TypesenseClient($settings);
         });

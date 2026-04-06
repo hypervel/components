@@ -33,7 +33,7 @@ class DumpController extends EntryController
         $this->cache->put('telescope:dump-watcher', true, now()->addSeconds(4));
 
         return [
-            'dump' => (new HtmlDumper())->dump((new VarCloner())->cloneVar(true), true),
+            'dump' => (new HtmlDumper)->dump((new VarCloner)->cloneVar(true), true),
             'entries' => $storage->get(
                 $this->entryType(),
                 EntryQueryOptions::fromRequest($request)

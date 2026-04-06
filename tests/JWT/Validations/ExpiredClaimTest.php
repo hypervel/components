@@ -35,7 +35,7 @@ class ExpiredClaimTest extends TestCase
         $this->expectException(TokenExpiredException::class);
         $this->expectExceptionMessage('Token has expired');
 
-        $validation = new ExpiredClaim();
+        $validation = new ExpiredClaim;
 
         $validation->validate(['exp' => Carbon::now()->timestamp - 3600]);
     }

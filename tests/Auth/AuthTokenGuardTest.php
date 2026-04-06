@@ -28,7 +28,7 @@ class AuthTokenGuardTest extends TestCase
         string $storageKey = 'api_token',
         bool $hash = false,
     ): TokenGuard {
-        $container = Container::setInstance(new Container());
+        $container = Container::setInstance(new Container);
         $container->instance('request', $request);
 
         return new TokenGuard('token', $provider, $container, $inputKey, $storageKey, $hash);
@@ -37,7 +37,7 @@ class AuthTokenGuardTest extends TestCase
     public function testUserCanBeRetrievedByQueryStringVariable()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['api_token' => 'foo'])->andReturn($user);
         $request = Request::create('/', 'GET', ['api_token' => 'foo']);
@@ -55,7 +55,7 @@ class AuthTokenGuardTest extends TestCase
     public function testTokenCanBeHashed()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['api_token' => hash('sha256', 'foo')])->andReturn($user);
         $request = Request::create('/', 'GET', ['api_token' => 'foo']);
@@ -105,7 +105,7 @@ class AuthTokenGuardTest extends TestCase
     public function testValidateCanDetermineIfCredentialsAreValid()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['api_token' => 'foo'])->andReturn($user);
         $request = Request::create('/', 'GET', ['api_token' => 'foo']);
@@ -139,7 +139,7 @@ class AuthTokenGuardTest extends TestCase
     public function testItAllowsToPassCustomRequestViaContainerAndUseItForValidation()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['api_token' => 'custom'])->andReturn($user);
         $request = Request::create('/', 'GET', ['api_token' => 'foo']);
@@ -173,7 +173,7 @@ class AuthTokenGuardTest extends TestCase
     public function testUserCanBeRetrievedByQueryStringVariableWithCustomKey()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['custom_token_field' => 'foo'])->andReturn($user);
         $request = Request::create('/', 'GET', ['custom_token_field' => 'foo']);
@@ -207,7 +207,7 @@ class AuthTokenGuardTest extends TestCase
     public function testValidateCanDetermineIfCredentialsAreValidWithCustomKey()
     {
         $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
         $provider->shouldReceive('retrieveByCredentials')->once()->with(['custom_token_field' => 'foo'])->andReturn($user);
         $request = Request::create('/', 'GET', ['custom_token_field' => 'foo']);
@@ -244,9 +244,9 @@ class AuthTokenGuardTest extends TestCase
 
     public function testDifferentTokensGetDifferentCachedUsers()
     {
-        $user1 = new AuthTokenGuardTestUser();
+        $user1 = new AuthTokenGuardTestUser;
         $user1->id = 1;
-        $user2 = new AuthTokenGuardTestUser();
+        $user2 = new AuthTokenGuardTestUser;
         $user2->id = 2;
 
         $provider = m::mock(UserProvider::class);
@@ -259,7 +259,7 @@ class AuthTokenGuardTest extends TestCase
             ->once()
             ->andReturn($user2);
 
-        $container = Container::setInstance(new Container());
+        $container = Container::setInstance(new Container);
 
         // First request with token-a
         $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
@@ -289,7 +289,7 @@ class AuthTokenGuardTest extends TestCase
 
     public function testSetUserOperatesPerToken()
     {
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
 
         $provider = m::mock(UserProvider::class);
@@ -304,7 +304,7 @@ class AuthTokenGuardTest extends TestCase
 
     public function testForgetUserClearsCacheForCurrentToken()
     {
-        $user = new AuthTokenGuardTestUser();
+        $user = new AuthTokenGuardTestUser;
         $user->id = 1;
 
         $provider = m::mock(UserProvider::class);
@@ -322,7 +322,7 @@ class AuthTokenGuardTest extends TestCase
 
     public function testChangingRequestTokenChangesWhichCachedUserIsSeen()
     {
-        $user1 = new AuthTokenGuardTestUser();
+        $user1 = new AuthTokenGuardTestUser;
         $user1->id = 1;
 
         $provider = m::mock(UserProvider::class);
@@ -331,7 +331,7 @@ class AuthTokenGuardTest extends TestCase
             ->once()
             ->andReturn($user1);
 
-        $container = Container::setInstance(new Container());
+        $container = Container::setInstance(new Container);
         $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
         $container->instance('request', $request1);
 

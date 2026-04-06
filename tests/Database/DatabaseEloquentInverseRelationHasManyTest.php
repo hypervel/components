@@ -27,7 +27,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -187,7 +187,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
     {
         $user = HasManyInverseUserModel::create();
 
-        $posts = array_fill(0, 3, new HasManyInversePostModel());
+        $posts = array_fill(0, 3, new HasManyInversePostModel);
 
         $user->posts()->saveMany($posts);
 
@@ -251,7 +251,7 @@ class HasManyInverseUserModel extends Model
 
     protected static function newFactory(): HasManyInverseUserModelFactory
     {
-        return new HasManyInverseUserModelFactory();
+        return new HasManyInverseUserModelFactory;
     }
 
     public function posts(): HasMany
@@ -297,7 +297,7 @@ class HasManyInversePostModel extends Model
 
     protected static function newFactory(): HasManyInversePostModelFactory
     {
-        return new HasManyInversePostModelFactory();
+        return new HasManyInversePostModelFactory;
     }
 
     public function user(): BelongsTo

@@ -43,7 +43,7 @@ abstract class SchemaState
     {
         $this->connection = $connection;
 
-        $this->files = $files ?: new Filesystem();
+        $this->files = $files ?: new Filesystem;
 
         $this->processFactory = $processFactory ?: function (...$arguments) {
             return Process::fromShellCommandline(...$arguments)->setTimeout(null);

@@ -416,7 +416,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public static function createFrom(self $from, ?self $to = null): static
     {
-        $request = $to ?: new static();
+        $request = $to ?: new static;
 
         $files = array_filter($from->files->all());
 
@@ -457,7 +457,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     {
         $newRequest = new static(
             $request->query->all(), $request->request->all(), $request->attributes->all(),
-            $request->cookies->all(), (new static())->filterFiles($request->files->all()) ?? [], $request->server->all()
+            $request->cookies->all(), (new static)->filterFiles($request->files->all()) ?? [], $request->server->all()
         );
 
         $newRequest->headers->replace($request->headers->all());
@@ -513,7 +513,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     {
         return $this->hasSession()
             ? $this->session
-            : throw new SessionNotFoundException();
+            : throw new SessionNotFoundException;
     }
 
     /**

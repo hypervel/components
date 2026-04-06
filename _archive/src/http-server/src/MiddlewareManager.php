@@ -56,7 +56,7 @@ class MiddlewareManager
      */
     public static function sortMiddlewares(array $middlewares): array
     {
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($middlewares as $middleware => $priority) {
             if ($priority instanceof PriorityMiddleware) {
                 // int => PriorityMiddleware Object

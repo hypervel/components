@@ -12,7 +12,7 @@ class TestValueObject
 
     public static function make(?array $test): self
     {
-        $self = new self();
+        $self = new self;
         if (! empty($test['myPropertyA'])) {
             $self->myPropertyA = $test['myPropertyA'];
         }

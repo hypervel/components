@@ -187,7 +187,7 @@ abstract class Job implements JobContract
                 ->dispatch(new JobFailed(
                     $this->connectionName,
                     $this,
-                    $e ?: new ManuallyFailedException()
+                    $e ?: new ManuallyFailedException
                 ));
         }
     }

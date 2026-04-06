@@ -76,6 +76,6 @@ class HttpServiceProvider extends ServiceProvider
      */
     protected function registerResponseFactory(): void
     {
-        $this->app->bind(Response::class, fn () => ResponseContext::getOrNull() ?? new Response());
+        $this->app->bind(Response::class, fn () => ResponseContext::getOrNull() ?? new Response);
     }
 }

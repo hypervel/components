@@ -26,7 +26,7 @@ class SwooleStreamTest extends TestCase
         $swooleResponse->shouldReceive('sendfile')->with($file)->once()->andReturn(true);
         $swooleResponse->shouldReceive('status')->with(200, '')->once()->andReturn(200);
 
-        $response = new Response();
+        $response = new Response;
         $response = $response->withBody(new SwooleFileStream($file));
 
         $responseEmitter = new ResponseEmitter(null);
@@ -41,7 +41,7 @@ class SwooleStreamTest extends TestCase
         $swooleResponse->shouldReceive('status')->with(200, '')->once()->andReturn(200);
         $swooleResponse->shouldReceive('header')->with('TOKEN', ['xxx'])->once()->andReturn(true);
 
-        $response = new Response();
+        $response = new Response;
         $response = $response->withBody(new SwooleStream($content))->withHeader('TOKEN', 'xxx');
 
         $responseEmitter = new ResponseEmitter(null);

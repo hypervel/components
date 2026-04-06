@@ -279,7 +279,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAttributeCastToAnEnumCanNotBeSetToAnotherEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel();
+        $model = new EloquentModelEnumCastingTestModel;
 
         $this->expectException(ValueError::class);
         $this->expectExceptionMessage(
@@ -291,7 +291,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAttributeCastToAnEnumCanNotBeSetToAValueNotDefinedOnTheEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel();
+        $model = new EloquentModelEnumCastingTestModel;
 
         $this->expectException(ValueError::class);
         $this->expectExceptionMessage(
@@ -303,7 +303,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAnAttributeWithoutACastCanBeSetToAnEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel();
+        $model = new EloquentModelEnumCastingTestModel;
 
         $model->non_enum_status = StringStatus::pending;
 

@@ -20,7 +20,7 @@ class SymfonySerializerTest extends TestCase
     {
         $serializer = $this->createSerializer();
 
-        $object = new Foo();
+        $object = new Foo;
         $object->int = 10;
 
         $result = $serializer->normalize([$object]);
@@ -83,6 +83,6 @@ class SymfonySerializerTest extends TestCase
 
     protected function createSerializer(): SymfonyNormalizer
     {
-        return new SymfonyNormalizer((new SerializerFactory())->__invoke());
+        return new SymfonyNormalizer((new SerializerFactory)->__invoke());
     }
 }

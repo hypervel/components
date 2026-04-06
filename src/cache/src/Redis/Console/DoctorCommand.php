@@ -159,7 +159,7 @@ class DoctorCommand extends Command
         $redis = $context->withConnection(fn (RedisConnection $connection) => $connection);
 
         return [
-            new PhpRedisCheck(),
+            new PhpRedisCheck,
             new RedisVersionCheck($redis, $tagMode),
             new HexpireCheck($redis, $tagMode),
             new CacheStoreCheck($storeName, 'redis', $tagMode),
@@ -174,23 +174,23 @@ class DoctorCommand extends Command
     protected function getFunctionalChecks(): array
     {
         return [
-            new BasicOperationsCheck(),
-            new TaggedOperationsCheck(),
-            new TaggedRememberCheck(),
-            new MultipleTagsCheck(),
-            new SharedTagFlushCheck(),
-            new IncrementDecrementCheck(),
-            new AddOperationsCheck(),
-            new ForeverStorageCheck(),
-            new BulkOperationsCheck(),
-            new FlushBehaviorCheck(),
-            new EdgeCasesCheck(),
-            new HashStructuresCheck(),
-            new ExpirationCheck(),
-            new MemoryLeakPreventionCheck(),
-            new LargeDatasetCheck(),
-            new SequentialOperationsCheck(),
-            new ConcurrencyCheck(),
+            new BasicOperationsCheck,
+            new TaggedOperationsCheck,
+            new TaggedRememberCheck,
+            new MultipleTagsCheck,
+            new SharedTagFlushCheck,
+            new IncrementDecrementCheck,
+            new AddOperationsCheck,
+            new ForeverStorageCheck,
+            new BulkOperationsCheck,
+            new FlushBehaviorCheck,
+            new EdgeCasesCheck,
+            new HashStructuresCheck,
+            new ExpirationCheck,
+            new MemoryLeakPreventionCheck,
+            new LargeDatasetCheck,
+            new SequentialOperationsCheck,
+            new ConcurrencyCheck,
         ];
     }
 
@@ -271,7 +271,7 @@ class DoctorCommand extends Command
      */
     protected function runCleanupVerification(DoctorContext $context): void
     {
-        $check = new CleanupVerificationCheck();
+        $check = new CleanupVerificationCheck;
         $this->section($check->name());
         $result = $check->run($context);
         $this->displayCheckResult($result);

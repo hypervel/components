@@ -33,8 +33,8 @@ class QueuePauseResumeTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container();
-        $this->cache = new CacheRepository(new ArrayStore());
+        $container = new Container;
+        $this->cache = new CacheRepository(new ArrayStore);
         $this->events = new Dispatcher($container);
 
         $container->instance('config', new ConfigRepository([
@@ -186,7 +186,7 @@ class QueuePauseResumeTest extends TestCase
 
             public function __construct()
             {
-                $this->hypervel = new Container();
+                $this->hypervel = new Container;
                 $this->hypervel->instance('config', new ConfigRepository([
                     'queue' => [
                         'default' => 'redis',

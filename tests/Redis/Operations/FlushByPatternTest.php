@@ -30,7 +30,7 @@ class FlushByPatternTest extends TestCase
     private function createConnectionWithClient(FakeRedisClient $client): array
     {
         // Create a real stub, then wrap it in a partial mock to allow shouldReceive
-        $stub = new PhpRedisConnectionStub();
+        $stub = new PhpRedisConnectionStub;
         $stub->setActiveConnection($client);
 
         // Create a mock that delegates unknown methods to the stub

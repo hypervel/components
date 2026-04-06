@@ -27,14 +27,14 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $model = new ModelStub();
+        $model = new ModelStub;
 
         $model->getMorphClass();
     }
 
     public function testStrictModeDoesNotThrowExceptionWhenMorphMap()
     {
-        $model = new ModelStub();
+        $model = new ModelStub;
 
         Relation::morphMap([
             'test' => ModelStub::class,
@@ -46,7 +46,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
     public function testMapsCanBeEnforcedInOneMethod()
     {
-        $model = new ModelStub();
+        $model = new ModelStub;
 
         Relation::requireMorphMap(false);
 
@@ -60,7 +60,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
     public function testMapIgnoreGenericPivotClass()
     {
-        $pivotModel = new Pivot();
+        $pivotModel = new Pivot;
 
         $pivotModel->getMorphClass();
     }
@@ -69,7 +69,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $pivotModel = new PivotStub();
+        $pivotModel = new PivotStub;
 
         $pivotModel->getMorphClass();
     }

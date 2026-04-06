@@ -28,9 +28,9 @@ class ForgetCommandTest extends TestCase
         $repository->shouldReceive('forget')->once()->with('my-key');
 
         $command = new ForgetCommand($cacheManager);
-        $command->setHypervel(new Application());
+        $command->setHypervel(new Application);
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         $this->assertSame(0, $command->run(new ArrayInput(['key' => 'my-key']), $output));
         $this->assertStringContainsString(
@@ -48,9 +48,9 @@ class ForgetCommandTest extends TestCase
         $repository->shouldReceive('forget')->once()->with('my-key');
 
         $command = new ForgetCommand($cacheManager);
-        $command->setHypervel(new Application());
+        $command->setHypervel(new Application);
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         $this->assertSame(0, $command->run(new ArrayInput(['key' => 'my-key', 'store' => 'redis']), $output));
         $this->assertStringContainsString(

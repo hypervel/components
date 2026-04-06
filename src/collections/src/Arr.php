@@ -819,7 +819,7 @@ class Arr
             return is_null($number) ? null : [];
         }
 
-        $keys = (new Randomizer())->pickArrayKeys($array, $requested);
+        $keys = (new Randomizer)->pickArrayKeys($array, $requested);
 
         if (is_null($number)) {
             return $array[$keys[0]];
@@ -892,7 +892,7 @@ class Arr
      */
     public static function shuffle(array $array): array
     {
-        return (new Randomizer())->shuffleArray($array);
+        return (new Randomizer)->shuffleArray($array);
     }
 
     /**
@@ -910,7 +910,7 @@ class Arr
         $count = count($array);
 
         if ($count === 0) {
-            throw new ItemNotFoundException();
+            throw new ItemNotFoundException;
         }
 
         if ($count > 1) {

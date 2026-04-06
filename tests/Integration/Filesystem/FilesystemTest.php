@@ -99,7 +99,7 @@ class FilesystemTest extends TestCase
         $payload = str_repeat('a', 10 * 1024); // 10 KiB
         PartialReadStreamWrapper::setData($payload);
 
-        $fs = new Filesystem();
+        $fs = new Filesystem;
 
         $contents = $fs->sharedGet('partialread://test');
 

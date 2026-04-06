@@ -173,13 +173,13 @@ class BenchmarkCommand extends Command
     protected function getScenarios(): array
     {
         return [
-            new NonTaggedScenario(),
-            new StandardTaggingScenario(),
-            new HeavyTaggingScenario(),
-            new DeepTaggingScenario(),
-            new CleanupScenario(),
-            new BulkWriteScenario(),
-            new ReadPerformanceScenario(),
+            new NonTaggedScenario,
+            new StandardTaggingScenario,
+            new HeavyTaggingScenario,
+            new DeepTaggingScenario,
+            new CleanupScenario,
+            new BulkWriteScenario,
+            new ReadPerformanceScenario,
         ];
     }
 
@@ -461,7 +461,7 @@ class BenchmarkCommand extends Command
      */
     protected function displaySystemInfo(): void
     {
-        $systemInfo = new SystemInfo();
+        $systemInfo = new SystemInfo;
 
         $this->info('System Information');
         $this->line(str_repeat('─', 63));
@@ -530,7 +530,7 @@ class BenchmarkCommand extends Command
     protected function checkMemoryRequirements(string $scale): void
     {
         $recommended = $this->recommendedMemory[$scale] ?? 256;
-        $currentLimitBytes = (new SystemInfo())->getMemoryLimitBytes();
+        $currentLimitBytes = (new SystemInfo)->getMemoryLimitBytes();
 
         if ($currentLimitBytes === -1) {
             return;

@@ -222,7 +222,7 @@ class KernelTest extends TestCase
     public function testItTriggersTerminatingEvent()
     {
         $called = [];
-        $app = new Application();
+        $app = new Application;
         $events = new Dispatcher($app);
         $app->instance('events', $events);
         $kernel = new Kernel($app, new Router($events, $app));
@@ -251,7 +251,7 @@ class KernelTest extends TestCase
             $called[] = 'terminating callback';
         });
 
-        $kernel->terminate(new Request(), new Response());
+        $kernel->terminate(new Request, new Response);
 
         $this->assertSame([
             'terminating event',
@@ -263,7 +263,7 @@ class KernelTest extends TestCase
     protected function getKernel(): Kernel
     {
         return new Kernel(
-            new Application(),
+            new Application,
             m::mock(Router::class),
         );
     }

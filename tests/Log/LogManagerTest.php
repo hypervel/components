@@ -472,7 +472,7 @@ class LogManagerTest extends TestCase
                 return new Monolog(
                     'uuid',
                     [new StreamHandler(__DIR__ . '/logs/custom.log')],
-                    [new UidProcessor()]
+                    [new UidProcessor]
                 );
             }
         };

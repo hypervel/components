@@ -121,7 +121,7 @@ class Kernel implements KernelContract
     public function rerouteSymfonyCommandEvents(): static
     {
         if (is_null($this->symfonyDispatcher)) {
-            $this->symfonyDispatcher = new EventDispatcher();
+            $this->symfonyDispatcher = new EventDispatcher;
 
             $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event) {
                 $this->events->dispatch(
@@ -175,7 +175,7 @@ class Kernel implements KernelContract
      */
     public function terminate(InputInterface $input, int $status): void
     {
-        $this->events->dispatch(new Terminating());
+        $this->events->dispatch(new Terminating);
 
         $this->app->terminate();
 
@@ -306,7 +306,7 @@ class Kernel implements KernelContract
 
         $namespace = $this->app->getNamespace();
 
-        $possibleCommands = new WeakMap();
+        $possibleCommands = new WeakMap;
 
         $filterCommands = function (SplFileInfo $file) use ($namespace, $possibleCommands) {
             $commandClassName = $this->commandClassFromFile($file, $namespace);

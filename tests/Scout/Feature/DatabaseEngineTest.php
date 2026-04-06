@@ -164,7 +164,7 @@ class DatabaseEngineTest extends ScoutTestCase
     public function testUpdateAndDeleteAreNoOps(): void
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
 
         // These should not throw exceptions since database is the index
         $engine->update($model->newCollection([$model]));
@@ -176,7 +176,7 @@ class DatabaseEngineTest extends ScoutTestCase
 
     public function testCreateAndDeleteIndexAreNoOps(): void
     {
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
 
         $this->assertNull($engine->createIndex('test'));
         $this->assertNull($engine->deleteIndex('test'));
@@ -188,7 +188,7 @@ class DatabaseEngineTest extends ScoutTestCase
         SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
 
         $builder = SearchableModel::search('');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $this->assertEquals(2, $engine->getTotalCount($results));
@@ -200,7 +200,7 @@ class DatabaseEngineTest extends ScoutTestCase
         $model2 = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
 
         $builder = SearchableModel::search('');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $ids = $engine->mapIds($results);
@@ -214,7 +214,7 @@ class DatabaseEngineTest extends ScoutTestCase
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
 
         $builder = SearchableModel::search('Test');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $mapped = $engine->map($builder, $results, $model);
@@ -228,9 +228,9 @@ class DatabaseEngineTest extends ScoutTestCase
         SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
 
         $builder = SearchableModel::search('Test');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $lazyMapped = $engine->lazyMap($builder, $results, $model);
 

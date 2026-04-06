@@ -19,8 +19,8 @@ class MetricsTest extends IntegrationTestCase
 {
     public function testTotalThroughputIsStored()
     {
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
 
         $this->work();
         $this->work();
@@ -30,10 +30,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testThroughputIsStoredPerJobClass()
     {
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\ConditionallyFailingJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -47,10 +47,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testThroughputIsStoredPerQueue()
     {
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\ConditionallyFailingJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -69,8 +69,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
 
         $this->work();
         $this->work();
@@ -86,8 +86,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
 
         $this->work();
         $this->work();
@@ -97,8 +97,8 @@ class MetricsTest extends IntegrationTestCase
 
     public function testListOfAllJobsWithMetricInformationIsMaintained()
     {
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\ConditionallyFailingJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -117,8 +117,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2, 3);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
 
         // Run first two jobs...
         $this->work();
@@ -129,7 +129,7 @@ class MetricsTest extends IntegrationTestCase
         resolve(MetricsRepository::class)->snapshot();
 
         // Work another job and take another snapshot...
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
         $this->work();
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
         resolve(MetricsRepository::class)->snapshot();
@@ -176,8 +176,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\BasicJob);
 
         // Run first two jobs...
         $this->work();
@@ -217,7 +217,7 @@ class MetricsTest extends IntegrationTestCase
 
         // Run the jobs...
         for ($i = 0; $i < 30; ++$i) {
-            Queue::push(new Jobs\BasicJob());
+            Queue::push(new Jobs\BasicJob);
             $this->work();
             resolve(MetricsRepository::class)->snapshot();
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
@@ -244,8 +244,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob());
-        Queue::push(new Jobs\ConditionallyFailingJob());
+        Queue::push(new Jobs\BasicJob);
+        Queue::push(new Jobs\ConditionallyFailingJob);
 
         $this->work();
         $this->work();

@@ -89,7 +89,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 
     public function testModelWithUuidPrimaryKeyCanBeCreatedQuietly()
     {
-        $user = new ModelWithUuidPrimaryKey();
+        $user = new ModelWithUuidPrimaryKey;
 
         $user->saveQuietly();
 
@@ -100,7 +100,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 
     public function testModelWithUlidPrimaryKeyCanBeCreatedQuietly()
     {
-        $user = new ModelWithUlidPrimaryKey();
+        $user = new ModelWithUlidPrimaryKey;
 
         $user->saveQuietly();
 
@@ -111,7 +111,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 
     public function testModelWithoutUuidPrimaryKeyCanBeCreatedQuietly()
     {
-        $user = new ModelWithoutUuidPrimaryKey();
+        $user = new ModelWithoutUuidPrimaryKey;
 
         $user->saveQuietly();
 
@@ -122,7 +122,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 
     public function testModelWithCustomUuidPrimaryKeyNameCanBeCreatedQuietly()
     {
-        $user = new ModelWithCustomUuidPrimaryKeyName();
+        $user = new ModelWithCustomUuidPrimaryKeyName;
 
         $user->saveQuietly();
 

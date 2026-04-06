@@ -35,7 +35,7 @@ trait AsPivot
      */
     public static function fromAttributes(Model $parent, array $attributes, string $table, bool $exists = false): static
     {
-        $instance = new static();
+        $instance = new static;
 
         $instance->timestamps = $instance->hasTimestampAttributes($attributes);
 

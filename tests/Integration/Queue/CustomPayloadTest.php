@@ -33,7 +33,7 @@ class CustomPayloadTest extends TestCase
     {
         $dispatcher = $this->app->make(QueueingDispatcher::class);
 
-        $dispatcher->dispatchToQueue(new MyJob());
+        $dispatcher->dispatchToQueue(new MyJob);
     }
 
     public static function websites()

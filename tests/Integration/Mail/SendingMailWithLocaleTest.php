@@ -47,7 +47,7 @@ class SendingMailWithLocaleTest extends TestCase
 
     public function testMailIsSentWithDefaultLocale()
     {
-        Mail::to('test@mail.com')->send(new SendingLocaleTestMail());
+        Mail::to('test@mail.com')->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'name',
@@ -57,7 +57,7 @@ class SendingMailWithLocaleTest extends TestCase
 
     public function testMailIsSentWithSelectedLocale()
     {
-        Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail());
+        Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'esm',
@@ -67,7 +67,7 @@ class SendingMailWithLocaleTest extends TestCase
 
     public function testMailIsSentWithLocaleFromMailable()
     {
-        $mailable = new SendingLocaleTestMail();
+        $mailable = new SendingLocaleTestMail;
         $mailable->locale('ar');
 
         Mail::to('test@mail.com')->send($mailable);
@@ -86,7 +86,7 @@ class SendingMailWithLocaleTest extends TestCase
             Carbon::setLocale($event->locale);
         });
 
-        Mail::to('test@mail.com')->locale('es')->send(new SendingLocaleTimestampTestMail());
+        Mail::to('test@mail.com')->locale('es')->send(new SendingLocaleTimestampTestMail);
 
         Assert::assertMatchesRegularExpression(
             '/nombre (en|dentro de) (un|1) d=C3=ADa/',
@@ -105,14 +105,14 @@ class SendingMailWithLocaleTest extends TestCase
             'email_locale' => 'ar',
         ]);
 
-        Mail::to($recipient)->send(new SendingLocaleTestMail());
+        Mail::to($recipient)->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'esm',
             $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->toString()
         );
 
-        $mailable = new Mailable();
+        $mailable = new Mailable;
         $mailable->to($recipient);
 
         $this->assertSame($recipient->email_locale, $mailable->locale);
@@ -125,7 +125,7 @@ class SendingMailWithLocaleTest extends TestCase
             'email_locale' => 'en',
         ]);
 
-        Mail::to($recipient)->locale('ar')->send(new SendingLocaleTestMail());
+        Mail::to($recipient)->locale('ar')->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'esm',
@@ -145,7 +145,7 @@ class SendingMailWithLocaleTest extends TestCase
             'email_locale' => 'en',
         ]);
 
-        Mail::to($toRecipient)->cc($ccRecipient)->send(new SendingLocaleTestMail());
+        Mail::to($toRecipient)->cc($ccRecipient)->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'esm',
@@ -166,7 +166,7 @@ class SendingMailWithLocaleTest extends TestCase
             ]),
         ];
 
-        Mail::to($recipients)->send(new SendingLocaleTestMail());
+        Mail::to($recipients)->send(new SendingLocaleTestMail);
 
         $this->assertStringContainsString(
             'name',
@@ -176,8 +176,8 @@ class SendingMailWithLocaleTest extends TestCase
 
     public function testLocaleIsSetBackToDefaultAfterMailSent()
     {
-        Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail());
-        Mail::to('test@mail.com')->send(new SendingLocaleTestMail());
+        Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail);
+        Mail::to('test@mail.com')->send(new SendingLocaleTestMail);
 
         $this->assertSame('en', $this->app->make('translator')->getLocale());
 

@@ -16,7 +16,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
 {
     public function testCallbackIsCalledAfterDependencyResolutionWithAttribute()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->afterResolvingAttribute(ContainerTestOnTenant::class, function (ContainerTestOnTenant $attribute, HasTenantImpl $hasTenantImpl, Container $container) {
             $hasTenantImpl->onTenant($attribute->tenant);
@@ -33,7 +33,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
 
     public function testCallbackIsCalledAfterClassWithAttributeIsResolved()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->afterResolvingAttribute(
             ContainerTestBootable::class,
@@ -48,7 +48,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
 
     public function testCallbackIsCalledAfterClassWithConstructorAndAttributeIsResolved()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->afterResolvingAttribute(ContainerTestConfiguresClass::class, function (ContainerTestConfiguresClass $attribute, $class) {
             $class->value = $attribute->value;
@@ -66,7 +66,7 @@ class AfterResolvingAttributeCallbackTest extends TestCase
 
     public function testCallbackIsCalledOnAppCall()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->afterResolvingAttribute(ContainerTestOnTenant::class, function (ContainerTestOnTenant $attribute, HasTenantImpl $hasTenantImpl, Container $container) {
             $hasTenantImpl->onTenant($attribute->tenant);

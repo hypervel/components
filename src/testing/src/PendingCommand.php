@@ -160,7 +160,7 @@ class PendingCommand
      */
     public function expectsTable(array $headers, array|Arrayable $rows, string $tableStyle = 'default', array $columnStyles = []): static
     {
-        $table = (new Table($output = new BufferedOutput()))
+        $table = (new Table($output = new BufferedOutput))
             ->setHeaders((array) $headers)
             ->setRows($rows instanceof Arrayable ? $rows->toArray() : $rows)
             ->setStyle($tableStyle);
@@ -276,7 +276,7 @@ class PendingCommand
      */
     protected function expectOutputToContainPrompt(BasePrompt $prompt): void
     {
-        $prompt->setOutput($output = new BufferedOutput());
+        $prompt->setOutput($output = new BufferedOutput);
 
         /** @var PromptsNote $prompt */
         $prompt->display();

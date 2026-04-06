@@ -18,7 +18,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -34,7 +34,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -53,7 +53,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -72,7 +72,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -92,7 +92,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -112,7 +112,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $defaultValue = 'a value';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
 
         $relationship = $parent
             ->hasMany(RelatedWithAttributesModel::class, 'relatable')
@@ -129,7 +129,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -145,7 +145,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
     public function testAttributesCanBeAppended(): void
     {
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
 
         $relationship = $parent
             ->hasMany(RelatedWithAttributesModel::class, 'parent_id')
@@ -165,7 +165,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
     public function testSingleAttributeApi(): void
     {
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $key = 'attr';
         $value = 'Value';
 
@@ -184,7 +184,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -216,7 +216,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $parentId = 123;
         $key = 'a key';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -241,7 +241,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -261,7 +261,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -280,7 +280,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
     {
         $parentId = 123;
 
-        $parent = new RelatedWithAttributesModel();
+        $parent = new RelatedWithAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent

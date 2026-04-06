@@ -330,7 +330,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
-        $store->put('errors', $errorBag = new ViewErrorBag());
+        $store->put('errors', $errorBag = new ViewErrorBag);
 
         $errorBag->put('default', new MessageBag([
             'foo' => [
@@ -338,7 +338,7 @@ class MakesHttpRequestsTest extends TestCase
             ],
         ]));
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         $response->assertSessionHasErrors(['foo']);
     }
@@ -347,7 +347,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
-        $store->put('errors', $errorBag = new ViewErrorBag());
+        $store->put('errors', $errorBag = new ViewErrorBag);
 
         $errorBag->put('default', new MessageBag([
             'foo' => [
@@ -357,7 +357,7 @@ class MakesHttpRequestsTest extends TestCase
 
         $store->save(); // Required to serialize error bag to JSON
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         $response->assertSessionHasErrors(['foo']);
     }
@@ -368,7 +368,7 @@ class MakesHttpRequestsTest extends TestCase
 
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
-        $store->put('errors', $errorBag = new ViewErrorBag());
+        $store->put('errors', $errorBag = new ViewErrorBag);
 
         $errorBag->put('default', new MessageBag([
             'foo' => [
@@ -376,7 +376,7 @@ class MakesHttpRequestsTest extends TestCase
             ],
         ]));
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         $response->assertSessionDoesntHaveErrors(['foo']);
     }
@@ -385,7 +385,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
-        $store->put('errors', $errorBag = new ViewErrorBag());
+        $store->put('errors', $errorBag = new ViewErrorBag);
 
         $errorBag->put('default', new MessageBag([
             'foo' => [
@@ -399,7 +399,7 @@ class MakesHttpRequestsTest extends TestCase
             ],
         ]));
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         try {
             $response->assertSessionHasNoErrors();
@@ -416,7 +416,7 @@ class MakesHttpRequestsTest extends TestCase
         $store->put('foo', 'value');
         $store->put('bar', 'value');
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         $response->assertSessionHas('foo');
         $response->assertSessionHas('bar');
@@ -431,7 +431,7 @@ class MakesHttpRequestsTest extends TestCase
 
         $store->put('foo', 'value');
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
         $response->assertSessionMissing('foo');
     }
 
@@ -444,7 +444,7 @@ class MakesHttpRequestsTest extends TestCase
             'bar' => 'value',
         ]);
 
-        $response = TestResponse::fromBaseResponse(new Response());
+        $response = TestResponse::fromBaseResponse(new Response);
 
         $response->assertSessionHasInput('foo');
         $response->assertSessionHasInput('foo', 'value');
@@ -503,7 +503,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testCreateTestResponseUsesContainerBoundExceptionCollection()
     {
-        $collection = new LoggedExceptionCollection();
+        $collection = new LoggedExceptionCollection;
         $this->app->instance(LoggedExceptionCollection::class, $collection);
 
         $this->app->make(Registrar::class)

@@ -45,9 +45,9 @@ class PruneStaleTagsCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new PruneStaleTagsCommand();
+        $command = new PruneStaleTagsCommand;
         $command->setHypervel($this->app);
-        $result = $command->run(new ArrayInput([]), new NullOutput());
+        $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
     }
@@ -76,9 +76,9 @@ class PruneStaleTagsCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new PruneStaleTagsCommand();
+        $command = new PruneStaleTagsCommand;
         $command->setHypervel($this->app);
-        $result = $command->run(new ArrayInput(['store' => 'custom-redis']), new NullOutput());
+        $result = $command->run(new ArrayInput(['store' => 'custom-redis']), new NullOutput);
 
         $this->assertSame(0, $result);
     }
@@ -100,9 +100,9 @@ class PruneStaleTagsCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new PruneStaleTagsCommand();
+        $command = new PruneStaleTagsCommand;
         $command->setHypervel($this->app);
-        $result = $command->run(new ArrayInput(['store' => 'file']), new NullOutput());
+        $result = $command->run(new ArrayInput(['store' => 'file']), new NullOutput);
 
         $this->assertSame(0, $result);
     }

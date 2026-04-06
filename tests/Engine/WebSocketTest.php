@@ -24,7 +24,7 @@ class WebSocketTest extends TestCase
 
         $this->assertIsString($string = (string) $frame);
 
-        $sf = new SwooleFrame();
+        $sf = new SwooleFrame;
         $sf->data = 'Hello World.';
         $frame = Frame::from($sf);
         $this->assertSame($string, (string) $frame);
@@ -32,12 +32,12 @@ class WebSocketTest extends TestCase
 
     public function testResponseGetFd()
     {
-        $response = new Response(new stdClass());
+        $response = new Response(new stdClass);
 
         $response->init(123);
         $this->assertSame(123, $response->getFd());
 
-        $sf = new SwooleFrame();
+        $sf = new SwooleFrame;
         $sf->fd = 1234;
         $response->init($sf);
         $this->assertSame(1234, $response->getFd());

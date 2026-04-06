@@ -56,7 +56,7 @@ class ValidationArrayRuleTest extends TestCase
 
     public function testArrayValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $v = new Validator($trans, ['foo' => 'not an array'], ['foo' => Rule::array()]);
         $this->assertTrue($v->fails());

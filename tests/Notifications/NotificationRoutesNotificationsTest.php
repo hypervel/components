@@ -24,8 +24,8 @@ class NotificationRoutesNotificationsTest extends TestCase
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
         $container->instance(Dispatcher::class, $factory);
-        $notifiable = new RoutesNotificationsTestInstance();
-        $instance = new stdClass();
+        $notifiable = new RoutesNotificationsTestInstance;
+        $instance = new stdClass;
         $factory->shouldReceive('send')->with($notifiable, $instance);
 
         $notifiable->notify($instance);
@@ -36,8 +36,8 @@ class NotificationRoutesNotificationsTest extends TestCase
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
         $container->instance(Dispatcher::class, $factory);
-        $notifiable = new RoutesNotificationsTestInstance();
-        $instance = new stdClass();
+        $notifiable = new RoutesNotificationsTestInstance;
+        $instance = new stdClass;
         $factory->shouldReceive('sendNow')->with($notifiable, $instance, null);
 
         $notifiable->notifyNow($instance);
@@ -45,7 +45,7 @@ class NotificationRoutesNotificationsTest extends TestCase
 
     public function testNotificationOptionRouting()
     {
-        $instance = new RoutesNotificationsTestInstance();
+        $instance = new RoutesNotificationsTestInstance;
         $this->assertSame('bar', $instance->routeNotificationFor('foo'));
         $this->assertSame('taylor@laravel.com', $instance->routeNotificationFor('mail'));
     }
@@ -56,12 +56,12 @@ class NotificationRoutesNotificationsTest extends TestCase
             new InvalidArgumentException('The database channel does not support on-demand notifications.')
         );
 
-        (new AnonymousNotifiable())->route('database', 'foo');
+        (new AnonymousNotifiable)->route('database', 'foo');
     }
 
     protected function getContainer(): Container
     {
-        $container = new Container();
+        $container = new Container;
 
         Container::setInstance($container);
 

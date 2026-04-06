@@ -38,7 +38,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser();
+        $model = new TestEloquentBroadcastUser;
         $model->name = 'Taylor';
         $model->save();
 
@@ -52,7 +52,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
 
     public function testChannelRouteFormatting()
     {
-        $model = new TestEloquentBroadcastUser();
+        $model = new TestEloquentBroadcastUser;
 
         $this->assertSame('Hypervel.Tests.Integration.Database.TestEloquentBroadcastUser.{testEloquentBroadcastUser}', $model->broadcastChannelRoute());
     }
@@ -61,7 +61,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new SoftDeletableTestEloquentBroadcastUser();
+        $model = new SoftDeletableTestEloquentBroadcastUser;
         $model->name = 'Bean';
         $model->saveQuietly();
 
@@ -80,7 +80,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserOnSpecificEventsOnly();
+        $model = new TestEloquentBroadcastUserOnSpecificEventsOnly;
         $model->name = 'James';
         $model->save();
 
@@ -106,7 +106,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser();
+        $model = new TestEloquentBroadcastUser;
         $model->name = 'Mohamed';
         $model->save();
 
@@ -124,7 +124,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserWithSpecificBroadcastName();
+        $model = new TestEloquentBroadcastUserWithSpecificBroadcastName;
         $model->name = 'Nuno';
         $model->save();
 
@@ -154,7 +154,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser();
+        $model = new TestEloquentBroadcastUser;
         $model->name = 'Nuno';
         $model->save();
 
@@ -172,7 +172,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserWithSpecificBroadcastPayload();
+        $model = new TestEloquentBroadcastUserWithSpecificBroadcastPayload;
         $model->name = 'Dries';
         $model->save();
 

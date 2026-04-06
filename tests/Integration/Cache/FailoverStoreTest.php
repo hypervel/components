@@ -42,20 +42,20 @@ class FailoverStoreTest extends TestCase
 
         Event::fake();
 
-        Cache::put('irrelevant', new CantSerialize());
+        Cache::put('irrelevant', new CantSerialize);
 
         Event::assertDispatched(CacheFailedOver::class, function (CacheFailedOver $event) {
             return $event->storeName === 'failing_array';
         });
         $this->assertInstanceOf(CantSerialize::class, Cache::store('array')->get('irrelevant'));
 
-        Cache::put('irrelevant2', new CantSerialize());
+        Cache::put('irrelevant2', new CantSerialize);
         Event::assertDispatchedTimes(CacheFailedOver::class, 1);
         CantSerialize::$throwException = false;
-        Cache::put('irrelevant3', new CantSerialize());
+        Cache::put('irrelevant3', new CantSerialize);
         Event::assertDispatchedTimes(CacheFailedOver::class, 1);
         CantSerialize::$throwException = true;
-        Cache::put('irrelevant4', new CantSerialize());
+        Cache::put('irrelevant4', new CantSerialize);
         Event::assertDispatchedTimes(CacheFailedOver::class, 2);
     }
 

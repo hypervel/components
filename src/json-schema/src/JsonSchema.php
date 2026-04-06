@@ -22,6 +22,6 @@ class JsonSchema
      */
     public static function __callStatic(string $name, array $arguments): Type
     {
-        return (new JsonSchemaTypeFactory())->{$name}(...$arguments);
+        return (new JsonSchemaTypeFactory)->{$name}(...$arguments);
     }
 }

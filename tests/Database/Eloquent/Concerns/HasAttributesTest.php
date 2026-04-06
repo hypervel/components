@@ -19,7 +19,7 @@ class HasAttributesTest extends TestCase
 {
     public function testGetCastsIncludesCastsMethodForIncrementingModels(): void
     {
-        $model = new HasAttributesIncrementingModel();
+        $model = new HasAttributesIncrementingModel;
 
         $casts = $model->getCasts();
 
@@ -30,7 +30,7 @@ class HasAttributesTest extends TestCase
 
     public function testGetCastsIncludesCastsMethodForNonIncrementingModels(): void
     {
-        $model = new HasAttributesUuidModel();
+        $model = new HasAttributesUuidModel;
 
         $casts = $model->getCasts();
 
@@ -40,7 +40,7 @@ class HasAttributesTest extends TestCase
 
     public function testGetCastsMergesPropertyAndMethodForNonIncrementingModels(): void
     {
-        $model = new HasAttributesMixedCastsModel();
+        $model = new HasAttributesMixedCastsModel;
 
         $casts = $model->getCasts();
 
@@ -55,7 +55,7 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassReturnsSameInstanceOnSubsequentCalls()
     {
-        $model = new CasterCacheModel();
+        $model = new CasterCacheModel;
         $invoker = new ClassInvoker($model);
 
         $first = $invoker->resolveCasterClass('data');
@@ -66,8 +66,8 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassCachesPerModelClass()
     {
-        $modelA = new CasterCacheModel();
-        $modelB = new CasterCacheModelB();
+        $modelA = new CasterCacheModel;
+        $modelB = new CasterCacheModelB;
 
         $casterA = (new ClassInvoker($modelA))->resolveCasterClass('data');
         $casterB = (new ClassInvoker($modelB))->resolveCasterClass('data');
@@ -81,7 +81,7 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassCachesCasterWithArguments()
     {
-        $model = new CasterCacheWithArgumentsModel();
+        $model = new CasterCacheWithArgumentsModel;
         $invoker = new ClassInvoker($model);
 
         $first = $invoker->resolveCasterClass('amount');
@@ -94,7 +94,7 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassCachesDifferentCastTypesSeperately()
     {
-        $model = new CasterCacheMultipleCastsModel();
+        $model = new CasterCacheMultipleCastsModel;
         $invoker = new ClassInvoker($model);
 
         $dataCaster = $invoker->resolveCasterClass('data');
@@ -107,7 +107,7 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassCachesCastableClass()
     {
-        $model = new CasterCacheCastableModel();
+        $model = new CasterCacheCastableModel;
         $invoker = new ClassInvoker($model);
 
         $first = $invoker->resolveCasterClass('data');
@@ -119,7 +119,7 @@ class HasAttributesTest extends TestCase
 
     public function testResolveCasterClassCachesCastableReturningObject()
     {
-        $model = new CasterCacheCastableObjectModel();
+        $model = new CasterCacheCastableObjectModel;
         $invoker = new ClassInvoker($model);
 
         $first = $invoker->resolveCasterClass('data');
@@ -220,7 +220,7 @@ class CastableUppercaseObject implements Castable
 {
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new UppercaseCaster();
+        return new UppercaseCaster;
     }
 }
 

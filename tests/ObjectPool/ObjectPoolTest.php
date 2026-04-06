@@ -82,7 +82,7 @@ class ObjectPoolTest extends TestCase
         Coroutine::create(function () use ($pool) {
             $pool->get();
 
-            $exception = new stdClass();
+            $exception = new stdClass;
             try {
                 $pool->get();
             } catch (RuntimeException $e) {
@@ -124,7 +124,7 @@ class ObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = new Container();
+        $container = new Container;
         Container::setInstance($container);
 
         return $container;

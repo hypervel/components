@@ -45,7 +45,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -1048,7 +1048,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
         $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 1');
         $this->expectExceptionObject(
-            (new ModelNotFoundException())->setModel(User::class, [1]),
+            (new ModelNotFoundException)->setModel(User::class, [1]),
         );
 
         User::findOrFail(1);
@@ -1059,7 +1059,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
         $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 2, 3');
         $this->expectExceptionObject(
-            (new ModelNotFoundException())->setModel(User::class, [2, 3]),
+            (new ModelNotFoundException)->setModel(User::class, [2, 3]),
         );
 
         User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
@@ -1071,7 +1071,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
         $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 2, 3');
         $this->expectExceptionObject(
-            (new ModelNotFoundException())->setModel(User::class, [2, 3]),
+            (new ModelNotFoundException)->setModel(User::class, [2, 3]),
         );
 
         User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
@@ -1470,7 +1470,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testHasOnMorphToRelationship()
     {
         $post = Post::create(['name' => 'Morph Post', 'user_id' => 1]);
-        (new Photo())->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
+        (new Photo)->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
 
         $photos = Photo::has('imageable')->get();
 
@@ -1707,7 +1707,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testEmptyMorphToRelationship()
     {
-        $photo = new Photo();
+        $photo = new Photo;
 
         $this->assertNull($photo->imageable);
     }
@@ -1788,7 +1788,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->connection()->transaction(function () use ($user) {
                     $user->email = 'otwell@laravel.com';
                     $user->save();
-                    throw new Exception();
+                    throw new Exception;
                 });
             } catch (Exception) {
                 // ignore the exception
@@ -1835,7 +1835,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testToArrayIncludesDefaultFormattedTimestamps()
     {
-        $model = new User();
+        $model = new User;
 
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
@@ -1850,7 +1850,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testToArrayIncludesCustomFormattedTimestamps()
     {
-        $model = new UserWithCustomDateSerialization();
+        $model = new UserWithCustomDateSerialization;
 
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
@@ -2098,7 +2098,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingDefaultDateFormat()
     {
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('Y-m-d H:i:s'); // Default MySQL/PostgreSQL/SQLite date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19',
@@ -2109,7 +2109,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingDefaultSqlServerDateFormat()
     {
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.v'); // Default SQL Server date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.000',
@@ -2123,7 +2123,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testTimestampsUsingCustomDateFormat()
     {
         // Simulating using custom precisions with timestamps(4)
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.u'); // Custom date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.0000',
@@ -2137,7 +2137,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingOldSqlServerDateFormat()
     {
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.000',
@@ -2148,7 +2148,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingOldSqlServerDateFormatFallbackToDefaultParsing()
     {
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
         $model->setRawAttributes([
             'updated_at' => '2017-11-14 08:23:19.734',
@@ -2165,7 +2165,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testSpecialFormats()
     {
-        $model = new User();
+        $model = new User;
         $model->setDateFormat('!Y-d-m \Y');
         $model->setRawAttributes([
             'updated_at' => '2017-05-11 Y',

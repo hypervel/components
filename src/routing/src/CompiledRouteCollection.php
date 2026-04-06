@@ -69,7 +69,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
     {
         $this->compiled = $compiled;
         $this->attributes = $attributes;
-        $this->routes = new RouteCollection();
+        $this->routes = new RouteCollection;
     }
 
     /**

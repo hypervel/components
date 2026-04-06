@@ -80,7 +80,7 @@ trait RunsInParallel
      */
     public function execute(): int
     {
-        (new PhpHandler())->handle($this->options->configuration->php());
+        (new PhpHandler)->handle($this->options->configuration->php());
 
         $this->forEachProcess(function () {
             ParallelTesting::callSetUpProcessCallbacks();

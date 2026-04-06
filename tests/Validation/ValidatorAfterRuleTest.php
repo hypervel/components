@@ -17,12 +17,12 @@ class ValidatorAfterRuleTest extends TestCase
 {
     public function testAfterAcceptsArrayOfRules()
     {
-        $validator = new Validator(new Translator(new ArrayLoader(), 'en'), [], []);
+        $validator = new Validator(new Translator(new ArrayLoader, 'en'), [], []);
 
         $validator->after([
             fn ($validator) => $validator->errors()->add('closure', 'true'),
-            new InvokableAfterRule(),
-            new AfterMethodRule(),
+            new InvokableAfterRule,
+            new AfterMethodRule,
         ])->messages()->messages();
 
         $this->assertSame($validator->messages()->messages(), [

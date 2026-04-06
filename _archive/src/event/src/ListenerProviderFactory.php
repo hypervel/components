@@ -18,7 +18,7 @@ class ListenerProviderFactory
 {
     public function __invoke(Container $container): ListenerProvider
     {
-        $listenerProvider = new ListenerProvider();
+        $listenerProvider = new ListenerProvider;
 
         $this->registerConfig($listenerProvider, $container);
 

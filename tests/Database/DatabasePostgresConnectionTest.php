@@ -60,7 +60,7 @@ class DatabasePostgresConnectionTest extends TestCase
     protected function newConnection(bool $emulatePrepares): PostgresConnection
     {
         return new PostgresConnection(
-            new DatabasePostgresConnectionPdoStub(),
+            new DatabasePostgresConnectionPdoStub,
             'test_db',
             '',
             [

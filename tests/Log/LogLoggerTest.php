@@ -48,7 +48,7 @@ class LogLoggerTest extends TestCase
 
     public function testLoggerFiresEventsDispatcher()
     {
-        $writer = new Logger($monolog = m::mock(Monolog::class), $events = new DispatcherStub());
+        $writer = new Logger($monolog = m::mock(Monolog::class), $events = new DispatcherStub);
         $monolog->shouldReceive('error')->once()->with('foo', []);
 
         $context = [];

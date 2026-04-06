@@ -157,7 +157,7 @@ class Serializer implements Normalizer, SerializerInterface, NormalizerInterface
 
         if (is_array($object) || $object instanceof Traversable) {
             if ($object instanceof Countable && $object->count() === 0) {
-                return new ArrayObject();
+                return new ArrayObject;
             }
 
             $normalized = [];

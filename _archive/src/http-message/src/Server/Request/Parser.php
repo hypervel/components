@@ -13,8 +13,8 @@ class Parser implements RequestParserInterface
 
     public function __construct()
     {
-        $jsonParser = new JsonParser();
-        $xmlParser = new XmlParser();
+        $jsonParser = new JsonParser;
+        $xmlParser = new XmlParser;
 
         $this->parsers = [
             'application/json' => $jsonParser,

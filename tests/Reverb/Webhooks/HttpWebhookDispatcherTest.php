@@ -25,7 +25,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
         $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
@@ -45,7 +45,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
         $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'member_added', ['channel' => 'test-channel']);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
@@ -57,7 +57,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
         $app = $this->makeApp();
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
@@ -69,7 +69,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
         $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
@@ -84,7 +84,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
         $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'member_added', ['channel' => 'presence-chat', 'user_id' => '42']);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
@@ -98,9 +98,9 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::fake();
 
         $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['client_event']]);
-        $connection = new \Hypervel\Tests\Reverb\Fixtures\FakeConnection();
+        $connection = new \Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'client_event', [
             'event' => 'client-typing',
             'channel' => 'private-chat',
@@ -128,7 +128,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'filter' => ['channel_name_starts_with' => 'tenant-1-'],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
@@ -144,7 +144,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'filter' => ['channel_name_starts_with' => 'tenant-1-'],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
@@ -160,7 +160,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'filter' => ['channel_name_starts_with' => null],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
@@ -176,7 +176,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'headers' => ['Authorization' => 'Bearer test-token'],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
@@ -201,7 +201,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'batching' => ['enabled' => true, 'max_delay_ms' => 250],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         // WebhookDeliveryJob should NOT be dispatched immediately
@@ -230,7 +230,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'batching' => ['enabled' => true],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
@@ -247,7 +247,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'batching' => ['enabled' => false],
         ]);
 
-        $dispatcher = new HttpWebhookDispatcher();
+        $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);

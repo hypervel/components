@@ -97,7 +97,7 @@ class BroadcasterTest extends TestCase
         $binder->shouldReceive('getBindingCallback')->times(2)->with('model')->andReturn($routeModelCallback);
         $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnTrue();
         $this->container->shouldReceive('make')->with(BindingRegistrar::class)->andReturn($binder);
-        $this->container->shouldReceive('make')->with(BroadcasterTestEloquentModelStub::class)->andReturn(new BroadcasterTestEloquentModelStub());
+        $this->container->shouldReceive('make')->with(BroadcasterTestEloquentModelStub::class)->andReturn(new BroadcasterTestEloquentModelStub);
         $callback = function ($user, $model) {
         };
         $parameters = $this->broadcaster->extractAuthParameters('something.{model}', 'something.1', $callback);
@@ -202,7 +202,7 @@ class BroadcasterTest extends TestCase
         $request->shouldReceive('user')
             ->once()
             ->withNoArgs()
-            ->andReturn(new DummyUser());
+            ->andReturn(new DummyUser);
 
         $this->assertInstanceOf(
             DummyUser::class,
@@ -219,7 +219,7 @@ class BroadcasterTest extends TestCase
         $request->shouldReceive('user')
             ->once()
             ->with('myguard')
-            ->andReturn(new DummyUser());
+            ->andReturn(new DummyUser);
 
         $this->assertInstanceOf(
             DummyUser::class,
@@ -242,7 +242,7 @@ class BroadcasterTest extends TestCase
         $request->shouldReceive('user')
             ->twice()
             ->with('myguard2')
-            ->andReturn(new DummyUser())
+            ->andReturn(new DummyUser)
             ->ordered('user');
 
         $this->assertInstanceOf(
@@ -425,7 +425,7 @@ class BroadcasterTestEloquentModelStub extends Model
 
     public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        $instance = new static();
+        $instance = new static;
         $instance->boundValue = (string) $value;
 
         return $instance;

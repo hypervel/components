@@ -23,8 +23,8 @@ class ErrorRenderer
         ?InputInterface $input = null,
         ?OutputInterface $output = null
     ) {
-        $this->input = $input ?? new ArgvInput();
-        $this->output = $output ?? new ConsoleOutput();
+        $this->input = $input ?? new ArgvInput;
+        $this->output = $output ?? new ConsoleOutput;
 
         $this->setVerbosity($this->input, $this->output);
     }
@@ -51,13 +51,13 @@ class ErrorRenderer
             return;
         }
 
-        (new SymfonyApplication())
+        (new SymfonyApplication)
             ->renderThrowable($throwable, $this->output);
     }
 
     protected function renderCollision(Throwable $throwable): void
     {
-        $handler = (new Provider())
+        $handler = (new Provider)
             ->getHandler()
             ->setOutput($this->output);
         $handler->setInspector(new Inspector($throwable));

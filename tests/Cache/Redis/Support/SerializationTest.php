@@ -21,7 +21,7 @@ class SerializationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->serialization = new Serialization();
+        $this->serialization = new Serialization;
     }
 
     public function testSerializeReturnsRawValueWhenSerializerConfigured(): void

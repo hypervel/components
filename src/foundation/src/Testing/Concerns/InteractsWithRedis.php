@@ -214,7 +214,7 @@ trait InteractsWithRedis
     private function isRedisDbAvailable(int $db): bool
     {
         try {
-            $client = new \Redis();
+            $client = new \Redis;
             $client->connect(
                 env('REDIS_HOST', '127.0.0.1'),
                 (int) env('REDIS_PORT', 6379)
@@ -265,7 +265,7 @@ trait InteractsWithRedis
     protected function rawRedisClientWithoutPrefix(string $connectionName = 'default'): \Redis
     {
         $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
-        $client = new \Redis();
+        $client = new \Redis;
         $client->connect(
             (string) $connectionConfig['host'],
             (int) $connectionConfig['port']

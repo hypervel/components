@@ -23,7 +23,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
 {
     public function testCallableDispatcherPrecognitionPropertyStartsNull()
     {
-        $dispatcher = new CallableDispatcher(new Container());
+        $dispatcher = new CallableDispatcher(new Container);
         $ref = new ReflectionProperty($dispatcher, 'precognitionDispatcher');
 
         $this->assertNull($ref->getValue($dispatcher));
@@ -31,7 +31,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
 
     public function testControllerDispatcherPrecognitionPropertyStartsNull()
     {
-        $dispatcher = new ControllerDispatcher(new Container());
+        $dispatcher = new ControllerDispatcher(new Container);
         $ref = new ReflectionProperty($dispatcher, 'precognitionDispatcher');
 
         $this->assertNull($ref->getValue($dispatcher));
@@ -92,7 +92,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
 
     public function testNewDispatcherInstancesHaveIndependentCaches()
     {
-        $container = new Container();
+        $container = new Container;
 
         $dispatcher1 = new CallableDispatcher($container);
         $dispatcher2 = new CallableDispatcher($container);

@@ -17,7 +17,7 @@ class TransformsRequestTest extends TestCase
 {
     public function testTransformOncePerKeyWhenMethodIsGet()
     {
-        $middleware = new TruncateInput();
+        $middleware = new TruncateInput;
         $symfonyRequest = new SymfonyRequest([
             'bar' => '123',
             'baz' => 'abc',
@@ -33,7 +33,7 @@ class TransformsRequestTest extends TestCase
 
     public function testTransformOncePerKeyWhenMethodIsPost()
     {
-        $middleware = new ManipulateInput();
+        $middleware = new ManipulateInput;
         $symfonyRequest = new SymfonyRequest(
             [
                 'name' => 'Damian',
@@ -53,7 +53,7 @@ class TransformsRequestTest extends TestCase
 
     public function testTransformOncePerArrayKeysWhenMethodIsPost()
     {
-        $middleware = new ManipulateArrayInput();
+        $middleware = new ManipulateArrayInput;
         $symfonyRequest = new SymfonyRequest(
             [
                 'name' => 'Damian',
@@ -75,7 +75,7 @@ class TransformsRequestTest extends TestCase
 
     public function testTransformOncePerKeyWhenContentTypeIsJson()
     {
-        $middleware = new ManipulateInput();
+        $middleware = new ManipulateInput;
         $symfonyRequest = new SymfonyRequest(
             [
                 'name' => 'Damian',

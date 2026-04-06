@@ -28,8 +28,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get');
@@ -48,8 +48,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddWithPrefix()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/foo', 'Handler::Get', ['prefix' => 'bar']);
@@ -64,8 +64,8 @@ class RouteCollectorTest extends TestCase
 
     public function testGetRouteParser()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $this->assertSame($parser, $collector->getRouteParser());
@@ -73,8 +73,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddGroupMiddleware()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get', [
@@ -109,8 +109,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddGroupMiddlewareFromAnotherServer()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator, 'test');
 
         $collector->addGroup('/api', function ($collector) {
@@ -127,8 +127,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddWithoutMiddlewareStoresExclusionsSeparately()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get', [
@@ -164,8 +164,8 @@ class RouteCollectorTest extends TestCase
 
     public function testRouterCollectorMergeOptions()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollectorStub($parser, $generator, 'test');
 
         $origin = [
@@ -181,8 +181,8 @@ class RouteCollectorTest extends TestCase
 
     public function testMiddlewareInOptionalRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollectorStub($parser, $generator, 'test');
 
         $routes = [
@@ -199,8 +199,8 @@ class RouteCollectorTest extends TestCase
 
     public function testNamedRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get', ['as' => 'get']);
@@ -225,8 +225,8 @@ class RouteCollectorTest extends TestCase
 
     public function testNamedRouteWithGroup()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->addGroup('/foo', function ($collector) {
@@ -244,8 +244,8 @@ class RouteCollectorTest extends TestCase
 
     public function testNamespaceRouteWithGroup()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->addGroup('/foo', function ($collector) {
@@ -263,8 +263,8 @@ class RouteCollectorTest extends TestCase
 
     public function testHandlerInOptions()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', [
@@ -281,8 +281,8 @@ class RouteCollectorTest extends TestCase
 
     public function testClosureHandlerInOptions()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', [
@@ -299,8 +299,8 @@ class RouteCollectorTest extends TestCase
 
     public function testCallableHandler()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', ['class', 'method']);
@@ -311,8 +311,8 @@ class RouteCollectorTest extends TestCase
 
     public function testHasNamedRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get', ['as' => 'foo']);

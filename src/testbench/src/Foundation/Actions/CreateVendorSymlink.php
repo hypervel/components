@@ -25,17 +25,17 @@ final class CreateVendorSymlink
      */
     public function handle(ApplicationContract $app): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
         $appVendorPath = $app->basePath('vendor');
         $vendorLinkCreated = false;
 
         if (! hypervel_vendor_exists($app, $this->workingPath)) {
-            (new DeleteVendorSymlink())->handle($app);
+            (new DeleteVendorSymlink)->handle($app);
 
             try {
                 $filesystem->link($this->workingPath, $appVendorPath);
 
-                (new RefreshPackageDiscovery())->handle($app);
+                (new RefreshPackageDiscovery)->handle($app);
 
                 $vendorLinkCreated = true;
             } catch (ErrorException) {

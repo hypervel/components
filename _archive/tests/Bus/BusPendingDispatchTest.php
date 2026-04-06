@@ -102,7 +102,7 @@ class BusPendingDispatchTest extends TestCase
 
     public function testChain()
     {
-        $chain = [new stdClass()];
+        $chain = [new stdClass];
         $this->job->shouldReceive('chain')->once()->with($chain);
         $this->pendingDispatch->chain($chain);
     }

@@ -34,7 +34,7 @@ class RegisterFacadesTest extends TestCase
                 'TestAlias' => 'TestClass',
             ]);
 
-        $app = new Application();
+        $app = new Application;
         $app->singleton('config', fn () => $config);
         $app->singleton(PackageManifest::class, fn () => $manifest);
 

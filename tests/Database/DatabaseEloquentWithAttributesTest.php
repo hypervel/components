@@ -20,7 +20,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -32,7 +32,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->schema()->dropIfExists((new WithAttributesModel())->getTable());
+        $this->schema()->dropIfExists((new WithAttributesModel)->getTable());
 
         parent::tearDown();
     }
@@ -118,7 +118,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
     protected function bootTable(): void
     {
-        $this->schema()->create((new WithAttributesModel())->getTable(), function ($table) {
+        $this->schema()->create((new WithAttributesModel)->getTable(), function ($table) {
             $table->id();
             $table->boolean('is_admin');
             $table->string('first_name');

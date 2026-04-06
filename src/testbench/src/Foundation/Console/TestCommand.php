@@ -200,7 +200,7 @@ class TestCommand extends Command
             $arguments[] = '--colors=always';
         } elseif ($this->option('no-ansi')) {
             $arguments[] = '--colors=never';
-        } elseif ((new Console())->hasColorSupport()) {
+        } elseif ((new Console)->hasColorSupport()) {
             $arguments[] = '--colors=always';
         }
 
@@ -303,7 +303,7 @@ class TestCommand extends Command
             $filteredOptions
         );
 
-        $inputDefinition = new InputDefinition();
+        $inputDefinition = new InputDefinition;
         Options::setInputDefinition($inputDefinition);
         $input = new ArgvInput($arguments, $inputDefinition);
         $paraTestOptions = Options::fromConsoleInput($input, package_path());
@@ -397,7 +397,7 @@ class TestCommand extends Command
 
         $variables = [];
 
-        foreach ((new Parser())->parse($content) as $entry) {
+        foreach ((new Parser)->parse($content) as $entry) {
             $variables[] = $entry->getName();
         }
 

@@ -34,7 +34,7 @@ class EloquentMorphToTouchesTest extends DatabaseTestCase
 
     public function testNotNull()
     {
-        $comment = (new Comment())->commentable()->associate(Post::first());
+        $comment = (new Comment)->commentable()->associate(Post::first());
 
         DB::enableQueryLog();
 

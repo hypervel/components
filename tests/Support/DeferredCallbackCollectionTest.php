@@ -16,7 +16,7 @@ class DeferredCallbackCollectionTest extends TestCase
 {
     public function testForgetRemovesCallbacksByName()
     {
-        $callbacks = new DeferredCallbackCollection();
+        $callbacks = new DeferredCallbackCollection;
         $results = [];
 
         $callbacks[] = new DeferredCallback(function () use (&$results) {
@@ -35,7 +35,7 @@ class DeferredCallbackCollectionTest extends TestCase
 
     public function testInvokeDeduplicatesCallbacksByName()
     {
-        $callbacks = new DeferredCallbackCollection();
+        $callbacks = new DeferredCallbackCollection;
         $results = [];
 
         $callbacks[] = new DeferredCallback(function () use (&$results) {
@@ -56,7 +56,7 @@ class DeferredCallbackCollectionTest extends TestCase
 
     public function testInvokeWhenHonorsPredicateAndStillClearsCollection()
     {
-        $callbacks = new DeferredCallbackCollection();
+        $callbacks = new DeferredCallbackCollection;
         $results = [];
 
         $callbacks[] = new DeferredCallback(function () use (&$results) {

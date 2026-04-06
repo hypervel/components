@@ -19,7 +19,7 @@ trait DetectsLostConnections
 
         $detector = $container->has(LostConnectionDetectorContract::class)
             ? $container->make(LostConnectionDetectorContract::class)
-            : new LostConnectionDetector();
+            : new LostConnectionDetector;
 
         return $detector->causedByLostConnection($e);
     }

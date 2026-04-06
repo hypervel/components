@@ -798,7 +798,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         FactoryTestPostFactory::guessModelNamesUsing(fn () => 'ResolvedPostModel');
 
         // Create factories without explicit $model property
-        $factoryWithoutModel = new FactoryTestFactoryWithoutModel();
+        $factoryWithoutModel = new FactoryTestFactoryWithoutModel;
 
         // The factory-specific resolver should be isolated
         // FactoryTestFactoryWithoutModel has no resolver set, so it should use default convention
@@ -822,7 +822,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         // But if we set a resolver for a factory without a $model property...
         FactoryTestFactoryWithoutModel::guessModelNamesUsing(fn () => 'FactoryWithoutModelResolved');
 
-        $factoryWithoutModel = new FactoryTestFactoryWithoutModel();
+        $factoryWithoutModel = new FactoryTestFactoryWithoutModel;
         $this->assertSame('FactoryWithoutModelResolved', $factoryWithoutModel->modelName());
     }
 

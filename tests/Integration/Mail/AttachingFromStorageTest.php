@@ -19,7 +19,7 @@ class AttachingFromStorageTest extends TestCase
     public function testItCanAttachFromStorage()
     {
         Storage::disk('local')->put('/dir/foo.png', 'expected body contents');
-        $mail = new MailMessage();
+        $mail = new MailMessage;
         $attachment = Attachment::fromStorageDisk('local', '/dir/foo.png')
             ->as('bar')
             ->withMime('text/css');
@@ -40,7 +40,7 @@ class AttachingFromStorageTest extends TestCase
     public function testItCanAttachFromStorageAndFallbackToStorageNameAndMime()
     {
         Storage::disk()->put('/dir/foo.png', 'expected body contents');
-        $mail = new MailMessage();
+        $mail = new MailMessage;
         $attachment = Attachment::fromStorageDisk('local', '/dir/foo.png');
 
         $attachment->attachTo($mail);
@@ -64,7 +64,7 @@ class AttachingFromStorageTest extends TestCase
     public function testItCanChainAttachWithMailMessage()
     {
         Storage::disk('local')->put('/dir/foo.png', 'expected body contents');
-        $message = new MailMessage();
+        $message = new MailMessage;
 
         $result = $message->attach(
             Attachment::fromStorageDisk('local', '/dir/foo.png')
@@ -78,7 +78,7 @@ class AttachingFromStorageTest extends TestCase
         $this->app->make('config')->set('filesystems.cloud', 'local');
 
         Storage::disk('local')->put('/cloud/report.pdf', 'cloud file contents');
-        $mail = new MailMessage();
+        $mail = new MailMessage;
         $attachment = Attachment::fromCloudStorage('/cloud/report.pdf')
             ->as('report.pdf')
             ->withMime('application/pdf');
@@ -99,7 +99,7 @@ class AttachingFromStorageTest extends TestCase
     public function testItCanCheckForStorageBasedAttachments()
     {
         Storage::disk()->put('/dir/foo.png', 'expected body contents');
-        $mailable = new Mailable();
+        $mailable = new Mailable;
         $mailable->attach(Attachment::fromStorage('/dir/foo.png'));
 
         $this->assertTrue($mailable->hasAttachment(Attachment::fromStorage('/dir/foo.png')));

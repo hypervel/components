@@ -42,7 +42,7 @@ class StdoutLoggerTest extends TestCase
             // tags
             'component' => 'test tag',
             // object can not be cast to string
-            'object' => new TestObject(),
+            'object' => new TestObject,
         ]);
     }
 

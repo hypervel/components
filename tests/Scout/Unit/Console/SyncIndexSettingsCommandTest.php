@@ -22,7 +22,7 @@ class SyncIndexSettingsCommandTest extends TestCase
 {
     public function testFailsWhenEngineDoesNotSupportUpdatingIndexSettings(): void
     {
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
 
         $manager = m::mock(EngineManager::class);
         $manager->shouldReceive('engine')

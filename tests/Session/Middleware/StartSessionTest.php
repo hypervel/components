@@ -51,7 +51,7 @@ class StartSessionTest extends TestCase
 
     public function testGetSessionCookieConfigCanBeOverridden(): void
     {
-        $middleware = new CustomStartSession();
+        $middleware = new CustomStartSession;
 
         $config = $this->invokeGetSessionCookieConfig($middleware, [
             'path' => '/',
@@ -66,7 +66,7 @@ class StartSessionTest extends TestCase
 
     private function createStartSessionMock(): StartSession
     {
-        return new TestStartSession();
+        return new TestStartSession;
     }
 
     private function invokeGetSessionCookieConfig(StartSession $middleware, array $config): array

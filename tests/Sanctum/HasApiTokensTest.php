@@ -18,8 +18,8 @@ class HasApiTokensTest extends TestCase
 {
     public function testCanCheckTokenAbilitiesWithTransientToken(): void
     {
-        $user = new UserWithApiTokens();
-        $user->withAccessToken(new TransientToken());
+        $user = new UserWithApiTokens;
+        $user->withAccessToken(new TransientToken);
 
         $this->assertTrue($user->tokenCan('foo'));
         $this->assertTrue($user->tokenCan('bar'));
@@ -28,9 +28,9 @@ class HasApiTokensTest extends TestCase
 
     public function testCanCheckTokenAbilitiesWithPersonalAccessToken(): void
     {
-        $user = new UserWithApiTokens();
+        $user = new UserWithApiTokens;
 
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['foo', 'baz'];
 
         $user->withAccessToken($token);
@@ -44,11 +44,11 @@ class HasApiTokensTest extends TestCase
 
     public function testCurrentAccessTokenGetter(): void
     {
-        $user = new UserWithApiTokens();
+        $user = new UserWithApiTokens;
 
         $this->assertNull($user->currentAccessToken());
 
-        $token = new TransientToken();
+        $token = new TransientToken;
         $user->withAccessToken($token);
 
         $this->assertSame($token, $user->currentAccessToken());
@@ -56,9 +56,9 @@ class HasApiTokensTest extends TestCase
 
     public function testTokenCanWithBackedEnum(): void
     {
-        $user = new UserWithApiTokens();
+        $user = new UserWithApiTokens;
 
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['posts:read', 'posts:write'];
 
         $user->withAccessToken($token);
@@ -70,9 +70,9 @@ class HasApiTokensTest extends TestCase
 
     public function testTokenCantWithBackedEnum(): void
     {
-        $user = new UserWithApiTokens();
+        $user = new UserWithApiTokens;
 
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['posts:read'];
 
         $user->withAccessToken($token);
@@ -83,8 +83,8 @@ class HasApiTokensTest extends TestCase
 
     public function testTransientTokenCanWithBackedEnum(): void
     {
-        $user = new UserWithApiTokens();
-        $user->withAccessToken(new TransientToken());
+        $user = new UserWithApiTokens;
+        $user->withAccessToken(new TransientToken);
 
         // TransientToken allows everything
         $this->assertTrue($user->tokenCan(TokenAbility::PostsRead));

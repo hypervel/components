@@ -54,7 +54,7 @@ trait DatabaseRule
         }
 
         if (is_subclass_of($table, Model::class)) {
-            $model = new $table();
+            $model = new $table;
 
             if (str_contains($model->getTable(), '.')) {
                 return $table;

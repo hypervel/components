@@ -72,7 +72,7 @@ class BusFake implements Fake, QueueingDispatcher
         ?BatchRepository $batchRepository = null
     ) {
         $this->jobsToFake = Arr::wrap($jobsToFake);
-        $this->batchRepository = $batchRepository ?: new BatchRepositoryFake();
+        $this->batchRepository = $batchRepository ?: new BatchRepositoryFake;
     }
 
     /**

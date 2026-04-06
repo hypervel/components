@@ -34,6 +34,6 @@ trait ResolvesQueueRoutes
 
         return $container->bound('queue.routes')
             ? $container->make('queue.routes')
-            : new QueueRoutes();
+            : new QueueRoutes;
     }
 }

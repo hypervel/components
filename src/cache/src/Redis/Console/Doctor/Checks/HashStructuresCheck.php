@@ -21,7 +21,7 @@ final class HashStructuresCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         if ($context->isAllMode()) {
             $result->assert(

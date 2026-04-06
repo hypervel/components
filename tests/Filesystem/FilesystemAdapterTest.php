@@ -885,10 +885,10 @@ class FilesystemAdapterTest extends TestCase
         $content = str_repeat('x', 256 * 1024); // 256 KiB = 4 chunks
         $this->filesystem->write('large.txt', $content);
 
-        $writable = new FailAfterFirstWriteConnection();
-        $container = new Container();
+        $writable = new FailAfterFirstWriteConnection;
+        $container = new Container;
         $container->instance(Request::class, Request::create('/test', 'GET'));
-        $response = new Response();
+        $response = new Response;
         $response->setConnection($writable);
         $container->instance(Response::class, $response);
         Container::setInstance($container);
@@ -903,13 +903,13 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(): FakeWritableConnection
     {
-        $container = new Container();
+        $container = new Container;
 
         $request = Request::create('/test', 'GET');
         $container->instance(Request::class, $request);
 
-        $writable = new FakeWritableConnection();
-        $response = new Response();
+        $writable = new FakeWritableConnection;
+        $response = new Response;
         $response->setConnection($writable);
         $container->instance(Response::class, $response);
 
@@ -927,7 +927,7 @@ class FailAfterFirstWriteConnection implements \Hypervel\Contracts\Engine\Http\W
 
     public function __construct()
     {
-        $this->socket = new \Hypervel\Testing\FakeSwooleSocket();
+        $this->socket = new \Hypervel\Testing\FakeSwooleSocket;
     }
 
     public function getSocket(): mixed

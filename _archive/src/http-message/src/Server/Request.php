@@ -506,7 +506,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
         if ($container->has(RequestParserInterface::class)) {
             $parser = $container->make(RequestParserInterface::class);
         } else {
-            $parser = new Parser();
+            $parser = new Parser;
         }
 
         return static::$parser = $parser;
@@ -586,7 +586,7 @@ class Request extends BaseRequest implements ServerRequestInterface, ServerReque
     {
         $server = $swooleRequest->server;
         $header = $swooleRequest->header;
-        $uri = new Uri();
+        $uri = new Uri;
         $uri = $uri->withScheme(! empty($server['https']) && $server['https'] !== 'off' ? 'https' : 'http');
 
         $hasPort = false;

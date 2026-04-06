@@ -40,7 +40,7 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $job = new FailOnExceptionMiddlewareTestJob($thrown);
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $fakeJob = new FakeJob();
+        $fakeJob = new FakeJob;
         $job->setJob($fakeJob);
 
         try {
@@ -86,7 +86,7 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $job = new FailOnExceptionMiddlewareTestJob(InvalidArgumentException::class, $value);
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $fakeJob = new FakeJob();
+        $fakeJob = new FakeJob;
         $job->setJob($fakeJob);
 
         try {
@@ -128,7 +128,7 @@ class FailOnExceptionMiddlewareTestJob implements ShouldQueue
      */
     public function handle(): void
     {
-        throw new $this->throws();
+        throw new $this->throws;
     }
 
     /**

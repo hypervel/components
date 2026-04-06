@@ -74,6 +74,6 @@ class ConcurrentTest extends TestCase
 
     protected function getContainer(): void
     {
-        Container::setInstance(new Container());
+        Container::setInstance(new Container);
     }
 }

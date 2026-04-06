@@ -64,7 +64,7 @@ class RedisSubscribeIntegrationTest extends TestCase
                 Redis::connection()->subscribe([$channelName], function ($message, $channel) use ($resultChannel) {
                     $resultChannel->push(['message' => $message, 'channel' => $channel]);
 
-                    throw new StopRedisSubscription();
+                    throw new StopRedisSubscription;
                 });
             } catch (StopRedisSubscription) {
                 $doneChannel->push(true);
@@ -94,7 +94,7 @@ class RedisSubscribeIntegrationTest extends TestCase
                 Redis::connection()->psubscribe([$pattern], function ($message, $channel) use ($resultChannel) {
                     $resultChannel->push(['message' => $message, 'channel' => $channel]);
 
-                    throw new StopRedisSubscription();
+                    throw new StopRedisSubscription;
                 });
             } catch (StopRedisSubscription) {
                 $doneChannel->push(true);
@@ -123,7 +123,7 @@ class RedisSubscribeIntegrationTest extends TestCase
                 Redis::connection()->subscribe($channelName, function ($message, $channel) use ($resultChannel) {
                     $resultChannel->push(['message' => $message, 'channel' => $channel]);
 
-                    throw new StopRedisSubscription();
+                    throw new StopRedisSubscription;
                 });
             } catch (StopRedisSubscription) {
                 $doneChannel->push(true);
@@ -190,7 +190,7 @@ class RedisSubscribeIntegrationTest extends TestCase
      */
     private function publishViaRawClient(string $channel, string $message): void
     {
-        $client = new \Redis();
+        $client = new \Redis;
         $client->connect(
             env('REDIS_HOST', '127.0.0.1'),
             (int) env('REDIS_PORT', 6379)

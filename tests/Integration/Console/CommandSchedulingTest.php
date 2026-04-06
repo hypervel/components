@@ -51,7 +51,7 @@ class CommandSchedulingTest extends TestCase
         $container->instance(EventMutex::class, new CacheEventMutex($cache));
         $container->instance(SchedulingMutex::class, new CacheSchedulingMutex($cache));
 
-        Artisan::registerCommand(new CommandSchedulingTestCommand());
+        Artisan::registerCommand(new CommandSchedulingTestCommand);
     }
 
     public function testForegroundExecutionOrder()

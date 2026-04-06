@@ -233,7 +233,7 @@ class RouteWarmupTest extends TestCase
         $this->assertNotEmpty($sigCache);
 
         // Replace routes (triggers flushRoutingCaches via setRoutes).
-        $newCollection = new RouteCollection();
+        $newCollection = new RouteCollection;
         $newCollection->add(new Route('GET', '/new', ['uses' => fn () => 'ok', 'as' => 'new']));
         $router->setRoutes($newCollection);
 
@@ -349,7 +349,7 @@ class RouteWarmupTest extends TestCase
      */
     private function createRouter(): Router
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('events', fn () => new \Hypervel\Events\Dispatcher($container));
 
         $router = new Router($container->make('events'), $container);

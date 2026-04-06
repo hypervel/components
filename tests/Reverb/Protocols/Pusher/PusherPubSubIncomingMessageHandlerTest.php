@@ -15,7 +15,7 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
 {
     public function testListenerOnlyEventWithoutAppIdDoesNotThrow()
     {
-        $handler = new PusherPubSubIncomingMessageHandler();
+        $handler = new PusherPubSubIncomingMessageHandler;
 
         $listenerCalled = false;
         $handler->listen('some_random_key', function (array $event) use (&$listenerCalled) {
@@ -34,7 +34,7 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
 
     public function testUnknownEventTypeIsSilentlyIgnored()
     {
-        $handler = new PusherPubSubIncomingMessageHandler();
+        $handler = new PusherPubSubIncomingMessageHandler;
 
         // No listener registered, unknown type, no app_id — should not throw
         $handler->handle(json_encode([
@@ -47,7 +47,7 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
 
     public function testMessageEventDispatchesToLocalConnections()
     {
-        $handler = new PusherPubSubIncomingMessageHandler();
+        $handler = new PusherPubSubIncomingMessageHandler;
 
         // Message type requires app_id — verify it resolves the app
         // and dispatches synchronously (using the test app from ReverbTestCase)

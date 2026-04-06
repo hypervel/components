@@ -104,7 +104,7 @@ class QueueManagerTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository([]));
         $container->instance(Encrypter::class, m::mock(Encrypter::class));

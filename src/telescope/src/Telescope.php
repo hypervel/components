@@ -311,7 +311,7 @@ class Telescope
             }
 
             if (static::$afterRecordingHook) {
-                call_user_func(static::$afterRecordingHook, new static(), $entry);
+                call_user_func(static::$afterRecordingHook, new static, $entry);
             }
         });
 
@@ -499,7 +499,7 @@ class Telescope
     {
         CoroutineContext::set(static::ENTRIES_QUEUE, []);
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -509,7 +509,7 @@ class Telescope
     {
         CoroutineContext::set(static::UPDATES_QUEUE, []);
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -530,7 +530,7 @@ class Telescope
     {
         static::$filterUsing[] = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -540,7 +540,7 @@ class Telescope
     {
         static::$filterBatchUsing[] = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -550,7 +550,7 @@ class Telescope
     {
         static::$afterRecordingHook = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -560,7 +560,7 @@ class Telescope
     {
         static::$afterStoringHooks[] = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -570,7 +570,7 @@ class Telescope
     {
         static::$tagUsing[] = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -677,7 +677,7 @@ class Telescope
             $headers
         )));
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -690,7 +690,7 @@ class Telescope
             $attributes
         );
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -703,7 +703,7 @@ class Telescope
             $attributes
         )));
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -713,7 +713,7 @@ class Telescope
     {
         static::$ignoreFrameworkEvents = false;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -723,7 +723,7 @@ class Telescope
     {
         static::$useDarkTheme = true;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -733,7 +733,7 @@ class Telescope
     {
         Avatar::register($callback);
 
-        return new static();
+        return new static;
     }
 
     /**

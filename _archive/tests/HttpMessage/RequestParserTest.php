@@ -18,14 +18,14 @@ class RequestParserTest extends TestCase
     public function testJsonParserFailed()
     {
         $this->expectException(BadRequestHttpException::class);
-        $parser = new JsonParser();
+        $parser = new JsonParser;
         $parser->parse('{"hy"', '');
     }
 
     public function testXmlParserFailed()
     {
         $this->expectException(BadRequestHttpException::class);
-        $parser = new XmlParser();
+        $parser = new XmlParser;
         $parser->parse('{"hy"', '');
     }
 }

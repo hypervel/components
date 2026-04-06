@@ -208,7 +208,7 @@ abstract class OpenIdProvider extends AbstractProvider
         }
 
         if ($this->hasInvalidState()) {
-            throw new InvalidStateException();
+            throw new InvalidStateException;
         }
 
         $user = $this->getUserByTokenResponse(
@@ -257,15 +257,15 @@ abstract class OpenIdProvider extends AbstractProvider
     protected function validateOIDCPayload(array $data): void
     {
         if (! isset($data['nonce']) || $this->isInvalidNonce($data['nonce'])) {
-            throw new InvalidNonceException();
+            throw new InvalidNonceException;
         }
 
         if (! isset($data['aud']) || $data['aud'] !== $this->clientId) {
-            throw new InvalidAudienceException();
+            throw new InvalidAudienceException;
         }
 
         if (! isset($data['iss']) || $data['iss'] !== $this->getOpenIdConfig()['issuer']) {
-            throw new InvalidIssuerException();
+            throw new InvalidIssuerException;
         }
     }
 
@@ -284,7 +284,7 @@ abstract class OpenIdProvider extends AbstractProvider
     protected function getUserByToken(string $token): array
     {
         if (! $userInfoUrl = $this->getUserInfoUrl()) {
-            throw new InvalidUserInfoUrlException();
+            throw new InvalidUserInfoUrlException;
         }
 
         $response = $this->getHttpClient()->get(

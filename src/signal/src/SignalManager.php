@@ -118,7 +118,7 @@ class SignalManager
     {
         $handlers = $this->config->get('signal.handlers', []);
 
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($handlers as $handler => $priority) {
             if (! is_numeric($priority)) {
                 $handler = $priority;

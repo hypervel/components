@@ -56,7 +56,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
             MassPrunableTestModel::insert($chunk->all());
         });
 
-        $count = (new MassPrunableTestModel())->pruneAll();
+        $count = (new MassPrunableTestModel)->pruneAll();
 
         $this->assertEquals(1500, $count);
         $this->assertEquals(3500, MassPrunableTestModel::count());
@@ -74,7 +74,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
             MassPrunableSoftDeleteTestModel::insert($chunk->all());
         });
 
-        $count = (new MassPrunableSoftDeleteTestModel())->pruneAll();
+        $count = (new MassPrunableSoftDeleteTestModel)->pruneAll();
 
         $this->assertEquals(3000, $count);
         $this->assertEquals(0, MassPrunableSoftDeleteTestModel::count());

@@ -39,7 +39,7 @@ class ImplicitRouteBinding
     public static function flushCache(): void
     {
         static::$signatureCache = [];
-        static::$closureSignatureCache = new WeakMap();
+        static::$closureSignatureCache = new WeakMap;
     }
 
     /**
@@ -61,7 +61,7 @@ class ImplicitRouteBinding
                     $route->signatureParameters(['backedEnum' => true]),
                 ];
         } else {
-            $closureSignatureCache = static::$closureSignatureCache ??= new WeakMap();
+            $closureSignatureCache = static::$closureSignatureCache ??= new WeakMap;
 
             if (! isset($closureSignatureCache[$action])) {
                 $closureSignatureCache[$action] = [
@@ -106,10 +106,10 @@ class ImplicitRouteBinding
                     $parameterValue,
                     $route->bindingFieldFor($parameterName)
                 )) {
-                    throw (new ModelNotFoundException())->setModel(get_class($instance), [$parameterValue]);
+                    throw (new ModelNotFoundException)->setModel(get_class($instance), [$parameterValue]);
                 }
             } elseif (! $model = $instance->{$routeBindingMethod}($parameterValue, $route->bindingFieldFor($parameterName))) {
-                throw (new ModelNotFoundException())->setModel(get_class($instance), [$parameterValue]);
+                throw (new ModelNotFoundException)->setModel(get_class($instance), [$parameterValue]);
             }
 
             $route->setParameter($parameterName, $model);

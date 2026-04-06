@@ -184,7 +184,7 @@ class Lcobucci extends Provider implements ProviderContract
             return $signer::create();
         }
 
-        return new $signer();
+        return new $signer;
     }
 
     protected function isAsymmetric(): bool

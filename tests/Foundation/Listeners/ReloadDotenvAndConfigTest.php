@@ -103,7 +103,7 @@ class ReloadDotenvAndConfigTest extends TestCase
     {
         $app = new Application(__DIR__ . '/../Fixtures/envs');
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         return $app;
     }

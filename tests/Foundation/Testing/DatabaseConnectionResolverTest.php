@@ -42,7 +42,7 @@ class DatabaseConnectionResolverTest extends TestCase
         // Simulate a container change by creating a new container with a different object ID.
         // flushCachedConnections() detects this via spl_object_id and should disconnect
         // all cached connections before clearing them.
-        $newContainer = new \Hypervel\Container\Container();
+        $newContainer = new \Hypervel\Container\Container;
         \Hypervel\Container\Container::setInstance($newContainer);
 
         DatabaseConnectionResolver::flushCachedConnections();

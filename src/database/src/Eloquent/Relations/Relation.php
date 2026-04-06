@@ -189,7 +189,7 @@ abstract class Relation implements BuilderContract
         $count = $result->count();
 
         if ($count === 0) {
-            throw (new ModelNotFoundException())->setModel(get_class($this->related));
+            throw (new ModelNotFoundException)->setModel(get_class($this->related));
         }
 
         if ($count > 1) {
@@ -461,7 +461,7 @@ abstract class Relation implements BuilderContract
         }
 
         return array_combine(array_map(function ($model) {
-            return (new $model())->getTable();
+            return (new $model)->getTable();
         }, $models), $models);
     }
 

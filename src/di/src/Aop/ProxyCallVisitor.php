@@ -165,7 +165,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
             // __CLASS__
             new Arg($this->getMagicConst()),
             // __FUNCTION__
-            new Arg(new MagicConstFunction()),
+            new Arg(new MagicConstFunction),
             // ['order' => ['param1', 'param2'], 'keys' => compact('param1', 'param2'), 'variadic' => 'param2']
             new Arg($this->getArguments($node->getParams())),
             // A closure that wrapped original method code.
@@ -252,8 +252,8 @@ class ProxyCallVisitor extends NodeVisitorAbstract
      */
     private function unshiftMagicMethods(array $stmts = []): array
     {
-        $magicConstFunction = new Expression(new Assign(new Variable('__function__'), new MagicConstFunction()));
-        $magicConstMethod = new Expression(new Assign(new Variable('__method__'), new MagicConstMethod()));
+        $magicConstFunction = new Expression(new Assign(new Variable('__function__'), new MagicConstFunction));
+        $magicConstMethod = new Expression(new Assign(new Variable('__method__'), new MagicConstMethod));
         array_unshift($stmts, $magicConstFunction, $magicConstMethod);
         return $stmts;
     }
@@ -264,8 +264,8 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     private function getMagicConst(): Node\Scalar\MagicConst
     {
         return match ($this->visitorMetadata->classLike) {
-            Trait_::class => new MagicConstTrait(),
-            default => new MagicConstClass(),
+            Trait_::class => new MagicConstTrait,
+            default => new MagicConstClass,
         };
     }
 

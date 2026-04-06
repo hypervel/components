@@ -91,7 +91,7 @@ class Markdown
                 : 'mail::themes.' . $this->theme;
         }
 
-        return new HtmlString(($inliner ?: new CssToInlineStyles())->convert(
+        return new HtmlString(($inliner ?: new CssToInlineStyles)->convert(
             str_replace('\[', '[', $contents),
             $this->view->make($theme, $data)->render()
         ));
@@ -160,8 +160,8 @@ class Markdown
             'allow_unsafe_links' => false,
         ], $config));
 
-        $environment->addExtension(new CommonMarkCoreExtension());
-        $environment->addExtension(new TableExtension());
+        $environment->addExtension(new CommonMarkCoreExtension);
+        $environment->addExtension(new TableExtension);
 
         return new MarkdownConverter($environment);
     }

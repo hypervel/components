@@ -20,7 +20,7 @@ class CanConfigureMigrationCommandsTest extends TestCase
     {
         parent::setUp();
 
-        $this->traitObject = new CanConfigureMigrationCommandsTestMockClass();
+        $this->traitObject = new CanConfigureMigrationCommandsTestMockClass;
     }
 
     private function __reflectAndSetupAccessibleForProtectedTraitMethod($methodName)

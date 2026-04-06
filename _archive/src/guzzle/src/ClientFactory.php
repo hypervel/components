@@ -45,7 +45,7 @@ class ClientFactory
             && Coroutine::inCoroutine()
             && (Runtime::getHookFlags() & $this->nativeCurlHook) == 0
         ) {
-            $stack = HandlerStack::create(new CoroutineHandler());
+            $stack = HandlerStack::create(new CoroutineHandler);
         }
 
         $config = array_replace(['handler' => $stack], $options);

@@ -25,7 +25,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
     public function testItCanTransformToExplicitResource()
     {
         $collection = new Collection([
-            new EloquentResourceCollectionTestModel(),
+            new EloquentResourceCollectionTestModel,
         ]);
 
         $resource = $collection->toResourceCollection(EloquentResourceCollectionTestResource::class);
@@ -39,7 +39,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].');
 
         $collection = new Collection([
-            new EloquentResourceCollectionTestModel(),
+            new EloquentResourceCollectionTestModel,
         ]);
         $collection->toResourceCollection();
     }
@@ -47,7 +47,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
     public function testItCanGuessResourceWhenNotProvided()
     {
         $collection = new Collection([
-            new EloquentResourceCollectionTestModel(),
+            new EloquentResourceCollectionTestModel,
         ]);
 
         class_alias(EloquentResourceCollectionTestResource::class, 'Hypervel\Tests\Database\Fixtures\Http\Resources\EloquentResourceCollectionTestModelResource');
@@ -60,7 +60,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
     public function testItCanTransformToResourceViaUseResourceAttribute()
     {
         $collection = new Collection([
-            new EloquentResourceTestResourceModelWithUseResourceCollectionAttribute(),
+            new EloquentResourceTestResourceModelWithUseResourceCollectionAttribute,
         ]);
 
         $resource = $collection->toResourceCollection();
@@ -71,7 +71,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
     public function testItCanTransformToResourceViaUseResourceCollectionAttribute()
     {
         $collection = new Collection([
-            new EloquentResourceTestResourceModelWithUseResourceAttribute(),
+            new EloquentResourceTestResourceModelWithUseResourceAttribute,
         ]);
 
         $resource = $collection->toResourceCollection();

@@ -19,7 +19,7 @@ class CoroutineSafetyTest extends TestCase
 {
     public function testScopedInstancesAreIsolatedPerCoroutine(): void
     {
-        $container = new Container();
+        $container = new Container;
         $container->scoped(CoroutineCounter::class);
 
         $results = parallel([
@@ -45,7 +45,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testScopedInstanceReturnsSameInstanceWithinCoroutine(): void
     {
-        $container = new Container();
+        $container = new Container;
         $container->scoped(CoroutineCounter::class);
 
         $results = parallel([
@@ -62,7 +62,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testForgetScopedInstancesCleansUpForNextRequest(): void
     {
-        $container = new Container();
+        $container = new Container;
         $container->scoped(CoroutineRequestState::class);
 
         $results = parallel([
@@ -86,7 +86,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testForgetScopedInstancesInOneCoroutineDoesNotAffectAnother(): void
     {
-        $container = new Container();
+        $container = new Container;
         $container->scoped(CoroutineRequestState::class);
 
         $results = parallel([
@@ -114,12 +114,12 @@ class CoroutineSafetyTest extends TestCase
 
     public function testBuildStackIsIsolatedPerCoroutine(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->bind(CoroutineSlowService::class, function ($container) {
             usleep(100);
 
-            return new CoroutineSlowService();
+            return new CoroutineSlowService;
         });
 
         $container->when(CoroutineConsumerA::class)
@@ -149,7 +149,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testParameterOverridesAreIsolatedPerCoroutine(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         // Bind CoroutineSlowDependency with a factory that yields.
         // CoroutineConfigurableService takes (CoroutineSlowDependency, string $config).
@@ -159,7 +159,7 @@ class CoroutineSafetyTest extends TestCase
         $container->bind(CoroutineSlowDependency::class, function () {
             usleep(100);
 
-            return new CoroutineSlowDependency();
+            return new CoroutineSlowDependency;
         });
 
         $container->bind(CoroutineConfigurableService::class);
@@ -183,7 +183,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testYieldingFactoryClosureDoesNotCorruptOtherCoroutines(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->bind(CoroutineSlowService::class, function ($container) {
             $dep = $container->make(CoroutineFastDependency::class);
@@ -211,7 +211,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testExceptionDuringResolutionDoesNotCorruptParameterOverrideStack(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->bind('failing-service', function () {
             throw new RuntimeException('Service creation failed');
@@ -234,7 +234,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testExceptionDuringBuildDoesNotCorruptBuildStack(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         try {
             $container->make(CoroutineUnresolvableDependencyStub::class);

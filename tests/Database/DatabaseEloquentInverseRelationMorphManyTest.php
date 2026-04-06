@@ -27,7 +27,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -244,7 +244,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
     public function testMorphManyInverseRelationIsProperlySetToParentWhenSavingMany()
     {
         $post = MorphManyInversePostModel::create();
-        $comments = array_fill(0, 3, new MorphManyInverseCommentModel());
+        $comments = array_fill(0, 3, new MorphManyInverseCommentModel);
 
         $post->comments()->saveMany($comments);
 
@@ -307,7 +307,7 @@ class MorphManyInversePostModel extends Model
 
     protected static function newFactory(): MorphManyInversePostModelFactory
     {
-        return new MorphManyInversePostModelFactory();
+        return new MorphManyInversePostModelFactory;
     }
 
     public function comments(): MorphMany
@@ -363,7 +363,7 @@ class MorphManyInverseCommentModel extends Model
 
     protected static function newFactory(): MorphManyInverseCommentModelFactory
     {
-        return new MorphManyInverseCommentModelFactory();
+        return new MorphManyInverseCommentModelFactory;
     }
 
     public function commentable(): MorphTo

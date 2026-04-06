@@ -38,7 +38,7 @@ class GenerateProxiesTest extends TestCase
         // storagePath should NOT be called
         $app->shouldNotReceive('storagePath');
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $bootstrapper->bootstrap($app);
 
         $this->assertFalse(AstVisitorRegistry::exists(ProxyCallVisitor::class));
@@ -53,7 +53,7 @@ class GenerateProxiesTest extends TestCase
             ->with('framework/aop/')
             ->andReturn(sys_get_temp_dir() . '/hypervel-test-aop-' . uniqid() . '/');
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $bootstrapper->bootstrap($app);
 
         $this->assertTrue(AstVisitorRegistry::exists(ProxyCallVisitor::class));
@@ -66,7 +66,7 @@ class GenerateProxiesTest extends TestCase
         // whether the real autoloader is optimized or not.
         $testClass = 'Hypervel\Support\Composer';
 
-        $loader = new ClassLoader();
+        $loader = new ClassLoader;
         // No class map entries — simulates a non-optimized autoloader
         $loader->addPsr4('Hypervel\Support\\', [__DIR__ . '/../../../src/support/src/']);
         $loader->register();
@@ -78,7 +78,7 @@ class GenerateProxiesTest extends TestCase
 
         AspectCollector::setAround('TestAspect', [$testClass . '::getLoader']);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -91,7 +91,7 @@ class GenerateProxiesTest extends TestCase
     {
         AspectCollector::setAround('TestAspect', ['App\Services\*']);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -118,7 +118,7 @@ class GenerateProxiesTest extends TestCase
 
         AspectCollector::setAround('TestAspect', [$existingClass . '::method']);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -133,7 +133,7 @@ class GenerateProxiesTest extends TestCase
 
         AspectCollector::setAround('TestAspect', [$testClass . '::getLoader']);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -147,7 +147,7 @@ class GenerateProxiesTest extends TestCase
 
         AspectCollector::setAround('TestAspect', [$testClass]);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -159,7 +159,7 @@ class GenerateProxiesTest extends TestCase
     {
         AspectCollector::setAround('TestAspect', ['Totally\NonExistent\Class123::method']);
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $reflection = new ReflectionMethod($bootstrapper, 'buildClassMap');
 
         $classMap = $reflection->invoke($bootstrapper);
@@ -179,7 +179,7 @@ class GenerateProxiesTest extends TestCase
             ->with('framework/aop/')
             ->andReturn(sys_get_temp_dir() . '/hypervel-test-aop-' . uniqid() . '/');
 
-        $bootstrapper = new GenerateProxies();
+        $bootstrapper = new GenerateProxies;
         $bootstrapper->bootstrap($app);
 
         // Count how many times the visitor appears

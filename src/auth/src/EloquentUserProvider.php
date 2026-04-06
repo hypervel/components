@@ -173,7 +173,7 @@ class EloquentUserProvider implements UserProvider
     {
         $class = '\\' . ltrim($this->model, '\\');
 
-        return new $class();
+        return new $class;
     }
 
     /**

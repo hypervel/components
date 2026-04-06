@@ -68,7 +68,7 @@ run(function () use ($worker) {
     $worker->daemon(
         'redis',
         'default',
-        new WorkerOptions()
+        new WorkerOptions
     );
 
     CoordinatorManager::until(Constants::WORKER_EXIT)->resume();

@@ -91,7 +91,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     public function testServerCloseNowClearsSlotFlag()
     {
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $connection->markConnectionSlotAcquired();
 
         $sharedState = $this->app->make(SharedState::class);

@@ -25,7 +25,7 @@ class ApiClientTest extends TestCase
             'test-endpoint' => Http::response('{"success": true}'),
         ]);
 
-        $client = new ApiClient();
+        $client = new ApiClient;
         $response = $client->post('test-endpoint', ['foo' => 'bar']);
 
         $this->assertInstanceOf(ApiResource::class, $response);
@@ -49,7 +49,7 @@ class ApiClientTest extends TestCase
             'test-endpoint' => Http::response('{"success": true}'),
         ]);
 
-        $client = new ApiClient();
+        $client = new ApiClient;
         $response = $client
             ->withToken('test-token')
             ->asForm()

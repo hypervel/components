@@ -26,7 +26,7 @@ class ConcurrencyTest extends TestCase
     {
         parent::setUp();
 
-        $this->concurrency = new Concurrency();
+        $this->concurrency = new Concurrency;
     }
 
     public function testRunReturnsConcurrentResults()
@@ -199,7 +199,7 @@ class ConcurrencyTest extends TestCase
 
     public function testDeferReturnsDeferredCallback()
     {
-        $collection = new DeferredCallbackCollection();
+        $collection = new DeferredCallbackCollection;
         $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
 
         $result = $this->concurrency->defer([
@@ -212,7 +212,7 @@ class ConcurrencyTest extends TestCase
 
     public function testDeferExecutesTasksWhenInvoked()
     {
-        $collection = new DeferredCallbackCollection();
+        $collection = new DeferredCallbackCollection;
         $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
 
         $executed = false;
@@ -234,7 +234,7 @@ class ConcurrencyTest extends TestCase
 
     public function testDeferPropagatesContext()
     {
-        $collection = new DeferredCallbackCollection();
+        $collection = new DeferredCallbackCollection;
         $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
 
         CoroutineContext::set('defer_key', 'defer_value');
@@ -264,7 +264,7 @@ class ConcurrencyTest extends TestCase
 
     public function testFacadeDefer()
     {
-        $collection = new DeferredCallbackCollection();
+        $collection = new DeferredCallbackCollection;
         $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
 
         $result = ConcurrencyFacade::defer([

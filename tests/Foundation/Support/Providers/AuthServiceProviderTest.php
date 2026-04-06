@@ -87,11 +87,11 @@ class AuthServiceProviderTest extends TestCase
 
         $this->assertSame(
             TestPolicy::class,
-            $gate->getPolicyFor(new TestModel())::class
+            $gate->getPolicyFor(new TestModel)::class
         );
         $this->assertSame(
             TestCommentPolicy::class,
-            $gate->getPolicyFor(new TestComment())::class
+            $gate->getPolicyFor(new TestComment)::class
         );
     }
 }

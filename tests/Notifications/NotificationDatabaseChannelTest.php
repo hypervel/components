@@ -19,7 +19,7 @@ class NotificationDatabaseChannelTest extends TestCase
 {
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData()
     {
-        $notification = new NotificationDatabaseChannelTestNotification();
+        $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
         $notifiable = m::mock();
 
@@ -30,13 +30,13 @@ class NotificationDatabaseChannelTest extends TestCase
             'read_at' => null,
         ])->andReturn(m::mock(Model::class));
 
-        $channel = new DatabaseChannel();
+        $channel = new DatabaseChannel;
         $channel->send($notifiable, $notification);
     }
 
     public function testCorrectPayloadIsSentToDatabase()
     {
-        $notification = new NotificationDatabaseChannelTestNotification();
+        $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
         $notifiable = m::mock();
 
@@ -48,13 +48,13 @@ class NotificationDatabaseChannelTest extends TestCase
             'something' => 'else',
         ])->andReturn(m::mock(Model::class));
 
-        $channel = new ExtendedDatabaseChannel();
+        $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);
     }
 
     public function testCustomizeTypeIsSentToDatabase()
     {
-        $notification = new NotificationDatabaseChannelCustomizeTypeTestNotification();
+        $notification = new NotificationDatabaseChannelCustomizeTypeTestNotification;
         $notification->id = '1';
         $notifiable = m::mock();
 
@@ -66,7 +66,7 @@ class NotificationDatabaseChannelTest extends TestCase
             'something' => 'else',
         ])->andReturn(m::mock(Model::class));
 
-        $channel = new ExtendedDatabaseChannel();
+        $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);
     }
 }

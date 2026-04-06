@@ -124,8 +124,8 @@ class Router implements BindingRegistrar, RegistrarContract
     public function __construct(Dispatcher $events, ?Container $container = null)
     {
         $this->events = $events;
-        $this->routes = new RouteCollection();
-        $this->container = $container ?: new Container();
+        $this->routes = new RouteCollection;
+        $this->container = $container ?: new Container;
     }
 
     /**
@@ -795,7 +795,7 @@ class Router implements BindingRegistrar, RegistrarContract
         }
 
         if ($response instanceof PsrResponseInterface) {
-            $response = (new HttpFoundationFactory())->createResponse($response);
+            $response = (new HttpFoundationFactory)->createResponse($response);
         } elseif ($response instanceof Model && $response->wasRecentlyCreated) {
             $response = new JsonResponse($response, 201);
         } elseif ($response instanceof Stringable) {

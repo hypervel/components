@@ -55,7 +55,7 @@ class ContextCoroutineTest extends TestCase
 
     public function testContextChangeAfterCopy()
     {
-        $obj = new stdClass();
+        $obj = new stdClass;
         $obj->id = $uid = uniqid();
 
         CoroutineContext::set('test.store.id', $obj);
@@ -118,7 +118,7 @@ class ContextCoroutineTest extends TestCase
         $request = m::mock(Request::class);
         RequestContext::set($request);
         $id = Coroutine::id();
-        (new Waiter())->wait(function () use ($id, $request) {
+        (new Waiter)->wait(function () use ($id, $request) {
             $this->assertSame($request, RequestContext::get($id));
         });
     }
@@ -128,7 +128,7 @@ class ContextCoroutineTest extends TestCase
         $id = Coroutine::id();
         $value = uniqid();
         CoroutineContext::override('override.id.coroutine_id', fn () => $value);
-        (new Waiter())->wait(function () use ($id, $value) {
+        (new Waiter)->wait(function () use ($id, $value) {
             CoroutineContext::override(
                 'override.id.coroutine_id',
                 function ($v) use ($value) {
@@ -147,7 +147,7 @@ class ContextCoroutineTest extends TestCase
         $id = Coroutine::id();
         $value = uniqid();
         CoroutineContext::getOrSet('get_or_set.id.coroutine_id', fn () => $value);
-        (new Waiter())->wait(function () use ($id, $value) {
+        (new Waiter)->wait(function () use ($id, $value) {
             $res = CoroutineContext::getOrSet('get_or_set.id.coroutine_id', fn () => '123', $id);
             $this->assertSame($res, $value);
         });

@@ -47,7 +47,7 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
             ],
             'empty_array' => [],
             'assoc_array' => ['foo' => 'bar'],
-            'class' => new stdClass(),
+            'class' => new stdClass,
         ]);
 
         $this->artisan(ConfigShowCommand::class, ['config' => 'test'])

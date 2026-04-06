@@ -99,6 +99,6 @@ class SQLiteConnection extends Connection
      */
     protected function getDefaultPostProcessor(): SQLiteProcessor
     {
-        return new SQLiteProcessor();
+        return new SQLiteProcessor;
     }
 }

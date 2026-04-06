@@ -375,7 +375,7 @@ class FilesystemManagerTest extends TestCase
     {
         $config = new Repository(['filesystems' => $config]);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance('config', $config);
         $container->instance(ContainerContract::class, $container);
         $container->singleton(PoolFactory::class, PoolManager::class);

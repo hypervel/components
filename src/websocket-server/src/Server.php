@@ -212,7 +212,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     {
         $handler = $this->container->make(WebSocketExceptionHandler::class);
 
-        return $handler->handle($throwable, new Response());
+        return $handler->handle($throwable, new Response);
     }
 
     /**

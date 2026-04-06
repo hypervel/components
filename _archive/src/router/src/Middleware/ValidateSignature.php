@@ -61,7 +61,7 @@ class ValidateSignature implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        throw new InvalidSignatureException();
+        throw new InvalidSignatureException;
     }
 
     /**

@@ -28,7 +28,7 @@ class TestDatabasesTest extends TestCase
 
         parent::setUp();
 
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
         Facade::setFacadeApplication($container);
 
         $container->singleton('config', fn () => m::mock(Config::class)

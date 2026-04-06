@@ -26,7 +26,7 @@ class ThrowUncaughtExceptionServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Application::starting(function ($artisan) {
-            $artisan->add(new ThrowExceptionCommand());
+            $artisan->add(new ThrowExceptionCommand);
         });
     }
 }

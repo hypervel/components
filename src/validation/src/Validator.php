@@ -392,7 +392,7 @@ class Validator implements ValidatorContract
      */
     public function passes(): bool
     {
-        $this->messages = new MessageBag();
+        $this->messages = new MessageBag;
 
         [$this->distinctValues, $this->failedRules] = [[], []];
 
@@ -557,7 +557,7 @@ class Validator implements ValidatorContract
 
         $results = [];
 
-        $missingValue = new stdClass();
+        $missingValue = new stdClass;
 
         foreach ($this->getRules() as $key => $rules) {
             $value = data_get($this->getData(), $key, $missingValue);

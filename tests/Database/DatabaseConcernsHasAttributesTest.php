@@ -19,7 +19,7 @@ class DatabaseConcernsHasAttributesTest extends TestCase
 {
     public function testWithoutConstructor()
     {
-        $instance = new HasAttributesWithoutConstructor();
+        $instance = new HasAttributesWithoutConstructor;
         $attributes = $instance->getMutatedAttributes();
         $this->assertEquals(['some_attribute'], $attributes);
     }
@@ -51,7 +51,7 @@ class DatabaseConcernsHasAttributesTest extends TestCase
 
     public function testCastingEmptyStringToArrayDoesNotError()
     {
-        $instance = new HasAttributesWithArrayCast();
+        $instance = new HasAttributesWithArrayCast;
         $this->assertEquals(['foo' => null], $instance->attributesToArray());
 
         $this->assertTrue(json_last_error() === JSON_ERROR_NONE);
@@ -59,7 +59,7 @@ class DatabaseConcernsHasAttributesTest extends TestCase
 
     public function testUnsettingCachedAttribute()
     {
-        $instance = new HasCacheableAttributeWithAccessor();
+        $instance = new HasCacheableAttributeWithAccessor;
         $this->assertEquals('foo', $instance->getAttribute('cacheableProperty'));
         $this->assertTrue($instance->cachedAttributeIsset('cacheableProperty'));
 

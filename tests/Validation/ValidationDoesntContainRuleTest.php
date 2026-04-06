@@ -42,7 +42,7 @@ class ValidationDoesntContainRuleTest extends TestCase
 
         $this->assertSame('doesnt_contain:"1","2","3"', (string) $rule);
 
-        $rule = Rule::doesntContain(new Values());
+        $rule = Rule::doesntContain(new Values);
 
         $this->assertSame('doesnt_contain:"1","2","3","4"', (string) $rule);
 
@@ -69,7 +69,7 @@ class ValidationDoesntContainRuleTest extends TestCase
 
     public function testDoesntContainRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         // Array doesn't contain the forbidden value
         $v = new Validator($trans, ['x' => ['foo', 'bar', 'baz']], ['x' => Rule::doesntContain('qux')]);
@@ -98,7 +98,7 @@ class ValidationDoesntContainRuleTest extends TestCase
 
     public function testDoesntContainValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         // Test fails when value is string
         $v = new Validator($trans, ['roles' => 'admin'], ['roles' => Rule::doesntContain('admin')]);
@@ -143,7 +143,7 @@ class ValidationDoesntContainRuleTest extends TestCase
 
     public function testDoesntContainMessageFormatsValues()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
         $trans->addLines(['validation.doesnt_contain' => ':attribute must not contain :values.'], 'en');
 
         $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => 'doesnt_contain:admin,editor']);

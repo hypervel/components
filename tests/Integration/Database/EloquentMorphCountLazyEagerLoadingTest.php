@@ -37,10 +37,10 @@ class EloquentMorphCountLazyEagerLoadingTest extends DatabaseTestCase
 
         $post = Post::create();
 
-        tap((new Like())->post()->associate($post))->save();
-        tap((new Like())->post()->associate($post))->save();
+        tap((new Like)->post()->associate($post))->save();
+        tap((new Like)->post()->associate($post))->save();
 
-        (new Comment())->commentable()->associate($post)->save();
+        (new Comment)->commentable()->associate($post)->save();
     }
 
     public function testLazyEagerLoading()

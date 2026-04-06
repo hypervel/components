@@ -34,14 +34,14 @@ class QueueFeatureTest extends SentryTestCase
 
     public function testQueueJobPushesAndPopsScopeWithBreadcrumbs(): void
     {
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         $this->assertCount(0, $this->getCurrentSentryBreadcrumbs());
     }
 
     public function testQueueJobThatReportsPushesAndPopsScopeWithBreadcrumbs(): void
     {
-        dispatch(new QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb());
+        dispatch(new QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb);
 
         $this->assertCount(0, $this->getCurrentSentryBreadcrumbs());
 
@@ -55,7 +55,7 @@ class QueueFeatureTest extends SentryTestCase
     public function testQueueJobThatThrowsLeavesPushedScopeWithBreadcrumbs(): void
     {
         try {
-            dispatch(new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb());
+            dispatch(new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb);
         } catch (Exception $e) {
             // No action required, expected to throw
         }
@@ -98,11 +98,11 @@ class QueueFeatureTest extends SentryTestCase
 
     public function testQueueJobsWithBreadcrumbSetInBetweenKeepsNonJobBreadcrumbsOnCurrentScope(): void
     {
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         addBreadcrumb(new Breadcrumb(Breadcrumb::LEVEL_INFO, Breadcrumb::LEVEL_DEBUG, 'test2', 'test2'));
 
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
     }
@@ -110,7 +110,7 @@ class QueueFeatureTest extends SentryTestCase
     public function testQueueJobCreatesTransactionByDefault(): void
     {
         $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
-        dispatch(new QueueEventsTestJob());
+        dispatch(new QueueEventsTestJob);
 
         $transaction = $this->getLastSentryEvent();
 
@@ -131,7 +131,7 @@ class QueueFeatureTest extends SentryTestCase
     {
         $this->app->make('config')->set('sentry.traces_sample_rate', 1.0);
         $this->app->make('config')->set('sentry.tracing.queue_job_transactions', false);
-        dispatch(new QueueEventsTestJob());
+        dispatch(new QueueEventsTestJob);
 
         $transaction = $this->getLastSentryEvent();
 

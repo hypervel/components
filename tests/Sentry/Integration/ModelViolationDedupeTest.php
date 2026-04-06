@@ -31,7 +31,7 @@ class ModelViolationDedupeTest extends SentryTestCase
             reportAfterResponse: false,
         );
 
-        $model = new ModelViolationDedupeTestModel();
+        $model = new ModelViolationDedupeTestModel;
         $model->exists = true;
 
         // Report in the parent coroutine
@@ -80,7 +80,7 @@ class ModelViolationDedupeTest extends SentryTestCase
             reportAfterResponse: false,
         );
 
-        $model = new ModelViolationDedupeTestModel();
+        $model = new ModelViolationDedupeTestModel;
         $model->exists = true;
 
         // Report same model+property via reporter A

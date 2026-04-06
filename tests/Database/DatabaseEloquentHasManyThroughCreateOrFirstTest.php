@@ -38,7 +38,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -61,7 +61,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -74,7 +74,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $parent->getConnection()
             ->expects('select')
@@ -109,7 +109,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
@@ -144,7 +144,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -184,7 +184,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -207,7 +207,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $parent->getConnection()
             ->expects('select')
@@ -242,7 +242,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
@@ -280,7 +280,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -328,7 +328,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $parent = new ParentModel();
+        $parent = new ParentModel;
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -351,7 +351,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $parent->getConnection()
             ->expects('select')
@@ -388,7 +388,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
         $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
-        $processor = new $processorClass();
+        $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);

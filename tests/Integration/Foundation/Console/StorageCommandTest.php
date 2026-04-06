@@ -18,7 +18,7 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
     {
         parent::setUp();
 
-        $this->files = new Filesystem();
+        $this->files = new Filesystem;
 
         // Ensure the public directory exists in the runtime copy
         $this->files->ensureDirectoryExists($this->app->publicPath());

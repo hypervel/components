@@ -18,7 +18,7 @@ class GeneratorCommandTest extends TestCase
 {
     public function testGetPathWithRelativePath()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
@@ -34,7 +34,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testGetPathWithRelativePathWithTrailingSlash()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
@@ -50,7 +50,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testGetPathWithAbsolutePath()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -65,7 +65,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testGetPathWithAbsolutePathWithTrailingSlash()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -80,7 +80,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testGetPathExtractsClassNameFromDeeplyNestedNamespace()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
@@ -100,7 +100,7 @@ class GeneratorCommandTest extends TestCase
         $reflection = new ReflectionProperty($this->app, 'namespace');
         $reflection->setValue($this->app, 'App\\');
 
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
         $input = m::mock(InputInterface::class);
@@ -117,7 +117,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testTargetPathOptionIsRegistered()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $definition = $command->getDefinition();
 
@@ -128,7 +128,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testTargetNamespaceOptionIsRegistered()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $definition = $command->getDefinition();
 
@@ -138,7 +138,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testIsReservedNameReturnsTrueForReservedWords()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $this->assertTrue($command->exposedIsReservedName('class'));
         $this->assertTrue($command->exposedIsReservedName('match'));
@@ -149,7 +149,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testIsReservedNameReturnsFalseForNonReservedWords()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $this->assertFalse($command->exposedIsReservedName('User'));
         $this->assertFalse($command->exposedIsReservedName('PostController'));
@@ -158,7 +158,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testIsReservedNameIsCaseInsensitive()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $this->assertTrue($command->exposedIsReservedName('Class'));
         $this->assertTrue($command->exposedIsReservedName('CLASS'));
@@ -168,7 +168,7 @@ class GeneratorCommandTest extends TestCase
 
     public function testSortImportsAlphabeticallySortsUseStatements()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $stub = <<<'PHP'
 <?php
@@ -195,7 +195,7 @@ PHP;
 
     public function testSortImportsLeavesNonImportCodeAlone()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $stub = <<<'PHP'
 <?php
@@ -208,7 +208,7 @@ PHP;
 
     public function testQualifyClassPrependsDefaultNamespace()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -221,7 +221,7 @@ PHP;
 
     public function testQualifyClassReplacesForwardSlashesWithBackslashes()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')
@@ -234,7 +234,7 @@ PHP;
 
     public function testQualifyClassUsesCustomTargetNamespaceOption()
     {
-        $command = new GeneratorCommandStub();
+        $command = new GeneratorCommandStub;
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')

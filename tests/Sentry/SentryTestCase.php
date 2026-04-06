@@ -199,7 +199,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     {
         $hub = $this->getSentryHubFromContainer();
 
-        $transaction = $hub->startTransaction(new TransactionContext());
+        $transaction = $hub->startTransaction(new TransactionContext);
         $transaction->setSampled(true);
 
         if ($transaction->getSpanRecorder() === null) {

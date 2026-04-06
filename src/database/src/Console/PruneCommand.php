@@ -86,7 +86,7 @@ class PruneCommand extends Command
      */
     protected function pruneModel(string $model): void
     {
-        $instance = new $model();
+        $instance = new $model;
 
         $chunkSize = property_exists($instance, 'prunableChunkSize')
             ? $instance->prunableChunkSize
@@ -159,7 +159,7 @@ class PruneCommand extends Command
      */
     protected function pretendToPrune(string $model): void
     {
-        $instance = new $model();
+        $instance = new $model;
 
         $count = $instance->prunable()
             ->when($model::isSoftDeletable(), function ($query) {

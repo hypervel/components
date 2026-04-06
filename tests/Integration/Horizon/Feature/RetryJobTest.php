@@ -41,7 +41,7 @@ class RetryJobTest extends IntegrationTestCase
     public function testFailedJobCanBeRetriedSuccessfullyWithAFreshId()
     {
         $_SERVER['horizon.fail'] = true;
-        $id = Queue::push(new Jobs\ConditionallyFailingJob());
+        $id = Queue::push(new Jobs\ConditionallyFailingJob);
         $this->work();
         $this->assertSame(1, $this->failedJobs());
 
@@ -76,7 +76,7 @@ class RetryJobTest extends IntegrationTestCase
     public function testStatusIsUpdatedForDoubleFailingJobs()
     {
         $_SERVER['horizon.fail'] = true;
-        $id = Queue::push(new Jobs\ConditionallyFailingJob());
+        $id = Queue::push(new Jobs\ConditionallyFailingJob);
         $this->work();
         dispatch(new RetryFailedJob($id));
         $this->work();
@@ -93,7 +93,7 @@ class RetryJobTest extends IntegrationTestCase
     {
         $repository = $this->app->make(JobRepository::class);
 
-        $job = new Jobs\FailingJob();
+        $job = new Jobs\FailingJob;
         $payload = new JobPayload(
             json_encode([
                 'id' => '1',

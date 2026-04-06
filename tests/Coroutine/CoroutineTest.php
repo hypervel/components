@@ -54,12 +54,12 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineAndDeferWithException()
     {
-        $container = new Container();
+        $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
 
-        $exception = new Exception();
+        $exception = new Exception;
         $handler->shouldReceive('report')->with($exception)->twice();
 
         $chan = new Channel(1);
@@ -131,7 +131,7 @@ class CoroutineTest extends TestCase
 
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
     {
-        $container = new Container();
+        $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);

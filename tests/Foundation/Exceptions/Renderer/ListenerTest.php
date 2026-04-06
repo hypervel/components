@@ -25,7 +25,7 @@ class ListenerTest extends TestCase
 
         $event = new QueryExecuted('select * from users where id = ?', ['foo'], 5.2, $connection);
 
-        $listener = new Listener();
+        $listener = new Listener;
 
         $listener->onQueryExecuted($event);
 

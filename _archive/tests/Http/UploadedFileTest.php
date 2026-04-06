@@ -25,7 +25,7 @@ class UploadedFileTest extends TestCase
 {
     public function setUp(): void
     {
-        $container = new Container();
+        $container = new Container;
 
         Container::setInstance($container);
     }

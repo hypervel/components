@@ -26,7 +26,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -229,7 +229,7 @@ class MorphOneInversePostModel extends Model
 
     protected static function newFactory(): MorphOneInversePostModelFactory
     {
-        return new MorphOneInversePostModelFactory();
+        return new MorphOneInversePostModelFactory;
     }
 
     public function image(): MorphOne
@@ -263,7 +263,7 @@ class MorphOneInverseImageModel extends Model
 
     protected static function newFactory(): MorphOneInverseImageModelFactory
     {
-        return new MorphOneInverseImageModelFactory();
+        return new MorphOneInverseImageModelFactory;
     }
 
     public function imageable(): MorphTo

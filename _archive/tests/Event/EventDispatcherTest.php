@@ -49,9 +49,9 @@ class EventDispatcherTest extends TestCase
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->with('config')->andReturn(new Repository([]));
         $config = $container->make('config');
-        $container->shouldReceive('make')->with(ListenerProviderContract::class)->andReturn(new ListenerProvider());
+        $container->shouldReceive('make')->with(ListenerProviderContract::class)->andReturn(new ListenerProvider);
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(new StdoutLogger($config));
-        $this->assertInstanceOf(Dispatcher::class, $instance = (new EventDispatcherFactory())($container));
+        $this->assertInstanceOf(Dispatcher::class, $instance = (new EventDispatcherFactory)($container));
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');
         $this->assertInstanceOf(StdoutLoggerInterface::class, $loggerProperty->getValue($instance));
@@ -59,11 +59,11 @@ class EventDispatcherTest extends TestCase
 
     public function testStoppable()
     {
-        $listeners = new ListenerProvider();
-        $listeners->on(Alpha::class, [$alphaListener = new AlphaListener(), 'process']);
-        $listeners->on(Alpha::class, [$betaListener = new BetaListener(), 'process']);
+        $listeners = new ListenerProvider;
+        $listeners->on(Alpha::class, [$alphaListener = new AlphaListener, 'process']);
+        $listeners->on(Alpha::class, [$betaListener = new BetaListener, 'process']);
         $dispatcher = new EventDispatcher($listeners);
-        $dispatcher->dispatch((new Alpha())->setPropagation(true));
+        $dispatcher->dispatch((new Alpha)->setPropagation(true));
         $this->assertSame(2, $alphaListener->value);
         $this->assertSame(1, $betaListener->value);
     }
@@ -72,17 +72,17 @@ class EventDispatcherTest extends TestCase
     {
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('debug')->once();
-        $listenerProvider = new ListenerProvider();
-        $listenerProvider->on(Alpha::class, [new AlphaListener(), 'process']);
+        $listenerProvider = new ListenerProvider;
+        $listenerProvider->on(Alpha::class, [new AlphaListener, 'process']);
         $dispatcher = new EventDispatcher($listenerProvider, $logger);
-        $dispatcher->dispatch(new Alpha());
+        $dispatcher->dispatch(new Alpha);
     }
 
     public function testListenersCalledInRegistrationOrder(): void
     {
         // Listeners are called in registration order (Laravel-style, no priority)
         PriorityEvent::$result = [];
-        $listenerProvider = new ListenerProvider();
+        $listenerProvider = new ListenerProvider;
         $listenerProvider->on(PriorityEvent::class, [new PriorityListener(1), 'process']);
         $listenerProvider->on(PriorityEvent::class, [new PriorityListener(2), 'process']);
         $listenerProvider->on(PriorityEvent::class, [new PriorityListener(3), 'process']);
@@ -91,7 +91,7 @@ class EventDispatcherTest extends TestCase
         $listenerProvider->on(PriorityEvent::class, [new PriorityListener(6), 'process']);
 
         $dispatcher = new EventDispatcher($listenerProvider);
-        $dispatcher->dispatch(new PriorityEvent());
+        $dispatcher->dispatch(new PriorityEvent);
 
         $this->assertSame([1, 2, 3, 4, 5, 6], PriorityEvent::$result);
     }

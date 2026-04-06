@@ -17,7 +17,7 @@ class DatabaseSoftDeletingTest extends TestCase
 {
     public function testDeletedAtIsAddedToCastsAsDefaultType()
     {
-        $model = new SoftDeletingModel();
+        $model = new SoftDeletingModel;
 
         $this->assertArrayHasKey('deleted_at', $model->getCasts());
         $this->assertSame('datetime', $model->getCasts()['deleted_at']);

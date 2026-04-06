@@ -30,7 +30,7 @@ class AuthenticateMiddlewareTest extends TestCase
     {
         parent::setUp();
 
-        $container = Container::setInstance(new Container());
+        $container = Container::setInstance(new Container);
 
         $this->auth = new AuthManager($container);
 
@@ -227,7 +227,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $request->shouldReceive('expectsJson')->andReturn(false);
 
         $nextParam = null;
-        $response = new Response();
+        $response = new Response;
 
         $next = function ($param) use (&$nextParam, $response) {
             $nextParam = $param;

@@ -186,7 +186,7 @@ class DatabaseManager implements ConnectionResolverInterface
             throw new InvalidArgumentException("Database connection [{$name}] not configured.");
         }
 
-        return (new ConfigurationUrlParser())
+        return (new ConfigurationUrlParser)
             ->parseConfiguration($config);
     }
 

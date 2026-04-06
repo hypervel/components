@@ -43,14 +43,14 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testDefaultsToTrueInCliProcess()
     {
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
 
     public function testDefaultRemainsTrueOnSubsequentCalls()
     {
-        $app = new Application();
+        $app = new Application;
 
         $app->runningInConsole();
         $app->runningInConsole();
@@ -65,7 +65,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testArtisanMigrateCommandRunsInConsole()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
@@ -73,7 +73,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testQueueWorkerRunsInConsole()
     {
         $_SERVER['argv'] = ['artisan', 'queue:work'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
@@ -81,7 +81,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testSchedulerRunsInConsole()
     {
         $_SERVER['argv'] = ['artisan', 'schedule:run'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
@@ -93,7 +93,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testTestRunnerRunsInConsole()
     {
         $_SERVER['argv'] = ['vendor/bin/phpunit'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
@@ -107,7 +107,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $_SERVER['argv'] = ['artisan', 'serve'];
         putenv('APP_RUNNING_IN_CONSOLE=false');
 
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningInConsole());
         $this->assertFalse($app->runningConsoleCommand('serve'));
@@ -118,7 +118,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $_SERVER['argv'] = ['artisan', 'watch'];
         putenv('APP_RUNNING_IN_CONSOLE=false');
 
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningInConsole());
         $this->assertFalse($app->runningConsoleCommand('watch'));
@@ -130,7 +130,7 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testSetRunningInConsoleToFalse()
     {
-        $app = new Application();
+        $app = new Application;
 
         $app->setRunningInConsole(false);
 
@@ -139,7 +139,7 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testSetRunningInConsoleToTrue()
     {
-        $app = new Application();
+        $app = new Application;
 
         $app->setRunningInConsole(true);
 
@@ -148,7 +148,7 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testSetRunningInConsoleOverridesCachedValue()
     {
-        $app = new Application();
+        $app = new Application;
 
         // Cache the default value (true)
         $this->assertTrue($app->runningInConsole());
@@ -161,7 +161,7 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testSetRunningInConsoleCanBeFlippedMultipleTimes()
     {
-        $app = new Application();
+        $app = new Application;
 
         $app->setRunningInConsole(false);
         $this->assertFalse($app->runningInConsole());
@@ -181,7 +181,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     {
         putenv('APP_RUNNING_IN_CONSOLE=false');
 
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningInConsole());
     }
@@ -190,7 +190,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     {
         putenv('APP_RUNNING_IN_CONSOLE=true');
 
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningInConsole());
     }
@@ -199,7 +199,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     {
         putenv('APP_RUNNING_IN_CONSOLE=true');
 
-        $app = new Application();
+        $app = new Application;
 
         // Env says true, but explicit set overrides
         $app->setRunningInConsole(false);
@@ -209,7 +209,7 @@ class ApplicationRunningInConsoleTest extends TestCase
 
     public function testSetRunningInConsolePreventsEnvVarFromBeingRead()
     {
-        $app = new Application();
+        $app = new Application;
 
         // Set before first call, so env var is never consulted
         $app->setRunningInConsole(false);
@@ -226,7 +226,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandMatchesSingleCommand()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningConsoleCommand('migrate'));
     }
@@ -234,7 +234,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandMatchesOneOfMultiple()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningConsoleCommand('serve', 'migrate', 'queue:work'));
     }
@@ -242,7 +242,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandDoesNotMatchWrongCommand()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningConsoleCommand('serve'));
     }
@@ -250,7 +250,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandAcceptsArray()
     {
         $_SERVER['argv'] = ['artisan', 'queue:work'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->runningConsoleCommand(['serve', 'queue:work']));
     }
@@ -258,7 +258,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandReturnsFalseWithNoArguments()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningConsoleCommand());
     }
@@ -266,7 +266,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandReturnsFalseWhenNotInConsole()
     {
         $_SERVER['argv'] = ['artisan', 'serve'];
-        $app = new Application();
+        $app = new Application;
 
         $app->setRunningInConsole(false);
 
@@ -277,7 +277,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testRunningConsoleCommandReturnsFalseWhenNoArgvSet()
     {
         unset($_SERVER['argv']);
-        $app = new Application();
+        $app = new Application;
 
         $this->assertFalse($app->runningConsoleCommand('migrate'));
     }
@@ -289,7 +289,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testDetectEnvironmentUsesArgvWhenInConsole()
     {
         $_SERVER['argv'] = ['artisan', '--env=staging'];
-        $app = new Application();
+        $app = new Application;
 
         // When in console, EnvironmentDetector parses --env from argv
         $result = $app->detectEnvironment(fn () => 'default');
@@ -300,7 +300,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     public function testDetectEnvironmentIgnoresArgvWhenNotInConsole()
     {
         $_SERVER['argv'] = ['artisan', '--env=staging'];
-        $app = new Application();
+        $app = new Application;
 
         $app->setRunningInConsole(false);
 
@@ -315,7 +315,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $_SERVER['argv'] = ['artisan', '--env=staging'];
         putenv('APP_RUNNING_IN_CONSOLE=false');
 
-        $app = new Application();
+        $app = new Application;
 
         $result = $app->detectEnvironment(fn () => 'production');
 

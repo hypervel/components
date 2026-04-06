@@ -639,13 +639,13 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(): FakeWritable
     {
-        $container = new Container();
+        $container = new Container;
 
         $request = Request::create('/test', 'GET');
         $container->instance(Request::class, $request);
 
-        $writable = new FakeWritable(new FakeSwooleResponse());
-        $response = new Response();
+        $writable = new FakeWritable(new FakeSwooleResponse);
+        $response = new Response;
         $response->setConnection($writable);
         $container->instance(Response::class, $response);
 

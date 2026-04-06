@@ -20,7 +20,7 @@ class TrimMonitoredJobsTest extends IntegrationTestCase
 {
     public function testTrimmerHasACooldownPeriod()
     {
-        $trim = new TrimMonitoredJobs();
+        $trim = new TrimMonitoredJobs;
 
         $repository = m::mock(JobRepository::class);
         $repository->shouldReceive('trimMonitoredJobs')->twice();

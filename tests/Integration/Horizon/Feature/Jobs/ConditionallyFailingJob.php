@@ -14,7 +14,7 @@ class ConditionallyFailingJob
     public function handle()
     {
         if (isset($_SERVER['horizon.fail'])) {
-            return $this->fail(new Exception());
+            return $this->fail(new Exception);
         }
     }
 

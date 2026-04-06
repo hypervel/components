@@ -22,7 +22,7 @@ class SessionPersistenceTest extends TestCase
 {
     public function testSessionIsPersistedEvenIfExceptionIsThrownFromRoute()
     {
-        $handler = new FakeNullSessionHandler();
+        $handler = new FakeNullSessionHandler;
         $this->assertFalse($handler->written);
 
         Session::extend('fake-null', function () use ($handler) {
@@ -30,7 +30,7 @@ class SessionPersistenceTest extends TestCase
         });
 
         Route::get('/', function () {
-            throw new TokenMismatchException();
+            throw new TokenMismatchException;
         })->middleware('web');
 
         $this->get('/');
@@ -44,7 +44,7 @@ class SessionPersistenceTest extends TestCase
             $handler = m::mock(ExceptionHandler::class)->shouldIgnoreMissing()
         );
 
-        $handler->shouldReceive('render')->andReturn(new Response());
+        $handler->shouldReceive('render')->andReturn(new Response);
 
         $app['config']->set('app.key', Str::random(32));
         $app['config']->set('session.driver', 'fake-null');

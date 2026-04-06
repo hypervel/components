@@ -86,7 +86,7 @@ class RouteSignatureParametersTest extends RoutingTestCase
             $cache = $reflectionProperty->getValue();
 
             if (! $cache instanceof WeakMap) {
-                $cache = new WeakMap();
+                $cache = new WeakMap;
             }
 
             $cache[$staleClosure] = $parameters;

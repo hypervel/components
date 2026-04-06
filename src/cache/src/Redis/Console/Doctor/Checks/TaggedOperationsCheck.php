@@ -24,7 +24,7 @@ final class TaggedOperationsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Single tag put
         $tag = $context->prefixed('products');

@@ -29,7 +29,7 @@ class QueryBuilder extends EloquentBuilder
             ]);
 
         if (! $data && $required) {
-            throw new ModelNotFoundException();
+            throw new ModelNotFoundException;
         }
 
         return (array) $data;
@@ -817,7 +817,7 @@ class QueryBuilder extends EloquentBuilder
                 $model->rawNode(0, 0, $parentId);
             } else {
                 if (! isset($existing[$key = $itemData[$keyName]])) {
-                    throw new ModelNotFoundException();
+                    throw new ModelNotFoundException;
                 }
 
                 $model = $existing[$key];

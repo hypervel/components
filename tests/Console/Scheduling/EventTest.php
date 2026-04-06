@@ -50,7 +50,7 @@ class EventTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = new Application();
+        $this->container = new Application;
         Container::setInstance($this->container);
     }
 

@@ -135,7 +135,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptionsWithRedis();
+        $middleware = new ThrottlesExceptionsWithRedis;
 
         $middleware->report();
         $middleware->handle($job, $next);
@@ -166,7 +166,7 @@ class CircuitBreakerWithRedisTestJob
     {
         static::$handled = true;
 
-        throw new Exception();
+        throw new Exception;
     }
 
     public function middleware(): array

@@ -100,7 +100,7 @@ class NotificationsFeatureTest extends SentryTestCase
         // We fake the mail so that no actual email is sent but the notification is still sent with all it's events
         Mail::fake();
 
-        Notification::route('mail', 'sentry@example.com')->notifyNow(new NotificationsIntegrationTestNotification());
+        Notification::route('mail', 'sentry@example.com')->notifyNow(new NotificationsIntegrationTestNotification);
     }
 
     private function sendNotificationAndExpectNoSpan(): void
@@ -126,6 +126,6 @@ class NotificationsIntegrationTestNotification extends \Hypervel\Notifications\N
 
     public function toMail($notifiable): MailMessage
     {
-        return new MailMessage();
+        return new MailMessage;
     }
 }

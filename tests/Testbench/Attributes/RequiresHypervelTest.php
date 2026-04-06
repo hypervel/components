@@ -23,7 +23,7 @@ class RequiresHypervelTest extends TestCase
         $stub = new RequiresHypervel($version);
 
         $stub->handle($this->app, function (): void {
-            throw new Exception();
+            throw new Exception;
         });
 
         $this->addToAssertionCount(1);

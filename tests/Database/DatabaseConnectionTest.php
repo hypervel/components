@@ -196,7 +196,7 @@ class DatabaseConnectionTest extends TestCase
     public function testTransactionLevelNotIncrementedOnTransactionException()
     {
         $pdo = $this->createMock(PDOStub::class);
-        $pdo->expects($this->once())->method('beginTransaction')->will($this->throwException(new Exception()));
+        $pdo->expects($this->once())->method('beginTransaction')->will($this->throwException(new Exception));
         $connection = $this->getMockConnection([], $pdo);
         try {
             $connection->beginTransaction();
@@ -231,7 +231,7 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $this->createMock(PDOStub::class);
         $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('exec')->will($this->throwException(new Exception()));
+        $pdo->expects($this->once())->method('exec')->will($this->throwException(new Exception));
         $connection = $this->getMockConnection(['reconnect'], $pdo);
         $queryGrammar = $this->createMock(Grammar::class);
         $queryGrammar->expects($this->once())->method('compileSavepoint')->willReturn('trans1');
@@ -413,7 +413,7 @@ class DatabaseConnectionTest extends TestCase
         $mock->expects($this->once())->method('tryAgainIfCausedByLostConnection');
 
         $method->invokeArgs($mock, ['', [], function () {
-            throw new QueryException('', '', [], new Exception());
+            throw new QueryException('', '', [], new Exception);
         }]);
     }
 
@@ -431,7 +431,7 @@ class DatabaseConnectionTest extends TestCase
         $mock->beginTransaction();
 
         $method->invokeArgs($mock, ['', [], function () {
-            throw new QueryException('conn', '', [], new Exception());
+            throw new QueryException('conn', '', [], new Exception);
         }]);
     }
 
@@ -721,7 +721,7 @@ class DatabaseConnectionTest extends TestCase
             'database' => 'read_db',
         ];
 
-        $connection->setReadPdo(new PDOStub());
+        $connection->setReadPdo(new PDOStub);
         $connection->setReadPdoConfig($readConfig);
 
         try {
@@ -740,7 +740,7 @@ class DatabaseConnectionTest extends TestCase
 
     protected function getMockConnection($methods = [], $pdo = null)
     {
-        $pdo = $pdo ?: new PDOStub();
+        $pdo = $pdo ?: new PDOStub;
 
         if ($methods === []) {
             $connection = new Connection($pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']);

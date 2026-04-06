@@ -360,7 +360,7 @@ class PendingProcess
         if ($result instanceof ProcessResult) {
             return (new FakeInvokedProcess(
                 $command,
-                (new FakeProcessDescription())
+                (new FakeProcessDescription)
                     ->replaceOutput($result->output())
                     ->replaceErrorOutput($result->errorOutput())
                     ->runsFor(iterations: 0)
@@ -370,7 +370,7 @@ class PendingProcess
         if ($result instanceof FakeProcessResult) {
             return (new FakeInvokedProcess(
                 $command,
-                (new FakeProcessDescription())
+                (new FakeProcessDescription)
                     ->replaceOutput($result->output())
                     ->replaceErrorOutput($result->errorOutput())
                     ->runsFor(iterations: 0)

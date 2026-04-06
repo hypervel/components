@@ -28,7 +28,7 @@ class SupportFacadeTest extends TestCase
 
     public function testFacadeCallsUnderlyingApplication()
     {
-        $app = new ApplicationStub();
+        $app = new ApplicationStub;
         $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->once()->andReturn('baz');
         FacadeStub::setFacadeApplication($app);
@@ -37,8 +37,8 @@ class SupportFacadeTest extends TestCase
 
     public function testShouldReceiveReturnsAMockeryMock()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
@@ -47,8 +47,8 @@ class SupportFacadeTest extends TestCase
 
     public function testSpyReturnsAMockerySpy()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $spy = FacadeStub::spy());
@@ -59,8 +59,8 @@ class SupportFacadeTest extends TestCase
 
     public function testShouldReceiveCanBeCalledTwice()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
@@ -77,8 +77,8 @@ class SupportFacadeTest extends TestCase
 
     public function testExpectsReturnsAMockeryMockWithExpectationRequired()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::expects('foo')->with('bar')->andReturn('baz')->getMock());
@@ -87,7 +87,7 @@ class SupportFacadeTest extends TestCase
 
     public function testFacadeResolvesAgainAfterClearingSpecific()
     {
-        $app = new ApplicationStub();
+        $app = new ApplicationStub;
         $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->times(3)->andReturn('baz');
 
@@ -106,7 +106,7 @@ class SupportFacadeTest extends TestCase
 
     public function testFacadeResolvesAgainAfterClearingAll()
     {
-        $app = new ApplicationStub();
+        $app = new ApplicationStub;
         $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->times(2)->andReturn('baz');
 
@@ -123,7 +123,7 @@ class SupportFacadeTest extends TestCase
     {
         $this->assertNull(FacadeStub::getFacadeApplication());
 
-        $app = new ApplicationStub();
+        $app = new ApplicationStub;
         FacadeStub::setFacadeApplication($app);
 
         $this->assertSame($app, FacadeStub::getFacadeApplication());
@@ -131,7 +131,7 @@ class SupportFacadeTest extends TestCase
 
     public function testSetFacadeApplicationToNullClearsApp()
     {
-        $app = new ApplicationStub();
+        $app = new ApplicationStub;
         FacadeStub::setFacadeApplication($app);
         $this->assertSame($app, FacadeStub::getFacadeApplication());
 
@@ -141,11 +141,11 @@ class SupportFacadeTest extends TestCase
 
     public function testSwapSetsInstanceOnApp()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
-        $replacement = new stdClass();
+        $replacement = new stdClass;
         FacadeStub::swap($replacement);
 
         $this->assertSame($replacement, $app['foo']);
@@ -174,7 +174,7 @@ class SupportFacadeTest extends TestCase
 
     public function testIsFakeReturnsTrueForFakeInstance()
     {
-        $fake = new FakeStub();
+        $fake = new FakeStub;
         FacadeStub::swap($fake);
 
         $this->assertTrue(FacadeStub::isFake());
@@ -182,8 +182,8 @@ class SupportFacadeTest extends TestCase
 
     public function testIsFakeReturnsFalseForNonFakeInstance()
     {
-        $app = new ApplicationStub();
-        $app->setAttributes(['foo' => new stdClass()]);
+        $app = new ApplicationStub;
+        $app->setAttributes(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertFalse(FacadeStub::isFake());
@@ -191,8 +191,8 @@ class SupportFacadeTest extends TestCase
 
     public function testUncachedFacadeResolvesEachTime()
     {
-        $app = new CountingApplicationStub();
-        $app->setAttributes(['uncached' => new stdClass()]);
+        $app = new CountingApplicationStub;
+        $app->setAttributes(['uncached' => new stdClass]);
         UncachedFacadeStub::setFacadeApplication($app);
 
         UncachedFacadeStub::getFacadeRoot();

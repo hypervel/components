@@ -50,7 +50,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
      */
     public function toMail(mixed $notifiable): MailMessage
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->error()
             ->subject(config('app.name') . ': Long Queue Wait Detected')
             ->greeting('Oh no! Something needs your attention.')
@@ -84,7 +84,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
             && class_exists('\Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock')
             && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))
         ) {
-            return (new ChannelIdSlackMessage())
+            return (new ChannelIdSlackMessage)
                 ->username($fromName)
                 ->image($imageUrl)
                 ->text($text)
@@ -94,7 +94,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
                 });
         }
 
-        return (new SlackMessage()) // @phpstan-ignore-line
+        return (new SlackMessage) // @phpstan-ignore-line
             ->from($fromName)
             ->to(Horizon::$slackChannel)
             ->image($imageUrl)

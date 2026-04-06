@@ -286,7 +286,7 @@ class Filesystem
             );
         }
 
-        $relativeTarget = (new \Symfony\Component\Filesystem\Filesystem())->makePathRelative($target, dirname($link));
+        $relativeTarget = (new \Symfony\Component\Filesystem\Filesystem)->makePathRelative($target, dirname($link));
 
         $this->link($this->isFile($target) ? rtrim($relativeTarget, '/') : $relativeTarget, $link);
     }

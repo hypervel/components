@@ -21,7 +21,7 @@ class ProxyTraitTest extends TestCase
 {
     public function testGetParamsMap()
     {
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
 
         $this->assertEquals(['id' => null, 'str' => ''], $obj->get(null)['keys']);
         $this->assertEquals(['id', 'str'], $obj->get(null)['order']);
@@ -52,7 +52,7 @@ class ProxyTraitTest extends TestCase
 
     public function testGetParamsMapOnTraitAlias()
     {
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
 
         $this->assertEquals(['id' => null, 'str' => ''], $obj->getOnTrait(null)['keys']);
         $this->assertEquals(['id', 'str'], $obj->getOnTrait(null)['order']);
@@ -80,14 +80,14 @@ class ProxyTraitTest extends TestCase
 
     public function testProceedingJoinPointGetInstance()
     {
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
         $this->assertSame('HypervelCloud', $obj->getName2());
 
         AspectCollector::set('classes', [
             GetNameAspect::class => [ProxyTraitObject::class],
         ]);
 
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
         $this->assertSame('Hypervel', $obj->getName());
     }
 
@@ -95,14 +95,14 @@ class ProxyTraitTest extends TestCase
     {
         AspectCollector::flushState();
 
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
         $this->assertEquals(['id' => 1, 'variadic' => ['2', 'foo' => '3'], 'func_get_args' => [1, '2']], $obj->getParams(1, '2', foo: '3'));
 
         AspectCollector::set('classes', [
             GetParamsAspect::class => [ProxyTraitObject::class],
         ]);
 
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
         $this->assertEquals([1, '2', 'foo' => '3'], $obj->getParams2(1, '2', foo: '3'));
     }
 
@@ -112,7 +112,7 @@ class ProxyTraitTest extends TestCase
             IncrAspect::class => [ProxyTraitObject::class],
         ]);
 
-        $obj = new ProxyTraitObject();
+        $obj = new ProxyTraitObject;
         $this->assertSame(2, $obj->incr());
     }
 

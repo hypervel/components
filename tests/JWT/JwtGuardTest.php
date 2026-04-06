@@ -493,7 +493,7 @@ class JwtGuardTest extends TestCase
         ?Request $request = null,
         int $ttl = 120,
     ): JwtGuard {
-        $container = new Container();
+        $container = new Container;
 
         if ($request !== null) {
             $container->instance('request', $request);
@@ -533,7 +533,7 @@ class JwtGuardTest extends TestCase
 
     protected function createAuthTestContainer(): Application
     {
-        $container = new Application();
+        $container = new Application;
         $container->instance('config', new Repository([
             'auth' => [
                 'defaults' => [

@@ -78,7 +78,7 @@ class RedisPoolTest extends TestCase
 
         $this->assertSame(3, $pool->getCurrentConnections());
 
-        $pool->setFrequencyForTest(new AlwaysLowFrequency());
+        $pool->setFrequencyForTest(new AlwaysLowFrequency);
         $connection = $pool->get();
 
         $this->assertSame(1, $pool->getCurrentConnections());

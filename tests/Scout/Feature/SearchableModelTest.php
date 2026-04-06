@@ -25,7 +25,7 @@ class SearchableModelTest extends ScoutTestCase
 
     public function testSearchableAsReturnsTableName()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertSame('searchable_models', $model->searchableAs());
     }
@@ -36,7 +36,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->app->make('config')
             ->set('scout.prefix', 'test_');
 
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertSame('test_searchable_models', $model->searchableAs());
     }
@@ -68,14 +68,14 @@ class SearchableModelTest extends ScoutTestCase
 
     public function testGetScoutKeyNameReturnsModelKeyName()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertSame('id', $model->getScoutKeyName());
     }
 
     public function testShouldBeSearchableReturnsTrueByDefault()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertTrue($model->shouldBeSearchable());
     }
@@ -136,7 +136,7 @@ class SearchableModelTest extends ScoutTestCase
 
     public function testScoutMetadataCanBeSetAndRetrieved()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $model->withScoutMetadata('_rankingScore', 0.95);
         $model->withScoutMetadata('_highlight', ['title' => '<em>test</em>']);
@@ -205,43 +205,43 @@ class SearchableModelTest extends ScoutTestCase
 
     public function testSearchIndexShouldBeUpdatedReturnsTrueByDefault()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertTrue($model->searchIndexShouldBeUpdated());
     }
 
     public function testWasSearchableBeforeUpdateReturnsTrueByDefault()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertTrue($model->wasSearchableBeforeUpdate());
     }
 
     public function testWasSearchableBeforeDeleteReturnsTrueByDefault()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertTrue($model->wasSearchableBeforeDelete());
     }
 
     public function testIndexableAsReturnsSearchableAsByDefault()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertSame($model->searchableAs(), $model->indexableAs());
     }
 
     public function testGetScoutKeyTypeReturnsModelKeyType()
     {
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $this->assertSame('int', $model->getScoutKeyType());
     }
 
     public function testMakeSearchableUsingReturnsModelsUnchangedByDefault()
     {
-        $model = new SearchableModel();
-        $collection = $model->newCollection([new SearchableModel(), new SearchableModel()]);
+        $model = new SearchableModel;
+        $collection = $model->newCollection([new SearchableModel, new SearchableModel]);
 
         $result = $model->makeSearchableUsing($collection);
 

@@ -30,7 +30,7 @@ class Manager
      */
     public function __construct(?Container $container = null)
     {
-        $this->setupContainer($container ?: new Container());
+        $this->setupContainer($container ?: new Container);
 
         $this->setupDefaultConfiguration();
 

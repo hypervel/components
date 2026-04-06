@@ -50,7 +50,7 @@ class RegisterProvidersTest extends TestCase
         $app->singleton('config', fn () => $config);
         $app->singleton(PackageManifest::class, fn () => $manifest);
 
-        (new RegisterProviders())->bootstrap($app);
+        (new RegisterProviders)->bootstrap($app);
 
         // TestOneServiceProvider discovered via PackageManifest, registers 'foo'
         $this->assertSame('foo', $app->make('foo'));

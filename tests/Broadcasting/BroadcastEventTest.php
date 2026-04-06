@@ -33,7 +33,7 @@ class BroadcastEventTest extends TestCase
 
         $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
 
-        $event = new TestBroadcastEvent();
+        $event = new TestBroadcastEvent;
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -52,7 +52,7 @@ class BroadcastEventTest extends TestCase
 
         $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
 
-        $event = new TestBroadcastEventWithManualData();
+        $event = new TestBroadcastEventWithManualData;
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -67,7 +67,7 @@ class BroadcastEventTest extends TestCase
 
         $manager->shouldReceive('connection')->once()->with('log')->andReturn($broadcaster);
 
-        $event = new TestBroadcastEventWithSpecificBroadcaster();
+        $event = new TestBroadcastEventWithSpecificBroadcaster;
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -93,7 +93,7 @@ class BroadcastEventTest extends TestCase
         $manager->shouldReceive('connection')->once()->with('first_connection')->andReturn($broadcaster);
         $manager->shouldReceive('connection')->once()->with('second_connection')->andReturn($broadcaster);
 
-        $event = new TestBroadcastEventWithChannelsPerConnection();
+        $event = new TestBroadcastEventWithChannelsPerConnection;
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -131,7 +131,7 @@ class BroadcastEventTest extends TestCase
 
     public function testDeleteWhenMissingModelsDefaultsToTrue()
     {
-        $event = new TestBroadcastEvent();
+        $event = new TestBroadcastEvent;
 
         $job = new BroadcastEvent($event);
 

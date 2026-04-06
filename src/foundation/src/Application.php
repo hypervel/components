@@ -242,7 +242,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->instance(\Psr\Container\ContainerInterface::class, $this);
 
         $this->singleton(PackageManifest::class, fn () => new PackageManifest(
-            new Filesystem(),
+            new Filesystem,
             $this->basePath(),
             $this->getCachedPackagesPath()
         ));
@@ -739,7 +739,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ? $_SERVER['argv']
             : null;
 
-        return $this['env'] = (new EnvironmentDetector())->detect($callback, $args);
+        return $this['env'] = (new EnvironmentDetector)->detect($callback, $args);
     }
 
     /**
@@ -823,7 +823,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
         $status = $kernel->handle(
             $input,
-            new ConsoleOutput()
+            new ConsoleOutput
         );
 
         $kernel->terminate($input, $status);

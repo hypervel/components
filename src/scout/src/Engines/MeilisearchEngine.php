@@ -417,7 +417,7 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         $tasks = [];
         $limit = 1000000;
 
-        $query = new IndexesQuery();
+        $query = new IndexesQuery;
         $query->setLimit($limit);
 
         $indexes = $this->meilisearch->getIndexes($query);

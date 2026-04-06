@@ -30,7 +30,7 @@ class EloquentMorphToIsTest extends DatabaseTestCase
         });
 
         $post = Post::create();
-        (new Comment())->commentable()->associate($post)->save();
+        (new Comment)->commentable()->associate($post)->save();
     }
 
     public function testParentIsNotNull()
@@ -54,7 +54,7 @@ class EloquentMorphToIsTest extends DatabaseTestCase
     public function testParentIsNotAnotherModel()
     {
         $child = Comment::first();
-        $parent = new Post();
+        $parent = new Post;
         $parent->id = 2;
 
         $this->assertFalse($child->commentable()->is($parent));

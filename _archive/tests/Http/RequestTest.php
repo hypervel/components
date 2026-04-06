@@ -47,7 +47,7 @@ class RequestTest extends TestCase
             'file' => new UploadedFile('/tmp/tmp_name', 32, 0),
         ]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals(['file' => new UploadedFile('/tmp/tmp_name', 32, 0)], $request->allFiles());
     }
@@ -58,7 +58,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->anyFilled(['name', 'email']));
         $this->assertFalse($request->anyFilled(['age', 'email']));
@@ -74,7 +74,7 @@ class RequestTest extends TestCase
             'avatar' => new UploadedFile('/tmp/avatar.jpg', 512, 0),
         ]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $allData = $request->all();
         $expected = [
@@ -100,7 +100,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['active' => '1', 'inactive' => '0']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->boolean('active'));
         $this->assertFalse($request->boolean('inactive'));
@@ -114,7 +114,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $collection = $request->collect();
         $this->assertInstanceOf(Collection::class, $collection);
@@ -130,7 +130,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['created_at' => '2023-05-15']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $date = $request->date('created_at');
         $this->assertInstanceOf(Carbon::class, $date);
@@ -146,7 +146,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['status' => 'active']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $enum = $request->enum('status', StatusEnum::class);
         $this->assertInstanceOf(StatusEnum::class, $enum);
@@ -160,7 +160,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->except(['age']);
         $this->assertEquals(['name' => 'John', 'email' => 'john@example.com'], $result);
@@ -172,7 +172,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->exists('name'));
         $this->assertFalse($request->exists('age'));
@@ -184,7 +184,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->filled('name'));
         $this->assertFalse($request->filled('email'));
@@ -197,7 +197,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['price' => '10.5']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals(10.5, $request->float('price'));
         $this->assertEquals(0.0, $request->float('nonexistent'));
@@ -209,7 +209,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->string('name');
         $this->assertInstanceOf(Stringable::class, $result);
@@ -223,7 +223,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->hasAny(['name', 'email']));
         $this->assertFalse($request->hasAny(['email', 'phone']));
@@ -235,7 +235,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals('example.com', $request->getHost());
     }
@@ -246,7 +246,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals('example.com:8080', $request->getHttpHost());
     }
@@ -257,7 +257,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals(8080, $request->getPort());
     }
@@ -269,7 +269,7 @@ class RequestTest extends TestCase
             new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals('http', $request->getScheme());
     }
@@ -281,7 +281,7 @@ class RequestTest extends TestCase
             new HypervelUri('https://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals('https', $request->getScheme());
     }
@@ -293,7 +293,7 @@ class RequestTest extends TestCase
             new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertFalse($request->isSecure());
     }
@@ -305,7 +305,7 @@ class RequestTest extends TestCase
             new HypervelUri('https://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->isSecure());
     }
@@ -316,7 +316,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals(30, $request->integer('age'));
         $this->assertEquals(0, $request->integer('nonexistent'));
@@ -328,7 +328,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => '', 'age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->isEmptyString('name'));
         $this->assertFalse($request->isEmptyString('age'));
@@ -340,7 +340,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('CONTENT_TYPE')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('CONTENT_TYPE')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->isJson());
     }
@@ -351,7 +351,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => '', 'age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->isNotFilled('name'));
         $this->assertFalse($request->isNotFilled('age'));
@@ -364,7 +364,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals(['name', 'age'], $request->keys());
     }
@@ -376,7 +376,7 @@ class RequestTest extends TestCase
         Context::set(ServerRequestInterface::class, $psrRequest);
 
         Context::set('http.request.parsedData', ['name' => 'John']);
-        $request = new Request();
+        $request = new Request;
 
         $newRequest = $request->merge(['age' => 30]);
         $this->assertEquals(['name' => 'John', 'age' => 30], $newRequest->all());
@@ -389,7 +389,7 @@ class RequestTest extends TestCase
         Context::set(ServerRequestInterface::class, $psrRequest);
 
         Context::set('http.request.parsedData', ['name' => 'John', 'age' => 30]);
-        $request = new Request();
+        $request = new Request;
 
         $newRequest = $request->replace(['name' => 'Foo']);
         $this->assertEquals(['name' => 'Foo', 'age' => 30], $newRequest->all());
@@ -402,7 +402,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $newRequest = $request->mergeIfMissing(['name' => 'Jane', 'age' => 30]);
         $this->assertEquals(['name' => 'John', 'age' => 30], $newRequest->all());
@@ -414,7 +414,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->missing('age'));
         $this->assertFalse($request->missing('name'));
@@ -427,7 +427,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->only(['name', 'age']);
         $this->assertEquals(['name' => 'John', 'age' => 30], $result);
@@ -442,7 +442,7 @@ class RequestTest extends TestCase
             new HypervelUri('https://example.com:8080')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('https://example.com:8080', $request->schemeAndHttpHost());
     }
@@ -456,7 +456,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getHeaderLine')->with('X-Requested-With')->andReturn('XMLHttpRequest');
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->expectsJson());
     }
@@ -467,7 +467,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->wantsJson());
     }
@@ -478,7 +478,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->accepts('application/json'));
     }
@@ -489,7 +489,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json,text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('application/json', $request->prefers(['application/json', 'text/html']));
     }
@@ -500,7 +500,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('*/*');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->acceptsAnyContentType());
     }
@@ -511,7 +511,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->acceptsJson());
     }
@@ -522,7 +522,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->acceptsHtml());
     }
@@ -534,7 +534,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->whenFilled('key', function ($value) {
             return $value;
@@ -556,7 +556,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->whenHas('key', function ($value) {
             return $value;
@@ -576,7 +576,7 @@ class RequestTest extends TestCase
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getHeaderLine')->with('x-real-ip')->andReturn('127.0.0.1');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('127.0.0.1', $request->getClientIp());
     }
@@ -586,7 +586,7 @@ class RequestTest extends TestCase
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getHeaderLine')->with('x-real-ip')->andReturn('127.0.0.1');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('127.0.0.1', $request->ip());
     }
@@ -601,7 +601,7 @@ class RequestTest extends TestCase
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('http://localhost/path?key=value&newkey=newvalue', $request->fullUrlWithQuery(['newkey' => 'newvalue']));
     }
@@ -615,7 +615,7 @@ class RequestTest extends TestCase
             new HypervelUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('http://localhost/path?key=value', $request->fullUrlWithoutQuery(['foo']));
     }
@@ -629,7 +629,7 @@ class RequestTest extends TestCase
             new HypervelUri('https://example.com:8080')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('https://example.com:8080', $request->root());
     }
@@ -639,7 +639,7 @@ class RequestTest extends TestCase
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getMethod')->andReturn('GET');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('GET', $request->method());
     }
@@ -654,7 +654,7 @@ class RequestTest extends TestCase
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertInstanceOf(Uri::class, $request->uri());
         $this->assertSame($uri, (string) $request->uri());
@@ -666,7 +666,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Authorization')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Authorization')->andReturn('Bearer token');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('token', $request->bearerToken());
     }
@@ -677,7 +677,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json,text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame(['application/json', 'text/html'], $request->getAcceptableContentTypes());
     }
@@ -686,7 +686,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame('application/json', $request->getMimeType('json'));
     }
@@ -695,7 +695,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame(['application/json', 'application/x-json'], $request->getMimeTypes('json'));
     }
@@ -706,7 +706,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('X-Requested-With')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-Requested-With')->andReturn('XMLHttpRequest');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->isXmlHttpRequest());
     }
@@ -717,7 +717,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('X-Requested-With')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-Requested-With')->andReturn('XMLHttpRequest');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->ajax());
     }
@@ -729,7 +729,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getHeaderLine')->with('X-MOZ')->andReturn('prefetch');
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->prefetch());
     }
@@ -740,31 +740,31 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('hasHeader')->with('X-PJAX')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-PJAX')->andReturn('true');
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->pjax());
     }
 
     public function testHasSession()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(SessionContract::class, m::mock(SessionContract::class));
         Container::setInstance($container);
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->hasSession());
     }
 
     public function testSession()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(SessionContract::class, $session = m::mock(SessionContract::class));
         Container::setInstance($container);
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame($session, $request->session());
     }
@@ -773,7 +773,7 @@ class RequestTest extends TestCase
     {
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertSame($psrRequest, $request->getPsr7Request());
     }
@@ -785,7 +785,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John Doe']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $validatorFactory = m::mock(ValidatorFactoryContract::class);
         $validatorFactory->shouldReceive('validate')
@@ -798,7 +798,7 @@ class RequestTest extends TestCase
             )
             ->andReturn(['name' => 'John Doe']);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(ValidatorFactoryContract::class, $validatorFactory);
         Container::setInstance($container);
 
@@ -811,7 +811,7 @@ class RequestTest extends TestCase
 
     public function testUserResolver()
     {
-        $request = new Request();
+        $request = new Request;
         $request->setUserResolver(function () {
             return 'user';
         });
@@ -821,7 +821,7 @@ class RequestTest extends TestCase
 
     public function testHasValidSignature()
     {
-        $request = new Request();
+        $request = new Request;
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
@@ -829,7 +829,7 @@ class RequestTest extends TestCase
             ->with($request, true)
             ->andReturn(true);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(UrlGeneratorContract::class, $urlGenerator);
         Container::setInstance($container);
 
@@ -838,7 +838,7 @@ class RequestTest extends TestCase
 
     public function testHasValidRelativeSignature()
     {
-        $request = new Request();
+        $request = new Request;
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
@@ -846,7 +846,7 @@ class RequestTest extends TestCase
             ->with($request, false)
             ->andReturn(true);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(UrlGeneratorContract::class, $urlGenerator);
         Container::setInstance($container);
 
@@ -855,7 +855,7 @@ class RequestTest extends TestCase
 
     public function testHasValidSignatureWhileIgnoring()
     {
-        $request = new Request();
+        $request = new Request;
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
@@ -863,7 +863,7 @@ class RequestTest extends TestCase
             ->with($request, true, [])
             ->andReturn(true);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(UrlGeneratorContract::class, $urlGenerator);
         Container::setInstance($container);
 
@@ -872,7 +872,7 @@ class RequestTest extends TestCase
 
     public function testHasValidRelativeSignatureWhileIgnoring()
     {
-        $request = new Request();
+        $request = new Request;
 
         $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
@@ -880,7 +880,7 @@ class RequestTest extends TestCase
             ->with($request, false, [])
             ->andReturn(true);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(UrlGeneratorContract::class, $urlGenerator);
         Container::setInstance($container);
 
@@ -894,7 +894,7 @@ class RequestTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('RequestContext is not set, please use RequestContext::set() to set the request.');
 
-        (new Request())->getPsr7Request();
+        (new Request)->getPsr7Request();
     }
 
     public function testGetDispatchedRoute()
@@ -908,7 +908,7 @@ class RequestTest extends TestCase
             ->andReturn($dispatched);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $result = $request->getDispatchedRoute();
         $this->assertInstanceOf(Dispatched::class, $result);
@@ -922,7 +922,7 @@ class RequestTest extends TestCase
             ->andReturn(['request_uri' => '/users/123/posts/456']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertEquals('users', $request->segment(1));
         $this->assertEquals('123', $request->segment(2));
@@ -939,7 +939,7 @@ class RequestTest extends TestCase
             ->andReturn(['request_uri' => '/']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertNull($request->segment(1));
         $this->assertEquals('default', $request->segment(1, 'default'));
@@ -951,7 +951,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/api/v1/users/123']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $segments = $request->segments();
         $this->assertEquals(['api', 'v1', 'users', '123'], $segments);
@@ -963,7 +963,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $segments = $request->segments();
         $this->assertEquals([], $segments);
@@ -975,7 +975,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/home']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $segments = $request->segments();
         $this->assertEquals(['home'], $segments);
@@ -992,7 +992,7 @@ class RequestTest extends TestCase
             ->andReturn($dispatched);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->routeIs('user.profile'));
         $this->assertTrue($request->routeIs('user.*'));
@@ -1016,7 +1016,7 @@ class RequestTest extends TestCase
             ->andReturn($dispatched);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertFalse($request->routeIs('any.route'));
         $this->assertFalse($request->routeIs('*'));
@@ -1030,7 +1030,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getUri')->andReturn(new HypervelUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->fullUrlIs('http://localhost/api/users?key=value'));
         $this->assertTrue($request->fullUrlIs('http://localhost/api/*'));
@@ -1051,7 +1051,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getUri')->andReturn(new HypervelUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->fullUrlIs('http://localhost/api/users'));
         $this->assertTrue($request->fullUrlIs('http://localhost/api/*'));

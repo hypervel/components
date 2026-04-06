@@ -29,7 +29,7 @@ class CreateVendorSymlinkTest extends TestCase
     protected function tearDown(): void
     {
         if ($this->application !== null) {
-            (new DeleteVendorSymlink())->handle($this->application);
+            (new DeleteVendorSymlink)->handle($this->application);
             $this->application->flush();
         }
 
@@ -45,7 +45,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application = $this->createApplication();
 
         if (hypervel_vendor_exists($application, $workingPath)) {
-            (new DeleteVendorSymlink())->handle($application);
+            (new DeleteVendorSymlink)->handle($application);
         }
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);
@@ -60,7 +60,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application = $this->createApplication();
 
         if (! hypervel_vendor_exists($application, $workingPath)) {
-            (new Filesystem())->link($workingPath, $application->basePath('vendor'));
+            (new Filesystem)->link($workingPath, $application->basePath('vendor'));
         }
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);

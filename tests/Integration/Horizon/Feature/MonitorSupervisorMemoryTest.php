@@ -26,7 +26,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
 
     public function testSupervisorIsTerminatedWhenUsingTooMuchMemory()
     {
-        $monitor = new MonitorSupervisorMemory();
+        $monitor = new MonitorSupervisorMemory;
 
         $supervisor = m::mock(Supervisor::class);
         $supervisor->options = new SupervisorOptions('redis', 'default');
@@ -39,7 +39,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
 
     public function testSupervisorIsNotTerminatedWhenUsingLowMemory()
     {
-        $monitor = new MonitorSupervisorMemory();
+        $monitor = new MonitorSupervisorMemory;
 
         $supervisor = m::mock(Supervisor::class);
         $supervisor->options = new SupervisorOptions('redis', 'default');

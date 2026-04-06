@@ -37,7 +37,7 @@ class CoroutineHandlerTest extends TestCase
      */
     public function testCreatesCurlErrors()
     {
-        $handler = new CoroutineHandler();
+        $handler = new CoroutineHandler;
         $request = new Request('GET', 'http://localhost:123');
         try {
             $handler($request, ['timeout' => 0.001, 'connect_timeout' => 0.001])->wait();
@@ -54,7 +54,7 @@ class CoroutineHandlerTest extends TestCase
      */
     public function testReusesHandles()
     {
-        $handler = new CoroutineHandler();
+        $handler = new CoroutineHandler;
         $request = new Request('GET', 'https://pokeapi.co/api/v2/pokemon/');
         $result1 = $handler($request, []);
         $request = new Request('GET', 'https://pokeapi.co/api/v2/pokemon/');
@@ -69,7 +69,7 @@ class CoroutineHandlerTest extends TestCase
      */
     public function testDoesSleep()
     {
-        $handler = new CoroutineHandlerStub();
+        $handler = new CoroutineHandlerStub;
         $request = new Request('GET', 'https://pokeapi.co/api/v2/pokemon/');
         $response = $handler($request, ['delay' => 1, 'timeout' => 5])->wait();
 
@@ -83,7 +83,7 @@ class CoroutineHandlerTest extends TestCase
      */
     public function testCreatesErrorsWithContext()
     {
-        $handler = new CoroutineHandler();
+        $handler = new CoroutineHandler;
         $request = new Request('GET', 'http://localhost:123');
         $called = false;
         $promise = $handler($request, ['timeout' => 0.001])
@@ -102,7 +102,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
         ]);
 
         $response = (string) $client->get('/echo', [
@@ -126,7 +126,7 @@ class CoroutineHandlerTest extends TestCase
         $client = new Client([
             'base_uri' => 'https://pokeapi.co',
             'timeout' => 5,
-            'handler' => HandlerStack::create(new CoroutineHandler()),
+            'handler' => HandlerStack::create(new CoroutineHandler),
         ]);
 
         $response = (string) $client->get('/api/v2/pokemon')->getBody();
@@ -141,7 +141,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'timeout' => 5,
             'swoole' => [
                 'timeout' => 10,
@@ -162,7 +162,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'proxy' => 'http://user:pass@127.0.0.1:8081',
         ]);
 
@@ -183,7 +183,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'proxy' => [
                 'http' => 'http://127.0.0.1:12333',
                 'https' => 'http://127.0.0.1:12334',
@@ -208,7 +208,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'https://www.baidu.com',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'proxy' => [
                 'http' => 'http://127.0.0.1:12333',
                 'https' => 'http://127.0.0.1:12334',
@@ -233,7 +233,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'https://www.baidu.cn',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'proxy' => [
                 'http' => 'http://127.0.0.1:12333',
                 'https' => 'http://127.0.0.1:12334',
@@ -256,7 +256,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'timeout' => 5,
             'cert' => 'apiclient_cert.pem',
             'ssl_key' => 'apiclient_key.pem',
@@ -269,7 +269,7 @@ class CoroutineHandlerTest extends TestCase
 
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'timeout' => 5,
         ]);
 
@@ -285,7 +285,7 @@ class CoroutineHandlerTest extends TestCase
     public function testUserInfo()
     {
         $url = 'https://username:password@127.0.0.1:8080';
-        $handler = new CoroutineHandlerStub();
+        $handler = new CoroutineHandlerStub;
         $request = new Request('GET', $url . '/echo');
 
         $response = $handler($request, ['timeout' => 5])->wait();
@@ -301,7 +301,7 @@ class CoroutineHandlerTest extends TestCase
     public function testRequestOptionOnStats()
     {
         $url = 'http://127.0.0.1:9501';
-        $handler = new CoroutineHandlerStub();
+        $handler = new CoroutineHandlerStub;
         $request = new Request('GET', $url . '/echo');
 
         $called = false;
@@ -320,7 +320,7 @@ class CoroutineHandlerTest extends TestCase
         $called = false;
         $url = 'http://127.0.0.1:9501';
         $client = new Client([
-            'handler' => new CoroutineHandlerStub(),
+            'handler' => new CoroutineHandlerStub,
             'base_uri' => $url,
             RequestOptions::ON_STATS => function (TransferStats $stats) use (&$called) {
                 $called = true;
@@ -339,7 +339,7 @@ class CoroutineHandlerTest extends TestCase
         $dir = sys_get_temp_dir() . '/hypervel-guzzle-test/';
         @mkdir($dir, 0755, true);
 
-        $handler = new CoroutineHandlerStub();
+        $handler = new CoroutineHandlerStub;
         $stream = $handler->createSink($body = uniqid(), $sink = $dir . uniqid());
         $this->assertSame($body, file_get_contents($sink));
         $this->assertSame('', stream_get_contents($stream));
@@ -359,7 +359,7 @@ class CoroutineHandlerTest extends TestCase
         $dir = sys_get_temp_dir() . '/hypervel-guzzle-test/';
         @mkdir($dir, 0755, true);
         $sink = fopen($file = $dir . uniqid(), 'w+');
-        $handler = new CoroutineHandlerStub();
+        $handler = new CoroutineHandlerStub;
         $stream = $handler->createSink($body1 = uniqid(), $sink);
         $this->assertSame('', stream_get_contents($stream));
         $stream = $handler->createSink($body2 = uniqid(), $sink);
@@ -378,7 +378,7 @@ class CoroutineHandlerTest extends TestCase
     {
         $url = 'http://127.0.0.1:9501';
         $client = new Client([
-            'handler' => HandlerStack::create(new CoroutineHandlerStub()),
+            'handler' => HandlerStack::create(new CoroutineHandlerStub),
             'base_uri' => $url,
         ]);
         $response = $client->post('/', [
@@ -416,6 +416,6 @@ class CoroutineHandlerTest extends TestCase
      */
     protected function getHandler(array $options = []): CoroutineHandler
     {
-        return new CoroutineHandler();
+        return new CoroutineHandler;
     }
 }

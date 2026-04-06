@@ -48,7 +48,7 @@ class IndexCommand extends Command
         $modelName = (string) $this->argument('name');
 
         if (class_exists($modelName)) {
-            $model = new $modelName();
+            $model = new $modelName;
         }
 
         $name = $this->indexName($modelName, $config);
@@ -96,7 +96,7 @@ class IndexCommand extends Command
     protected function indexName(string $name, Repository $config): string
     {
         if (class_exists($name)) {
-            return (new $name())->indexableAs();
+            return (new $name)->indexableAs();
         }
 
         $prefix = $config->get('scout.prefix', '');

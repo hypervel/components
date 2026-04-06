@@ -127,7 +127,7 @@ class QueueDispatchTest extends ScoutTestCase
 
         Bus::fake([MakeSearchable::class]);
 
-        $model = new SearchableModel();
+        $model = new SearchableModel;
         $model->queueMakeSearchable(new Collection([]));
 
         Bus::assertNotDispatched(MakeSearchable::class);
@@ -139,7 +139,7 @@ class QueueDispatchTest extends ScoutTestCase
 
         Bus::fake([RemoveFromSearch::class]);
 
-        $model = new SearchableModel();
+        $model = new SearchableModel;
         $model->queueRemoveFromSearch(new Collection([]));
 
         Bus::assertNotDispatched(RemoveFromSearch::class);

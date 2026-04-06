@@ -327,7 +327,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->app->instance(
             LoggedExceptionCollection::class,
-            new LoggedExceptionCollection()
+            new LoggedExceptionCollection
         );
 
         $this->app->make('events')->listen(MessageLogged::class, function ($event) {

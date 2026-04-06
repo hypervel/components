@@ -18,7 +18,7 @@ class CacheMemoizedStoreTest extends TestCase
 {
     public function testTouchExtendsTtl()
     {
-        $store = new MemoizedStore('test', new Repository(new ArrayStore()));
+        $store = new MemoizedStore('test', new Repository(new ArrayStore));
 
         Carbon::setTestNow($now = Carbon::now());
 

@@ -89,7 +89,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
             ? call_user_func(static::$defaultCallback)
             : static::$defaultCallback;
 
-        return $email instanceof static ? $email : new static();
+        return $email instanceof static ? $email : new static;
     }
 
     /**

@@ -31,7 +31,7 @@ class ViewErrorBag implements Countable, Stringable
      */
     public function getBag(string $key)
     {
-        return Arr::get($this->bags, $key) ?: new MessageBag();
+        return Arr::get($this->bags, $key) ?: new MessageBag;
     }
 
     /**

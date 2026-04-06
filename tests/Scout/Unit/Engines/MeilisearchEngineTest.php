@@ -57,7 +57,7 @@ class MeilisearchEngineTest extends TestCase
         $client->shouldNotReceive('index');
 
         $engine = new MeilisearchEngine($client);
-        $engine->update(new EloquentCollection());
+        $engine->update(new EloquentCollection);
 
         $this->assertTrue(true);
     }
@@ -123,7 +123,7 @@ class MeilisearchEngineTest extends TestCase
         $client->shouldNotReceive('index');
 
         $engine = new MeilisearchEngine($client);
-        $engine->delete(new EloquentCollection());
+        $engine->delete(new EloquentCollection);
 
         $this->assertTrue(true);
     }
@@ -281,7 +281,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         $model = m::mock(MeilisearchTestSearchableModel::class);
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
+        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
 
         $builder = m::mock(Builder::class);
 
@@ -335,7 +335,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         $model = m::mock(MeilisearchTestSearchableModel::class);
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
+        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
 
         $builder = m::mock(Builder::class);
 

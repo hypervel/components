@@ -90,7 +90,7 @@ class Limit
      */
     public static function none(): Unlimited
     {
-        return new Unlimited();
+        return new Unlimited;
     }
 
     /**

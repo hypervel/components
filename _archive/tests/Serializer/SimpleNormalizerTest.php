@@ -16,7 +16,7 @@ class SimpleNormalizerTest extends TestCase
 {
     public function testNormalizeReturnsInputUnchanged()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertSame('hello', $normalizer->normalize('hello'));
         $this->assertSame(42, $normalizer->normalize(42));
@@ -27,13 +27,13 @@ class SimpleNormalizerTest extends TestCase
         $array = ['key' => 'value'];
         $this->assertSame($array, $normalizer->normalize($array));
 
-        $object = new stdClass();
+        $object = new stdClass;
         $this->assertSame($object, $normalizer->normalize($object));
     }
 
     public function testDenormalizeInt()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertSame(42, $normalizer->denormalize('42', 'int'));
         $this->assertSame(0, $normalizer->denormalize('0', 'int'));
@@ -43,7 +43,7 @@ class SimpleNormalizerTest extends TestCase
 
     public function testDenormalizeString()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertSame('42', $normalizer->denormalize(42, 'string'));
         $this->assertSame('3.14', $normalizer->denormalize(3.14, 'string'));
@@ -53,7 +53,7 @@ class SimpleNormalizerTest extends TestCase
 
     public function testDenormalizeFloat()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertSame(4.2, $normalizer->denormalize('4.2', 'float'));
         $this->assertSame(42.0, $normalizer->denormalize(42, 'float'));
@@ -62,7 +62,7 @@ class SimpleNormalizerTest extends TestCase
 
     public function testDenormalizeArray()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertSame(['hello'], $normalizer->denormalize('hello', 'array'));
         $this->assertSame([42], $normalizer->denormalize(42, 'array'));
@@ -71,7 +71,7 @@ class SimpleNormalizerTest extends TestCase
 
     public function testDenormalizeBool()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $this->assertTrue($normalizer->denormalize(1, 'bool'));
         $this->assertTrue($normalizer->denormalize('yes', 'bool'));
@@ -81,7 +81,7 @@ class SimpleNormalizerTest extends TestCase
 
     public function testDenormalizeUnknownTypeReturnsDataUnchanged()
     {
-        $normalizer = new SimpleNormalizer();
+        $normalizer = new SimpleNormalizer;
 
         $data = ['key' => 'value'];
         $this->assertSame($data, $normalizer->denormalize($data, 'SomeClass'));

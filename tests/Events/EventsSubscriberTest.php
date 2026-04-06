@@ -31,7 +31,7 @@ class EventsSubscriberTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $subs = m::mock(ExampleSubscriber::class);
         $subs->shouldReceive('subscribe')->once()->with($d);
 
@@ -40,7 +40,7 @@ class EventsSubscriberTest extends TestCase
 
     public function testEventSubscribeCanReturnMappings()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->subscribe(DeclarativeSubscriber::class);
 
         $d->dispatch('myEvent1');

@@ -20,7 +20,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $timer->after(0.001, function ($isClosing) use (&$id) {
                 ++$id;
@@ -37,7 +37,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $timer->after(0.001, function ($isClosing) use (&$id) {
                 ++$id;
@@ -54,7 +54,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $ret = $timer->after(0.001, function () use (&$id) {
                 ++$id;
@@ -69,7 +69,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $timer->tick(0.001, function () use (&$id) {
                 ++$id;
@@ -84,7 +84,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $timer->tick(0.001, function () use (&$id) {
                 ++$id;
@@ -99,7 +99,7 @@ class TimerTest extends TestCase
 
     public function testClearDontExistsClosure()
     {
-        $timer = new Timer();
+        $timer = new Timer;
 
         $timer->clear(999);
 
@@ -110,7 +110,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $timer->until(function () use (&$id) {
                 ++$id;
@@ -126,7 +126,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function () {
             $id = 0;
-            $timer = new Timer();
+            $timer = new Timer;
             $identifier = uniqid();
             $ret = $timer->until(function () use (&$id) {
                 ++$id;
@@ -140,7 +140,7 @@ class TimerTest extends TestCase
 
     private function wait(Closure $closure): void
     {
-        $waiter = new Waiter();
+        $waiter = new Waiter;
         $waiter->wait($closure);
     }
 }

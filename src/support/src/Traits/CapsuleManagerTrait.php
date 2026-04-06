@@ -27,7 +27,7 @@ trait CapsuleManagerTrait
         $this->container = $container;
 
         if (! $this->container->bound('config')) {
-            $this->container->instance('config', new Fluent());
+            $this->container->instance('config', new Fluent);
         }
     }
 

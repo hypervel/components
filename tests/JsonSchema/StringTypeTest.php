@@ -15,7 +15,7 @@ class StringTypeTest extends TestCase
 {
     public function testItSetsMinLength()
     {
-        $type = (new StringType())->min(5);
+        $type = (new StringType)->min(5);
 
         $this->assertEquals([
             'type' => 'string',
@@ -25,7 +25,7 @@ class StringTypeTest extends TestCase
 
     public function testItSetsMaxLength()
     {
-        $type = (new StringType())->description('User handle')->max(10);
+        $type = (new StringType)->description('User handle')->max(10);
 
         $this->assertEquals([
             'type' => 'string',
@@ -36,7 +36,7 @@ class StringTypeTest extends TestCase
 
     public function testItSetsPattern()
     {
-        $type = (new StringType())->default('foo')->pattern('^foo.*$');
+        $type = (new StringType)->default('foo')->pattern('^foo.*$');
 
         $this->assertEquals([
             'type' => 'string',
@@ -47,7 +47,7 @@ class StringTypeTest extends TestCase
 
     public function testItSetsFormat()
     {
-        $type = (new StringType())->default('foo')->format('date');
+        $type = (new StringType)->default('foo')->format('date');
 
         $this->assertEquals([
             'type' => 'string',
@@ -58,7 +58,7 @@ class StringTypeTest extends TestCase
 
     public function testItSetsEnum()
     {
-        $type = (new StringType())->enum(['draft', 'published']);
+        $type = (new StringType)->enum(['draft', 'published']);
 
         $this->assertEquals([
             'type' => 'string',

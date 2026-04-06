@@ -82,7 +82,7 @@ trait HasEvents
      */
     public static function observe(object|array|string $classes): void
     {
-        $instance = new static();
+        $instance = new static;
 
         foreach (Arr::wrap($classes) as $class) {
             $instance->registerObserver($class);
@@ -370,7 +370,7 @@ trait HasEvents
             return;
         }
 
-        $instance = new static();
+        $instance = new static;
 
         foreach ($instance->getObservableEvents() as $event) {
             static::$dispatcher->forget("eloquent.{$event}: " . static::class);

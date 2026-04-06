@@ -45,7 +45,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testCustomCasting()
     {
-        $model = new TestEloquentModelWithCustomCasts();
+        $model = new TestEloquentModelWithCustomCasts;
 
         $model->array_object = ['name' => 'Taylor'];
         $model->array_object_json = ['name' => 'Taylor'];
@@ -115,7 +115,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testCustomCastingNullableValues()
     {
-        $model = new TestEloquentModelWithCustomCastsNullable();
+        $model = new TestEloquentModelWithCustomCastsNullable;
 
         $model->array_object = null;
         $model->array_object_json = null;
@@ -162,7 +162,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testAsCollectionWithMapInto()
     {
-        $model = new TestEloquentModelWithCustomCasts();
+        $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([
             'collection' => AsCollection::of(Fluent::class),
         ]);
@@ -177,7 +177,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testAsCustomCollectionWithMapInto()
     {
-        $model = new TestEloquentModelWithCustomCasts();
+        $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([
             'collection' => AsCollection::using(CustomCollection::class, Fluent::class),
         ]);
@@ -193,7 +193,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testAsCollectionWithMapCallback(): void
     {
-        $model = new TestEloquentModelWithCustomCasts();
+        $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([
             'collection' => AsCollection::of([FluentWithCallback::class, 'make']),
         ]);
@@ -208,7 +208,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
     public function testAsCustomCollectionWithMapCallback(): void
     {
-        $model = new TestEloquentModelWithCustomCasts();
+        $model = new TestEloquentModelWithCustomCasts;
         $model->mergeCasts([
             'collection' => AsCollection::using(CustomCollection::class, [FluentWithCallback::class, 'make']),
         ]);

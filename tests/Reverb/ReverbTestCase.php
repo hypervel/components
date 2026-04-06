@@ -139,7 +139,7 @@ class ReverbTestCase extends TestCase
         ?FakeConnection $connection = null,
         ?Application $app = null,
     ): FakeConnection {
-        $connection ??= new FakeConnection();
+        $connection ??= new FakeConnection;
         $app ??= $this->app->make(ApplicationProvider::class)->all()->first();
 
         $handler = new EventHandler($this->app->make(ChannelManager::class));

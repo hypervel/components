@@ -23,8 +23,8 @@ class SkipIfBatchCancelledTest extends TestCase
 {
     public function testJobsAreSkippedOnceBatchIsCancelled()
     {
-        [$beforeCancelled] = (new SkipCancelledBatchableTestJob())->withFakeBatch();
-        [$afterCancelled] = (new SkipCancelledBatchableTestJob())->withFakeBatch(
+        [$beforeCancelled] = (new SkipCancelledBatchableTestJob)->withFakeBatch();
+        [$afterCancelled] = (new SkipCancelledBatchableTestJob)->withFakeBatch(
             cancelledAt: CarbonImmutable::now()
         );
 
@@ -78,6 +78,6 @@ class SkipCancelledBatchableTestJob
 
     public function middleware(): array
     {
-        return [new SkipIfBatchCancelled()];
+        return [new SkipIfBatchCancelled];
     }
 }

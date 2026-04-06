@@ -17,13 +17,13 @@ class ProcessStopHandlerTest extends TestCase
 {
     public function testImplementsSignalHandlerInterface()
     {
-        $handler = new ProcessStopHandler();
+        $handler = new ProcessStopHandler;
         $this->assertInstanceOf(SignalHandlerInterface::class, $handler);
     }
 
     public function testListensForSigtermOnProcess()
     {
-        $handler = new ProcessStopHandler();
+        $handler = new ProcessStopHandler;
         $signals = $handler->listen();
 
         $this->assertCount(1, $signals);
@@ -35,7 +35,7 @@ class ProcessStopHandlerTest extends TestCase
         ProcessManager::setRunning(true);
         $this->assertTrue(ProcessManager::isRunning());
 
-        $handler = new ProcessStopHandler();
+        $handler = new ProcessStopHandler;
         $handler->handle(SIGTERM);
 
         $this->assertFalse(ProcessManager::isRunning());

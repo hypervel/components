@@ -19,7 +19,7 @@ class ScheduleGroupTest extends TestCase
 {
     public function testGroupCanSetScheduleCronExpression()
     {
-        $schedule = new ScheduleClass();
+        $schedule = new ScheduleClass;
 
         $schedule
             ->daily()
@@ -186,7 +186,7 @@ class ScheduleGroupTest extends TestCase
 
     public function testGroupedPendingEventAttribute()
     {
-        $schedule = new ScheduleClass();
+        $schedule = new ScheduleClass;
         $schedule->weekdays()->group(function ($schedule) {
             $schedule->command('inspire')->at('00:00'); // this is event, not pending attribute
             $schedule->at('01:00')->command('inspire'); // this is pending attribute
@@ -201,7 +201,7 @@ class ScheduleGroupTest extends TestCase
 
     public function testGroupedPendingEventAttributesWithoutOverlapping()
     {
-        $schedule = new ScheduleClass();
+        $schedule = new ScheduleClass;
         $schedule->weekdays()->withoutOverlapping()->group(function ($schedule) {
             $schedule->command('inspire')->at('14:00'); // this is event, not pending attribute
             $schedule->at('03:00')->command('inspire'); // this is pending attribute

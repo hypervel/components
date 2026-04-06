@@ -30,9 +30,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
     public function testTransactionCallbacks()
     {
         [$firstObject, $secondObject, $thirdObject] = [
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
         ];
 
         DB::transaction(function () use ($secondObject, $firstObject) {
@@ -53,9 +53,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
     public function testTransactionCallbacksDoNotInterfereWithOneAnother()
     {
         [$firstObject, $secondObject, $thirdObject] = [
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
         ];
 
         // The problem here is that we're initiating a base transaction, and then two nested transactions.
@@ -71,7 +71,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
             try {
                 DB::transaction(function () use ($thirdObject) { // Adds a transaction 3 @ level 2
                     DB::afterCommit(fn () => $thirdObject->handle());
-                    throw new Exception(); // This should only affect callback 3, not 1, even though both share the same transaction level.
+                    throw new Exception; // This should only affect callback 3, not 1, even though both share the same transaction level.
                 });
             } catch (Exception) {
             }
@@ -87,9 +87,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
     public function testTransactionsDoNotAffectDifferentConnections()
     {
         [$firstObject, $secondObject, $thirdObject] = [
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
-            new TestObjectForTransactions(),
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
+            new TestObjectForTransactions,
         ];
 
         DB::transaction(function () use ($secondObject, $firstObject, $thirdObject) {
@@ -103,7 +103,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
                 DB::connection('second_connection')->transaction(function () use ($thirdObject) {
                     DB::afterCommit(fn () => $thirdObject->handle());
 
-                    throw new Exception();
+                    throw new Exception;
                 });
             } catch (Exception) {
             }

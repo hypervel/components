@@ -30,7 +30,7 @@ class BusBatchableTest extends TestCase
         $repository = m::mock(BatchRepository::class);
         $repository->shouldReceive('find')->once()->with('test-batch-id')->andReturn($batch);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(BatchRepository::class, $repository);
         Container::setInstance($container);
 

@@ -114,7 +114,7 @@ class ViewTest extends TestCase
 
     public function testViewConstructedWithObjectData()
     {
-        $view = $this->getView(new DataObjectStub());
+        $view = $this->getView(new DataObjectStub);
         $this->assertInstanceOf(ArrayAccess::class, $view);
         $this->assertTrue($view->offsetExists('foo'));
         $this->assertSame('bar', $view->offsetGet('foo'));

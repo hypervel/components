@@ -25,7 +25,7 @@ class CacheDatabaseStoreTest extends TestCase
     {
         [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
-        $table->shouldReceive('get')->once()->andReturn(new Collection());
+        $table->shouldReceive('get')->once()->andReturn(new Collection);
 
         $this->assertNull($store->get('foo'));
     }
@@ -211,7 +211,7 @@ class CacheDatabaseStoreTest extends TestCase
 
         // Check if exists (returns null)
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
-        $table->shouldReceive('get')->once()->andReturn(new Collection());
+        $table->shouldReceive('get')->once()->andReturn(new Collection);
 
         // Insert (uses insertOrIgnore for atomicity)
         $table->shouldReceive('insertOrIgnore')->once()->with(m::on(function ($arg) {

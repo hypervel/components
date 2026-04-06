@@ -97,7 +97,7 @@ class CommandInvokerTest extends TestCase
 
     public function testShutdownWatcherInterruptsOnWorkerExit()
     {
-        $connection = new BlockingConnection();
+        $connection = new BlockingConnection;
 
         $invoker = new CommandInvoker($connection);
 

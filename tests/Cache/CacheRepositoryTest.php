@@ -390,21 +390,21 @@ class CacheRepositoryTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $store = new FileStore(new Filesystem(), '/usr');
+        $store = new FileStore(new Filesystem, '/usr');
         $this->assertFalse(method_exists($store, 'tags'), 'Store should not support tagging.');
         (new Repository($store))->tags('foo');
     }
 
     public function testTagMethodReturnsTaggedCache()
     {
-        $store = (new Repository(new ArrayStore()))->tags('foo');
+        $store = (new Repository(new ArrayStore))->tags('foo');
 
         $this->assertInstanceOf(TaggedCache::class, $store);
     }
 
     public function testPossibleInputTypesToTags()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $store = $repo->tags('foo');
         $this->assertEquals(['foo'], $store->getTags()->getNames());
@@ -418,7 +418,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testEventDispatcherIsPassedToStoreFromRepository()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
         $repo->setEventDispatcher(m::mock(Dispatcher::class));
 
         $store = $repo->tags('foo');
@@ -428,7 +428,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testDefaultCacheLifeTimeIsSetOnTaggableStore()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
         $repo->setDefaultCacheTime(random_int(1, 100));
 
         $store = $repo->tags('foo');
@@ -524,7 +524,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testAtomicExecutesCallbackAndReturnsResult()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $result = $repo->withoutOverlapping('foo', function () {
             return 'bar';
@@ -571,7 +571,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testAtomicThrowsOnLockTimeout()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $repo->getStore()->lock('foo', 10)->acquire();
 
@@ -590,7 +590,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testTaggedCacheWorksWithEnumKey()
     {
-        $cache = (new Repository(new ArrayStore()))->tags('test-tag');
+        $cache = (new Repository(new ArrayStore))->tags('test-tag');
 
         $cache->put(TestCacheKey::FOO, 5);
         $this->assertSame(6, $cache->increment(TestCacheKey::FOO));
@@ -599,7 +599,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testPutManyHandlesIntegerArrayKeys()
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         // Null TTL path (putManyForever)
         $repo->putMany([2 => 'integer-value', 'a' => 'string-value']);
@@ -616,7 +616,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testTaggedPutManyHandlesIntegerArrayKeys()
     {
-        $repo = (new Repository(new ArrayStore()))->tags('test-tag');
+        $repo = (new Repository(new ArrayStore))->tags('test-tag');
 
         $repo->putMany([2 => 'integer-value', 'a' => 'string-value']);
 

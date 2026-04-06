@@ -24,8 +24,8 @@ class WaiterTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container();
-        $container->instance(Waiter::class, new Waiter());
+        $container = new Container;
+        $container->instance(Waiter::class, new Waiter);
         Container::setInstance($container);
     }
 

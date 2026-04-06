@@ -45,7 +45,7 @@ class Manager
      */
     public function __construct(?ContainerContract $container = null)
     {
-        $this->setupContainer($container ?: new Container());
+        $this->setupContainer($container ?: new Container);
 
         // Once we have the container setup, we will setup the default configuration
         // options in the container "config" binding. This will make the database

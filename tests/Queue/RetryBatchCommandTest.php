@@ -27,10 +27,10 @@ class RetryBatchCommandTest extends TestCase
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new RetryBatchCommand();
+        $command = new RetryBatchCommand;
         $command->setHypervel($this->app);
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         $command->run(new ArrayInput(['id' => ['missing-batch']]), $output);
 
@@ -57,10 +57,10 @@ class RetryBatchCommandTest extends TestCase
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new RetryBatchCommand();
+        $command = new RetryBatchCommand;
         $command->setHypervel($this->app);
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         $command->run(new ArrayInput(['id' => ['empty-batch']]), $output);
 

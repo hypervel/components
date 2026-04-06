@@ -18,7 +18,7 @@ class FailedJobTest extends IntegrationTestCase
 {
     public function testFailedJobsArePlacedInTheFailedJobTable()
     {
-        $id = Queue::push(new Jobs\FailingJob());
+        $id = Queue::push(new Jobs\FailingJob);
         $this->work();
         $this->assertSame(1, $this->failedJobs());
         $this->assertGreaterThan(0, Redis::connection('horizon')->ttl($id));
@@ -34,7 +34,7 @@ class FailedJobTest extends IntegrationTestCase
 
     public function testTagsForFailedJobsAreStoredInRedis()
     {
-        $id = Queue::push(new Jobs\FailingJob());
+        $id = Queue::push(new Jobs\FailingJob);
         $this->work();
         $ids = resolve(TagRepository::class)->jobs('failed:first');
         $this->assertEquals([$id], $ids);
@@ -42,7 +42,7 @@ class FailedJobTest extends IntegrationTestCase
 
     public function testFailedJobTagsHaveAnExpiration()
     {
-        Queue::push(new Jobs\FailingJob());
+        Queue::push(new Jobs\FailingJob);
         $this->work();
         $ttl = Redis::connection('horizon')->pttl('failed:first');
         $this->assertNotNull($ttl);

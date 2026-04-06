@@ -16,7 +16,7 @@ class PersonalAccessTokenTest extends TestCase
 {
     public function testCanDetermineWhatItCanAndCantDo()
     {
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
 
         $token->abilities = [];
 
@@ -37,7 +37,7 @@ class PersonalAccessTokenTest extends TestCase
 
     public function testCanCheckAbilitiesWithBackedEnum()
     {
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['posts:read', 'posts:write'];
 
         $this->assertTrue($token->can(TokenAbility::PostsRead));
@@ -47,7 +47,7 @@ class PersonalAccessTokenTest extends TestCase
 
     public function testCantCheckAbilitiesWithBackedEnum()
     {
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['posts:read'];
 
         $this->assertFalse($token->cant(TokenAbility::PostsRead));
@@ -56,7 +56,7 @@ class PersonalAccessTokenTest extends TestCase
 
     public function testWildcardAbilityWorksWithBackedEnum()
     {
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['*'];
 
         $this->assertTrue($token->can(TokenAbility::PostsRead));
@@ -66,7 +66,7 @@ class PersonalAccessTokenTest extends TestCase
 
     public function testMixedStringAndEnumAbilitiesWork()
     {
-        $token = new PersonalAccessToken();
+        $token = new PersonalAccessToken;
         $token->abilities = ['posts:read', 'legacy-ability'];
 
         // Enum check

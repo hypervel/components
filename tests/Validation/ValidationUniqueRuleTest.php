@@ -208,7 +208,7 @@ class ValidationUniqueRuleTest extends TestCase
     protected function getArrayTranslator(): Translator
     {
         return new Translator(
-            new ArrayLoader(),
+            new ArrayLoader,
             locale: 'en'
         );
     }

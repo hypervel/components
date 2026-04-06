@@ -24,7 +24,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
         $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
         $user->shouldReceive('sendEmailVerificationNotification')->once();
 
-        $listener = new SendEmailVerificationNotification();
+        $listener = new SendEmailVerificationNotification;
 
         $listener->handle(new Registered($user));
     }
@@ -34,7 +34,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
         $user = m::mock(User::class);
         $user->shouldNotReceive('sendEmailVerificationNotification');
 
-        $listener = new SendEmailVerificationNotification();
+        $listener = new SendEmailVerificationNotification;
 
         $listener->handle(new Registered($user));
     }
@@ -45,7 +45,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
         $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
         $user->shouldNotReceive('sendEmailVerificationNotification');
 
-        $listener = new SendEmailVerificationNotification();
+        $listener = new SendEmailVerificationNotification;
 
         $listener->handle(new Registered($user));
     }

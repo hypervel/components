@@ -22,7 +22,7 @@ final class CleanupVerificationCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $testPrefix = $context->getTestPrefix();
         $remainingKeys = $this->findTestKeys($context, $testPrefix);

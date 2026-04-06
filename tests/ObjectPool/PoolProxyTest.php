@@ -23,7 +23,7 @@ class PoolProxyTest extends TestCase
         $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('get')
             ->once()
-            ->andReturn($object = new Foo());
+            ->andReturn($object = new Foo);
         $pool->shouldReceive('release')
             ->once();
 
@@ -33,7 +33,7 @@ class PoolProxyTest extends TestCase
             ->once()
             ->andReturn($pool);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(PoolFactory::class, $poolFactory);
         Container::setInstance($container);
 

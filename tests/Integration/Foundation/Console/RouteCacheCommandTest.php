@@ -33,7 +33,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
     {
         parent::setUp();
 
-        $this->files = new Filesystem();
+        $this->files = new Filesystem;
         $this->providersPath = $this->app->getBootstrapProvidersPath();
         $this->sourceWorkbenchAppPath = dirname((new ReflectionClass(ExceptionHandler::class))->getFileName(), 2);
         $this->originalProvidersContents = file_exists($this->providersPath)

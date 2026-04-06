@@ -45,7 +45,7 @@ class File extends UploadedFile
      */
     public static function create(string $name, int $kilobytes = 0): File
     {
-        return (new FileFactory())->create($name, $kilobytes);
+        return (new FileFactory)->create($name, $kilobytes);
     }
 
     /**
@@ -53,7 +53,7 @@ class File extends UploadedFile
      */
     public static function createWithContent(string $name, string $content): File
     {
-        return (new FileFactory())->createWithContent($name, $content);
+        return (new FileFactory)->createWithContent($name, $content);
     }
 
     /**
@@ -61,7 +61,7 @@ class File extends UploadedFile
      */
     public static function image(string $name, int $width = 10, int $height = 10): File
     {
-        return (new FileFactory())->image($name, $width, $height);
+        return (new FileFactory)->image($name, $width, $height);
     }
 
     /**
@@ -101,7 +101,7 @@ class File extends UploadedFile
             return $this->mimeTypeToReport;
         }
 
-        return (new MimeTypeExtensionGuesser())->guessMimeType(
+        return (new MimeTypeExtensionGuesser)->guessMimeType(
             pathinfo($this->name, PATHINFO_EXTENSION)
         ) ?: 'application/octet-stream';
     }

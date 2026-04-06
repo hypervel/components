@@ -42,7 +42,7 @@ class RedisBroadcaster extends Broadcaster
         if (empty($request->input('channel_name'))
             || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
         ) {
-            throw new AccessDeniedHttpException();
+            throw new AccessDeniedHttpException;
         }
 
         return parent::verifyUserCanAccessChannel(

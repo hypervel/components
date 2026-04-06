@@ -283,7 +283,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
      */
     protected function failedAuthorization(): void
     {
-        throw new AuthorizationException();
+        throw new AuthorizationException;
     }
 
     /**

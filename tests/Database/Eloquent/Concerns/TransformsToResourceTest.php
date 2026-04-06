@@ -19,7 +19,7 @@ class TransformsToResourceTest extends TestCase
 {
     public function testToResourceWithExplicitClass(): void
     {
-        $model = new TransformsToResourceTestModel();
+        $model = new TransformsToResourceTestModel;
         $resource = $model->toResource(TransformsToResourceTestResource::class);
 
         $this->assertInstanceOf(TransformsToResourceTestResource::class, $resource);
@@ -31,13 +31,13 @@ class TransformsToResourceTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
 
-        $model = new TransformsToResourceTestModel();
+        $model = new TransformsToResourceTestModel;
         $model->toResource();
     }
 
     public function testToResourceUsesUseResourceAttribute(): void
     {
-        $model = new TransformsToResourceTestModelWithAttribute();
+        $model = new TransformsToResourceTestModelWithAttribute;
         $resource = $model->toResource();
 
         $this->assertInstanceOf(TransformsToResourceTestResource::class, $resource);
@@ -65,7 +65,7 @@ class TransformsToResourceTest extends TestCase
 
     public function testExplicitResourceTakesPrecedenceOverAttribute(): void
     {
-        $model = new TransformsToResourceTestModelWithAttribute();
+        $model = new TransformsToResourceTestModelWithAttribute;
         $resource = $model->toResource(TransformsToResourceTestAlternativeResource::class);
 
         // Explicit class should be used, not the attribute

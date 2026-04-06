@@ -325,6 +325,6 @@ class GlobalScopeArticle extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new PublishedScope());
+        static::addGlobalScope(new PublishedScope);
     }
 }

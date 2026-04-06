@@ -184,8 +184,8 @@ class EventsDispatcherTest extends TestCase
         });
 
         $d->defer(function () use ($d) {
-            $d->dispatch(new DeferTestEvent());
-            $d->dispatch(new ImmediateTestEvent());
+            $d->dispatch(new DeferTestEvent);
+            $d->dispatch(new ImmediateTestEvent);
 
             $this->assertSame(['ImmediateTestEvent'], $_SERVER['__event.test']);
         }, [DeferTestEvent::class]);
@@ -274,7 +274,7 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestEventListener::class)
-            ->andReturn(new TestEventListener());
+            ->andReturn(new TestEventListener);
 
         $d = $this->getEventDispatcher();
         $d->listen('foo', TestEventListener::class . '@onFooEvent');
@@ -293,7 +293,7 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestEventListener::class)
-            ->andReturn(new TestEventListener());
+            ->andReturn(new TestEventListener);
 
         $d = $this->getEventDispatcher();
         $d->listen('foo', TestEventListener::class);
@@ -360,7 +360,7 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->push(ExampleEvent::class, $e = new ExampleEvent());
+        $d->push(ExampleEvent::class, $e = new ExampleEvent);
         $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
@@ -512,7 +512,7 @@ class EventsDispatcherTest extends TestCase
         $d->listen(ExampleEvent::class, function () {
             $_SERVER['__event.test'] = 'baz';
         });
-        $d->dispatch(new ExampleEvent());
+        $d->dispatch(new ExampleEvent);
 
         $this->assertSame('baz', $_SERVER['__event.test']);
     }
@@ -525,7 +525,7 @@ class EventsDispatcherTest extends TestCase
         $d->listen(function (ExampleEvent $event) {
             $_SERVER['__event.test'] = 'qux';
         });
-        $d->dispatch(new ExampleEvent());
+        $d->dispatch(new ExampleEvent);
 
         $this->assertSame('qux', $_SERVER['__event.test']);
     }
@@ -538,7 +538,7 @@ class EventsDispatcherTest extends TestCase
         $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
-        $d->dispatch($e = new ExampleEvent(), ['foo']);
+        $d->dispatch($e = new ExampleEvent, ['foo']);
 
         $this->assertSame($e, $_SERVER['__event.test']);
     }
@@ -551,7 +551,7 @@ class EventsDispatcherTest extends TestCase
         $d->listen(SomeEventInterface::class, function () {
             $_SERVER['__event.test'] = 'bar';
         });
-        $d->dispatch(new AnotherEvent());
+        $d->dispatch(new AnotherEvent);
 
         $this->assertSame('bar', $_SERVER['__event.test']);
     }
@@ -571,7 +571,7 @@ class EventsDispatcherTest extends TestCase
             $_SERVER['__event.test'][] = $p;
             $_SERVER['__event.test2'] = 'baar';
         });
-        $d->dispatch($e = new AnotherEvent(), ['foo']);
+        $d->dispatch($e = new AnotherEvent, ['foo']);
 
         $this->assertSame($e, $_SERVER['__event.test'][0]);
         $this->assertSame($e, $_SERVER['__event.test'][1]);
@@ -608,7 +608,7 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->times(4)
             ->with(TestListener::class)
-            ->andReturn(new TestListener());
+            ->andReturn(new TestListener);
 
         $d = $this->getEventDispatcher();
         $d->listen('event', TestListener::class);
@@ -641,17 +641,17 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->twice()
             ->with(TestListener1::class)
-            ->andReturnUsing(fn () => new TestListener1());
+            ->andReturnUsing(fn () => new TestListener1);
         $this->container
             ->shouldReceive('make')
             ->twice()
             ->with(TestListener2::class)
-            ->andReturnUsing(fn () => new TestListener2());
+            ->andReturnUsing(fn () => new TestListener2);
         $this->container
             ->shouldReceive('make')
             ->twice()
             ->with(TestListener3::class)
-            ->andReturnUsing(fn () => new TestListener3());
+            ->andReturnUsing(fn () => new TestListener3);
 
         $d = $this->getEventDispatcher();
         $d->listen(TestEvent::class, TestListener1::class);
@@ -700,17 +700,17 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->twice()
             ->with(TestListener1::class)
-            ->andReturnUsing(fn () => new TestListener1());
+            ->andReturnUsing(fn () => new TestListener1);
         $this->container
             ->shouldReceive('make')
             ->once()
             ->with(TestListener2Falser::class)
-            ->andReturnUsing(fn () => new TestListener2Falser());
+            ->andReturnUsing(fn () => new TestListener2Falser);
         $this->container
             ->shouldReceive('make')
             ->once()
             ->with(TestListener2::class)
-            ->andReturnUsing(fn () => new TestListener2());
+            ->andReturnUsing(fn () => new TestListener2);
 
         $d = $this->getEventDispatcher();
         $d->listen(TestEvent::class, TestListener1::class);
@@ -758,17 +758,17 @@ class EventsDispatcherTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestListenerInvokeHandler::class)
-            ->andReturnUsing(fn () => new TestListenerInvokeHandler());
+            ->andReturnUsing(fn () => new TestListenerInvokeHandler);
         $this->container
             ->shouldReceive('make')
             ->once()
             ->with(TestListenerInvoke::class)
-            ->andReturnUsing(fn () => new TestListenerInvoke());
+            ->andReturnUsing(fn () => new TestListenerInvoke);
         $this->container
             ->shouldReceive('make')
             ->once()
             ->with(TestListenerLean::class)
-            ->andReturnUsing(fn () => new TestListenerLean());
+            ->andReturnUsing(fn () => new TestListenerLean);
 
         // Only "handle" is called when both "handle" and "__invoke" exist on listener.
         $_SERVER['__event.test'] = [];
@@ -833,14 +833,14 @@ class EventsDispatcherTest extends TestCase
             $listenerTriggered = true;
         });
 
-        $d->dispatch(new AfterCommitEvent());
+        $d->dispatch(new AfterCommitEvent);
 
         $this->assertFalse($listenerTriggered);
     }
 
     private function getEventDispatcher(): EventDispatcher
     {
-        return new EventDispatcher(new ListenerProvider(), null, $this->container);
+        return new EventDispatcher(new ListenerProvider, null, $this->container);
     }
 }
 

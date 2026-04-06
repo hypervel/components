@@ -47,7 +47,7 @@ class DatabaseMigrationStatusCommandTest extends TestCase
 
     protected function runCommand($command, array $input = []): int
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

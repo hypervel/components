@@ -24,7 +24,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveCallsArePreventedWithoutPreventingSubsequentCalls()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
 
         $this->assertEquals(0, RecursiveMethodStub::$globalStack);
         $this->assertEquals(0, $instance->instanceStack);
@@ -40,7 +40,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveDefaultCallbackIsCalledOnlyOnRecursion()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
 
         $this->assertEquals(0, RecursiveMethodStub::$globalStack);
         $this->assertEquals(0, $instance->instanceStack);
@@ -59,7 +59,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveDefaultCallbackIsCalledOnlyOncePerCallStack()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
 
         $this->assertEquals(0, RecursiveMethodStub::$globalStack);
         $this->assertEquals(0, $instance->instanceStack);
@@ -92,7 +92,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveCallsAreLimitedToIndividualInstances()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
         $other = $instance->other;
 
         $this->assertEquals(0, RecursiveMethodStub::$globalStack);
@@ -122,7 +122,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveCallsToCircularReferenceCallsOtherInstanceOnce()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
         $other = $instance->other;
 
         $this->assertEquals(0, RecursiveMethodStub::$globalStack);
@@ -152,7 +152,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testRecursiveCallsToCircularLinkedListCallsEachInstanceOnce()
     {
-        $instance = new RecursiveMethodStub();
+        $instance = new RecursiveMethodStub;
         $second = $instance->other;
         $third = new RecursiveMethodStub($second);
         $instance->other = $third;

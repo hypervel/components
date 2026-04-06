@@ -141,7 +141,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
 
     public function testObjectIsCastable()
     {
-        $object = new stdClass();
+        $object = new stdClass;
         $object->key1 = 'value1';
 
         $this->encrypter->expects('encrypt')
@@ -203,7 +203,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-collection-string-2')
             ->andReturn('{"key1":"value1","key2":"value2"}');
 
-        $subject = new EncryptedCast();
+        $subject = new EncryptedCast;
 
         $subject->mergeCasts(['secret_collection' => AsEncryptedCollection::class]);
 
@@ -253,7 +253,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-collection-string-2')
             ->andReturn('[{"key1":"value1"},{"key2":"value2"}]');
 
-        $subject = new EncryptedCast();
+        $subject = new EncryptedCast;
 
         $subject->mergeCasts(['secret_collection' => AsEncryptedCollection::of(Fluent::class)]);
 
@@ -309,7 +309,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-array-string-2')
             ->andReturn('{"key1":"value1","key2":"value2"}');
 
-        $subject = new EncryptedCast();
+        $subject = new EncryptedCast;
 
         $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
 

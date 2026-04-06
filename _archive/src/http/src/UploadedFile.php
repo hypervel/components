@@ -77,7 +77,7 @@ class UploadedFile extends HyperfUploadedFile
      */
     public static function fake(): FileFactory
     {
-        return new FileFactory();
+        return new FileFactory;
     }
 
     /**

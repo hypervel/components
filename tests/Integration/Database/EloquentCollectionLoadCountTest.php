@@ -37,9 +37,9 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         });
 
         $post = Post::create();
-        $post->comments()->saveMany([new Comment(), new Comment()]);
+        $post->comments()->saveMany([new Comment, new Comment]);
 
-        $post->likes()->save(new Like());
+        $post->likes()->save(new Like);
 
         Post::create();
     }

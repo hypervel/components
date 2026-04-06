@@ -24,7 +24,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
 {
     public function testConnectionSetterIsFluent()
     {
-        $middleware = new ThrottlesExceptionsWithRedis();
+        $middleware = new ThrottlesExceptionsWithRedis;
 
         $result = $middleware->connection('custom');
 
@@ -43,7 +43,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
 
         $this->instance(Redis::class, $redis);
 
-        $middleware = new ThrottlesExceptionsWithRedis();
+        $middleware = new ThrottlesExceptionsWithRedis;
 
         $job = m::mock();
         $job->shouldReceive('getJobId')->andReturn('test-job-id');
@@ -63,7 +63,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
 
         $this->instance(Redis::class, $redis);
 
-        $middleware = new ThrottlesExceptionsWithRedis();
+        $middleware = new ThrottlesExceptionsWithRedis;
         $middleware->connection('cache');
 
         $job = m::mock();
@@ -84,7 +84,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
 
         $this->instance(Redis::class, $redis);
 
-        $middleware = new ThrottlesExceptionsWithRedis();
+        $middleware = new ThrottlesExceptionsWithRedis;
 
         $job = m::mock();
         $job->shouldReceive('getJobId')->andReturn('test-job-id');

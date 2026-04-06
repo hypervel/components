@@ -74,7 +74,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 
         return new BelongsToMany(
             $builder,
-            new ModelStub(),
+            new ModelStub,
             'relation',
             'foreign_key',
             'id',

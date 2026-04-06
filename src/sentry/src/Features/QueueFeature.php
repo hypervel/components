@@ -71,7 +71,7 @@ class QueueFeature extends Feature
                 $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
                 if ($parentSpan !== null && $parentSpan->getSampled()) {
-                    $context = (new SpanContext())
+                    $context = (new SpanContext)
                         ->setOp(self::QUEUE_SPAN_OP_QUEUE_PUBLISH)
                         ->setData([
                             'messaging.system' => 'hypervel',
@@ -175,7 +175,7 @@ class QueueFeature extends Feature
                 return;
             }
         } else {
-            $context = new SpanContext();
+            $context = new SpanContext;
         }
 
         $resolvedJobName = $event->job->resolveName();

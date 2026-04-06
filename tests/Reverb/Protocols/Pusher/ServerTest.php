@@ -29,7 +29,7 @@ class ServerTest extends ReverbTestCase
 
     public function testCanHandleAConnection()
     {
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
 
         $this->assertNotNull($connection->lastSeenAt());
 
@@ -53,14 +53,14 @@ class ServerTest extends ReverbTestCase
         $this->app->forgetInstance(Server::class);
         $server = $this->app->make(Server::class);
 
-        $server->close(new FakeConnection());
+        $server->close(new FakeConnection);
 
         $scopedManager->shouldHaveReceived('unsubscribeFromAll');
     }
 
     public function testCanHandleANewMessage()
     {
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
         $this->server->message(
             $connection,
             json_encode([
@@ -90,7 +90,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFails()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             'Hi'
         );
 
@@ -125,7 +125,7 @@ class ServerTest extends ReverbTestCase
     public function testCanSubscribeAUserToAChannel()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -147,7 +147,7 @@ class ServerTest extends ReverbTestCase
     public function testCanSubscribeAUserToAPrivateChannel()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -167,7 +167,7 @@ class ServerTest extends ReverbTestCase
     public function testCanSubscribeAUserToAPresenceChannel()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -193,7 +193,7 @@ class ServerTest extends ReverbTestCase
     public function testReceivesNoDataWhenNoPreviousEventTriggeredWhenJoiningACacheChannel()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -217,7 +217,7 @@ class ServerTest extends ReverbTestCase
     public function testReceivesLastTriggeredEventWhenJoiningACacheChannel()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -231,7 +231,7 @@ class ServerTest extends ReverbTestCase
         $channel->broadcast(['foo' => 'bar']);
 
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -251,7 +251,7 @@ class ServerTest extends ReverbTestCase
 
     public function testUnsubscribesAUserFromAChannelOnDisconnection()
     {
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
         $this->server->message(
             $connection,
             json_encode([
@@ -269,7 +269,7 @@ class ServerTest extends ReverbTestCase
 
     public function testUnsubscribesAUserFromAPrivateChannelOnDisconnection()
     {
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $this->server->open($connection);
         $this->server->message(
             $connection,
@@ -291,7 +291,7 @@ class ServerTest extends ReverbTestCase
 
     public function testUnsubscribesAUserFromAPresenceChannelOnDisconnection()
     {
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $this->server->open($connection);
         $data = json_encode(['user_id' => 1, 'user_info' => ['name' => 'Test']]);
         $this->server->message(
@@ -363,7 +363,7 @@ class ServerTest extends ReverbTestCase
     public function testRejectsAConnectionWhenTheAppIsOverTheConnectionLimit()
     {
         $this->app['config']->set('reverb.apps.apps.0.max_connections', 1);
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
         $this->server->message(
             $connection,
             json_encode([
@@ -373,7 +373,7 @@ class ServerTest extends ReverbTestCase
                 ],
             ])
         );
-        $this->server->open($connectionTwo = new FakeConnection());
+        $this->server->open($connectionTwo = new FakeConnection);
 
         $connectionTwo->assertReceived([
             'event' => 'pusher:error',
@@ -387,7 +387,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForEventType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => [],
             ])
@@ -405,7 +405,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForDataType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => 'sfsfsfs',
@@ -424,7 +424,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForDataChannelType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => ['channel' => []],
@@ -440,7 +440,7 @@ class ServerTest extends ReverbTestCase
         ]);
 
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => ['channel' => null],
@@ -459,7 +459,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForDataAuthType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -481,7 +481,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForDataChannelDataType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -501,7 +501,7 @@ class ServerTest extends ReverbTestCase
         ]);
 
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'pusher:subscribe',
                 'data' => [
@@ -524,7 +524,7 @@ class ServerTest extends ReverbTestCase
     public function testSendsAnErrorIfSomethingFailsForChannelType()
     {
         $this->server->message(
-            $connection = new FakeConnection(),
+            $connection = new FakeConnection,
             json_encode([
                 'event' => 'client-start-typing',
                 'channel' => [],
@@ -549,7 +549,7 @@ class ServerTest extends ReverbTestCase
             'terminate_on_limit' => false,
         ]);
 
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
 
         for ($i = 0; $i < 3; ++$i) {
             $this->server->message(
@@ -589,7 +589,7 @@ class ServerTest extends ReverbTestCase
             'terminate_on_limit' => true,
         ]);
 
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
 
         $this->server->message(
             $connection,
@@ -620,7 +620,7 @@ class ServerTest extends ReverbTestCase
 
     public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured()
     {
-        $this->server->open($connection = new FakeConnection());
+        $this->server->open($connection = new FakeConnection);
 
         for ($i = 0; $i < 10; ++$i) {
             $this->server->message(
@@ -668,7 +668,7 @@ class ServerTest extends ReverbTestCase
         $this->app->forgetInstance(Server::class);
         $server = $this->app->make(Server::class);
 
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $server->close($connection);
 
         // close() is the "client already disconnected" cleanup path.

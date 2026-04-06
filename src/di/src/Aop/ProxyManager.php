@@ -25,7 +25,7 @@ class ProxyManager
         protected array $classMap = [],
         protected string $proxyDir = ''
     ) {
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
         $this->proxies = $this->generateProxyFiles($this->initProxiesByReflectionClassMap(
             $this->classMap
         ));
@@ -79,7 +79,7 @@ class ProxyManager
             mkdir($this->getProxyDir(), 0755, true);
         }
         // Ast must not be a static instance — it reads source files which can trigger coroutine switches.
-        $ast = new Ast();
+        $ast = new Ast;
         foreach ($proxies as $className => $aspects) {
             $proxyFiles[$className] = $this->putProxyFile($ast, $className);
         }

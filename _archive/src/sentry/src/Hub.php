@@ -174,7 +174,7 @@ class Hub implements HubInterface
         $transaction = new Transaction($context, $this);
         $client = $this->getClient();
         $options = $client !== null ? $client->getOptions() : null;
-        $logger = $options !== null ? $options->getLoggerOrNullLogger() : new NullLogger();
+        $logger = $options !== null ? $options->getLoggerOrNullLogger() : new NullLogger;
 
         if ($options === null || ! $options->isTracingEnabled()) {
             $transaction->setSampled(false);
@@ -391,7 +391,7 @@ class Hub implements HubInterface
     private function getStackTop(): Layer
     {
         $stack = Context::getOrSet(self::CONTEXT_STACK_KEY, function () {
-            $scope = $this->scope ?? new Scope();
+            $scope = $this->scope ?? new Scope;
 
             return [new Layer($this->getClient(), $scope)];
         });

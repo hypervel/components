@@ -49,7 +49,7 @@ class BladeBoolTest extends AbstractBladeTestCase
         eval(substr($compiled, 6, -3));
         $this->assertEquals('false', ob_get_clean());
 
-        $anotherSomeViewVarTruthy = new SomeClass();
+        $anotherSomeViewVarTruthy = new SomeClass;
         $compiled = $this->compiler->compileString('@bool($anotherSomeViewVarTruthy)');
 
         ob_start();

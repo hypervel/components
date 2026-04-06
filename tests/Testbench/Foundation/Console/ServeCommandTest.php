@@ -76,7 +76,7 @@ class ServeCommandTest extends TestCase
 
         Application::getInstance()->setRunningInConsole(false);
 
-        $result = $command->run(new ArrayInput([]), new NullOutput());
+        $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
         $this->assertCount(1, $startedEvents);
@@ -108,7 +108,7 @@ class ServeCommandTest extends TestCase
         Application::getInstance()->setRunningInConsole(true);
 
         try {
-            $command->run(new ArrayInput([]), new NullOutput());
+            $command->run(new ArrayInput([]), new NullOutput);
             $this->fail('ServeCommand should rethrow the underlying RuntimeException when the server bootstrap guard fails.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('APP_RUNNING_IN_CONSOLE is true', $exception->getMessage());

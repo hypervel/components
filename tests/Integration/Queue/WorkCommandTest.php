@@ -53,8 +53,8 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunningOneJob()
     {
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--once' => true,
@@ -68,7 +68,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testOnceDoesNotRunInMaintenanceModeUnlessForced()
     {
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         try {
             $this->artisan('down')->assertExitCode(0);
@@ -102,7 +102,7 @@ class WorkCommandTest extends QueueTestCase
     {
         // queue.output_timezone not set at all
         $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
             '--once' => true,
@@ -116,7 +116,7 @@ class WorkCommandTest extends QueueTestCase
         $this->app['config']->set('queue.output_timezone', 'Europe/Helsinki');
 
         $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
             '--once' => true,
@@ -130,7 +130,7 @@ class WorkCommandTest extends QueueTestCase
         $this->app['config']->set('queue.output_timezone', 'UTC');
 
         $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
             '--once' => true,
@@ -141,8 +141,8 @@ class WorkCommandTest extends QueueTestCase
 
     public function testDaemon()
     {
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--daemon' => true,
@@ -157,8 +157,8 @@ class WorkCommandTest extends QueueTestCase
 
     public function testMemoryExceeded()
     {
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--daemon' => true,
@@ -176,8 +176,8 @@ class WorkCommandTest extends QueueTestCase
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--daemon' => true,
@@ -195,9 +195,9 @@ class WorkCommandTest extends QueueTestCase
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
-        Queue::push(new ThirdJob());
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new ThirdJob);
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--daemon' => true,
@@ -218,8 +218,8 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$memoryExceededExitCode = 0;
 
-        Queue::push(new FirstJob());
-        Queue::push(new SecondJob());
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
             '--memory' => 0.1,
@@ -249,7 +249,7 @@ class WorkCommandTest extends QueueTestCase
 
         $this->app->instance('cache', $cacheManager);
 
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
             '--max-jobs' => 1,
@@ -279,7 +279,7 @@ class WorkCommandTest extends QueueTestCase
 
         $this->app->instance('cache', $cacheManager);
 
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
             '--max-jobs' => 1,
@@ -298,10 +298,10 @@ class WorkCommandTest extends QueueTestCase
 
         Exceptions::fake();
 
-        Queue::push(new FirstJob());
+        Queue::push(new FirstJob);
         $this->withoutMockingConsoleOutput()->artisan('queue:work', ['--once' => true, '--sleep' => 0]);
 
-        Queue::push(new JobWillFail());
+        Queue::push(new JobWillFail);
         $this->withoutMockingConsoleOutput()->artisan('queue:work', ['--once' => true]);
         Exceptions::assertNotReported(UniqueConstraintViolationException::class);
         $this->assertSame(2, substr_count(Artisan::output(), JobWillFail::class));
@@ -356,6 +356,6 @@ class JobWillFail implements ShouldQueue
 
     public function handle(): void
     {
-        throw new RuntimeException();
+        throw new RuntimeException;
     }
 }

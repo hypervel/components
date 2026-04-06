@@ -110,7 +110,7 @@ class SessionManagerTest extends TestCase
 
     protected function getContainer(array $config): Container
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository($config));
         $container->instance(Encrypter::class, m::mock(Encrypter::class));

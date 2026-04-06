@@ -81,6 +81,6 @@ class ValidationInArrayKeysTest extends TestCase
 
     protected function getArrayTranslator()
     {
-        return new Translator(new ArrayLoader(), 'en');
+        return new Translator(new ArrayLoader, 'en');
     }
 }

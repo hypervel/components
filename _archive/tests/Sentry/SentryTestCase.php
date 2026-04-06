@@ -171,7 +171,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     {
         $hub = $this->getSentryHubFromContainer();
 
-        $context = new TransactionContext();
+        $context = new TransactionContext;
         $context->setName('test-transaction');
         $context->setOp('test');
 

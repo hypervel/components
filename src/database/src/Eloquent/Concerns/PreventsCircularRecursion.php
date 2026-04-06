@@ -77,7 +77,7 @@ trait PreventsCircularRecursion
      */
     protected static function getRecursionCache(): WeakMap
     {
-        return CoroutineContext::getOrSet(self::RECURSION_CACHE_CONTEXT_KEY, fn () => new WeakMap());
+        return CoroutineContext::getOrSet(self::RECURSION_CACHE_CONTEXT_KEY, fn () => new WeakMap);
     }
 
     /**

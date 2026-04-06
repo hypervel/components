@@ -20,7 +20,7 @@ class AuthRequestGuardTest extends TestCase
 {
     public function testCallbackReceivesRequestAndProvider()
     {
-        $container = new Container();
+        $container = new Container;
         $request = m::mock(Request::class);
         $provider = m::mock(UserProvider::class);
         $container->instance('request', $request);
@@ -43,7 +43,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testUserReturnsCachedUserOnSubsequentCalls()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $callCount = 0;
@@ -62,7 +62,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testNullUserIsCachedViaSentinel()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $callCount = 0;
@@ -80,7 +80,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testHasUserReturnsTrueWhenUserExists()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $container);
@@ -91,7 +91,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testHasUserReturnsFalseWhenNoUser()
     {
-        $container = new Container();
+        $container = new Container;
 
         $guard = new RequestGuard('custom', fn () => null, $container);
 
@@ -100,7 +100,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testHasUserReturnsFalseAfterNullUserCached()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $guard = new RequestGuard('custom', fn () => null, $container);
@@ -111,7 +111,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testSetUserOverridesCachedUser()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $originalUser = m::mock(Authenticatable::class);
@@ -128,7 +128,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testForgetUserClearsCachedUser()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $container);
@@ -143,7 +143,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testTwoGuardNamesDoNotCollideInContext()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('request', m::mock(Request::class));
 
         $user1 = m::mock(Authenticatable::class);
@@ -158,7 +158,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testReplacingRequestInContainerChangesWhatGuardSees()
     {
-        $container = new Container();
+        $container = new Container;
         $request1 = m::mock(Request::class);
         $request2 = m::mock(Request::class);
         $container->instance('request', $request1);
@@ -187,7 +187,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testValidateCallsCallbackWithCredentialsRequest()
     {
-        $container = new Container();
+        $container = new Container;
         $request = m::mock(Request::class);
         $provider = m::mock(UserProvider::class);
 
@@ -200,7 +200,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testValidateReturnsFalseWhenCallbackReturnsNull()
     {
-        $container = new Container();
+        $container = new Container;
         $request = m::mock(Request::class);
 
         $guard = new RequestGuard('custom', fn () => null, $container);

@@ -40,7 +40,7 @@ trait FakesInputOutput
         /* @phpstan-ignore-next-line */
         static::$terminal = $mock;
 
-        self::setOutput(new BufferedConsoleOutput());
+        self::setOutput(new BufferedConsoleOutput);
     }
 
     /**

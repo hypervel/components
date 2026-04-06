@@ -27,7 +27,7 @@ class PoolManagerTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container();
+        $container = new Container;
         $this->manager = new PoolManager($container);
         $container->instance(PoolManager::class, $this->manager);
         Container::setInstance($container);
@@ -39,7 +39,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $pool = $this->manager->create($name, $callback);
 
@@ -52,7 +52,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'duplicate-test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->manager->create($name, $callback);
 
@@ -66,7 +66,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->assertFalse($this->manager->has($name));
 
@@ -79,7 +79,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->manager->create($name, $callback);
         $this->assertTrue($this->manager->has($name));
@@ -93,8 +93,8 @@ class PoolManagerTest extends TestCase
     public function testFlush()
     {
         $this->manager = new PoolManager($this->container);
-        $this->manager->create('pool1', fn () => new Bar());
-        $this->manager->create('pool2', fn () => new Bar());
+        $this->manager->create('pool1', fn () => new Bar);
+        $this->manager->create('pool2', fn () => new Bar);
 
         $this->assertCount(2, $this->manager->pools());
 
@@ -106,7 +106,7 @@ class PoolManagerTest extends TestCase
     public function testGetPool()
     {
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $pool = $this->manager->create($name, $callback);
 
@@ -119,7 +119,7 @@ class PoolManagerTest extends TestCase
 
         $bar = new BarPoolProxy(
             BarPoolProxy::class . ':bar',
-            fn () => new Bar()
+            fn () => new Bar
         );
 
         $this->assertTrue($bar->handle());
@@ -133,7 +133,7 @@ class PoolManagerTest extends TestCase
 
     protected function mockContainer(): Container
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(PoolFactory::class, $this->manager);
 
         Container::setInstance($container);

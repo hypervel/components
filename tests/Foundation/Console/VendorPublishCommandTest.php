@@ -34,7 +34,7 @@ class VendorPublishCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
         $filesystem->deleteDirectory($this->sourceDir);
         $filesystem->deleteDirectory($this->destDir);
 

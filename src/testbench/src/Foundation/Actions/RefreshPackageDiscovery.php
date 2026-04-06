@@ -18,7 +18,7 @@ final class RefreshPackageDiscovery
      */
     public function handle(ApplicationContract $app): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         $cachedPath = $app->bootstrapPath('cache/packages.php');
 

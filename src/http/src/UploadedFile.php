@@ -22,7 +22,7 @@ class UploadedFile extends SymfonyUploadedFile
      */
     public static function fake(): FileFactory
     {
-        return new FileFactory();
+        return new FileFactory;
     }
 
     /**

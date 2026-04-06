@@ -27,7 +27,7 @@ class RedisConfig
         $redisConfig = $this->all();
         $names = [];
 
-        $parser = new ConfigurationUrlParser();
+        $parser = new ConfigurationUrlParser;
 
         foreach ($redisConfig as $name => $connectionConfig) {
             if (in_array($name, ['client', 'options', 'clusters'], true)) {
@@ -60,7 +60,7 @@ class RedisConfig
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
         }
 
-        $connectionConfig = (new ConfigurationUrlParser())->parseConfiguration($connectionConfig);
+        $connectionConfig = (new ConfigurationUrlParser)->parseConfiguration($connectionConfig);
         $this->validateConnectionConfig($name, $connectionConfig);
 
         $sharedOptions = $redisConfig['options'] ?? [];

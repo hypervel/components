@@ -23,7 +23,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
 {
     public function testFreshCommandDropsTablesMigratesAndSeeds()
     {
-        $app = new ApplicationDatabaseFreshStub();
+        $app = new ApplicationDatabaseFreshStub;
         $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class)->shouldIgnoreMissing());
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
@@ -70,7 +70,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
 
     protected function runCommand($command, array $input = []): int
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

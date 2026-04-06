@@ -31,27 +31,27 @@ class HasherTest extends TestCase
 
     public function testEmptyHashedValueReturnsFalse()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', ''));
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $this->assertFalse($hasher->check('password', ''));
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $this->assertFalse($hasher->check('password', ''));
     }
 
     public function testNullHashedValueReturnsFalse()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', null));
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $this->assertFalse($hasher->check('password', null));
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $this->assertFalse($hasher->check('password', null));
     }
 
     public function testBasicBcryptHashing()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));
@@ -63,7 +63,7 @@ class HasherTest extends TestCase
 
     public function testBasicArgon2iHashing()
     {
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));
@@ -75,7 +75,7 @@ class HasherTest extends TestCase
 
     public function testBasicArgon2idHashing()
     {
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));

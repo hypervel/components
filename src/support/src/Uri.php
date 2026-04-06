@@ -164,7 +164,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     {
         $path = $this->path();
 
-        return $path === '/' ? new Collection() : new Collection(explode('/', $path));
+        return $path === '/' ? new Collection : new Collection(explode('/', $path));
     }
 
     /**

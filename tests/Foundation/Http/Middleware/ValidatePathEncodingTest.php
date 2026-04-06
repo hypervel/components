@@ -25,8 +25,8 @@ class ValidatePathEncodingTest extends TestCase
     #[TestWith(['汉字字符集'])]
     public function testValidPathsArePassing(string $path)
     {
-        $middleware = new ValidatePathEncoding();
-        $symfonyRequest = new SymfonyRequest();
+        $middleware = new ValidatePathEncoding;
+        $symfonyRequest = new SymfonyRequest;
         $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
         $symfonyRequest->server->set('REQUEST_URI', $path);
         $request = Request::createFromBase($symfonyRequest);
@@ -41,8 +41,8 @@ class ValidatePathEncodingTest extends TestCase
     #[TestWith(['%c0'])]
     public function testInvalidPathsAreFailing(string $path)
     {
-        $middleware = new ValidatePathEncoding();
-        $symfonyRequest = new SymfonyRequest();
+        $middleware = new ValidatePathEncoding;
+        $symfonyRequest = new SymfonyRequest;
         $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
         $symfonyRequest->server->set('REQUEST_URI', $path);
         $request = Request::createFromBase($symfonyRequest);

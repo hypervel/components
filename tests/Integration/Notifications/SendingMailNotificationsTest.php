@@ -69,7 +69,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSent()
     {
-        $notification = new TestMailNotification();
+        $notification = new TestMailNotification;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -107,7 +107,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentWithCustomTheme()
     {
-        $notification = new TestMailNotificationWithCustomTheme();
+        $notification = new TestMailNotificationWithCustomTheme;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -180,7 +180,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentToNamedAddress()
     {
-        $notification = new TestMailNotification();
+        $notification = new TestMailNotification;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUserWithNamedAddress::forceCreate([
@@ -219,7 +219,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentWithSubject()
     {
-        $notification = new TestMailNotificationWithSubject();
+        $notification = new TestMailNotificationWithSubject;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -247,7 +247,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentToMultipleAddresses()
     {
-        $notification = new TestMailNotificationWithSubject();
+        $notification = new TestMailNotificationWithSubject;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUserWithMultipleAddresses::forceCreate([
@@ -275,7 +275,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentUsingMailable()
     {
-        $notification = new TestMailNotificationWithMailable();
+        $notification = new TestMailNotificationWithMailable;
 
         $user = NotifiableUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -286,7 +286,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentUsingMailMessageWithHtmlAndPlain()
     {
-        $notification = new TestMailNotificationWithHtmlAndPlain();
+        $notification = new TestMailNotificationWithHtmlAndPlain;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -318,7 +318,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentUsingMailMessageWithHtmlOnly()
     {
-        $notification = new TestMailNotificationWithHtmlOnly();
+        $notification = new TestMailNotificationWithHtmlOnly;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -350,7 +350,7 @@ class SendingMailNotificationsTest extends TestCase
 
     public function testMailIsSentUsingMailMessageWithPlainOnly()
     {
-        $notification = new TestMailNotificationWithPlainOnly();
+        $notification = new TestMailNotificationWithPlainOnly;
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
@@ -421,7 +421,7 @@ class TestMailNotification extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->priority(1)
             ->cc('cc@deepblue.com', 'cc')
             ->bcc('bcc@deepblue.com', 'bcc')
@@ -441,7 +441,7 @@ class TestMailNotificationWithSubject extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject('mail custom subject')
             ->line('The introduction to the notification.');
     }
@@ -473,7 +473,7 @@ class TestMailNotificationWithHtmlAndPlain extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->view(['html', 'plain']);
     }
 }
@@ -487,7 +487,7 @@ class TestMailNotificationWithHtmlOnly extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->view('html');
     }
 }
@@ -501,7 +501,7 @@ class TestMailNotificationWithPlainOnly extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->view([null, 'plain']);
     }
 }
@@ -515,7 +515,7 @@ class TestMailNotificationWithCustomTheme extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->priority(1)
             ->cc('cc@deepblue.com', 'cc')
             ->bcc('bcc@deepblue.com', 'bcc')

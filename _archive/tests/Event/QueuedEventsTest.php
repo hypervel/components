@@ -66,7 +66,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
-            ->andReturn(new TestDispatcherQueuedHandler());
+            ->andReturn(new TestDispatcherQueuedHandler);
 
         $d = $this->getEventDispatcher();
 
@@ -87,7 +87,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherQueuedHandler::class)
-            ->andReturn(new TestDispatcherQueuedHandler());
+            ->andReturn(new TestDispatcherQueuedHandler);
 
         $d = $this->getEventDispatcher();
 
@@ -98,9 +98,9 @@ class QueuedEventsTest extends TestCase
 
         $d->setQueueResolver(fn () => $queue);
 
-        $d->listen(TestDispatcherQueuedHandlerEvent::class, [new TestDispatcherQueuedHandler(), 'handle']);
+        $d->listen(TestDispatcherQueuedHandlerEvent::class, [new TestDispatcherQueuedHandler, 'handle']);
         $d->listen(TestDispatcherQueuedHandlerEvent::class, [TestDispatcherQueuedHandler::class, 'handle']);
-        $d->dispatch(new TestDispatcherQueuedHandlerEvent());
+        $d->dispatch(new TestDispatcherQueuedHandlerEvent);
     }
 
     public function testQueueIsSetByGetConnection()
@@ -109,7 +109,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnection::class)
-            ->andReturn(new TestDispatcherGetConnection());
+            ->andReturn(new TestDispatcherGetConnection);
 
         $d = $this->getEventDispatcher();
 
@@ -130,7 +130,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelay::class)
-            ->andReturn(new TestDispatcherGetConnection());
+            ->andReturn(new TestDispatcherGetConnection);
 
         $d = $this->getEventDispatcher();
 
@@ -151,7 +151,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetConnectionDynamically::class)
-            ->andReturn(new TestDispatcherGetConnectionDynamically());
+            ->andReturn(new TestDispatcherGetConnectionDynamically);
 
         $d = $this->getEventDispatcher();
 
@@ -175,7 +175,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherGetDelayDynamically::class)
-            ->andReturn(new TestDispatcherGetDelayDynamically());
+            ->andReturn(new TestDispatcherGetDelayDynamically);
 
         $d = $this->getEventDispatcher();
 
@@ -257,7 +257,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueProperty::class)
-            ->andReturn(new TestDispatcherStringEnumQueueProperty());
+            ->andReturn(new TestDispatcherStringEnumQueueProperty);
 
         $d = $this->getEventDispatcher();
 
@@ -279,7 +279,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherUnitEnumQueueProperty::class)
-            ->andReturn(new TestDispatcherUnitEnumQueueProperty());
+            ->andReturn(new TestDispatcherUnitEnumQueueProperty);
 
         $d = $this->getEventDispatcher();
 
@@ -301,7 +301,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherIntEnumQueueProperty::class)
-            ->andReturn(new TestDispatcherIntEnumQueueProperty());
+            ->andReturn(new TestDispatcherIntEnumQueueProperty);
 
         $d = $this->getEventDispatcher();
 
@@ -324,7 +324,7 @@ class QueuedEventsTest extends TestCase
             ->shouldReceive('make')
             ->once()
             ->with(TestDispatcherStringEnumQueueMethod::class)
-            ->andReturn(new TestDispatcherStringEnumQueueMethod());
+            ->andReturn(new TestDispatcherStringEnumQueueMethod);
 
         $d = $this->getEventDispatcher();
 
@@ -343,7 +343,7 @@ class QueuedEventsTest extends TestCase
     private function getContainer(): Container
     {
         $config = new Repository([]);
-        $container = new Container();
+        $container = new Container;
         $container->instance('config', $config);
         $container->instance(ConfigContract::class, $config);
 
@@ -354,7 +354,7 @@ class QueuedEventsTest extends TestCase
 
     private function getEventDispatcher(?StdoutLoggerInterface $logger = null): EventDispatcher
     {
-        return new EventDispatcher(new ListenerProvider(), $logger, $this->container);
+        return new EventDispatcher(new ListenerProvider, $logger, $this->container);
     }
 }
 

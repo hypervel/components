@@ -141,7 +141,7 @@ class PackageManifest
             return false;
         }
 
-        $parser = new \Composer\Semver\VersionParser();
+        $parser = new \Composer\Semver\VersionParser;
 
         return $parser->parseConstraints($constraint)
             ->matches($parser->parseConstraints($version));

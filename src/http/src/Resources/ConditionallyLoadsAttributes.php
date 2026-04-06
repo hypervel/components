@@ -108,7 +108,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function when(bool $condition, mixed $value, mixed $default = new MissingValue()): mixed
+    protected function when(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
         if ($condition) {
             return value($value);
@@ -122,7 +122,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    public function unless(bool $condition, mixed $value, mixed $default = new MissingValue()): mixed
+    public function unless(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
         $arguments = func_num_args() === 2 ? [$value] : [$value, $default];
 
@@ -144,7 +144,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MergeValue|mixed
      */
-    protected function mergeWhen(bool $condition, mixed $value, mixed $default = new MissingValue()): mixed
+    protected function mergeWhen(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
         if ($condition) {
             return new MergeValue(value($value));
@@ -158,7 +158,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MergeValue|mixed
      */
-    protected function mergeUnless(bool $condition, mixed $value, mixed $default = new MissingValue()): mixed
+    protected function mergeUnless(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
         $arguments = func_num_args() === 2 ? [$value] : [$value, $default];
 
@@ -180,7 +180,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    public function whenHas(string $attribute, mixed $value = null, mixed $default = new MissingValue()): mixed
+    public function whenHas(string $attribute, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         if (! array_key_exists($attribute, $this->resource->getAttributes())) {
             return value($default);
@@ -196,7 +196,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenNull(mixed $value, mixed $default = new MissingValue()): mixed
+    protected function whenNull(mixed $value, mixed $default = new MissingValue): mixed
     {
         $arguments = func_num_args() === 1 ? [$value] : [$value, $default];
 
@@ -208,7 +208,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenNotNull(mixed $value, mixed $default = new MissingValue()): mixed
+    protected function whenNotNull(mixed $value, mixed $default = new MissingValue): mixed
     {
         $arguments = func_num_args() === 1 ? [$value] : [$value, $default];
 
@@ -220,7 +220,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenAppended(string $attribute, mixed $value = null, mixed $default = new MissingValue()): mixed
+    protected function whenAppended(string $attribute, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         if ($this->resource->hasAppended($attribute)) {
             return func_num_args() >= 2 ? value($value) : $this->resource->{$attribute};
@@ -234,7 +234,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue()): mixed
+    protected function whenLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         if (! $this->resource->relationLoaded($relationship)) {
             return value($default);
@@ -262,7 +262,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    public function whenCounted(string $relationship, mixed $value = null, mixed $default = new MissingValue()): mixed
+    public function whenCounted(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         $attribute = (new Stringable($relationship))->snake()->finish('_count')->value();
 
@@ -290,7 +290,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    public function whenAggregated(string $relationship, string $column, string $aggregate, mixed $value = null, mixed $default = new MissingValue()): mixed
+    public function whenAggregated(string $relationship, string $column, string $aggregate, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         $attribute = (new Stringable($relationship))->snake()->append('_')->append($aggregate)->append('_')->finish($column)->value();
 
@@ -318,7 +318,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    public function whenExistsLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue()): mixed
+    public function whenExistsLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
         $attribute = (new Stringable($relationship))->snake()->finish('_exists')->value();
 
@@ -342,7 +342,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenPivotLoaded(string $table, mixed $value, mixed $default = new MissingValue()): mixed
+    protected function whenPivotLoaded(string $table, mixed $value, mixed $default = new MissingValue): mixed
     {
         return $this->whenPivotLoadedAs('pivot', ...func_get_args());
     }
@@ -352,7 +352,7 @@ trait ConditionallyLoadsAttributes
      *
      * @return \Hypervel\Http\Resources\MissingValue|mixed
      */
-    protected function whenPivotLoadedAs(string $accessor, string $table, mixed $value, mixed $default = new MissingValue()): mixed
+    protected function whenPivotLoadedAs(string $accessor, string $table, mixed $value, mixed $default = new MissingValue): mixed
     {
         return $this->when(
             $this->hasPivotLoadedAs($accessor, $table),
@@ -382,7 +382,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Transform the given value if it is present.
      */
-    protected function transform(mixed $value, callable $callback, mixed $default = new MissingValue()): mixed
+    protected function transform(mixed $value, callable $callback, mixed $default = new MissingValue): mixed
     {
         return transform(
             $value,

@@ -34,7 +34,7 @@ class CommandEventsTest extends TestCase
     #[DataProvider('foregroundCommandEventsProvider')]
     public function testCommandEventsReceiveParsedInput($callback)
     {
-        $this->app[ConsoleKernel::class]->registerCommand(new TestCommand());
+        $this->app[ConsoleKernel::class]->registerCommand(new TestCommand);
 
         $this->app[Dispatcher::class]->listen(function (CommandStarting $event) {
             $this->log[] = 'CommandStarting';
@@ -90,7 +90,7 @@ class CommandEventsTest extends TestCase
         });
 
         $kernel = $this->app[ConsoleKernel::class];
-        $kernel->registerCommand(new TestCommand());
+        $kernel->registerCommand(new TestCommand);
 
         $kernel->call(TestCommand::class, [
             'firstname' => 'taylor',

@@ -31,7 +31,7 @@ class TestCachesTest extends TestCase
 
         parent::setUp();
 
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
 
         Facade::setFacadeApplication($container);
 
@@ -65,7 +65,7 @@ class TestCachesTest extends TestCase
 
             public function __construct()
             {
-                $this->app = Container::getInstance() ?? new Container();
+                $this->app = Container::getInstance() ?? new Container;
             }
         };
 

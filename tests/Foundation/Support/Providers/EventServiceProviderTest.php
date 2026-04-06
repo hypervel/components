@@ -199,7 +199,7 @@ class EventServiceProviderTest extends TestCase
         $this->app->boot();
 
         // Dispatch and verify the listener was registered
-        Event::dispatch(new stdClass());
+        Event::dispatch(new stdClass);
         Event::assertDispatched('App\Events\CustomEvent', 0);
 
         event('App\Events\CustomEvent');

@@ -103,6 +103,6 @@ Content-Length: 8\r
 
     protected function newResponse()
     {
-        return new Response();
+        return new Response;
     }
 }

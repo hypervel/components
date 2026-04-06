@@ -18,7 +18,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
     {
         parent::setUp();
 
-        tap(new DB())->addConnection([
+        tap(new DB)->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ])->bootEloquent();
@@ -26,7 +26,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testCanCheckExistenceOfLocalScope()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
 
         $this->assertTrue($model->hasNamedScope('active'));
         $this->assertTrue($model->hasNamedScope('type'));
@@ -36,7 +36,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeIsApplied()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
         $query = $model->newQuery()->active();
 
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
@@ -45,7 +45,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testDynamicLocalScopeIsApplied()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
         $query = $model->newQuery()->type('foo');
 
         $this->assertSame('select * from "table" where "type" = ?', $query->toSql());
@@ -54,7 +54,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopesCanChained()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
         $query = $model->newQuery()->active()->type('foo');
 
         $this->assertSame('select * from "table" where "active" = ? and "type" = ?', $query->toSql());
@@ -63,7 +63,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
         $query = $model
             ->newQuery()
             ->whereNot('firstWhere', true)
@@ -76,7 +76,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingGroupsOrNotWhereClause()
     {
-        $model = new ScopedModel();
+        $model = new ScopedModel;
         $query = $model
             ->newQuery()
             ->where('firstWhere', true)

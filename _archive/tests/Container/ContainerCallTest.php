@@ -74,7 +74,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithCallableArray()
     {
         $container = $this->getContainer();
-        $stub = new ContainerTestCallStub();
+        $stub = new ContainerTestCallStub;
         $result = $container->call([$stub, 'work'], ['foo', 'bar']);
         $this->assertEquals(['foo', 'bar'], $result);
     }
@@ -86,7 +86,7 @@ class ContainerCallTest extends TestCase
             $this->assertInstanceOf(ContainerTestCallStub::class, $stub);
             return 'foo';
         });
-        $stub = new ContainerTestCallStub();
+        $stub = new ContainerTestCallStub;
         $result = $container->call([$stub, 'work'], ['foo', 'bar']);
         $this->assertSame('foo', $result);
     }
@@ -112,16 +112,16 @@ class ContainerCallTest extends TestCase
         $container->bindMethod(ContainerTestCallStub::class . '@unresolvable', function ($stub) {
             return $stub->unresolvable('foo', 'bar');
         });
-        $result = $container->call([new ContainerTestCallStub(), 'unresolvable']);
+        $result = $container->call([new ContainerTestCallStub, 'unresolvable']);
         $this->assertEquals(['foo', 'bar'], $result);
 
         $container = $this->getContainer();
-        $result = $container->call([new ContainerTestCallStub(), 'inject'], ['_stub' => 'foo', 'default' => 'bar']);
+        $result = $container->call([new ContainerTestCallStub, 'inject'], ['_stub' => 'foo', 'default' => 'bar']);
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
         $this->assertSame('bar', $result[1]);
 
         $container = $this->getContainer();
-        $result = $container->call([new ContainerTestCallStub(), 'inject'], ['_stub' => 'foo']);
+        $result = $container->call([new ContainerTestCallStub, 'inject'], ['_stub' => 'foo']);
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
         $this->assertSame('taylor', $result[1]);
     }
@@ -139,7 +139,7 @@ class ContainerCallTest extends TestCase
         $container->bindMethod([ContainerTestCallStub::class, 'unresolvable'], function ($stub) {
             return $stub->unresolvable('foo', 'bar');
         });
-        $result = $container->call([new ContainerTestCallStub(), 'unresolvable']);
+        $result = $container->call([new ContainerTestCallStub, 'unresolvable']);
         $this->assertEquals(['foo', 'bar'], $result);
     }
 
@@ -154,13 +154,13 @@ class ContainerCallTest extends TestCase
         $container->call(function (ContainerCallConcreteStub $stub, string $foo) {
             $this->assertInstanceOf(ContainerCallConcreteStub::class, $stub);
             $this->assertSame('bar', $foo);
-        }, ['foo' => 'bar', 'stub' => new ContainerCallConcreteStub()]);
+        }, ['foo' => 'bar', 'stub' => new ContainerCallConcreteStub]);
     }
 
     public function testCallWithDependencies()
     {
         $container = $this->getContainer();
-        $dependency = new ContainerCallWithDependencies();
+        $dependency = new ContainerCallWithDependencies;
         $container->bind(ContainerCallWithDependenciesInterface::class, fn () => $dependency);
 
         $result = $container->call(function (ContainerCallWithDependenciesInterface $foo, $bar = []) {
@@ -177,7 +177,7 @@ class ContainerCallTest extends TestCase
         $this->assertSame($dependency, $result[0]);
         $this->assertSame('taylor', $result[1]);
 
-        $stub = new ContainerCallConcreteStub();
+        $stub = new ContainerCallConcreteStub;
         $result = $container->call(function (ContainerCallWithDependenciesInterface $foo, ContainerCallConcreteStub $bar) {
             return func_get_args();
         }, [ContainerCallConcreteStub::class => $stub]);
@@ -189,7 +189,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithCallableObject()
     {
         $container = $this->getContainer();
-        $callable = new ContainerCallCallableStub();
+        $callable = new ContainerCallCallableStub;
         $result = $container->call($callable);
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
         $this->assertSame('jeffrey', $result[1]);
@@ -216,7 +216,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithUnnamedParametersByOrder()
     {
         $container = $this->getContainer();
-        $result = $container->call([new ContainerTestCallStub(), 'unresolvable'], ['foo', 'bar']);
+        $result = $container->call([new ContainerTestCallStub, 'unresolvable'], ['foo', 'bar']);
 
         $this->assertSame('foo', $result[0]);
         $this->assertSame('bar', $result[1]);

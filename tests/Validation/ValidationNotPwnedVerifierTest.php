@@ -105,7 +105,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
     public function testDnsDown()
     {
-        $exception = new ConnectionException();
+        $exception = new ConnectionException;
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
         $exceptionHandler->shouldReceive('report')->once()->with($exception);

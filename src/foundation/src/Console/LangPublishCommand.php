@@ -29,7 +29,7 @@ class LangPublishCommand extends Command
     public function handle(): void
     {
         if (! is_dir($langPath = $this->hypervel->basePath('lang/en'))) {
-            (new Filesystem())->makeDirectory($langPath, recursive: true);
+            (new Filesystem)->makeDirectory($langPath, recursive: true);
         }
 
         $stubs = [

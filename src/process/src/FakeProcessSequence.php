@@ -67,7 +67,7 @@ class FakeProcessSequence
      */
     public function dontFailWhenEmpty(): static
     {
-        return $this->whenEmpty(new FakeProcessResult());
+        return $this->whenEmpty(new FakeProcessResult);
     }
 
     /**
@@ -90,7 +90,7 @@ class FakeProcessSequence
         }
 
         if (! $this->failWhenEmpty && count($this->processes) === 0) {
-            return value($this->emptyProcess ?? new FakeProcessResult());
+            return value($this->emptyProcess ?? new FakeProcessResult);
         }
 
         return array_shift($this->processes);

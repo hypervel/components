@@ -19,6 +19,6 @@ final class AfterEachTestExtension implements Extension
 {
     public function bootstrap(Configuration $configuration, Facade $facade, ParameterCollection $parameters): void
     {
-        $facade->registerSubscriber(new AfterEachTestSubscriber());
+        $facade->registerSubscriber(new AfterEachTestSubscriber);
     }
 }

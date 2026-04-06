@@ -215,7 +215,7 @@ class BenchmarkContext
     public function checkMemoryUsage(): void
     {
         $currentUsage = memory_get_usage(true);
-        $memoryLimit = (new SystemInfo())->getMemoryLimitBytes();
+        $memoryLimit = (new SystemInfo)->getMemoryLimitBytes();
 
         if ($memoryLimit === -1) {
             return;

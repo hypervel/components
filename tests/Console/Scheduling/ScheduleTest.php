@@ -66,7 +66,7 @@ class ScheduleTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = new Application();
+        $this->container = new Application;
         Container::setInstance($this->container);
         $this->eventMutex = m::mock(EventMutex::class);
         $this->container->instance(EventMutex::class, $this->eventMutex);
@@ -77,7 +77,7 @@ class ScheduleTest extends TestCase
     #[DataProvider('jobHonoursDisplayNameIfMethodExistsProvider')]
     public function testJobHonoursDisplayNameIfMethodExists(object $job, string $jobName): void
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $scheduledJob = $schedule->job($job);
         self::assertSame($jobName, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
@@ -93,14 +93,14 @@ class ScheduleTest extends TestCase
         };
 
         return [
-            [new JobToTestWithSchedule(), JobToTestWithSchedule::class],
+            [new JobToTestWithSchedule, JobToTestWithSchedule::class],
             [$job, 'testJob-123'],
         ];
     }
 
     public function testJobIsNotInstantiatedIfSuppliedAsClassname(): void
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
@@ -108,7 +108,7 @@ class ScheduleTest extends TestCase
 
     public function testJobAcceptsStringBackedEnumForQueueAndConnection(): void
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
 
         // Should not throw - enums are accepted
         $scheduledJob = $schedule->job(
@@ -122,7 +122,7 @@ class ScheduleTest extends TestCase
 
     public function testJobAcceptsUnitEnumForQueueAndConnection(): void
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
 
         $scheduledJob = $schedule->job(
             JobToTestWithSchedule::class,
@@ -135,7 +135,7 @@ class ScheduleTest extends TestCase
 
     public function testJobWithIntBackedEnumStoresIntValue(): void
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
 
         // Int-backed enum values are stored as-is (no cast to string)
         // TypeError will occur when the job is dispatched and dispatchToQueue() receives int
@@ -159,7 +159,7 @@ class ScheduleTest extends TestCase
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->useCache(ScheduleTestCacheStoreEnum::Redis);
     }
 
@@ -171,7 +171,7 @@ class ScheduleTest extends TestCase
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
-        $schedule = new Schedule();
+        $schedule = new Schedule;
 
         // TypeError is thrown when useStore() receives int instead of string
         $this->expectException(TypeError::class);
@@ -189,7 +189,7 @@ class ScheduleTest extends TestCase
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->useCache('test');
     }
 
@@ -198,7 +198,7 @@ class ScheduleTest extends TestCase
         $escape = '\\' === DIRECTORY_SEPARATOR ? '"' : '\'';
         $escapeReal = '\\' === DIRECTORY_SEPARATOR ? '\"' : '"';
 
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->exec('path/to/command');
         $schedule->exec('path/to/command -f --foo="bar"');
         $schedule->exec('path/to/command', ['-f']);
@@ -242,7 +242,7 @@ class ScheduleTest extends TestCase
     {
         // Hypervel runs commands in-process via the Kernel (no shell spawning),
         // so command names are stored without the php/artisan binary prefix.
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->command('queue:listen');
         $schedule->command('queue:listen --tries=3');
         $schedule->command('queue:listen', ['--tries' => 3]);
@@ -255,7 +255,7 @@ class ScheduleTest extends TestCase
 
     public function testCreateNewArtisanCommandUsingCommandClass()
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->command(ScheduleTestCommandStub::class, ['--force']);
 
         $events = $schedule->events();
@@ -272,7 +272,7 @@ class ScheduleTest extends TestCase
             }
         };
 
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->command($command, ['--force']);
 
         $events = $schedule->events();
@@ -281,14 +281,14 @@ class ScheduleTest extends TestCase
 
     public function testItUsesCommandDescriptionAsEventDescription()
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $event = $schedule->command(ScheduleTestCommandStub::class);
         $this->assertSame('This is a description about the command', $event->description);
     }
 
     public function testItShouldBePossibleToOverwriteTheDescription()
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $event = $schedule->command(ScheduleTestCommandStub::class)
             ->description('This is an alternative description');
         $this->assertSame('This is an alternative description', $event->description);
@@ -309,7 +309,7 @@ class ScheduleTest extends TestCase
 
     public function testJobSetsNameBeforeGroupAttributesAreMerged()
     {
-        $schedule = new Schedule();
+        $schedule = new Schedule;
         $schedule->withoutOverlapping()->group(function ($schedule) {
             $schedule->job(JobToTestWithSchedule::class);
         });

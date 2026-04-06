@@ -303,7 +303,7 @@ class FilesystemManager implements FactoryContract
         $adapter = new GcsAdapter(
             $client->bucket(Arr::get($gcsConfig, 'bucket')),
             Arr::get($gcsConfig, 'root'),
-            Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass() : null,
+            Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass : null,
             $defaultVisibility
         );
 

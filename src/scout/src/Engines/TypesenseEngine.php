@@ -129,7 +129,7 @@ class TypesenseEngine extends Engine
      */
     protected function createImportSortingDataObject(array $document): stdClass
     {
-        $data = new stdClass();
+        $data = new stdClass;
 
         $data->code = $document['code'] ?? 0;
         $data->success = $document['success'];
@@ -261,7 +261,7 @@ class TypesenseEngine extends Engine
         $limit = min($builder->limit ?? $this->maxPerPage, $this->maxPerPage, $this->maxTotalResults);
         $remainingResults = min($builder->limit ?? $this->maxTotalResults, $this->maxTotalResults);
 
-        $results = new Collection();
+        $results = new Collection;
         $totalFound = 0;
 
         while ($remainingResults > 0) {

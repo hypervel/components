@@ -120,7 +120,7 @@ class DispatcherFactoryTest extends TestCase
 
     private function getContainer(array $bindings = []): Container
     {
-        $container = new Container();
+        $container = new Container;
 
         foreach ($bindings as $abstract => $concrete) {
             $container->singleton($abstract, $concrete);

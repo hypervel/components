@@ -30,7 +30,7 @@ class StoreTagsForFailedTest extends IntegrationTestCase
 
         $event = new JobFailed(
             new Exception('job failed'),
-            new FailedJob(),
+            new FailedJob,
             '{"id":"1","displayName":"displayName","tags":["foobar"]}'
         );
         $event->connection('redis')->queue('default');

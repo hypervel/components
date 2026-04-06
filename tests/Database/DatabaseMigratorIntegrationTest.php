@@ -56,7 +56,7 @@ class DatabaseMigratorIntegrationTest extends TestCase
         $this->migrator = new Migrator(
             $repository = new DatabaseMigrationRepository($databaseManager, 'migrations'),
             $databaseManager,
-            new Filesystem()
+            new Filesystem
         );
 
         $output = m::mock(OutputStyle::class);

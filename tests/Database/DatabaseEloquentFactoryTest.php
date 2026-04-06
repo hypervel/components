@@ -40,7 +40,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $container->instance(Application::class, $app = m::mock(Application::class));
         $app->shouldReceive('getNamespace')->andReturn('App\\');
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -1004,7 +1004,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has(new PostFactory(), 'postsWithFooBarBazAsTitle')->create();
+        User::factory()->has(new PostFactory, 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', Post::first()->title);
     }
@@ -1013,7 +1013,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has((new PostFactory())->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
+        User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', Post::first()->title);
     }
@@ -1022,7 +1022,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has(new PostFactory(), 'postWithFooBarBazAsTitle')->create();
+        User::factory()->has(new PostFactory, 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', Post::first()->title);
     }
@@ -1031,7 +1031,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has((new PostFactory())->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
+        User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', Post::first()->title);
     }
@@ -1040,7 +1040,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has(new RoleFactory(), 'rolesWithFooBarBazAsName')->create();
+        User::factory()->has(new RoleFactory, 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('foo bar baz', Role::first()->name);
     }
@@ -1049,32 +1049,32 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
 
-        User::factory()->has((new RoleFactory())->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
+        User::factory()->has((new RoleFactory)->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('other name', Role::first()->name);
     }
 
     public function testFactoryModelMorphManyRelationshipHasPendingAttributes()
     {
-        (new PostFactory())->has(new CommentFactory(), 'commentsWithFooBarBazAsBody')->create();
+        (new PostFactory)->has(new CommentFactory, 'commentsWithFooBarBazAsBody')->create();
 
         $this->assertEquals('foo bar baz', Comment::first()->body);
     }
 
     public function testFactoryModelMorphManyRelationshipHasPendingAttributesOverride()
     {
-        (new PostFactory())->has((new CommentFactory())->state(['body' => 'other body']), 'commentsWithFooBarBazAsBody')->create();
+        (new PostFactory)->has((new CommentFactory)->state(['body' => 'other body']), 'commentsWithFooBarBazAsBody')->create();
 
         $this->assertEquals('other body', Comment::first()->body);
     }
 
     public function testFactoryCanInsert()
     {
-        (new PostFactory())
+        (new PostFactory)
             ->count(5)
             ->recycle([
-                (new UserFactory())->create(['name' => Name::Taylor]),
-                (new UserFactory())->create(['name' => Name::Shad, 'created_at' => now()]),
+                (new UserFactory)->create(['name' => Name::Taylor]),
+                (new UserFactory)->create(['name' => Name::Shad, 'created_at' => now()]),
             ])
             ->state(['title' => 'hello'])
             ->insert();
@@ -1090,7 +1090,7 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryCanInsertWithHidden()
     {
-        (new UserFactory())->forEachSequence(['name' => Name::Taylor, 'options' => 'abc'])->insert();
+        (new UserFactory)->forEachSequence(['name' => Name::Taylor, 'options' => 'abc'])->insert();
         $user = DB::table('users')->sole();
         $this->assertEquals('abc', $user->options);
         $userModel = User::query()->sole();
@@ -1099,7 +1099,7 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryCanInsertWithArrayCasts()
     {
-        (new UserWithArrayFactory())->count(2)->insert();
+        (new UserWithArrayFactory)->count(2)->insert();
         $users = DB::table('users')->get();
         foreach ($users as $user) {
             $this->assertEquals(['rtj'], json_decode($user->options, true));

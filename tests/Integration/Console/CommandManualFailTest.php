@@ -37,7 +37,7 @@ class CommandManualFailTest extends TestCase
     {
         $this->expectException(ManuallyFailedException::class);
         $this->expectExceptionMessage('Whoops!');
-        $command = new Command();
+        $command = new Command;
         $command->fail('Whoops!');
     }
 
@@ -45,7 +45,7 @@ class CommandManualFailTest extends TestCase
     {
         $this->expectException(ManuallyFailedException::class);
         $this->expectExceptionMessage('Command failed manually.');
-        $command = new Command();
+        $command = new Command;
         $command->fail();
     }
 
@@ -54,7 +54,7 @@ class CommandManualFailTest extends TestCase
         $original = new RuntimeException('Something went wrong.');
 
         try {
-            $command = new Command();
+            $command = new Command;
             $command->fail($original);
 
             $this->fail('Command::fail() method must throw the original throwable instance.');

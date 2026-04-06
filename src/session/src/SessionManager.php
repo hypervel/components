@@ -26,7 +26,7 @@ class SessionManager extends Manager
      */
     protected function createNullDriver(): Store
     {
-        return $this->buildSession(new NullSessionHandler());
+        return $this->buildSession(new NullSessionHandler);
     }
 
     /**

@@ -16,7 +16,7 @@ class WaitConcurrent extends Concurrent
         protected int $limit,
     ) {
         parent::__construct($limit);
-        $this->wg = new WaitGroup();
+        $this->wg = new WaitGroup;
     }
 
     /**

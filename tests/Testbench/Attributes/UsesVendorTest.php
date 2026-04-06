@@ -29,7 +29,7 @@ class UsesVendorTest extends TestCase
     #[UsesVendor]
     public function itCanUsesVendorAttribute(): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         $this->assertSame(
             $filesystem->hash(base_path(join_paths('vendor', 'autoload.php'))),

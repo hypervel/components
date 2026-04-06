@@ -212,7 +212,7 @@ class ScheduleRunCommandTest extends TestCase
      */
     protected function makeCommand(): ScheduleRunCommand
     {
-        $command = new ScheduleRunCommand();
+        $command = new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
         // Set dependencies that are normally injected via handle().

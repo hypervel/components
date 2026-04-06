@@ -128,6 +128,6 @@ class ConfiguresPromptsTest extends TestCase
 
         $expectations($factory);
 
-        $command->run(new ArrayInput([]), new NullOutput());
+        $command->run(new ArrayInput([]), new NullOutput);
     }
 }

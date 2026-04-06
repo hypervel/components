@@ -42,7 +42,7 @@ class LaravelInteropTest extends TestCase
 
     public function testThrottlesExceptionsPrefixMatchesLaravel()
     {
-        $middleware = new ThrottlesExceptions();
+        $middleware = new ThrottlesExceptions;
 
         $reflection = new ReflectionProperty($middleware, 'prefix');
 

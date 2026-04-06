@@ -44,7 +44,7 @@ class MailResendTransportTest extends TestCase
 
     public function testSend()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Test subject');
         $message->text('Test body');
         $message->html('<p>Test body</p>');
@@ -76,7 +76,7 @@ class MailResendTransportTest extends TestCase
 
     public function testSendError()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Test subject');
         $message->text('Test body');
         $message->sender('sender@example.com');

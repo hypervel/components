@@ -48,7 +48,7 @@ class CustomLongWaitDetectedNotification extends LongWaitDetectedNotification im
 {
     public function toMail($notifiable): MailMessage
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->line('This is a custom notification for a long wait.');
     }
 }

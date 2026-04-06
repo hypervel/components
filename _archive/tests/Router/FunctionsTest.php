@@ -65,7 +65,7 @@ class FunctionsTest extends TestCase
     {
         $urlGenerator = m::mock(UrlGeneratorContract::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(UrlGeneratorContract::class, $urlGenerator);
         Container::setInstance($container);
 

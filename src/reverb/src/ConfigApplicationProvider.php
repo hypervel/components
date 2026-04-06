@@ -57,7 +57,7 @@ class ConfigApplicationProvider implements ApplicationProvider
         $app = $this->applications->firstWhere($key, $value);
 
         if (! $app) {
-            throw new InvalidApplication();
+            throw new InvalidApplication;
         }
 
         return $this->buildApplication($app);

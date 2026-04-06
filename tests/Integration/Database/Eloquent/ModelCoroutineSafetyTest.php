@@ -102,7 +102,7 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutEventsIsCoroutineIsolated(): void
     {
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter) {
@@ -179,7 +179,7 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutBroadcastingIsCoroutineIsolated(): void
     {
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter) {
@@ -267,7 +267,7 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutTouchingIsCoroutineIsolated(): void
     {
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter) {
@@ -305,11 +305,11 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
     public function testWithoutRecursionIsCoroutineIsolated(): void
     {
-        $model = new RecursionTestModel();
+        $model = new RecursionTestModel;
         $counter = $this->newRecursionCounter();
         $results = [];
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $callback = function () use ($counter): int {
             usleep(50000);
@@ -351,7 +351,7 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testAllStateMethodsAreCoroutineIsolated(): void
     {
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter) {

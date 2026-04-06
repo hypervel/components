@@ -33,7 +33,7 @@ class Once
      */
     public static function instance(): static
     {
-        return CoroutineContext::getOrSet(self::INSTANCE_CONTEXT_KEY, fn () => new static(new WeakMap()));
+        return CoroutineContext::getOrSet(self::INSTANCE_CONTEXT_KEY, fn () => new static(new WeakMap));
     }
 
     /**

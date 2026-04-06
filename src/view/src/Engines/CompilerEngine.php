@@ -36,7 +36,7 @@ class CompilerEngine extends PhpEngine
         protected CompilerInterface $compiler,
         ?Filesystem $files = null
     ) {
-        parent::__construct($files ?: new Filesystem());
+        parent::__construct($files ?: new Filesystem);
     }
 
     /**

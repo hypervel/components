@@ -24,7 +24,7 @@ class MailMessageTest extends TestCase
     {
         parent::setUp();
 
-        $this->message = new Message(new Email());
+        $this->message = new Message(new Email);
     }
 
     public function testFromMethod()

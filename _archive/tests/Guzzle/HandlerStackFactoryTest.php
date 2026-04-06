@@ -34,7 +34,7 @@ class HandlerStackFactoryTest extends TestCase
     {
         $this->setContainer();
 
-        $factory = new HandlerStackFactory();
+        $factory = new HandlerStackFactory;
         $stack = $factory->create();
         $this->assertTrue($stack->hasHandler());
         $this->assertInstanceOf(HandlerStack::class, $stack);
@@ -57,7 +57,7 @@ class HandlerStackFactoryTest extends TestCase
     {
         $this->setContainer();
 
-        $factory = new HandlerStackFactory();
+        $factory = new HandlerStackFactory;
         $stack = $factory->create(['max_connections' => 50]);
 
         $stackReflection = new ReflectionClass($stack);
@@ -77,7 +77,7 @@ class HandlerStackFactoryTest extends TestCase
     {
         $this->setContainer();
 
-        $factory = new HandlerStackFactory();
+        $factory = new HandlerStackFactory;
         $stack = $factory->create([], ['retry_again' => [RetryMiddleware::class, [1, 10]]]);
 
         $reflection = new ReflectionClass($stack);
@@ -93,7 +93,7 @@ class HandlerStackFactoryTest extends TestCase
     {
         $this->setContainer();
 
-        $factory = new HandlerStackFactory();
+        $factory = new HandlerStackFactory;
         $stack = $factory->create([], ['retry_again' => [RetryMiddleware::class, [1, 10]]]);
         $stack->setHandler($stub = new CoroutineHandlerStub(201));
 

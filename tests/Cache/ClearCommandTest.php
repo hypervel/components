@@ -34,7 +34,7 @@ class ClearCommandTest extends TestCase
     {
         parent::setUp();
 
-        $app = new Application();
+        $app = new Application;
         $app['path.storage'] = __DIR__;
 
         $this->cacheManager = m::mock(CacheManager::class);
@@ -139,7 +139,7 @@ class ClearCommandTest extends TestCase
     public function testClearLocksWillFailWhenNotSupportedByStore()
     {
         $this->cacheManager->shouldReceive('store')->once()->with(null)->andReturn($this->cacheRepository);
-        $this->cacheRepository->shouldReceive('flushLocks')->once()->andThrow(new BadMethodCallException());
+        $this->cacheRepository->shouldReceive('flushLocks')->once()->andThrow(new BadMethodCallException);
         $this->cacheRepository->shouldNotReceive('flush');
 
         $this->assertSame(1, $this->runCommand($this->command, ['--locks' => true]));
@@ -156,7 +156,7 @@ class ClearCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

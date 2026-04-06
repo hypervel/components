@@ -112,14 +112,14 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $router->gatherRouteMiddleware($route);
         $this->assertNotNull($route->resolvedMiddleware);
 
-        $route->setContainer(new Container());
+        $route->setContainer(new Container);
 
         $this->assertNull($route->resolvedMiddleware);
     }
 
     protected function getRouter(?Container $container = null): Router
     {
-        $container ??= new Container();
+        $container ??= new Container;
 
         $router = new Router($container->make(Dispatcher::class), $container);
 

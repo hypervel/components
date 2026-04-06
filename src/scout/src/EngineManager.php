@@ -150,7 +150,7 @@ class EngineManager
      */
     public function createCollectionDriver(): CollectionEngine
     {
-        return new CollectionEngine();
+        return new CollectionEngine;
     }
 
     /**
@@ -158,7 +158,7 @@ class EngineManager
      */
     public function createDatabaseDriver(): DatabaseEngine
     {
-        return new DatabaseEngine();
+        return new DatabaseEngine;
     }
 
     /**
@@ -166,7 +166,7 @@ class EngineManager
      */
     public function createNullDriver(): NullEngine
     {
-        return new NullEngine();
+        return new NullEngine;
     }
 
     /**

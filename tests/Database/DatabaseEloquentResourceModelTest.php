@@ -19,7 +19,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()
     {
-        $model = new EloquentResourceTestResourceModel();
+        $model = new EloquentResourceTestResourceModel;
         $resource = $model->toResource(EloquentResourceTestJsonResource::class);
 
         $this->assertInstanceOf(EloquentResourceTestJsonResource::class, $resource);
@@ -31,13 +31,13 @@ class DatabaseEloquentResourceModelTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].');
 
-        $model = new EloquentResourceTestResourceModel();
+        $model = new EloquentResourceTestResourceModel;
         $model->toResource();
     }
 
     public function testItCanGuessResourceWhenNotProvided()
     {
-        $model = new EloquentResourceTestResourceModelWithGuessableResource();
+        $model = new EloquentResourceTestResourceModelWithGuessableResource;
 
         class_alias(EloquentResourceTestJsonResource::class, 'Hypervel\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResourceResource');
 
@@ -49,7 +49,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
 
     public function testItCanGuessResourceWhenNotProvidedWithNonResourceSuffix()
     {
-        $model = new EloquentResourceTestResourceModelWithGuessableResource();
+        $model = new EloquentResourceTestResourceModelWithGuessableResource;
 
         class_alias(EloquentResourceTestJsonResource::class, 'Hypervel\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResource');
 
@@ -61,7 +61,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
 
     public function testItCanGuessResourceName()
     {
-        $model = new EloquentResourceTestResourceModel();
+        $model = new EloquentResourceTestResourceModel;
         $this->assertEquals([
             'Hypervel\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelResource',
             'Hypervel\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModel',
@@ -70,7 +70,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
 
     public function testItCanTransformToResourceViaUseResourceAttribute()
     {
-        $model = new EloquentResourceTestResourceModelWithUseResourceAttribute();
+        $model = new EloquentResourceTestResourceModelWithUseResourceAttribute;
 
         $resource = $model->toResource();
 

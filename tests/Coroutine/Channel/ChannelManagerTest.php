@@ -18,7 +18,7 @@ class ChannelManagerTest extends TestCase
 {
     public function testChannelManager()
     {
-        $manager = new ChannelManager();
+        $manager = new ChannelManager;
         $chan = $manager->get(1, true);
         $this->assertInstanceOf(Channel::class, $chan);
         $chan = $manager->get(1);
@@ -36,7 +36,7 @@ class ChannelManagerTest extends TestCase
 
     public function testChannelFlush()
     {
-        $manager = new ChannelManager();
+        $manager = new ChannelManager;
         $manager->get(1, true);
         $manager->get(2, true);
         $manager->get(4, true);

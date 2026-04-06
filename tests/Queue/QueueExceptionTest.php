@@ -17,7 +17,7 @@ class QueueExceptionTest extends TestCase
 {
     public function testItCanCreateTimeoutExceptionForJob()
     {
-        $e = TimeoutExceededException::forJob($job = new MyFakeRedisJob());
+        $e = TimeoutExceededException::forJob($job = new MyFakeRedisJob);
 
         $this->assertSame('App\Jobs\UnderlyingJob has timed out.', $e->getMessage());
         $this->assertSame($job, $e->job);
@@ -25,7 +25,7 @@ class QueueExceptionTest extends TestCase
 
     public function testItCanCreateMaxAttemptsExceptionForJob()
     {
-        $e = MaxAttemptsExceededException::forJob($job = new MyFakeRedisJob());
+        $e = MaxAttemptsExceededException::forJob($job = new MyFakeRedisJob);
 
         $this->assertSame('App\Jobs\UnderlyingJob has been attempted too many times.', $e->getMessage());
         $this->assertSame($job, $e->job);

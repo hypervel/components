@@ -65,7 +65,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             'name' => 'Taylor Otwell',
         ]);
 
-        NotificationFacade::send($user, new GreetingMailNotification());
+        NotificationFacade::send($user, new GreetingMailNotification);
 
         $this->assertStringContainsString(
             'hello',
@@ -80,7 +80,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             'name' => 'Taylor Otwell',
         ]);
 
-        NotificationFacade::locale('fr')->send($user, new GreetingMailNotification());
+        NotificationFacade::locale('fr')->send($user, new GreetingMailNotification);
 
         $this->assertStringContainsString(
             'bonjour',
@@ -101,7 +101,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             ]),
         ];
 
-        NotificationFacade::send($users, (new GreetingMailNotification())->locale('fr'));
+        NotificationFacade::send($users, (new GreetingMailNotification)->locale('fr'));
 
         $this->assertStringContainsString(
             'bonjour',
@@ -121,7 +121,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             'name' => 'Taylor Otwell',
         ]);
 
-        NotificationFacade::locale('fr')->send($user, new GreetingMailNotificationWithMailable());
+        NotificationFacade::locale('fr')->send($user, new GreetingMailNotificationWithMailable);
 
         $this->assertStringContainsString(
             'bonjour',
@@ -142,7 +142,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             'name' => 'Taylor Otwell',
         ]);
 
-        $user->notify((new GreetingMailNotification())->locale('fr'));
+        $user->notify((new GreetingMailNotification)->locale('fr'));
 
         $this->assertStringContainsString(
             'bonjour',
@@ -168,7 +168,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
             'email_locale' => 'fr',
         ]);
 
-        $recipient->notify(new GreetingMailNotification());
+        $recipient->notify(new GreetingMailNotification);
 
         $this->assertStringContainsString(
             'bonjour',
@@ -194,7 +194,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
 
         NotificationFacade::send(
             $recipients,
-            new GreetingMailNotification()
+            new GreetingMailNotification
         );
 
         $this->assertStringContainsString(
@@ -219,7 +219,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         ]);
 
         $recipient->notify(
-            (new GreetingMailNotification())->locale('fr')
+            (new GreetingMailNotification)->locale('fr')
         );
 
         $this->assertStringContainsString(
@@ -237,7 +237,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
 
         NotificationFacade::locale('fr')->send(
             $recipient,
-            new GreetingMailNotification()
+            new GreetingMailNotification
         );
 
         $this->assertStringContainsString(
@@ -280,7 +280,7 @@ class GreetingMailNotification extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->greeting(__('hi'))
             ->line(Carbon::tomorrow()->diffForHumans());
     }
@@ -295,7 +295,7 @@ class GreetingMailNotificationWithMailable extends Notification
 
     public function toMail($notifiable)
     {
-        return (new GreetingMailable())
+        return (new GreetingMailable)
             ->to($notifiable->email);
     }
 }

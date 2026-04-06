@@ -8,7 +8,7 @@ use Hypervel\Pagination\Paginator;
 
 use function PHPStan\Testing\assertType;
 
-$items = [new Post(), new Post(), new Post()];
+$items = [new Post, new Post, new Post];
 
 /** @var Paginator<int, Post> $paginator */
 $paginator = new Paginator($items, 1, 1);

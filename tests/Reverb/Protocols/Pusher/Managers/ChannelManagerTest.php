@@ -26,7 +26,7 @@ class ChannelManagerTest extends ReverbTestCase
     {
         parent::setUp();
 
-        $this->connection = new FakeConnection();
+        $this->connection = new FakeConnection;
         $this->channelManager = $this->app->make(ChannelManager::class)
             ->for($this->connection->app());
         $this->channel = $this->channelManager->findOrCreate('test-channel-0');

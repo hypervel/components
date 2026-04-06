@@ -93,7 +93,7 @@ class CallbackSchedulingTest extends TestCase
 
         // Trigger an exception in an "after" hook to test exception handling
         $event->after(function () {
-            throw new RuntimeException();
+            throw new RuntimeException;
         });
 
         // Listen for the "failed" event

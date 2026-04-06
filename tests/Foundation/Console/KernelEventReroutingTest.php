@@ -37,7 +37,7 @@ class KernelEventReroutingTest extends TestCase
             $log[] = 'finished:' . $event->command;
         });
 
-        $kernel->registerCommand(new KernelEventReroutingTestCommand());
+        $kernel->registerCommand(new KernelEventReroutingTestCommand);
         $kernel->call('kernel-event-rerouting-test');
 
         $this->assertSame([
@@ -64,7 +64,7 @@ class KernelEventReroutingTest extends TestCase
             $log[] = 'finished:' . $event->command;
         });
 
-        $kernel->registerCommand(new KernelEventReroutingTestCommand());
+        $kernel->registerCommand(new KernelEventReroutingTestCommand);
         $kernel->call('kernel-event-rerouting-test');
 
         $this->assertSame([

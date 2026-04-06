@@ -390,7 +390,7 @@ trait InteractsWithData
 
         $data = $this->all();
 
-        $placeholder = new stdClass();
+        $placeholder = new stdClass;
 
         foreach (is_array($keys) ? $keys : func_get_args() as $key) {
             $value = data_get($data, $key, $placeholder);

@@ -51,7 +51,7 @@ class EventsSubscriberTest extends TestCase
     public function testEventSubscribeCanReturnMappings()
     {
         $d = $this->getEventDispatcher();
-        $this->container->shouldReceive('make')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber());
+        $this->container->shouldReceive('make')->times(4)->with(DeclarativeSubscriber::class)->andReturn(new DeclarativeSubscriber);
 
         $d->subscribe(DeclarativeSubscriber::class);
 
@@ -64,7 +64,7 @@ class EventsSubscriberTest extends TestCase
 
     private function getEventDispatcher(): EventDispatcher
     {
-        return new EventDispatcher(new ListenerProvider(), null, $this->container);
+        return new EventDispatcher(new ListenerProvider, null, $this->container);
     }
 }
 

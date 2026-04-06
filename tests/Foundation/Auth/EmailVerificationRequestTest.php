@@ -91,7 +91,7 @@ class EmailVerificationRequestTest extends TestCase
 
     public function testRulesReturnsEmptyArray()
     {
-        $this->assertSame([], (new EmailVerificationRequest())->rules());
+        $this->assertSame([], (new EmailVerificationRequest)->rules());
     }
 
     /**

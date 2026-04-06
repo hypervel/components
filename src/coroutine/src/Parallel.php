@@ -59,7 +59,7 @@ class Parallel
      */
     public function wait(bool $throw = true): array
     {
-        $wg = new WaitGroup();
+        $wg = new WaitGroup;
         $wg->add(count($this->callbacks));
         foreach ($this->callbacks as $key => $callback) {
             $this->concurrentChannel && $this->concurrentChannel->push(true);

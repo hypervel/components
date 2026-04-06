@@ -63,8 +63,8 @@ class DispatcherFactory
             return $this->routers[$serverName];
         }
 
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         return $this->routers[$serverName] = new RouteCollector($parser, $generator, $serverName);
     }
 }

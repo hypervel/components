@@ -135,7 +135,7 @@ class EloquentDeleteTest extends DatabaseTestCase
     {
         $role = Role::create([]);
         $this->assertInstanceOf(Role::class, $role);
-        Role::observe(new RoleObserver());
+        Role::observe(new RoleObserver);
 
         $role->delete();
         $this->assertNull(RoleObserver::$model);
@@ -149,7 +149,7 @@ class EloquentDeleteTest extends DatabaseTestCase
     {
         $role = Role::create([]);
         $this->assertInstanceOf(Role::class, $role);
-        Role::observe(new RoleObserver());
+        Role::observe(new RoleObserver);
 
         $role->forceDelete();
 

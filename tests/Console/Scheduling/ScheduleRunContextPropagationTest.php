@@ -171,7 +171,7 @@ class ScheduleRunContextPropagationTest extends TestCase
      */
     protected function makeCommand(): ScheduleRunCommand
     {
-        $command = new ScheduleRunCommand();
+        $command = new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
         (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));

@@ -35,7 +35,7 @@ class PasswordBroker implements PasswordBrokerContract
         ?Timebox $timebox = null,
         protected int $timeboxDuration = 200000,
     ) {
-        $this->timebox = $timebox ?: new Timebox();
+        $this->timebox = $timebox ?: new Timebox;
     }
 
     /**

@@ -33,7 +33,7 @@ abstract class SomeClass
 }
 CODETEMPLATE;
 
-        $ast = new Ast();
+        $ast = new Ast;
         $stmts = $ast->parse($code)[0];
 
         $aspect = 'App\Aspect\DebugAspect';

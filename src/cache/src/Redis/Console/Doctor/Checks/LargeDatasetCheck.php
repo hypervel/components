@@ -23,7 +23,7 @@ final class LargeDatasetCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
         $count = self::ITEM_COUNT;
         $tag = $context->prefixed('large-set');
 

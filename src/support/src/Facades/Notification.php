@@ -61,7 +61,7 @@ class Notification extends Facade
      */
     public static function fake(): NotificationFake
     {
-        return tap(new NotificationFake(), function ($fake) {
+        return tap(new NotificationFake, function ($fake) {
             static::swap($fake);
         });
     }
@@ -71,7 +71,7 @@ class Notification extends Facade
      */
     public static function routes(array $channels): AnonymousNotifiable
     {
-        $notifiable = new AnonymousNotifiable();
+        $notifiable = new AnonymousNotifiable;
 
         foreach ($channels as $channel => $route) {
             $notifiable->route($channel, $route);
@@ -85,7 +85,7 @@ class Notification extends Facade
      */
     public static function route(string $channel, mixed $route): AnonymousNotifiable
     {
-        return (new AnonymousNotifiable())->route($channel, $route);
+        return (new AnonymousNotifiable)->route($channel, $route);
     }
 
     protected static function getFacadeAccessor(): string

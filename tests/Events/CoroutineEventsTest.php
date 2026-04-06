@@ -21,7 +21,7 @@ class CoroutineEventsTest extends TestCase
 {
     public function testDeferredEventsAreCoroutineIsolated()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $results = [];
 
         $dispatcher->listen('event-a', function () use (&$results) {
@@ -32,7 +32,7 @@ class CoroutineEventsTest extends TestCase
             $results[] = 'b-dispatched';
         });
 
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Track whether events were correctly deferred (not dispatched during callback)
         $aDeferredDuringCallback = null;
@@ -87,7 +87,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testDeferredEventsDoNotLeakBetweenCoroutines()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $coroutine1Events = [];
         $coroutine2Events = [];
 
@@ -99,7 +99,7 @@ class CoroutineEventsTest extends TestCase
             }
         });
 
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Coroutine 1: defer and dispatch with source=coroutine-1
         $waiter->add(1);
@@ -130,7 +130,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testContextKeysAreCleanedUpAfterDeferCompletes()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
 
         $dispatcher->listen('test-event', function () {
             // no-op
@@ -159,7 +159,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testContextKeysAreCleanedUpAfterDeferThrowsException()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
 
         $dispatcher->listen('test-event', function () {
             // no-op
@@ -185,7 +185,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testNestedDeferRestoresOuterStateAfterInnerCompletes()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $dispatched = [];
 
         $dispatcher->listen('outer-event', function () use (&$dispatched) {
@@ -222,7 +222,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testListenersCacheIsPopulatedOnFirstGetListenersCall()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
@@ -249,7 +249,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testListenersCacheIsInvalidatedOnListen()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
@@ -275,7 +275,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testListenersCacheIsInvalidatedOnForget()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
@@ -299,7 +299,7 @@ class CoroutineEventsTest extends TestCase
 
     public function testListenersCacheIsInvalidatedOnWildcardListen()
     {
-        $dispatcher = new Dispatcher();
+        $dispatcher = new Dispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });

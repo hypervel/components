@@ -23,7 +23,7 @@ class RequiresDatabaseTest extends TestCase
         $stub = new RequiresDatabase('sqlite');
 
         $stub->handle($this->app, function (): void {
-            throw new Exception();
+            throw new Exception;
         });
 
         $this->addToAssertionCount(1);
@@ -31,7 +31,7 @@ class RequiresDatabaseTest extends TestCase
         $stub = new RequiresDatabase(['pgsql', 'sqlite']);
 
         $stub->handle($this->app, function (): void {
-            throw new Exception();
+            throw new Exception;
         });
 
         $this->addToAssertionCount(1);

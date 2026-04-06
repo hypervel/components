@@ -167,7 +167,7 @@ class AuthMangerTest extends TestCase
 
     protected function getContainer(array $authConfig = []): Container
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('config', new Repository([
             'auth' => $authConfig,
         ]));

@@ -134,9 +134,9 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
 
     public function testControllerInstancesAreIsolatedBetweenCoroutines()
     {
-        $container = new Container();
+        $container = new Container;
         // Use bind() so each make() returns a fresh instance (no auto-singleton).
-        $container->bind(RouteCoroutineIsolationTestController::class, fn () => new RouteCoroutineIsolationTestController());
+        $container->bind(RouteCoroutineIsolationTestController::class, fn () => new RouteCoroutineIsolationTestController);
 
         $route = new Route('GET', '/test', ['uses' => RouteCoroutineIsolationTestController::class . '@index']);
         $route->setContainer($container);

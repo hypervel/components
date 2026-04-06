@@ -604,6 +604,6 @@ return [
      */
     public static function defaultProviders(): DefaultProviders
     {
-        return new DefaultProviders();
+        return new DefaultProviders;
     }
 }

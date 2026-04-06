@@ -134,7 +134,7 @@ class NodeTest extends TestCase
 
     public function findCategory(string $name, bool $withTrashed = false): ?Category
     {
-        $category = new Category();
+        $category = new Category;
         $query = $withTrashed ? $category->withTrashed() : $category->newQuery();
 
         return $query->whereName($name)->first();
@@ -361,7 +361,7 @@ class NodeTest extends TestCase
     {
         $this->expectException(QueryException::class);
 
-        $node = new Category();
+        $node = new Category;
         $node->save();
     }
 
@@ -655,7 +655,7 @@ class NodeTest extends TestCase
 
     public function testDescendantsOfNonExistingNode(): void
     {
-        $node = new Category();
+        $node = new Category;
 
         $this->assertTrue($node->getDescendants()->isEmpty());
     }

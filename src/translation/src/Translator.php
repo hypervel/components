@@ -405,7 +405,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     public function getSelector(): MessageSelector
     {
         if (! isset($this->selector)) {
-            $this->selector = new MessageSelector();
+            $this->selector = new MessageSelector;
         }
 
         return $this->selector;

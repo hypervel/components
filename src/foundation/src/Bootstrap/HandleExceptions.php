@@ -180,7 +180,7 @@ class HandleExceptions
      */
     protected function renderForConsole(Throwable $e): void
     {
-        $this->getExceptionHandler()->renderForConsole(new ConsoleOutput(), $e);
+        $this->getExceptionHandler()->renderForConsole(new ConsoleOutput, $e);
     }
 
     /**

@@ -216,7 +216,7 @@ class SentryHandler extends AbstractProcessingHandler
      */
     protected function getDefaultBatchFormatter(): FormatterInterface
     {
-        return new LineFormatter();
+        return new LineFormatter;
     }
 
     /**

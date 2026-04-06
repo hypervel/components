@@ -208,7 +208,7 @@ class ContextQueueTest extends TestCase
         Repository::getInstance()->addHidden('secret', 'e2e-secret');
 
         $queue = $this->createSyncQueue();
-        $queue->push(new ContextQueueTestJob());
+        $queue->push(new ContextQueueTestJob);
 
         $this->assertSame('e2e-test-123', ContextQueueTestJob::$receivedTraceId);
         $this->assertSame('e2e-secret', ContextQueueTestJob::$receivedSecret);
@@ -219,7 +219,7 @@ class ContextQueueTest extends TestCase
      */
     protected function createSyncQueue(): TestableSyncQueue
     {
-        $queue = new TestableSyncQueue();
+        $queue = new TestableSyncQueue;
         $queue->setContainer($this->app);
         $queue->setConnectionName('sync');
 

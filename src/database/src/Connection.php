@@ -269,7 +269,7 @@ class Connection implements ConnectionInterface
      */
     protected function getDefaultPostProcessor(): Processor
     {
-        return new Processor();
+        return new Processor;
     }
 
     /**
@@ -340,7 +340,7 @@ class Connection implements ConnectionInterface
         $record = (array) $record;
 
         if (count($record) > 1) {
-            throw new MultipleColumnsSelectedException();
+            throw new MultipleColumnsSelectedException;
         }
 
         return array_first($record);

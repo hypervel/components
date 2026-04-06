@@ -82,7 +82,7 @@ abstract class SqliteTestCase extends DatabaseTestCase
             return;
         }
 
-        (new Filesystem())->delete([
+        (new Filesystem)->delete([
             $path,
             $path . '-wal',
             $path . '-shm',

@@ -86,7 +86,7 @@ class PurgeSkeletonCommand extends Command
         );
 
         TerminatingConsole::before(function (): void {
-            (new DeleteVendorSymlink())->handle($this->hypervel);
+            (new DeleteVendorSymlink)->handle($this->hypervel);
         });
 
         return self::SUCCESS;

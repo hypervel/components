@@ -24,14 +24,14 @@ class PhpRedisClusterConnectionTest extends TestCase
 {
     public function testIsClusterReturnsTrue()
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
 
         $this->assertTrue($connection->isCluster());
     }
 
     public function testTransformFiresInAtomicMode()
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
 
         // In atomic mode, isQueueingMode() returns false, so transforms fire
         $client = m::mock(RedisCluster::class);
@@ -51,7 +51,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testTransformSkippedInMultiMode()
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
 
         // In multi mode, isQueueingMode() returns true, so transforms are skipped
         // and the raw command is forwarded directly to the client
@@ -77,7 +77,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380]];
         $client = new FakeRedisClusterClient(masters: $masters);
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
 
         $this->assertSame($masters, $connection->masters());
@@ -88,7 +88,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380], ['127.0.0.1', 6381]];
         $client = new FakeRedisClusterClient(masters: $masters);
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
@@ -106,7 +106,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380]];
         $client = new FakeRedisClusterClient(masters: $masters);
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
@@ -131,7 +131,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             ],
         );
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
@@ -159,7 +159,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             ],
         );
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
@@ -183,7 +183,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             ->twice()
             ->andReturn(false);
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
@@ -200,7 +200,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             ->once()
             ->andReturn([]);
 
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 

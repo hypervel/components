@@ -40,7 +40,7 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testCleanTelescopeInstallationDeniesAccessByDefaultForAnyAuthUser()
     {
-        $this->actingAs(new Authenticated());
+        $this->actingAs(new Authenticated);
 
         $this->post('/telescope/telescope-api/requests')
             ->assertStatus(403);
@@ -64,7 +64,7 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testAuthenticatedUserGetsAuthorizedByGate()
     {
-        $this->actingAs(new Authenticated());
+        $this->actingAs(new Authenticated);
 
         Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)

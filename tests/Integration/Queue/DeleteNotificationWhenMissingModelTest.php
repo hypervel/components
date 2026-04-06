@@ -103,6 +103,6 @@ class DeleteWhenMissingNotification extends Notification implements ShouldQueue
     {
         static::$sent = true;
 
-        return new MailMessage();
+        return new MailMessage;
     }
 }

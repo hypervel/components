@@ -196,7 +196,7 @@ class Kernel implements KernelContract
         $events = $this->app['events'];
 
         if ($events->hasListeners(Terminating::class)) {
-            $events->dispatch(new Terminating());
+            $events->dispatch(new Terminating);
         }
         $this->terminateMiddleware($request, $response);
         $this->app->terminate();

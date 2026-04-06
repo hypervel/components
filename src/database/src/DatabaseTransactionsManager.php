@@ -28,7 +28,7 @@ class DatabaseTransactionsManager
      */
     protected function getCommittedTransactionsInternal(): Collection
     {
-        return CoroutineContext::get(self::COMMITTED_CONTEXT_KEY, new Collection());
+        return CoroutineContext::get(self::COMMITTED_CONTEXT_KEY, new Collection);
     }
 
     /**
@@ -48,7 +48,7 @@ class DatabaseTransactionsManager
      */
     protected function getPendingTransactionsInternal(): Collection
     {
-        return CoroutineContext::get(self::PENDING_CONTEXT_KEY, new Collection());
+        return CoroutineContext::get(self::PENDING_CONTEXT_KEY, new Collection);
     }
 
     /**
@@ -123,7 +123,7 @@ class DatabaseTransactionsManager
 
         if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel)
             && $newTransactionLevel !== 0) {
-            return new Collection();
+            return new Collection;
         }
 
         // Clear pending transactions for this connection at or above the committed level

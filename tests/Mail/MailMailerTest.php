@@ -37,7 +37,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -50,7 +50,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')
@@ -73,7 +73,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             ['html' => new HtmlString('<p>Hello Hypervel</p>'), 'text' => new HtmlString('Hello World')],
@@ -92,7 +92,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             [
@@ -122,7 +122,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->html('<p>Hello World</p>', function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -145,7 +145,7 @@ class MailMailerTest extends TestCase
         $view = m::mock(ViewFactory::class);
         $view->shouldReceive('make')->andReturn($viewInterface);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(['foo', 'bar'], ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -183,7 +183,7 @@ class MailMailerTest extends TestCase
         $view = m::mock(ViewFactory::class);
         $view->shouldReceive('make')->andReturn($viewInterface);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(['html' => 'foo', 'text' => 'bar'], ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -211,9 +211,9 @@ class MailMailerTest extends TestCase
     public function testToAllowsEmailAndName()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail());
+        $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail);
 
         $recipients = $sentMessage->getEnvelope()->getRecipients();
         $this->assertCount(1, $recipients);
@@ -224,7 +224,7 @@ class MailMailerTest extends TestCase
     public function testGlobalFromIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysFrom('hello@hypervel.org');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -238,7 +238,7 @@ class MailMailerTest extends TestCase
     public function testGlobalReplyToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReplyTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -252,7 +252,7 @@ class MailMailerTest extends TestCase
     public function testGlobalToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -281,7 +281,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReturnPath('taylorotwell@gmail.com');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -299,7 +299,7 @@ class MailMailerTest extends TestCase
         $events->shouldReceive('until')->once()->with(m::type(MessageSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
 
-        $mailer = new Mailer('array', $view, new ArrayTransport(), $events);
+        $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
         $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -312,7 +312,7 @@ class MailMailerTest extends TestCase
             return 'bar';
         });
 
-        $mailer = new Mailer('array', m::mock(ViewFactory::class), new ArrayTransport());
+        $mailer = new Mailer('array', m::mock(ViewFactory::class), new ArrayTransport);
 
         $this->assertSame(
             'bar',
@@ -325,10 +325,10 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
         $queueFake = new QueueFake($this->app);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->setQueue($queueFake);
 
-        $mailable = new TestQueuedMail();
+        $mailable = new TestQueuedMail;
 
         $result = $mailer->send($mailable);
 

@@ -19,7 +19,7 @@ class CacheArrayStoreTest extends TestCase
 {
     public function testItemsCanBeSetAndRetrieved()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $result = $store->put('foo', 'bar', 10);
         $this->assertTrue($result);
         $this->assertSame('bar', $store->get('foo'));
@@ -27,7 +27,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCacheTtl(): void
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
 
         Carbon::setTestNow('2000-01-01 00:00:00.500'); // 500 milliseconds past
         $store->put('hello', 'world', 1);
@@ -41,7 +41,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testMultipleItemsCanBeSetAndRetrieved()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $result = $store->put('foo', 'bar', 10);
         $resultMany = $store->putMany([
             'fizz' => 'buz',
@@ -61,7 +61,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
 
         $store->put('foo', 'bar', 10);
         Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
@@ -72,7 +72,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testTouchExtendsTtl()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
 
         Carbon::setTestNow($now = Carbon::now());
 
@@ -96,7 +96,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testValuesCanBeIncremented()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', 1, 10);
         $result = $store->increment('foo');
         $this->assertEquals(2, $result);
@@ -109,7 +109,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testValuesGetCastedByIncrementOrDecrement()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', '1', 10);
         $result = $store->increment('foo');
         $this->assertEquals(2, $result);
@@ -123,7 +123,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testIncrementNonNumericValues()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', 'I am string', 10);
         $result = $store->increment('foo');
         $this->assertEquals(1, $result);
@@ -132,7 +132,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testNonExistingKeysCanBeIncremented()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $result = $store->increment('foo');
         $this->assertEquals(1, $result);
         $this->assertEquals(1, $store->get('foo'));
@@ -146,7 +146,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
 
         $store->put('foo', 999, 10);
         Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
@@ -157,7 +157,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testValuesCanBeDecremented()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', 1, 10);
         $result = $store->decrement('foo');
         $this->assertEquals(0, $result);
@@ -170,7 +170,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testItemsCanBeRemoved()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', 'bar', 10);
         $this->assertTrue($store->forget('foo'));
         $this->assertNull($store->get('foo'));
@@ -179,7 +179,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testItemsCanBeFlushed()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->put('foo', 'bar', 10);
         $store->put('baz', 'boom', 10);
         $result = $store->flush();
@@ -190,7 +190,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testLocksCanBeFlushed()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->lock('foo', 10);
         $store->lock('bar', 10);
         $result = $store->flushLocks();
@@ -202,13 +202,13 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCacheKey()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $this->assertEmpty($store->getPrefix());
     }
 
     public function testCannotAcquireLockTwice()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
 
         $this->assertTrue($lock->acquire());
@@ -219,7 +219,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
         Carbon::setTestNow(Carbon::now()->addSeconds(10));
@@ -231,7 +231,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
         Carbon::setTestNow(Carbon::now()->addSeconds(10)->subMicrosecond());
@@ -241,7 +241,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testLockWithNoExpirationNeverExpires()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo');
         $lock->acquire();
         Carbon::setTestNow(Carbon::now()->addYears(100));
@@ -251,7 +251,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCanAcquireLockAfterRelease()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -261,7 +261,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testAnotherOwnerCannotReleaseLock()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $owner = $store->lock('foo', 10);
         $wannabeOwner = $store->lock('foo', 10);
         $owner->acquire();
@@ -271,7 +271,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testAnotherOwnerCanForceReleaseALock()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $owner = $store->lock('foo', 10);
         $wannabeOwner = $store->lock('foo', 10);
         $owner->acquire();
@@ -283,7 +283,7 @@ class CacheArrayStoreTest extends TestCase
     public function testValuesAreNotStoredByReference()
     {
         $store = new ArrayStore($serialize = true);
-        $object = new stdClass();
+        $object = new stdClass;
         $object->foo = true;
 
         $store->put('object', $object, 10);
@@ -297,8 +297,8 @@ class CacheArrayStoreTest extends TestCase
 
     public function testValuesAreStoredByReferenceIfSerializationIsDisabled()
     {
-        $store = new ArrayStore();
-        $object = new stdClass();
+        $store = new ArrayStore;
+        $object = new stdClass;
         $object->foo = true;
 
         $store->put('object', $object, 10);
@@ -312,7 +312,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testReleasingLockAfterAlreadyForceReleasedByAnotherOwnerFails()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $owner = $store->lock('foo', 10);
         $wannabeOwner = $store->lock('foo', 10);
         $owner->acquire();
@@ -323,7 +323,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testOwnerStatusCanBeCheckedAfterRestoringLock()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $firstLock = $store->lock('foo', 10);
 
         $this->assertTrue($firstLock->get());
@@ -335,7 +335,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testOtherOwnerDoesNotOwnLockAfterRestore()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $firstLock = $store->lock('foo', 10);
 
         $this->assertTrue($firstLock->get());
@@ -347,7 +347,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRestoringNonExistingLockDoesNotOwnAnything()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $firstLock = $store->restoreLock('foo', 'owner');
 
         $this->assertFalse($firstLock->isOwnedByCurrentProcess());
@@ -394,7 +394,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testLockImplementsRefreshableLock()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
 
         $this->assertInstanceOf(RefreshableLock::class, $lock);
@@ -404,7 +404,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -424,7 +424,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -440,7 +440,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshReturnsFalseWhenLockDoesNotExist()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
 
         $this->assertFalse($lock->refresh());
@@ -448,7 +448,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshReturnsFalseWhenNotOwned()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $owner = $store->lock('foo', 10);
         $wannabeOwner = $store->lock('foo', 10);
         $owner->acquire();
@@ -458,7 +458,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshOnPermanentLockReturnsTrue()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 0);
         $lock->acquire();
 
@@ -468,7 +468,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshWithExplicitZeroThrowsException()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -480,7 +480,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshWithNegativeSecondsThrowsException()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -492,7 +492,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshWithInvalidTtlThrowsEvenWhenNotOwned()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $owner = $store->lock('foo', 10);
         $wannabeOwner = $store->lock('foo', 10);
         $owner->acquire();
@@ -508,7 +508,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -520,7 +520,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
 
         $this->assertNull($lock->getRemainingLifetime());
@@ -528,7 +528,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsNullForInfiniteLock()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo');
         $lock->acquire();
 
@@ -539,7 +539,7 @@ class CacheArrayStoreTest extends TestCase
     {
         Carbon::setTestNow(Carbon::now());
 
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 

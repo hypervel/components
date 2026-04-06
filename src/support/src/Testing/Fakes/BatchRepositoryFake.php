@@ -74,7 +74,7 @@ class BatchRepositoryFake implements BatchRepository
      */
     public function decrementPendingJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**
@@ -82,7 +82,7 @@ class BatchRepositoryFake implements BatchRepository
      */
     public function incrementFailedJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**

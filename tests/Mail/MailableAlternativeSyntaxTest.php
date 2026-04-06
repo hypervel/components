@@ -19,7 +19,7 @@ class MailableAlternativeSyntaxTest extends TestCase
 {
     public function testBasicMailableInspection()
     {
-        $mailable = new MailableWithAlternativeSyntax();
+        $mailable = new MailableWithAlternativeSyntax;
 
         $this->assertTrue($mailable->hasTo('taylor@laravel.com'));
         $this->assertTrue($mailable->hasCc('adam@laravel.com'));

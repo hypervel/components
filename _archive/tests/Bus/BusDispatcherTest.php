@@ -43,7 +43,7 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand());
+        $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay()
@@ -56,7 +56,7 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand());
+        $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand);
     }
 
     public function testDispatchNowShouldNeverQueue()
@@ -69,7 +69,7 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherBasicCommand());
+        $dispatcher->dispatch(new BusDispatcherBasicCommand);
     }
 
     public function testDispatcherCanDispatchStandAloneHandler()
@@ -78,7 +78,7 @@ class BusDispatcherTest extends TestCase
         $container->shouldReceive('make')
             ->with(StandAloneHandler::class)
             ->once()
-            ->andReturn(new StandAloneHandler());
+            ->andReturn(new StandAloneHandler);
         $mock = m::mock(Queue::class);
         $dispatcher = new Dispatcher($container, function () use ($mock) {
             return $mock;
@@ -86,7 +86,7 @@ class BusDispatcherTest extends TestCase
 
         $dispatcher->map([StandAloneCommand::class => StandAloneHandler::class]);
 
-        $response = $dispatcher->dispatch(new StandAloneCommand());
+        $response = $dispatcher->dispatch(new StandAloneCommand);
 
         $this->assertInstanceOf(StandAloneCommand::class, $response);
     }
@@ -101,7 +101,7 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $job = (new ShouldNotBeDispatched())->onConnection('null');
+        $job = (new ShouldNotBeDispatched)->onConnection('null');
 
         $dispatcher->dispatch($job);
     }

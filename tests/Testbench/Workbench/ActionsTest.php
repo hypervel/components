@@ -43,7 +43,7 @@ class ActionsTest extends TestCase
     #[Override]
     protected function setUp(): void
     {
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
 
         $this->afterApplicationCreated(function () {
             $this->skeletonPath = (string) default_skeleton_path();

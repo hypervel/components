@@ -95,7 +95,7 @@ class Factory
      */
     public function __construct(protected ?Dispatcher $dispatcher = null)
     {
-        $this->stubCallbacks = new Collection();
+        $this->stubCallbacks = new Collection;
     }
 
     /**
@@ -422,7 +422,7 @@ class Factory
     public function recorded(?callable $callback = null): Collection
     {
         if (empty($this->recorded)) {
-            return new Collection();
+            return new Collection;
         }
 
         $callback = $callback ?: function () {

@@ -148,7 +148,7 @@ abstract class IntegrationTestCase extends TestCase
      */
     protected function workerOptions(): WorkerOptions
     {
-        return tap(new WorkerOptions(), function ($options) {
+        return tap(new WorkerOptions, function ($options) {
             $options->sleep = 0;
             $options->maxTries = 1;
         });

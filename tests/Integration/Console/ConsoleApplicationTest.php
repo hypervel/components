@@ -93,7 +93,7 @@ class ConsoleApplicationTest extends TestCase
     {
         $this->assertFalse($this->app->resolved(Schedule::class));
 
-        $this->app[Kernel::class]->registerCommand(new ScheduleCommand());
+        $this->app[Kernel::class]->registerCommand(new ScheduleCommand);
 
         $this->assertFalse($this->app->resolved(Schedule::class));
 

@@ -45,7 +45,7 @@ class KernelTest extends TestCase
             }
         };
 
-        $result = $kernel->handle(new StringInput(''), new BufferedOutput());
+        $result = $kernel->handle(new StringInput(''), new BufferedOutput);
 
         $this->assertSame(1, $result);
     }
@@ -90,7 +90,7 @@ class KernelTest extends TestCase
     public function testRenderExceptionDelegatesToExceptionHandler()
     {
         $exception = new RuntimeException('Test exception');
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('renderForConsole')->once()->with($output, $exception);
@@ -105,7 +105,7 @@ class KernelTest extends TestCase
     public function testItDispatchesTerminatingEvent()
     {
         $called = [];
-        $app = new Application();
+        $app = new Application;
         $events = new Dispatcher($app);
         $app->instance('events', $events);
         $kernel = new Kernel($app, $events);

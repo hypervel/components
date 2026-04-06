@@ -184,7 +184,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
      */
     protected function handleNotFound(ServerRequestInterface $request): mixed
     {
-        throw new NotFoundHttpException();
+        throw new NotFoundHttpException;
     }
 
     /**

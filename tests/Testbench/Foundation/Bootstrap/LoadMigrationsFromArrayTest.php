@@ -59,7 +59,7 @@ class LoadMigrationsFromArrayTest extends TestCase
             '--class' => TestbenchDatabaseSeeder::class,
         ])->andReturn(0);
 
-        app('events')->dispatch(new DatabaseRefreshed());
+        app('events')->dispatch(new DatabaseRefreshed);
     }
 
     #[Test]
@@ -72,6 +72,6 @@ class LoadMigrationsFromArrayTest extends TestCase
 
         $kernel->shouldNotReceive('call');
 
-        app('events')->dispatch(new DatabaseRefreshed());
+        app('events')->dispatch(new DatabaseRefreshed);
     }
 }

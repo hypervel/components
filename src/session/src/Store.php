@@ -157,7 +157,7 @@ class Store implements Session
             return;
         }
 
-        $errorBag = new ViewErrorBag();
+        $errorBag = new ViewErrorBag;
 
         foreach ($this->get('errors') as $key => $value) {
             $messageBag = new MessageBag($value['messages']);
@@ -254,7 +254,7 @@ class Store implements Session
      */
     public function exists(array|UnitEnum|string $key): bool
     {
-        $placeholder = new stdClass();
+        $placeholder = new stdClass;
 
         return ! collect(is_array($key) ? $key : func_get_args())->contains(function ($key) use ($placeholder) {
             return $this->get($key, $placeholder) === $placeholder;

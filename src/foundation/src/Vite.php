@@ -319,8 +319,8 @@ class Vite implements Htmlable
 
         $manifest = $this->manifest($buildDirectory);
 
-        $tags = new Collection();
-        $preloads = new Collection();
+        $tags = new Collection;
+        $preloads = new Collection;
 
         foreach ($entrypoints as $entrypoint) {
             $chunk = $this->chunk($manifest, $entrypoint);

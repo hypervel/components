@@ -39,7 +39,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
             $connection->setHasBeenPinged();
         });
 
-        (new PruneStaleConnections())->handle($channelManager);
+        (new PruneStaleConnections)->handle($channelManager);
 
         // Verify all stale connections were disconnected
         collect($connections)->each(function ($connection) {
@@ -68,7 +68,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
             $connection->setHasBeenPinged();
         });
 
-        (new PruneStaleConnections())->handle($channelManager);
+        (new PruneStaleConnections)->handle($channelManager);
 
         // PruneStaleConnections should NOT call unsubscribeFromAll directly.
         // It should only disconnect the connection, and the onClose → Server::close()

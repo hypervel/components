@@ -22,14 +22,14 @@ class SocketTest extends TestCase
     public function testSocketConnectFailed()
     {
         try {
-            (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 33333));
+            (new Socket\SocketFactory)->make(new Socket\SocketOption('127.0.0.1', 33333));
         } catch (SocketConnectException $exception) {
             $this->assertSame(SOCKET_ECONNREFUSED, $exception->getCode());
             $this->assertSame('Connection refused', $exception->getMessage());
         }
 
         try {
-            (new Socket\SocketFactory())->make(new Socket\SocketOption('192.0.0.1', 9501, 0.2));
+            (new Socket\SocketFactory)->make(new Socket\SocketOption('192.0.0.1', 9501, 0.2));
         } catch (SocketConnectException $exception) {
             $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
             $this->assertStringContainsString('timed out', $exception->getMessage());
@@ -79,7 +79,7 @@ class SocketTest extends TestCase
 
         $this->waitForServerToBeReady(9506);
 
-        $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
+        $socket = (new Socket\SocketFactory)->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
             'package_max_length' => 1024 * 1024 * 2,
             'package_length_type' => 'N',
@@ -144,7 +144,7 @@ class SocketTest extends TestCase
 
         $this->waitForServerToBeReady(9506);
 
-        $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
+        $socket = (new Socket\SocketFactory)->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
             'package_max_length' => 1024 * 1024 * 2,
             'package_length_type' => 'N',
@@ -204,7 +204,7 @@ class SocketTest extends TestCase
 
         $this->waitForServerToBeReady(9506);
 
-        $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
+        $socket = (new Socket\SocketFactory)->make(new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
             'package_max_length' => 1024 * 1024 * 2,
             'package_length_type' => 'N',
@@ -230,7 +230,7 @@ class SocketTest extends TestCase
 
         $this->waitForServerToBeReady(9506);
 
-        $socket = (new Socket\SocketFactory())->make($option = new Socket\SocketOption('127.0.0.1', 9506, protocol: [
+        $socket = (new Socket\SocketFactory)->make($option = new Socket\SocketOption('127.0.0.1', 9506, protocol: [
             'open_length_check' => true,
             'package_max_length' => 1024 * 1024 * 2,
             'package_length_type' => 'N',
@@ -247,7 +247,7 @@ class SocketTest extends TestCase
 
     private function waitForServerToBeReady(int $port): void
     {
-        $factory = new Socket\SocketFactory();
+        $factory = new Socket\SocketFactory;
         $deadline = microtime(true) + 0.5;
 
         do {

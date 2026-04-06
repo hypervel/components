@@ -32,7 +32,7 @@ class Watcher
         protected OutputInterface $output,
     ) {
         $this->driver = $this->getDriver();
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
         $this->config = $container->make('config');
         $this->channel = new Channel(1);
         $this->channel->push(true);

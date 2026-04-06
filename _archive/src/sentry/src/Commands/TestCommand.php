@@ -51,12 +51,12 @@ class TestCommand extends Command
                 $hub->getClient()->getOptions()->setTracesSampleRate(1);
             }
 
-            $transactionContext = new TransactionContext();
+            $transactionContext = new TransactionContext;
             $transactionContext->setName('Sentry Test Transaction');
             $transactionContext->setOp('sentry.test');
             $transaction = $hub->startTransaction($transactionContext);
 
-            $spanContext = new SpanContext();
+            $spanContext = new SpanContext;
             $spanContext->setOp('sentry.sent');
             $span = $transaction->startChild($spanContext);
 

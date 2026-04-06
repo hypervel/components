@@ -112,7 +112,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
     public function testDropColumn()
     {
-        $db = new Manager();
+        $db = new Manager;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -159,7 +159,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
     public function testRenameIndex()
     {
-        $db = new Manager();
+        $db = new Manager;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -334,7 +334,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $connection = $this->getConnection();
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor());
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 
@@ -377,7 +377,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $connection = $this->getConnection();
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor());
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 
@@ -848,7 +848,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $connection = $this->getConnection();
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor());
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 

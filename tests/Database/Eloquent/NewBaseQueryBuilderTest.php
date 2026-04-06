@@ -30,13 +30,13 @@ class NewBaseQueryBuilderTest extends TestCase
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
-            new Processor()
+            new Processor
         );
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
-        $model = new NewBaseQueryBuilderTestModel();
+        $model = new NewBaseQueryBuilderTestModel;
         $model->setTestConnection($connection);
 
         $builder = $model->testNewBaseQueryBuilder();
@@ -51,13 +51,13 @@ class NewBaseQueryBuilderTest extends TestCase
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
-            new Processor()
+            new Processor
         );
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
-        $pivot = new NewBaseQueryBuilderTestPivot();
+        $pivot = new NewBaseQueryBuilderTestPivot;
         $pivot->setTestConnection($connection);
 
         $builder = $pivot->testNewBaseQueryBuilder();
@@ -72,13 +72,13 @@ class NewBaseQueryBuilderTest extends TestCase
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
-            new Processor()
+            new Processor
         );
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
-        $morphPivot = new NewBaseQueryBuilderTestMorphPivot();
+        $morphPivot = new NewBaseQueryBuilderTestMorphPivot;
         $morphPivot->setTestConnection($connection);
 
         $builder = $morphPivot->testNewBaseQueryBuilder();

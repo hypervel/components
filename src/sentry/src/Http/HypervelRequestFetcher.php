@@ -59,7 +59,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
     private static function getPsrHttpFactory(): PsrHttpFactory
     {
         if (self::$psrHttpFactory === null) {
-            $psr17Factory = new Psr17Factory();
+            $psr17Factory = new Psr17Factory;
             self::$psrHttpFactory = new PsrHttpFactory($psr17Factory, $psr17Factory, $psr17Factory, $psr17Factory);
         }
 

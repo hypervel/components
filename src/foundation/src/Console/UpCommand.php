@@ -40,7 +40,7 @@ class UpCommand extends Command
                 unlink(storage_path('framework/maintenance.php'));
             }
 
-            $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled());
+            $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled);
 
             $this->reloadWorkers();
 

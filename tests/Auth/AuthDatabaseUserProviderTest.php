@@ -50,7 +50,7 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testRetrieveByTokenReturnsUser()
     {
-        $mockUser = new stdClass();
+        $mockUser = new stdClass;
         $mockUser->remember_token = 'a';
 
         $conn = m::mock(ConnectionInterface::class);
@@ -79,7 +79,7 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testRetrieveByBadTokenReturnsNull()
     {
-        $mockUser = new stdClass();
+        $mockUser = new stdClass;
         $mockUser->remember_token = null;
 
         $conn = m::mock(ConnectionInterface::class);

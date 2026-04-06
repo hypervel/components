@@ -103,7 +103,7 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
 
         $cacheManager = new CacheManager($app);
-        $repo = $cacheManager->repository($theStore = new NullStore(), ['events' => true]);
+        $repo = $cacheManager->repository($theStore = new NullStore, ['events' => true]);
 
         $this->assertNull($repo->getEventDispatcher());
         $this->assertSame($theStore, $repo->getStore());
@@ -116,7 +116,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($theStore, $repo->getStore());
 
         $cacheManager = new CacheManager($app);
-        $repo = $cacheManager->repository(new NullStore(), ['events' => true]);
+        $repo = $cacheManager->repository(new NullStore, ['events' => true]);
         // now that the $app has a Dispatcher, the newly born repository will also have one.
         $this->assertSame($eventDispatcher, $repo->getEventDispatcher());
     }
@@ -468,7 +468,7 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->bind(Dispatcher::class, fn () => new Event());
+        $app->bind(Dispatcher::class, fn () => new Event);
 
         $cacheManager = new CacheManager($app);
 
@@ -483,7 +483,7 @@ class CacheManagerTest extends TestCase
 
     protected function getApp(array $userConfig): Container
     {
-        $app = new Container();
+        $app = new Container;
         $app->instance('config', new ConfigRepository($userConfig));
 
         return $app;

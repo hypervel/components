@@ -153,9 +153,9 @@ class DatabaseEloquentHasOneTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->id = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -164,11 +164,11 @@ class DatabaseEloquentHasOneTest extends TestCase
     {
         $relation = $this->getRelation();
 
-        $result1 = new ModelStub();
+        $result1 = new ModelStub;
         $result1->foreign_key = 1;
-        $result2 = new ModelStub();
+        $result2 = new ModelStub;
         $result2->foreign_key = 2;
-        $result3 = new ModelStub();
+        $result3 = new ModelStub;
         $result3->foreign_key = new class {
             public function __toString()
             {
@@ -176,13 +176,13 @@ class DatabaseEloquentHasOneTest extends TestCase
             }
         };
 
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->id = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->id = 2;
-        $model3 = new ModelStub();
+        $model3 = new ModelStub;
         $model3->id = 3;
-        $model4 = new ModelStub();
+        $model4 = new ModelStub;
         $model4->id = 4;
 
         $models = $relation->match([$model1, $model2, $model3, $model4], new Collection([$result1, $result2, $result3]), 'foo');

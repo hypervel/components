@@ -17,7 +17,7 @@ abstract class AbstractDriver implements DriverInterface
 
     public function __construct(protected Option $option)
     {
-        $this->timer = new Timer();
+        $this->timer = new Timer;
     }
 
     public function __destruct()

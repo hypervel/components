@@ -169,7 +169,7 @@ trait MakesHttpRequests
         }
 
         foreach ((array) $middleware as $abstract) {
-            $this->app->instance($abstract, new FakeMiddleware());
+            $this->app->instance($abstract, new FakeMiddleware);
         }
 
         return $this;
@@ -480,8 +480,8 @@ trait MakesHttpRequests
             // which normally does this in onRequest(). The response gets a fake
             // writable connection so Response::stream() works in test mode.
             RequestContext::set($request);
-            $response = new Response();
-            $response->setConnection(new FakeWritableConnection());
+            $response = new Response;
+            $response->setConnection(new FakeWritableConnection);
             if ($method === 'HEAD') {
                 $response->withoutBody();
             }
@@ -657,7 +657,7 @@ trait MakesHttpRequests
             $response->withExceptions(
                 $this->app->bound(LoggedExceptionCollection::class)
                     ? $this->app->make(LoggedExceptionCollection::class)
-                    : new LoggedExceptionCollection()
+                    : new LoggedExceptionCollection
             );
         });
     }
@@ -704,6 +704,6 @@ trait MakesHttpRequests
      */
     protected function getWaiter(): Waiter
     {
-        return static::$waiter ??= new Waiter();
+        return static::$waiter ??= new Waiter;
     }
 }

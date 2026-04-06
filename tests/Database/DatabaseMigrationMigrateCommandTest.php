@@ -190,7 +190,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'hypervel-sqlite-');
         unlink($path);
 
-        $app = new ApplicationDatabaseMigrationStub();
+        $app = new ApplicationDatabaseMigrationStub;
         $command = new TestableMigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
         $command->probeMode = 'sqlite';
         $command->sqlitePath = $path;
@@ -248,7 +248,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

@@ -74,7 +74,7 @@ class DeferredCallbacksTest extends TestCase
         }, always: true);
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput(), 0)
+            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput, 0)
         );
 
         $this->assertSame(['normal', 'always'], DeferredCallbacksTestState::$calls);
@@ -92,7 +92,7 @@ class DeferredCallbacksTest extends TestCase
         }, always: true);
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput(), 1)
+            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput, 1)
         );
 
         $this->assertSame(['always'], DeferredCallbacksTestState::$calls);

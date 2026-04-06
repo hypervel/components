@@ -38,7 +38,7 @@ class WatchCommandTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
 
-        $command->run(new ArrayInput([]), new NullOutput());
+        $command->run(new ArrayInput([]), new NullOutput);
     }
 
     public function testWatchCommandRunsWatcherWhenRunningInConsoleIsFalse()
@@ -79,7 +79,7 @@ class WatchCommandTest extends TestCase
 
         Application::getInstance()->setRunningInConsole(false);
 
-        $result = $command->run(new ArrayInput([]), new NullOutput());
+        $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
     }

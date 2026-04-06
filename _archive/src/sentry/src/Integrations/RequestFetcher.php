@@ -24,7 +24,7 @@ class RequestFetcher implements RequestFetcherInterface
 
         $httpFoundationRequest = RequestContext::get();
 
-        $psr17Factory = new Psr17Factory();
+        $psr17Factory = new Psr17Factory;
         $psrHttpFactory = new PsrHttpFactory($psr17Factory, $psr17Factory, $psr17Factory, $psr17Factory);
 
         $request = $psrHttpFactory->createRequest($httpFoundationRequest);

@@ -24,7 +24,7 @@ class CacheSpyMemoTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container();
+        $container = new Container;
 
         $container->instance('config', new ConfigRepository([
             'cache' => [

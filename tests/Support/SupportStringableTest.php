@@ -1593,7 +1593,7 @@ class SupportStringableTest extends TestCase
 
     public function testEncryptAndDecrypt()
     {
-        $this->container = new Container();
+        $this->container = new Container;
         Container::setInstance($this->container);
 
         $this->container->singleton('encrypter', fn () => new Encrypter(str_repeat('b', 16)));

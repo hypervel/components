@@ -548,7 +548,7 @@ class Builder implements BuilderContract
 
         if (is_array($id)) {
             if (count($result) !== count(array_unique($id))) {
-                throw (new ModelNotFoundException())->setModel(
+                throw (new ModelNotFoundException)->setModel(
                     get_class($this->model),
                     array_diff($id, $result->modelKeys())
                 );
@@ -558,7 +558,7 @@ class Builder implements BuilderContract
         }
 
         if (is_null($result)) {
-            throw (new ModelNotFoundException())->setModel(
+            throw (new ModelNotFoundException)->setModel(
                 get_class($this->model),
                 $id
             );
@@ -693,7 +693,7 @@ class Builder implements BuilderContract
             return $model;
         }
 
-        throw (new ModelNotFoundException())->setModel(get_class($this->model));
+        throw (new ModelNotFoundException)->setModel(get_class($this->model));
     }
 
     /**
@@ -733,7 +733,7 @@ class Builder implements BuilderContract
         try {
             return $this->baseSole($columns);
         } catch (RecordsNotFoundException) {
-            throw (new ModelNotFoundException())->setModel(get_class($this->model));
+            throw (new ModelNotFoundException)->setModel(get_class($this->model));
         }
     }
 
@@ -1727,7 +1727,7 @@ class Builder implements BuilderContract
     {
         return isset($this->query->unions)
             ? (new BaseCollection($this->query->unions))->pluck('query')
-            : new BaseCollection();
+            : new BaseCollection;
     }
 
     /**

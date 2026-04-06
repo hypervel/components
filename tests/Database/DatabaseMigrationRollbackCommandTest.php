@@ -101,7 +101,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

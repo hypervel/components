@@ -38,7 +38,7 @@ class CallerTest extends TestCase
 
     public function testCaller()
     {
-        $obj = new stdClass();
+        $obj = new stdClass;
         $obj->id = uniqid();
         $caller = new Caller(static function () use ($obj) {
             return $obj;
@@ -57,7 +57,7 @@ class CallerTest extends TestCase
 
     public function testCallerPopTimeout()
     {
-        $obj = new stdClass();
+        $obj = new stdClass;
         $obj->id = uniqid();
         $caller = new Caller(static function () use ($obj) {
             return $obj;

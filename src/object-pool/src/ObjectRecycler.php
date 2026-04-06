@@ -63,7 +63,7 @@ class ObjectRecycler implements Recycler
             return $this->timer;
         }
 
-        return $this->timer = new Timer();
+        return $this->timer = new Timer;
     }
 
     /**

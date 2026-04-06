@@ -38,7 +38,7 @@ class PingInactiveConnectionsTest extends ReverbTestCase
             $connection->setLastSeenAt(time() - 60 * 10);
         });
 
-        (new PingInactiveConnections())->handle($channelManager);
+        (new PingInactiveConnections)->handle($channelManager);
 
         $connections->each(function ($connection) {
             $connection->assertReceived([

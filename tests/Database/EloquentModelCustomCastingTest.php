@@ -30,7 +30,7 @@ class EloquentModelCustomCastingTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -186,7 +186,7 @@ class EloquentModelCustomCastingTest extends TestCase
 
     public function testModelWithCustomCastsWorkWithCustomIncrementDecrement()
     {
-        $model = new Member();
+        $model = new Member;
         $model->amount = new Euro('2');
         $model->save();
 
@@ -201,12 +201,12 @@ class EloquentModelCustomCastingTest extends TestCase
     {
         // Set raw attribute, this is an example of how we would receive JSON string from the database.
         // Note the spaces after the colon.
-        $model = new Document();
+        $model = new Document;
         $model->setRawAttributes(['document' => '{"content": "content", "title": "hello world"}']);
         $model->save();
 
         // Inverse title and content this would result in a different JSON string when json_encode is used
-        $document = new stdClass();
+        $document = new stdClass;
         $document->title = 'hello world';
         $document->content = 'content';
         $model->document = $document;
@@ -230,7 +230,7 @@ class EloquentModelCustomCastingTest extends TestCase
         Person::preventSilentlyDiscardingAttributes();
         $this->expectException(MassAssignmentException::class);
 
-        $model = new Person();
+        $model = new Person;
         $model->guard(['address']);
         $model->create(['id' => 1, 'address' => new AddressDto('123 Main St.', 'Anytown, USA')]);
     }

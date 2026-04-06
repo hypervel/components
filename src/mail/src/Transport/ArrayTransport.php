@@ -23,7 +23,7 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function __construct()
     {
-        $this->messages = new Collection();
+        $this->messages = new Collection;
     }
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
@@ -44,7 +44,7 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function flush(): Collection
     {
-        return $this->messages = new Collection();
+        return $this->messages = new Collection;
     }
 
     /**

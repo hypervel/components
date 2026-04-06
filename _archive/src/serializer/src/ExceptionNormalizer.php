@@ -113,6 +113,6 @@ class ExceptionNormalizer implements NormalizerInterface, DenormalizerInterface
             return $this->instantiator;
         }
 
-        return $this->instantiator = new Instantiator();
+        return $this->instantiator = new Instantiator;
     }
 }

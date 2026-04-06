@@ -63,7 +63,7 @@ class ServerTest extends TestCase
 
         $server->shouldReceive('initRequestAndResponse')->andReturnUsing(function () {
             // Initialize PSR-7 Request and Response objects.
-            throw new BadRequestHttpException();
+            throw new BadRequestHttpException;
         });
 
         $server->onRequest($req = m::mock(Request::class), $res = m::mock(Response::class));
@@ -84,7 +84,7 @@ class ServerTest extends TestCase
 
         $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($exception) {
             if ($exception instanceof HttpException) {
-                return (new Psr7Response())->withStatus($exception->getStatusCode());
+                return (new Psr7Response)->withStatus($exception->getStatusCode());
             }
             return null;
         });
@@ -96,7 +96,7 @@ class ServerTest extends TestCase
 
         $server->shouldReceive('initRequestAndResponse')->andReturnUsing(function () {
             // Initialize PSR-7 Request and Response objects.
-            throw new BadRequestHttpException();
+            throw new BadRequestHttpException;
         });
 
         $server->onRequest($req = m::mock(Request::class), $res = m::mock(Response::class));

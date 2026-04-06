@@ -790,16 +790,16 @@ trait ValidatesAttributes
         $validations = (new Collection($parameters))
             ->unique()
             ->map(fn ($validation) => match (true) {
-                $validation === 'strict' => new NoRFCWarningsValidation(),
-                $validation === 'dns' => new DNSCheckValidation(),
-                $validation === 'spoof' => new SpoofCheckValidation(),
-                $validation === 'filter' => new FilterEmailValidation(),
+                $validation === 'strict' => new NoRFCWarningsValidation,
+                $validation === 'dns' => new DNSCheckValidation,
+                $validation === 'spoof' => new SpoofCheckValidation,
+                $validation === 'filter' => new FilterEmailValidation,
                 $validation === 'filter_unicode' => FilterEmailValidation::unicode(),
                 is_string($validation) && class_exists($validation) => $this->container->make($validation),
-                default => new RFCValidation(),
+                default => new RFCValidation,
             })
             ->values()
-            ->all() ?: [new RFCValidation()];
+            ->all() ?: [new RFCValidation];
 
         $emailValidator = Container::getInstance()->make(EmailValidator::class);
 
@@ -976,7 +976,7 @@ trait ValidatesAttributes
         [$connection, $table] = str_contains($table, '.') ? explode('.', $table, 2) : [null, $table];
 
         if (str_contains($table, '\\') && class_exists($table) && is_a($table, Model::class, true)) {
-            $model = new $table();
+            $model = new $table;
 
             $table = $model->getTable();
             $connection ??= $model->getConnectionName();
@@ -2298,7 +2298,7 @@ trait ValidatesAttributes
             '<=' => $first <= $second,
             '>=' => $first >= $second,
             '=' => $first == $second,
-            default => throw new InvalidArgumentException(),
+            default => throw new InvalidArgumentException,
         };
     }
 

@@ -80,7 +80,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->viewFactory = m::mock(ViewFactory::class);
         $this->request = m::mock(Request::class);
-        $this->container = new Application();
+        $this->container = new Application;
         $this->container->singleton('config', fn () => $this->config);
         $this->container->singleton('view', fn () => $this->viewFactory);
         $this->container->singleton(Request::class, fn () => $this->request);
@@ -246,23 +246,23 @@ class FoundationExceptionsHandlerTest extends TestCase
             return response()->json(['response' => 'My custom exception response']);
         });
 
-        $response = $this->handler->render($this->request, new CustomException())->getContent();
+        $response = $this->handler->render($this->request, new CustomException)->getContent();
 
         $this->assertSame('{"response":"My custom exception response"}', $response);
     }
 
     public function testReturnsCustomResponseFromCallableClass()
     {
-        $this->handler->renderable(new CustomRenderer());
+        $this->handler->renderable(new CustomRenderer);
 
-        $response = $this->handler->render($this->request, new CustomException())->getContent();
+        $response = $this->handler->render($this->request, new CustomException)->getContent();
 
         $this->assertSame('{"response":"The CustomRenderer response"}', $response);
     }
 
     public function testReturnsResponseFromRenderableException()
     {
-        $response = $this->handler->render(Request::create('/'), new RenderableException())->getContent();
+        $response = $this->handler->render(Request::create('/'), new RenderableException)->getContent();
 
         $this->assertSame('{"response":"My renderable exception response"}', $response);
     }
@@ -271,14 +271,14 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         $this->handler->map(RuntimeException::class, RenderableException::class);
 
-        $response = $this->handler->render(Request::create('/'), new RuntimeException())->getContent();
+        $response = $this->handler->render(Request::create('/'), new RuntimeException)->getContent();
 
         $this->assertSame('{"response":"My renderable exception response"}', $response);
     }
 
     public function testReturnsCustomResponseWhenExceptionImplementsResponsable()
     {
-        $response = $this->handler->render($this->request, new ResponsableException())->getContent();
+        $response = $this->handler->render($this->request, new ResponsableException)->getContent();
 
         $this->assertSame('{"response":"My responsable exception response"}', $response);
     }
@@ -398,7 +398,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->config->set('app.debug', true);
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
 
-        $response = $this->handler->render($this->request, new RecordsNotFoundException());
+        $response = $this->handler->render($this->request, new RecordsNotFoundException);
 
         $this->assertEquals(404, $response->getStatusCode());
         $this->assertStringContainsString('"message": "Not found."', $response->getContent());
@@ -407,7 +407,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->container->instance(LoggerInterface::class, $logger);
         $logger->shouldNotReceive('log');
 
-        $this->handler->report(new RecordsNotFoundException());
+        $this->handler->report(new RecordsNotFoundException);
     }
 
     public function testItReturnsSpecificErrorViewIfExists()
@@ -509,13 +509,13 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testAssertExceptionIsThrown()
     {
         $this->assertThrows(function () {
-            throw new Exception();
+            throw new Exception;
         });
         $this->assertThrows(function () {
-            throw new CustomException();
+            throw new CustomException;
         });
         $this->assertThrows(function () {
-            throw new CustomException();
+            throw new CustomException;
         }, CustomException::class);
         $this->assertThrows(function () {
             throw new Exception('Some message.');
@@ -529,7 +529,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
         try {
             $this->assertThrows(function () {
-                throw new Exception();
+                throw new Exception;
             }, CustomException::class);
             $testFailed = true;
         } catch (AssertionFailedError) {
@@ -594,7 +594,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         try {
             $this->assertDoesntThrow(function () {
-                throw new Exception();
+                throw new Exception;
             });
 
             $testFailed = true;
@@ -899,7 +899,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new NullStore())) extends RateLimiter {
+        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new NullStore)) extends RateLimiter {
             public $attempted = false;
 
             public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
@@ -931,7 +931,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore())) extends RateLimiter {
+        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore)) extends RateLimiter {
             public $attempted = 0;
 
             public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
@@ -976,7 +976,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore())) extends RateLimiter {
+        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore)) extends RateLimiter {
             public $attempted = 0;
 
             public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
@@ -1046,7 +1046,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
         $this->config->set('app.debug', true);
 
-        $response = $this->handler->render($this->request, $exception = (new ModelNotFoundException())->setModel('foo'));
+        $response = $this->handler->render($this->request, $exception = (new ModelNotFoundException)->setModel('foo'));
 
         $this->assertEquals(404, $response->getStatusCode());
         $this->assertStringContainsString('"message": "No query results for model [foo]."', $response->getContent());

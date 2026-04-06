@@ -301,7 +301,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
         if (! $this->hasSent($mailable)) {
-            return new Collection();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
@@ -325,7 +325,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
         if (! $this->hasQueued($mailable)) {
-            return new Collection();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;

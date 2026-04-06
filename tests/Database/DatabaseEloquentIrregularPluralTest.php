@@ -19,7 +19,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -79,7 +79,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
 
     public function testItPluralizesTheTableName()
     {
-        $model = new IrregularPluralHuman();
+        $model = new IrregularPluralHuman;
 
         $this->assertSame('irregular_plural_humans', $model->getTable());
     }

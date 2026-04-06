@@ -17,7 +17,7 @@ class FakeWritableConnection implements Writable
     public string $written = '';
 
     public function __construct(
-        private readonly FakeSwooleSocket $socket = new FakeSwooleSocket(),
+        private readonly FakeSwooleSocket $socket = new FakeSwooleSocket,
     ) {
     }
 

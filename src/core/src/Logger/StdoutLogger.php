@@ -29,7 +29,7 @@ class StdoutLogger implements StdoutLoggerInterface
 
     public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
-        $this->output = $output ?? new ConsoleOutput();
+        $this->output = $output ?? new ConsoleOutput;
     }
 
     public function emergency($message, array $context = []): void

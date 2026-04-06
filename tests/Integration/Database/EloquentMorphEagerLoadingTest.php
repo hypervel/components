@@ -49,15 +49,15 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $user = User::create();
         $user2 = User::forceCreate(['deleted_at' => now()]);
 
-        $post = tap((new Post())->user()->associate($user))->save();
+        $post = tap((new Post)->user()->associate($user))->save();
 
         $video = Video::create();
 
-        (new Comment())->commentable()->associate($post)->save();
-        (new Comment())->commentable()->associate($video)->save();
+        (new Comment)->commentable()->associate($post)->save();
+        (new Comment)->commentable()->associate($video)->save();
 
-        (new Action())->target()->associate($video)->save();
-        (new Action())->target()->associate($user2)->save();
+        (new Action)->target()->associate($video)->save();
+        (new Action)->target()->associate($user2)->save();
     }
 
     public function testWithMorphLoading()
@@ -107,7 +107,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
     {
         $deletedUser = User::forceCreate(['deleted_at' => now()]);
 
-        $action = new Action();
+        $action = new Action;
         $action->target()->associate($deletedUser)->save();
 
         // model is already set via associate and not retrieved from the database

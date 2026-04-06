@@ -31,7 +31,7 @@ trait GuardHelpers
      */
     public function authenticate(): AuthenticatableContract
     {
-        return $this->user() ?? throw new AuthenticationException();
+        return $this->user() ?? throw new AuthenticationException;
     }
 
     /**

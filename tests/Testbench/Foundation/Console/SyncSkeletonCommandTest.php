@@ -33,7 +33,7 @@ class SyncSkeletonCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
     }
 
     #[Override]

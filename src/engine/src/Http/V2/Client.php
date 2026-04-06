@@ -114,7 +114,7 @@ class Client implements ClientInterface
      */
     private function transformRequest(RequestInterface $request): SwRequest
     {
-        $req = new SwRequest();
+        $req = new SwRequest;
         $req->method = $request->getMethod();
         $req->path = $request->getPath();
         $req->headers = $request->getHeaders();

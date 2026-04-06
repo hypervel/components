@@ -19,7 +19,7 @@ class ErrorRendererTest extends TestCase
 {
     public function testDefaultVerbosityIsNormal()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $renderer = new ErrorRenderer(new ArrayInput([]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_NORMAL, $output->getVerbosity());
@@ -27,7 +27,7 @@ class ErrorRendererTest extends TestCase
 
     public function testSilentFlagSetsVerbosityToSilent()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--silent' => true]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_SILENT, $output->getVerbosity());
@@ -35,7 +35,7 @@ class ErrorRendererTest extends TestCase
 
     public function testQuietFlagSetsVerbosityToQuiet()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--quiet' => true]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_QUIET, $output->getVerbosity());
@@ -43,7 +43,7 @@ class ErrorRendererTest extends TestCase
 
     public function testVerboseFlagSetsVerbosityToVerbose()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--verbose' => true]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_VERBOSE, $output->getVerbosity());
@@ -51,7 +51,7 @@ class ErrorRendererTest extends TestCase
 
     public function testVeryVerboseFlagSetsVerbosityToVeryVerbose()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--verbose' => 2]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_VERY_VERBOSE, $output->getVerbosity());
@@ -59,7 +59,7 @@ class ErrorRendererTest extends TestCase
 
     public function testDebugFlagSetsVerbosityToDebug()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--verbose' => 3]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_DEBUG, $output->getVerbosity());
@@ -67,7 +67,7 @@ class ErrorRendererTest extends TestCase
 
     public function testSilentTakesPrecedenceOverQuiet()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         new ErrorRenderer(new ArrayInput(['--silent' => true, '--quiet' => true]), $output);
 
         $this->assertSame(OutputInterface::VERBOSITY_SILENT, $output->getVerbosity());
@@ -75,7 +75,7 @@ class ErrorRendererTest extends TestCase
 
     public function testRenderProducesOutput()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $renderer = new ErrorRenderer(new ArrayInput([]), $output);
 
         $renderer->render(new RuntimeException('Test error message'));

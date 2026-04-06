@@ -15,7 +15,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 {
     public function testItExecutesCallbacksImmediatelyIfThereIsOnlyOneTransaction()
     {
-        $testObject = new TestingDatabaseTransactionsManagerTestObject();
+        $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
 
         $manager->begin('foo', 1);
@@ -56,7 +56,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testItExecutesCallbacksForTheSecondTransaction()
     {
-        $testObject = new TestingDatabaseTransactionsManagerTestObject();
+        $testObject = new TestingDatabaseTransactionsManagerTestObject;
         $manager = new DatabaseTransactionsManager([null]);
         $manager->begin('foo', 1);
         $manager->begin('foo', 2);

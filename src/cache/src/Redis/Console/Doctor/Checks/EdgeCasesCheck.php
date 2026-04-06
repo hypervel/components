@@ -21,7 +21,7 @@ final class EdgeCasesCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Null values
         $context->cache->put($context->prefixed('edge:null'), null, 60);

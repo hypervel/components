@@ -20,7 +20,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
     {
         $serializedClosure = serialize(new SerializableClosure(static fn () => 'Hello, World!'));
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [
             'code' => $serializedClosure,
@@ -39,7 +39,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
             serialize(new SerializableClosure(static fn () => 'From Environment'))
         );
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [], $output);
 
@@ -54,7 +54,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
     public function testItReturnsNullWhenNoClosureIsProvided(): void
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [], $output);
 
@@ -71,7 +71,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
             static fn () => throw new RuntimeException('Test exception')
         ));
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [
             'code' => $serializedClosure,
@@ -91,7 +91,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
             static fn () => throw new InvokeSerializedClosureCustomParameterException('Test param')
         ));
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [
             'code' => $serializedClosure,

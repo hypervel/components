@@ -34,7 +34,7 @@ class ServerTest extends TestCase
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(
             Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()
         );
-        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub());
+        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub);
 
         $server = new Server($container);
 
@@ -45,7 +45,7 @@ class ServerTest extends TestCase
         // when that coroutine exits, before we make our assertions.
         $channel = new \Swoole\Coroutine\Channel(1);
         Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest(), WebSocketStub::class, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, WebSocketStub::class, $swooleServer, 1);
             $channel->push(true);
         });
         $channel->pop();

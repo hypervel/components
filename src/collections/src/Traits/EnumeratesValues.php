@@ -170,7 +170,7 @@ trait EnumeratesValues
     public static function times(int $number, ?callable $callback = null): static
     {
         if ($number < 1) {
-            return new static();
+            return new static;
         }
 
         return static::range(1, $number)

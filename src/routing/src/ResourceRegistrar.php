@@ -83,7 +83,7 @@ class ResourceRegistrar
 
         $defaults = $this->resourceDefaults;
 
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
 
         $resourceMethods = $this->getResourceMethods($defaults, $options);
 
@@ -149,7 +149,7 @@ class ResourceRegistrar
             $defaults = array_merge($defaults, ['destroy']);
         }
 
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
 
         $resourceMethods = $this->getResourceMethods($defaults, $options);
 

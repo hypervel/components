@@ -358,7 +358,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createEngine();
 
         $model = $this->createSearchableModelMock();
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
+        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
 
         $builder = m::mock(Builder::class);
         $results = ['found' => 0, 'hits' => []];
@@ -373,7 +373,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createEngine();
 
         $model = $this->createSearchableModelMock();
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
+        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
 
         $builder = m::mock(Builder::class);
         $results = ['found' => 0, 'hits' => []];

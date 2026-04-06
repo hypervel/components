@@ -20,7 +20,7 @@ class ComponentsTest extends TestCase
 {
     public function testAlert()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Alert($output))->render('The application is in the [production] environment');
 
@@ -32,7 +32,7 @@ class ComponentsTest extends TestCase
 
     public function testBulletList()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\BulletList($output))->render([
             'ls -la',
@@ -47,7 +47,7 @@ class ComponentsTest extends TestCase
 
     public function testSuccess()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Success($output))->render('The application is in the [production] environment');
 
@@ -56,7 +56,7 @@ class ComponentsTest extends TestCase
 
     public function testError()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Error($output))->render('The application is in the [production] environment');
 
@@ -65,7 +65,7 @@ class ComponentsTest extends TestCase
 
     public function testInfo()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Info($output))->render('The application is in the [production] environment');
 
@@ -108,7 +108,7 @@ class ComponentsTest extends TestCase
 
     public function testTask()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Task($output))->render('My task', fn () => TaskResult::Success->value);
         $result = $output->fetch();
@@ -128,7 +128,7 @@ class ComponentsTest extends TestCase
 
     public function testTwoColumnDetail()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\TwoColumnDetail($output))->render('First', 'Second');
         $result = $output->fetch();
@@ -138,7 +138,7 @@ class ComponentsTest extends TestCase
 
     public function testWarn()
     {
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
         (new Components\Warn($output))->render('The application is in the [production] environment');
 

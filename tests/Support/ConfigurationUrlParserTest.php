@@ -17,7 +17,7 @@ class ConfigurationUrlParserTest extends TestCase
     #[DataProvider('databaseUrls')]
     public function testDatabaseUrlsAreParsed($config, $expectedOutput)
     {
-        $this->assertEquals($expectedOutput, (new ConfigurationUrlParser())->parseConfiguration($config));
+        $this->assertEquals($expectedOutput, (new ConfigurationUrlParser)->parseConfiguration($config));
     }
 
     public static function databaseUrls()
@@ -447,6 +447,6 @@ class ConfigurationUrlParserTest extends TestCase
 
         $this->assertEquals([
             'driver' => 'mysql',
-        ], (new ConfigurationUrlParser())->parseConfiguration('some-particular-alias://null'));
+        ], (new ConfigurationUrlParser)->parseConfiguration('some-particular-alias://null'));
     }
 }

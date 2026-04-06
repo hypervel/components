@@ -21,7 +21,7 @@ final class BulkOperationsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // putMany without tags
         $context->cache->putMany([

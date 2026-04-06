@@ -81,6 +81,6 @@ class MariaDbConnection extends MySqlConnection
      */
     protected function getDefaultPostProcessor(): MariaDbProcessor
     {
-        return new MariaDbProcessor();
+        return new MariaDbProcessor;
     }
 }

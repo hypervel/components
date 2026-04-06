@@ -38,7 +38,7 @@ class RouteCachingTest extends RoutingTestCase
 
     public function testSetContainerInvalidatesControllerDispatcherCache()
     {
-        $container1 = new Container();
+        $container1 = new Container;
         $dispatcher1 = m::mock(ControllerDispatcherContract::class);
         $container1->singleton(ControllerDispatcherContract::class, fn () => $dispatcher1);
 
@@ -49,7 +49,7 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($dispatcher1, $result1);
 
         // Swap to a new container with a different dispatcher.
-        $container2 = new Container();
+        $container2 = new Container;
         $dispatcher2 = m::mock(ControllerDispatcherContract::class);
         $container2->singleton(ControllerDispatcherContract::class, fn () => $dispatcher2);
 
@@ -65,7 +65,7 @@ class RouteCachingTest extends RoutingTestCase
         $dispatcher1 = m::mock(CallableDispatcherContract::class);
         $dispatcher1->shouldReceive('dispatch')->once()->andReturn('result1');
 
-        $container1 = new Container();
+        $container1 = new Container;
         $container1->singleton(CallableDispatcherContract::class, fn () => $dispatcher1);
 
         $route = new Route('GET', '/test', ['uses' => fn () => null]);
@@ -80,7 +80,7 @@ class RouteCachingTest extends RoutingTestCase
         $dispatcher2 = m::mock(CallableDispatcherContract::class);
         $dispatcher2->shouldReceive('dispatch')->once()->andReturn('result2');
 
-        $container2 = new Container();
+        $container2 = new Container;
         $container2->singleton(CallableDispatcherContract::class, fn () => $dispatcher2);
 
         $route->setContainer($container2);
@@ -100,7 +100,7 @@ class RouteCachingTest extends RoutingTestCase
         $dispatcher = m::mock(CallableDispatcherContract::class);
         $dispatcher->shouldReceive('dispatch')->twice()->andReturn('result');
 
-        $container = new Container();
+        $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);
 
         $route = new Route('GET', '/test', ['uses' => $closure]);
@@ -126,7 +126,7 @@ class RouteCachingTest extends RoutingTestCase
         $dispatcher = m::mock(CallableDispatcherContract::class);
         $dispatcher->shouldReceive('dispatch')->once()->andReturn('result');
 
-        $container = new Container();
+        $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);
 
         $route = new Route('GET', '/test', ['uses' => fn () => 'original']);
@@ -200,7 +200,7 @@ class RouteCachingTest extends RoutingTestCase
 
         $controllerDispatcher = m::mock(ControllerDispatcherContract::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);
         $container->singleton(ControllerDispatcherContract::class, fn () => $controllerDispatcher);
 

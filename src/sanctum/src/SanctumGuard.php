@@ -62,7 +62,7 @@ class SanctumGuard implements GuardContract
      */
     public function user(): ?Authenticatable
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $token = $this->getTokenFromRequest();
         $contextKey = $this->getContextKeyForToken($token);
@@ -84,7 +84,7 @@ class SanctumGuard implements GuardContract
                 if ($this->supportsTokens($user)) {
                     /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
                     $tokenUser = $user;
-                    $user = $tokenUser->withAccessToken(new TransientToken());
+                    $user = $tokenUser->withAccessToken(new TransientToken);
                 }
                 CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
@@ -229,7 +229,7 @@ class SanctumGuard implements GuardContract
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenFromRequest()));
 

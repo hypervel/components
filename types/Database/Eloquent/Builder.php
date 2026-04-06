@@ -74,7 +74,7 @@ function test(
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazyByIdDesc());
     assertType('Hypervel\Support\Collection<(int|string), mixed>', $query->pluck('foo'));
     assertType('Hypervel\Database\Eloquent\Relations\Relation<Hypervel\Database\Eloquent\Model, Hypervel\Types\Builder\User, *>', $query->getRelation('foo'));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query->setModel(new Post()));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query->setModel(new Post));
 
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->has('foo', callback: function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
@@ -152,10 +152,10 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphDoesntHaveRelation($post->taggable(), 'taggable', function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
     }));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphedTo($post->taggable(), new Post()));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereNotMorphedTo($post->taggable(), new Post()));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphedTo($post->taggable(), new Post()));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereNotMorphedTo($post->taggable(), new Post()));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphedTo($post->taggable(), new Post));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereNotMorphedTo($post->taggable(), new Post));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphedTo($post->taggable(), new Post));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereNotMorphedTo($post->taggable(), new Post));
 
     $query->chunk(1, function ($users, $page) {
         assertType('Hypervel\Support\Collection<int, Hypervel\Types\Builder\User>', $users);

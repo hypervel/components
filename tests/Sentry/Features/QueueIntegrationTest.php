@@ -41,14 +41,14 @@ class QueueIntegrationTest extends SentryTestCase
 
     public function testQueueJobPushesAndPopsScopeWithBreadcrumbs(): void
     {
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         $this->assertCount(0, $this->getCurrentSentryBreadcrumbs());
     }
 
     public function testQueueJobThatReportsPushesAndPopsScopeWithBreadcrumbs(): void
     {
-        dispatch(new QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb());
+        dispatch(new QueueEventsTestJobThatReportsAnExceptionWithBreadcrumb);
 
         $this->assertCount(0, $this->getCurrentSentryBreadcrumbs());
 
@@ -62,7 +62,7 @@ class QueueIntegrationTest extends SentryTestCase
     public function testQueueJobThatThrowsLeavesPushedScopeWithBreadcrumbs(): void
     {
         try {
-            dispatch(new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb());
+            dispatch(new QueueEventsTestJobThatThrowsAnUnhandledExceptionWithBreadcrumb);
         } catch (Exception $e) {
             // No action required, expected to throw
         }
@@ -105,11 +105,11 @@ class QueueIntegrationTest extends SentryTestCase
 
     public function testQueueJobsWithBreadcrumbSetInBetweenKeepsNonJobBreadcrumbsOnCurrentScope(): void
     {
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         addBreadcrumb(new Breadcrumb(Breadcrumb::LEVEL_INFO, Breadcrumb::LEVEL_DEBUG, 'test2', 'test2'));
 
-        dispatch(new QueueEventsTestJobWithBreadcrumb());
+        dispatch(new QueueEventsTestJobWithBreadcrumb);
 
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
     }
@@ -117,7 +117,7 @@ class QueueIntegrationTest extends SentryTestCase
     #[DefineEnvironment('withTracingEnabled')]
     public function testQueueJobCreatesTransactionByDefault(): void
     {
-        dispatch(new QueueEventsTestJob());
+        dispatch(new QueueEventsTestJob);
 
         $transaction = $this->getLastSentryEvent();
 
@@ -134,7 +134,7 @@ class QueueIntegrationTest extends SentryTestCase
     #[DefineEnvironment('withQueueJobTracingDisabled')]
     public function testQueueJobDoesntCreateTransaction(): void
     {
-        dispatch(new QueueEventsTestJob());
+        dispatch(new QueueEventsTestJob);
 
         $transaction = $this->getLastSentryEvent();
 

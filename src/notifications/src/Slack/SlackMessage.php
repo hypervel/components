@@ -109,7 +109,7 @@ class SlackMessage implements Arrayable
      */
     public function actionsBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new ActionsBlock();
+        $this->blocks[] = $block = new ActionsBlock;
 
         $callback($block);
 
@@ -121,7 +121,7 @@ class SlackMessage implements Arrayable
      */
     public function contextBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new ContextBlock();
+        $this->blocks[] = $block = new ContextBlock;
 
         $callback($block);
 
@@ -133,7 +133,7 @@ class SlackMessage implements Arrayable
      */
     public function dividerBlock(): static
     {
-        $this->blocks[] = new DividerBlock();
+        $this->blocks[] = new DividerBlock;
 
         return $this;
     }
@@ -172,7 +172,7 @@ class SlackMessage implements Arrayable
      */
     public function sectionBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new SectionBlock();
+        $this->blocks[] = $block = new SectionBlock;
 
         $callback($block);
 

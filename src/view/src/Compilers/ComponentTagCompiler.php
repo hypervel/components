@@ -42,7 +42,7 @@ class ComponentTagCompiler
         protected array $namespaces = [],
         ?BladeCompiler $blade = null
     ) {
-        $this->blade = $blade ?: new BladeCompiler(new Filesystem(), sys_get_temp_dir());
+        $this->blade = $blade ?: new BladeCompiler(new Filesystem, sys_get_temp_dir());
     }
 
     /**

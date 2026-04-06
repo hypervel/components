@@ -60,7 +60,7 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
 
     public function testAddObservableEventFromTrait()
     {
-        $model = new EloquentModelStubWithCustomEventFromTrait();
+        $model = new EloquentModelStubWithCustomEventFromTrait;
 
         $this->assertNull($model->custom_attribute);
         $this->assertNull($model->observer_attribute);

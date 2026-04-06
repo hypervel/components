@@ -421,7 +421,7 @@ class RouteListCommand extends Command
     public static function getTerminalWidth(): int
     {
         return is_null(static::$terminalWidthResolver)
-            ? (new Terminal())->getWidth()
+            ? (new Terminal)->getWidth()
             : call_user_func(static::$terminalWidthResolver);
     }
 

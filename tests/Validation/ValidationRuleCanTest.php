@@ -41,7 +41,7 @@ class ValidationRuleCanTest extends TestCase
         $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
-                new ArrayLoader(),
+                new ArrayLoader,
                 'en'
             )
         );
@@ -92,8 +92,8 @@ class ValidationRuleCanTest extends TestCase
                 'company_fqcn' => '1',
             ],
             [
-                'company' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
-                'company_fqcn' => new Can('update-company', [\App\Models\Company::class, new stdClass()]),
+                'company' => new Can('update-company', [\App\Models\Company::class, new stdClass]),
+                'company_fqcn' => new Can('update-company', [\App\Models\Company::class, new stdClass]),
             ],
             [
                 'company.can' => 'You dont have permission (dot notation)',

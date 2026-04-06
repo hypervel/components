@@ -340,7 +340,7 @@ class Filesystem
             );
         }
 
-        $relativeTarget = (new SymfonyFilesystem())->makePathRelative($target, dirname($link));
+        $relativeTarget = (new SymfonyFilesystem)->makePathRelative($target, dirname($link));
 
         $this->link($this->isFile($target) ? rtrim($relativeTarget, '/') : $relativeTarget, $link);
     }
@@ -390,7 +390,7 @@ class Filesystem
             );
         }
 
-        return (new MimeTypes())->getExtensions($this->mimeType($path))[0] ?? null;
+        return (new MimeTypes)->getExtensions($this->mimeType($path))[0] ?? null;
     }
 
     /**

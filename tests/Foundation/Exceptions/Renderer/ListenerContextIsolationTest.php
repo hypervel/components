@@ -20,7 +20,7 @@ class ListenerContextIsolationTest extends TestCase
 {
     public function testQueryCapStopsAtMaxQueries()
     {
-        $listener = new Listener();
+        $listener = new Listener;
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getName')->andReturn('testing');
@@ -40,7 +40,7 @@ class ListenerContextIsolationTest extends TestCase
         $channel = new Channel(2);
 
         Coroutine::create(function () use ($channel) {
-            $listener = new Listener();
+            $listener = new Listener;
 
             $connection = m::mock(Connection::class);
             $connection->shouldReceive('getName')->andReturn('conn-a');
@@ -60,7 +60,7 @@ class ListenerContextIsolationTest extends TestCase
         });
 
         Coroutine::create(function () use ($channel) {
-            $listener = new Listener();
+            $listener = new Listener;
 
             $connection = m::mock(Connection::class);
             $connection->shouldReceive('getName')->andReturn('conn-b');

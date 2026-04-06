@@ -176,7 +176,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerNullConnector(QueueManager $manager): void
     {
-        $manager->addConnector('null', fn () => new NullConnector());
+        $manager->addConnector('null', fn () => new NullConnector);
     }
 
     /**
@@ -184,7 +184,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerSyncConnector(QueueManager $manager): void
     {
-        $manager->addConnector('sync', fn () => new SyncConnector());
+        $manager->addConnector('sync', fn () => new SyncConnector);
     }
 
     /**
@@ -192,7 +192,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerDeferredConnector(QueueManager $manager): void
     {
-        $manager->addConnector('deferred', fn () => new DeferredConnector());
+        $manager->addConnector('deferred', fn () => new DeferredConnector);
     }
 
     /**
@@ -200,7 +200,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerBackgroundConnector(QueueManager $manager): void
     {
-        $manager->addConnector('background', fn () => new BackgroundConnector());
+        $manager->addConnector('background', fn () => new BackgroundConnector);
     }
 
     /**
@@ -239,7 +239,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerBeanstalkdConnector(QueueManager $manager): void
     {
-        $manager->addConnector('beanstalkd', fn () => new BeanstalkdConnector());
+        $manager->addConnector('beanstalkd', fn () => new BeanstalkdConnector);
     }
 
     /**
@@ -247,7 +247,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerSqsConnector(QueueManager $manager): void
     {
-        $manager->addConnector('sqs', fn () => new SqsConnector());
+        $manager->addConnector('sqs', fn () => new SqsConnector);
     }
 
     /**
@@ -278,7 +278,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        $this->app->singleton('queue.routes', fn () => new QueueRoutes());
+        $this->app->singleton('queue.routes', fn () => new QueueRoutes);
     }
 
     /**
@@ -292,7 +292,7 @@ class QueueServiceProvider extends ServiceProvider
             if (array_key_exists('driver', $config)
                 && (is_null($config['driver']) || $config['driver'] === 'null')
             ) {
-                return new NullFailedJobProvider();
+                return new NullFailedJobProvider;
             }
 
             if (isset($config['driver']) && $config['driver'] === 'file') {
@@ -319,7 +319,7 @@ class QueueServiceProvider extends ServiceProvider
                 );
             }
 
-            return new NullFailedJobProvider();
+            return new NullFailedJobProvider;
         });
     }
 }

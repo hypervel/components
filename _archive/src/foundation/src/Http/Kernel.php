@@ -179,7 +179,7 @@ class Kernel extends HttpServer implements MiddlewareContract
         return $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
             return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
         }, static function () {
-            return (new Response())->withStatus(400);
+            return (new Response)->withStatus(400);
         });
     }
 

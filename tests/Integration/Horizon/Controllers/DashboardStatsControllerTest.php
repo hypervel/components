@@ -60,7 +60,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         $this->app['config']->set('horizon.trim.recent_failed', 10080);
         $this->app['config']->set('horizon.trim.recent', 60);
 
-        $response = $this->actingAs(new Fakes\User())
+        $response = $this->actingAs(new Fakes\User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([
@@ -92,7 +92,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
         $this->app->instance(MasterSupervisorRepository::class, $masters);
 
-        $response = $this->actingAs(new Fakes\User())
+        $response = $this->actingAs(new Fakes\User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([
@@ -113,7 +113,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
         $this->app->instance(MasterSupervisorRepository::class, $masters);
 
-        $response = $this->actingAs(new Fakes\User())
+        $response = $this->actingAs(new Fakes\User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([

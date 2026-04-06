@@ -31,7 +31,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -56,7 +56,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -68,7 +68,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $model->getConnection()
             ->expects('select')
@@ -96,7 +96,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -126,7 +126,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -158,7 +158,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -175,7 +175,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $model->getConnection()
             ->expects('select')
@@ -203,7 +203,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -233,7 +233,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -270,7 +270,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $model = new ParentModel();
+        $model = new ParentModel;
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -287,7 +287,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('insert')
             ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception()));
+            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
 
         $model->getConnection()
             ->expects('select')
@@ -322,7 +322,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
         $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
-        $processor = new $processorClass();
+        $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);

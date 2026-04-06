@@ -37,7 +37,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEventNow());
+        Broadcast::queue(new TestEventNow);
 
         Bus::assertDispatched(BroadcastEvent::class);
         Queue::assertNotPushed(BroadcastEvent::class);
@@ -48,7 +48,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEvent());
+        Broadcast::queue(new TestEvent);
 
         Bus::assertNotDispatched(BroadcastEvent::class);
         Queue::assertPushed(BroadcastEvent::class);
@@ -61,7 +61,7 @@ class BroadcastManagerTest extends TestCase
 
         Queue::route(TestEvent::class, 'broadcast-queue', 'broadcast-connection');
 
-        Broadcast::queue(new TestEvent());
+        Broadcast::queue(new TestEvent);
         Bus::assertNotDispatched(BroadcastEvent::class);
         Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
     }
@@ -71,7 +71,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEventRescue());
+        Broadcast::queue(new TestEventRescue);
 
         Bus::assertNotDispatched(BroadcastEvent::class);
         Queue::assertPushed(BroadcastEvent::class);
@@ -82,7 +82,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEventNowRescue());
+        Broadcast::queue(new TestEventNowRescue);
 
         Bus::assertDispatched(BroadcastEvent::class);
         Queue::assertNotPushed(BroadcastEvent::class);
@@ -100,7 +100,7 @@ class BroadcastManagerTest extends TestCase
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
         $this->app->singleton(Cache::class, fn () => $cache);
 
-        Broadcast::queue(new TestEventUnique());
+        Broadcast::queue(new TestEventUnique);
 
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
@@ -111,7 +111,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEventUniqueWithIdProperty());
+        Broadcast::queue(new TestEventUniqueWithIdProperty);
 
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
@@ -125,7 +125,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        Broadcast::queue(new TestEventUniqueWithIdMethod());
+        Broadcast::queue(new TestEventUniqueWithIdMethod);
 
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
@@ -139,7 +139,7 @@ class BroadcastManagerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
 
-        $app = new Container();
+        $app = new Container;
         $app->singleton('config', fn () => new \Hypervel\Config\Repository([
             'broadcasting' => [
                 'connections' => [
@@ -227,7 +227,7 @@ class BroadcastManagerTest extends TestCase
 
     public function testCustomDriverClosureBoundObjectIsBroadcastManager(): void
     {
-        $app = new Container();
+        $app = new Container;
         $app->singleton('config', fn () => new \Hypervel\Config\Repository([
             'broadcasting' => [
                 'connections' => [
@@ -256,7 +256,7 @@ class BroadcastManagerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
 
-        $app = new Container();
+        $app = new Container;
         $app->singleton('config', fn () => new \Hypervel\Config\Repository([
             'broadcasting' => [
                 'connections' => [

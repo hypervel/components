@@ -21,7 +21,7 @@ class SplPriorityQueueTest extends TestCase
             'c' => 0,
             'd' => 1,
         ];
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($items as $value => $priority) {
             $queue->insert($value, $priority);
         }
@@ -35,7 +35,7 @@ class SplPriorityQueueTest extends TestCase
     public function testQueueWithSomePriority()
     {
         $items = ['a', 'b', 'c', 'd' => 1];
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($items as $value => $priority) {
             if (! is_int($priority)) {
                 [$priority, $value] = [0, $priority];
@@ -52,7 +52,7 @@ class SplPriorityQueueTest extends TestCase
     public function testQueueWithoutPriority()
     {
         $items = ['a', 'b', 'c', 'd'];
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($items as $value => $priority) {
             if (! is_int($priority)) {
                 [$priority, $value] = [0, $priority];
@@ -74,7 +74,7 @@ class SplPriorityQueueTest extends TestCase
             'c' => [0, 3],
             'd' => [1, 2],
         ];
-        $queue = new SplPriorityQueue();
+        $queue = new SplPriorityQueue;
         foreach ($items as $value => $priority) {
             $queue->insert($value, $priority);
         }

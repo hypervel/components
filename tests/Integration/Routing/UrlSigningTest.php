@@ -47,7 +47,7 @@ class UrlSigningTest extends RoutingTestCase
             return ['slug' => $slug, 'valid' => $request->hasValidSignature() ? 'valid' : 'invalid'];
         })->name('foo');
 
-        $model = new RoutableInterfaceStub();
+        $model = new RoutableInterfaceStub;
         $model->routable = 'routable-slug';
 
         $this->assertIsString($url = URL::signedRoute('foo', ['post' => $model]));
@@ -244,7 +244,7 @@ class UrlSigningTest extends RoutingTestCase
 
     public function testSignedMiddlewareWithRoutableParameter()
     {
-        $model = new RoutableInterfaceStub();
+        $model = new RoutableInterfaceStub;
         $model->routable = 'routable';
 
         Route::get('/foo/{bar}', function (Request $request, $routable) {
@@ -281,7 +281,7 @@ class UrlSigningTest extends RoutingTestCase
             $middleware->handle($request, function ($request) {
                 $this->assertTrue($request->hasValidSignatureWhileIgnoring(['ignore']));
 
-                return new Response();
+                return new Response;
             });
         } catch (InvalidSignatureException $exception) {
             $this->fail($exception->getMessage());
@@ -314,7 +314,7 @@ class UrlSigningTest extends RoutingTestCase
             $middleware->handle($request, function ($request) {
                 $this->assertTrue($request->hasValidSignatureWhileIgnoring(['globally_ignore']));
 
-                return new Response();
+                return new Response;
             });
         } catch (InvalidSignatureException $exception) {
             $this->fail($exception->getMessage());

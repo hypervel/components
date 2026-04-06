@@ -24,7 +24,7 @@ class BusDispatcherTest extends TestCase
 {
     public function testCommandsThatShouldQueueIsQueued()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
         $queueRoutes->shouldReceive('getQueue')->andReturn(null);
         $queueRoutes->shouldReceive('getConnection')->andReturn(null);
@@ -43,7 +43,7 @@ class BusDispatcherTest extends TestCase
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomHandler()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
         $queueRoutes->shouldReceive('getQueue')->andReturn(null);
         $queueRoutes->shouldReceive('getConnection')->andReturn(null);
@@ -55,14 +55,14 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand());
+        $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand);
 
         Container::setInstance(null);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay()
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
         $queueRoutes->shouldReceive('getQueue')->andReturn(null);
         $queueRoutes->shouldReceive('getConnection')->andReturn(null);
@@ -74,14 +74,14 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand());
+        $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand);
 
         Container::setInstance(null);
     }
 
     public function testCommandsAreDispatchedWithQueueRoute()
     {
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
         $queueRoutes->shouldReceive('getQueue')->andReturn('high-priority');
         $queueRoutes->shouldReceive('getConnection')->andReturn(null);
@@ -93,26 +93,26 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherQueueable());
+        $dispatcher->dispatch(new BusDispatcherQueueable);
 
         Container::setInstance(null);
     }
 
     public function testDispatchNowShouldNeverQueue()
     {
-        $container = new Container();
+        $container = new Container;
         $mock = m::mock(Queue::class);
         $mock->shouldReceive('push')->never();
         $dispatcher = new Dispatcher($container, function () use ($mock) {
             return $mock;
         });
 
-        $dispatcher->dispatch(new BusDispatcherBasicCommand());
+        $dispatcher->dispatch(new BusDispatcherBasicCommand);
     }
 
     public function testDispatcherCanDispatchStandAloneHandler()
     {
-        $container = new Container();
+        $container = new Container;
         $mock = m::mock(Queue::class);
         $dispatcher = new Dispatcher($container, function () use ($mock) {
             return $mock;
@@ -120,14 +120,14 @@ class BusDispatcherTest extends TestCase
 
         $dispatcher->map([StandAloneCommand::class => StandAloneHandler::class]);
 
-        $response = $dispatcher->dispatch(new StandAloneCommand());
+        $response = $dispatcher->dispatch(new StandAloneCommand);
 
         $this->assertInstanceOf(StandAloneCommand::class, $response);
     }
 
     public function testOnConnectionOnJobWhenDispatching()
     {
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
         $container->singleton('config', function () {
             return new Config([
                 'queue' => [
@@ -150,7 +150,7 @@ class BusDispatcherTest extends TestCase
             return $mock;
         });
 
-        $job = (new ShouldNotBeDispatched())->onConnection('null');
+        $job = (new ShouldNotBeDispatched)->onConnection('null');
 
         $dispatcher->dispatch($job);
 

@@ -78,7 +78,7 @@ class BatchFake extends Batch
      */
     public function decrementPendingJobs(string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**
@@ -93,7 +93,7 @@ class BatchFake extends Batch
      */
     public function incrementFailedJobs(string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**

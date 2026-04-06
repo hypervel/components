@@ -644,8 +644,8 @@ class Str
     {
         $environment = new Environment($options);
 
-        $environment->addExtension(new GithubFlavoredMarkdownExtension());
-        $environment->addExtension(new InlinesOnlyExtension());
+        $environment->addExtension(new GithubFlavoredMarkdownExtension);
+        $environment->addExtension(new InlinesOnlyExtension);
 
         foreach ($extensions as $extension) {
             $environment->addExtension($extension);
@@ -731,7 +731,7 @@ class Str
         preg_match_all($pattern, $subject, $matches);
 
         if (empty($matches[0])) {
-            return new Collection();
+            return new Collection;
         }
 
         return new Collection($matches[1] ?? $matches[0]);
@@ -827,7 +827,7 @@ class Str
      */
     public static function password(int $length = 32, bool $letters = true, bool $numbers = true, bool $symbols = true, bool $spaces = false): string
     {
-        $password = new Collection();
+        $password = new Collection;
 
         $options = (new Collection([
             'letters' => $letters === true ? [
@@ -1658,7 +1658,7 @@ class Str
         }
 
         if ($time === null) {
-            return new Ulid();
+            return new Ulid;
         }
 
         return new Ulid(Ulid::generate($time));

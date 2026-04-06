@@ -17,7 +17,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',

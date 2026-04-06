@@ -34,7 +34,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testMailIsSent()
     {
-        $mailable = new MarkdownBasicMailable();
+        $mailable = new MarkdownBasicMailable;
 
         $mailable
             ->assertHasSubject('My basic title')
@@ -44,7 +44,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testMailMayHaveSpecificTextView()
     {
-        $mailable = new MarkdownBasicMailableWithTextView();
+        $mailable = new MarkdownBasicMailableWithTextView;
 
         $mailable
             ->assertHasSubject('My basic title')
@@ -55,7 +55,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testEmbed()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedMailable);
 
         $mailable->assertSeeInHtml('Embed content: cid:');
         $mailable->assertSeeInText('Embed content: ');
@@ -82,7 +82,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testEmbedData()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedDataMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedDataMailable);
 
         $mailable->assertSeeInText('Embed data content: ');
         $mailable->assertSeeInHtml('Embed data content: cid:');
@@ -98,7 +98,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testEmbedMultilineImage()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedMultilineMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedMultilineMailable);
 
         $html = html_entity_decode($mailable->render());
 
@@ -120,7 +120,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testMessageAsPublicPropertyMayBeDefinedAsViewData()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownMessageAsPublicPropertyMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownMessageAsPublicPropertyMailable);
 
         $mailable
             ->assertSeeInText('My message is: My message.')
@@ -133,7 +133,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testMessageAsWithNamedParameterMayBeDefinedAsViewData()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownMessageAsWithNamedParameterMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownMessageAsWithNamedParameterMailable);
 
         $mailable
             ->assertSeeInText('My message is: My message.')
@@ -146,19 +146,19 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testTheme()
     {
-        Mail::to('test@mail.com')->send(new MarkdownBasicMailable());
+        Mail::to('test@mail.com')->send(new MarkdownBasicMailable);
         $this->assertSame('default', $this->app->make(Markdown::class)->getTheme());
 
-        Mail::to('test@mail.com')->send(new MarkdownBasicMailableWithTheme());
+        Mail::to('test@mail.com')->send(new MarkdownBasicMailableWithTheme);
         $this->assertSame('taylor', $this->app->make(Markdown::class)->getTheme());
 
-        Mail::to('test@mail.com')->send(new MarkdownBasicMailable());
+        Mail::to('test@mail.com')->send(new MarkdownBasicMailable);
         $this->assertSame('default', $this->app->make(Markdown::class)->getTheme());
     }
 
     public function testEmbeddedImageContentIdConsistencyAcrossMailerFailoverClones()
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedImageMailable());
+        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedImageMailable);
 
         /** @var \Symfony\Component\Mime\Email $originalEmail */
         $originalEmail = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage();

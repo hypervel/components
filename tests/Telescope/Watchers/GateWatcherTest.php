@@ -97,7 +97,7 @@ class GateWatcherTest extends FeatureTestCase
         $this->app->make(GateContract::class)
             ->policy(TestResource::class, TestPolicy::class);
 
-        (new TestController())->create(new TestResource());
+        (new TestController)->create(new TestResource);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -132,7 +132,7 @@ class GateWatcherTest extends FeatureTestCase
             ->policy(TestResource::class, TestPolicy::class);
 
         try {
-            (new TestController())->update(new TestResource());
+            (new TestController)->update(new TestResource);
         } catch (Exception $ex) {
             // ignore
         }
@@ -151,7 +151,7 @@ class GateWatcherTest extends FeatureTestCase
             ->policy(TestResourceWithFormatForTelescope::class, TestPolicy::class);
 
         try {
-            (new TestController())->update(new TestResourceWithFormatForTelescope());
+            (new TestController)->update(new TestResourceWithFormatForTelescope);
         } catch (Exception $ex) {
             // ignore
         }
@@ -170,7 +170,7 @@ class GateWatcherTest extends FeatureTestCase
             ->policy(TestResource::class, TestPolicy::class);
 
         try {
-            (new TestController())->view(new TestResource());
+            (new TestController)->view(new TestResource);
         } catch (Exception $ex) {
             // ignore
         }
@@ -189,7 +189,7 @@ class GateWatcherTest extends FeatureTestCase
             ->policy(TestResource::class, TestPolicy::class);
 
         try {
-            (new TestController())->delete(new TestResource());
+            (new TestController)->delete(new TestResource);
         } catch (Exception $ex) {
             // ignore
         }

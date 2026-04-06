@@ -23,7 +23,7 @@ class ParallelTest extends TestCase
     public function testParallel()
     {
         // Closure
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         for ($i = 0; $i < 3; ++$i) {
             $parallel->add(function () {
                 return Coroutine::id();
@@ -34,7 +34,7 @@ class ParallelTest extends TestCase
         $this->assertSame([$id, $id + 1, $id + 2], $result);
 
         // Array
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         for ($i = 0; $i < 3; ++$i) {
             $parallel->add([$this, 'returnCoId']);
         }
@@ -45,7 +45,7 @@ class ParallelTest extends TestCase
 
     public function testParallelConcurrent()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $num = 0;
         $callback = function () use (&$num) {
             ++$num;
@@ -88,7 +88,7 @@ class ParallelTest extends TestCase
 
     public function testParallelCallbackCount()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $callback = function () {
             return 1;
         };
@@ -107,7 +107,7 @@ class ParallelTest extends TestCase
 
     public function testParallelClear()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $callback = function () {
             return 1;
         };
@@ -128,7 +128,7 @@ class ParallelTest extends TestCase
 
     public function testParallelKeys()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $callback = function () {
             return 1;
         };
@@ -161,7 +161,7 @@ class ParallelTest extends TestCase
 
     public function testParallelThrows()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $err = function () {
             Coroutine::sleep(0.001);
             throw new RuntimeException('something bad happened');
@@ -180,7 +180,7 @@ class ParallelTest extends TestCase
 
     public function testParallelResultsAndThrows()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
 
         $err = function () {
             Coroutine::sleep(0.001);
@@ -198,7 +198,7 @@ class ParallelTest extends TestCase
 
         try {
             $parallel->wait();
-            throw new RuntimeException();
+            throw new RuntimeException;
         } catch (ParallelExecutionException $exception) {
             foreach (['Detecting', 'RuntimeException', '#0'] as $keyword) {
                 $this->assertTrue(str_contains($exception->getMessage(), $keyword));
@@ -215,7 +215,7 @@ class ParallelTest extends TestCase
 
     public function testParallelCount()
     {
-        $parallel = new Parallel();
+        $parallel = new Parallel;
         $id = 0;
         $parallel->add(static function () use (&$id) {
             ++$id;
@@ -257,7 +257,7 @@ class ParallelTest extends TestCase
         try {
             parallel([
                 static function () {
-                    throw new Exception();
+                    throw new Exception;
                 },
             ]);
         } catch (ParallelExecutionException $exception) {

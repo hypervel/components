@@ -49,7 +49,7 @@ class ParallelTestingTest extends TestCase
 
     public function testTokenReturnsFalseWhenNotRunningInParallel()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $parallelTesting->resolveTokenUsing(fn () => false);
 
@@ -58,7 +58,7 @@ class ParallelTestingTest extends TestCase
 
     public function testTokenReturnsValueFromResolver()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $parallelTesting->resolveTokenUsing(fn () => '3');
 
@@ -67,7 +67,7 @@ class ParallelTestingTest extends TestCase
 
     public function testInParallelReturnsFalseWithoutToken()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
         $parallelTesting->resolveTokenUsing(fn () => false);
@@ -77,7 +77,7 @@ class ParallelTestingTest extends TestCase
 
     public function testInParallelReturnsFalseWithoutServerVariable()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -87,7 +87,7 @@ class ParallelTestingTest extends TestCase
 
     public function testInParallelReturnsTrueWithTokenAndServerVariable()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -97,7 +97,7 @@ class ParallelTestingTest extends TestCase
 
     public function testOptionReturnsFalseByDefault()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $this->assertFalse($parallelTesting->option('recreate_databases'));
         $this->assertFalse($parallelTesting->option('without_databases'));
@@ -105,7 +105,7 @@ class ParallelTestingTest extends TestCase
 
     public function testOptionUsesCustomResolver()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $parallelTesting->resolveOptionsUsing(fn (string $option) => $option === 'recreate_databases');
 
@@ -115,7 +115,7 @@ class ParallelTestingTest extends TestCase
 
     public function testOptionResolverCanBeReset()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $parallelTesting->resolveOptionsUsing(fn () => true);
         $this->assertTrue($parallelTesting->option('anything'));
@@ -126,7 +126,7 @@ class ParallelTestingTest extends TestCase
 
     public function testSetUpTestCaseCallbacksNotCalledWithoutParallelTesting()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -143,7 +143,7 @@ class ParallelTestingTest extends TestCase
 
     public function testSetUpTestCaseCallbacksCalledWithToken()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -163,7 +163,7 @@ class ParallelTestingTest extends TestCase
 
     public function testTearDownTestCaseCallbacksNotCalledWithoutParallelTesting()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -180,7 +180,7 @@ class ParallelTestingTest extends TestCase
 
     public function testTearDownTestCaseCallbacksCalledWithToken()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
         $parallelTesting->resolveTokenUsing(fn () => '2');
@@ -200,7 +200,7 @@ class ParallelTestingTest extends TestCase
 
     public function testMultipleCallbacksAreCalledInOrder()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
         $parallelTesting->resolveTokenUsing(fn () => '1');
@@ -223,7 +223,7 @@ class ParallelTestingTest extends TestCase
 
     public function testCallbacksReceiveCorrectTokenValue()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
 
@@ -244,7 +244,7 @@ class ParallelTestingTest extends TestCase
 
     public function testTokenResolverCanBeReset()
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
 
@@ -260,7 +260,7 @@ class ParallelTestingTest extends TestCase
     #[DataProvider('allCallbackTypes')]
     public function testAllCallbackTypesFireWhenInParallel(string $callback, array $callerArgs)
     {
-        $parallelTesting = new ParallelTesting(new Container());
+        $parallelTesting = new ParallelTesting(new Container);
         $caller = 'call' . ucfirst($callback) . 'Callbacks';
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
@@ -287,10 +287,10 @@ class ParallelTestingTest extends TestCase
     {
         return [
             'setUpProcess' => ['setUpProcess', []],
-            'setUpTestCase' => ['setUpTestCase', [new stdClass()]],
+            'setUpTestCase' => ['setUpTestCase', [new stdClass]],
             'setUpTestDatabase' => ['setUpTestDatabase', ['test_db']],
             'setUpTestDatabaseBeforeMigrating' => ['setUpTestDatabaseBeforeMigrating', ['test_db']],
-            'tearDownTestCase' => ['tearDownTestCase', [new stdClass()]],
+            'tearDownTestCase' => ['tearDownTestCase', [new stdClass]],
             'tearDownProcess' => ['tearDownProcess', []],
         ];
     }

@@ -42,10 +42,10 @@ function test(User $user, Post $post, Comment $comment, Article $article): void
     assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->notifications());
     assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->unreadNotifications());
 
-    assertType('Hypervel\Database\Eloquent\Collection<(int|string), User>', $user->newCollection([new User()]));
-    assertType('Hypervel\Types\Model\Posts<(int|string), Hypervel\Types\Model\Post>', $post->newCollection(['foo' => new Post()]));
-    assertType('Hypervel\Types\Model\Articles<(int|string), Hypervel\Types\Model\Article>', $article->newCollection([new Article()]));
-    assertType('Hypervel\Types\Model\Comments', $comment->newCollection([new Comment()]));
+    assertType('Hypervel\Database\Eloquent\Collection<(int|string), User>', $user->newCollection([new User]));
+    assertType('Hypervel\Types\Model\Posts<(int|string), Hypervel\Types\Model\Post>', $post->newCollection(['foo' => new Post]));
+    assertType('Hypervel\Types\Model\Articles<(int|string), Hypervel\Types\Model\Article>', $article->newCollection([new Article]));
+    assertType('Hypervel\Types\Model\Comments', $comment->newCollection([new Comment]));
 
     assertType('bool', $user->restore());
     assertType('User', $user->restoreOrCreate());

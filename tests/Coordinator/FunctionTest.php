@@ -32,7 +32,7 @@ class FunctionTest extends TestCase
     public function testResume()
     {
         $identifier = uniqid();
-        $wg = new WaitGroup();
+        $wg = new WaitGroup;
         $wg->add();
         go(function () use ($wg, $identifier) {
             $aborted = block(10, $identifier);

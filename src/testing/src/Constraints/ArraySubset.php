@@ -73,7 +73,7 @@ class ArraySubset extends Constraint
      */
     public function toString(): string
     {
-        return 'has the subset ' . (new Exporter())->export($this->subset);
+        return 'has the subset ' . (new Exporter)->export($this->subset);
     }
 
     /**

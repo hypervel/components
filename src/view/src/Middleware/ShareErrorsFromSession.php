@@ -30,7 +30,7 @@ class ShareErrorsFromSession
         // without having to bind. An empty bag is set when there aren't errors.
         $this->view->share(
             'errors',
-            $request->session()->get('errors') ?: new ViewErrorBag()
+            $request->session()->get('errors') ?: new ViewErrorBag
         );
 
         // Putting the errors in the view for every view allows the developer to just

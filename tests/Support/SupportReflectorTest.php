@@ -74,10 +74,10 @@ class SupportReflectorTest extends TestCase
         }));
         $this->assertTrue(Reflector::isCallable([B::class, 'f']));
         $this->assertFalse(Reflector::isCallable([TestClassWithCall::class, 'f']));
-        $this->assertTrue(Reflector::isCallable([new TestClassWithCall(), 'f']));
+        $this->assertTrue(Reflector::isCallable([new TestClassWithCall, 'f']));
         $this->assertTrue(Reflector::isCallable([TestClassWithCallStatic::class, 'f']));
-        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic(), 'f']));
-        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic()]));
+        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic, 'f']));
+        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic]));
         $this->assertFalse(Reflector::isCallable(['TotallyMissingClass', 'foo']));
         $this->assertTrue(Reflector::isCallable(['TotallyMissingClass', 'foo'], true));
     }

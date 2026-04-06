@@ -25,8 +25,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get');
@@ -45,8 +45,8 @@ class RouteCollectorTest extends TestCase
 
     public function testGetRouteParser()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $this->assertSame($parser, $collector->getRouteParser());
@@ -54,8 +54,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddGroupMiddleware()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator);
 
         $collector->get('/', 'Handler::Get', [
@@ -90,8 +90,8 @@ class RouteCollectorTest extends TestCase
 
     public function testAddGroupMiddlewareFromAnotherServer()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollector($parser, $generator, 'test');
 
         $collector->addGroup('/api', function ($collector) {
@@ -108,8 +108,8 @@ class RouteCollectorTest extends TestCase
 
     public function testRouterCollectorMergeOptions()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollectorStub($parser, $generator, 'test');
 
         $origin = [
@@ -125,8 +125,8 @@ class RouteCollectorTest extends TestCase
 
     public function testMiddlewareInOptionalRoute()
     {
-        $parser = new Std();
-        $generator = new DataGenerator();
+        $parser = new Std;
+        $generator = new DataGenerator;
         $collector = new RouteCollectorStub($parser, $generator, 'test');
 
         $routes = [

@@ -27,7 +27,7 @@ class HypervelRequestFetcherTest extends SentryTestCase
         // Make a request so RequestContext is populated
         $this->get('/');
 
-        $fetcher = new HypervelRequestFetcher();
+        $fetcher = new HypervelRequestFetcher;
         $request = $fetcher->fetchRequest();
 
         $this->assertInstanceOf(ServerRequestInterface::class, $request);

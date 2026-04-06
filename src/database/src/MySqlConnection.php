@@ -140,6 +140,6 @@ class MySqlConnection extends Connection
      */
     protected function getDefaultPostProcessor(): MySqlProcessor
     {
-        return new MySqlProcessor();
+        return new MySqlProcessor;
     }
 }

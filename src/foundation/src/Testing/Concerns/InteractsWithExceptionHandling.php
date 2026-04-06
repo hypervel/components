@@ -129,7 +129,7 @@ trait InteractsWithExceptionHandling
              */
             public function renderForConsole(OutputInterface $output, Throwable $e): void
             {
-                (new ConsoleApplication())->renderThrowable($e, $output);
+                (new ConsoleApplication)->renderThrowable($e, $output);
             }
 
             /**

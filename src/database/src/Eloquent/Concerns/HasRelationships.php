@@ -907,7 +907,7 @@ trait HasRelationships
      */
     protected function newRelatedInstance(string $class): Model
     {
-        return tap(new $class(), function ($instance) {
+        return tap(new $class, function ($instance) {
             if (! $instance->getConnectionName()) {
                 $instance->setConnection($this->connection);
             }
@@ -924,7 +924,7 @@ trait HasRelationships
      */
     protected function newRelatedThroughInstance(string $class): Model
     {
-        return new $class();
+        return new $class;
     }
 
     /**

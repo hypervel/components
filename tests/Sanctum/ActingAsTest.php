@@ -42,7 +42,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsSetsUserInContext(): void
     {
-        $user = new User();
+        $user = new User;
         $user->id = 123;
 
         $result = Sanctum::actingAs($user);
@@ -52,7 +52,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithAbilitiesSetsTokenWithCorrectAbilities(): void
     {
-        $user = new User();
+        $user = new User;
         $abilities = ['read', 'write'];
 
         Sanctum::actingAs($user, $abilities);
@@ -64,7 +64,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithWildcardAbility(): void
     {
-        $user = new User();
+        $user = new User;
 
         Sanctum::actingAs($user, ['*']);
 
@@ -76,7 +76,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithCustomGuard(): void
     {
-        $user = new User();
+        $user = new User;
         $user->id = 456;
 
         Sanctum::actingAs($user, ['read'], 'api');
@@ -86,7 +86,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void
     {
-        $user = new User();
+        $user = new User;
         $user->wasRecentlyCreated = true;
 
         Sanctum::actingAs($user);

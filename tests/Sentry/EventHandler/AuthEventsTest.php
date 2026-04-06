@@ -21,7 +21,7 @@ class AuthEventsTest extends SentryTestCase
 
     public function testAuthenticatedEventFillsUserOnScope(): void
     {
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->forceFill([
             'id' => 123,
@@ -44,7 +44,7 @@ class AuthEventsTest extends SentryTestCase
 
     public function testAuthenticatedEventFillsUserOnScopeWhenUsernameIsNotAString(): void
     {
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->forceFill([
             'id' => 123,
@@ -65,7 +65,7 @@ class AuthEventsTest extends SentryTestCase
 
     public function testAuthenticatedEventFillsUserOnScopeWhenEmailIsNotAString(): void
     {
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->forceFill([
             'id' => 123,
@@ -86,7 +86,7 @@ class AuthEventsTest extends SentryTestCase
 
     public function testAuthenticatedEventFillsUserOnScopeWhenEmailCanBeCastToAString(): void
     {
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->forceFill([
             'id' => 123,
@@ -112,7 +112,7 @@ class AuthEventsTest extends SentryTestCase
 
     public function testAuthenticatedEventDoesNotSetEmailOnScopeWhenEmailAttributeIsNull(): void
     {
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->forceFill([
             'id' => 123,
@@ -137,7 +137,7 @@ class AuthEventsTest extends SentryTestCase
             'sentry.send_default_pii' => false,
         ]);
 
-        $user = new AuthEventsTestUserModel();
+        $user = new AuthEventsTestUserModel;
 
         $user->id = 123;
 

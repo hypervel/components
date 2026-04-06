@@ -36,7 +36,7 @@ class DatabaseWipeCommandTest extends TestCase
             'db' => $db,
         ]);
 
-        $command = new WipeCommand();
+        $command = new WipeCommand;
         $command->setHypervel($app);
 
         $code = $this->runCommand($command, [
@@ -50,7 +50,7 @@ class DatabaseWipeCommandTest extends TestCase
 
     protected function runCommand($command, array $input = []): int
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

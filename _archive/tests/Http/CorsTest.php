@@ -56,7 +56,7 @@ class CorsTest extends TestCase
 
     public function testCanSetOptions(): void
     {
-        $service = new Cors();
+        $service = new Cors;
         $normalized = $this->getOptionsFromService($service);
         $this->assertEquals([], $normalized['allowedOrigins']);
 
@@ -115,7 +115,7 @@ class CorsTest extends TestCase
 
     public function testCanHaveNoOptions(): void
     {
-        $service = new Cors();
+        $service = new Cors;
         $normalized = $this->getOptionsFromService($service);
 
         $this->assertEquals([], $normalized['allowedOrigins']);
@@ -251,8 +251,8 @@ class CorsTest extends TestCase
 
     public function testVaryHeaderAddsHeaderWhenNoneExists(): void
     {
-        $cors = new Cors();
-        $response = new Response();
+        $cors = new Cors;
+        $response = new Response;
 
         $result = $cors->varyHeader($response, 'Origin');
 
@@ -261,8 +261,8 @@ class CorsTest extends TestCase
 
     public function testVaryHeaderAppendsToExistingSingleHeader(): void
     {
-        $cors = new Cors();
-        $response = (new Response())->withHeader('Vary', 'Accept-Encoding');
+        $cors = new Cors;
+        $response = (new Response)->withHeader('Vary', 'Accept-Encoding');
 
         $result = $cors->varyHeader($response, 'Origin');
 
@@ -271,8 +271,8 @@ class CorsTest extends TestCase
 
     public function testVaryHeaderDoesNotDuplicateExistingHeader(): void
     {
-        $cors = new Cors();
-        $response = (new Response())->withHeader('Vary', 'Origin');
+        $cors = new Cors;
+        $response = (new Response)->withHeader('Vary', 'Origin');
 
         $result = $cors->varyHeader($response, 'Origin');
 
@@ -281,9 +281,9 @@ class CorsTest extends TestCase
 
     public function testVaryHeaderHandlesMultipleExistingHeaders(): void
     {
-        $cors = new Cors();
+        $cors = new Cors;
         // PSR-7 allows multiple header values as array elements
-        $response = (new Response())
+        $response = (new Response)
             ->withHeader('Vary', 'Accept-Encoding')
             ->withAddedHeader('Vary', 'Accept-Language');
 
@@ -294,8 +294,8 @@ class CorsTest extends TestCase
 
     public function testVaryHeaderDoesNotDuplicateWhenInMultipleHeaders(): void
     {
-        $cors = new Cors();
-        $response = (new Response())
+        $cors = new Cors;
+        $response = (new Response)
             ->withHeader('Vary', 'Accept-Encoding')
             ->withAddedHeader('Vary', 'Origin');
 

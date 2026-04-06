@@ -81,10 +81,10 @@ class LoadEnvironmentVariablesTest extends TestCase
     {
         $this->expectOutputString('');
 
-        $app = new Application();
+        $app = new Application;
         $app->useEnvironmentPath(__DIR__ . '/../Fixtures/envs');
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertSame('BAR', env('FOO'));
         $this->assertSame('BAR', getenv('FOO'));
@@ -96,18 +96,18 @@ class LoadEnvironmentVariablesTest extends TestCase
     {
         $this->expectOutputString('');
 
-        $app = new Application();
+        $app = new Application;
         $app->useEnvironmentPath(__DIR__ . '/../Fixtures/envs');
         $app->loadEnvironmentFrom('BAD_FILE');
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
     }
 
     public function testLoadsDefaultEnvFile()
     {
         $app = $this->createApp();
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertSame('Hypervel', env('APP_NAME'));
         $this->assertSame('default_value', env('TEST_KEY'));
@@ -116,7 +116,7 @@ class LoadEnvironmentVariablesTest extends TestCase
     public function testSkipsWhenConfigIsCached()
     {
         $tempDir = ParallelTesting::tempDir('LoadEnvVarsTest');
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         // Copy fixture .env files to a temp dir so getCachedConfigPath()
         // writes to temp instead of the test source tree.
@@ -135,7 +135,7 @@ class LoadEnvironmentVariablesTest extends TestCase
 
             file_put_contents($cachePath, '<?php return [];');
 
-            (new LoadEnvironmentVariables())->bootstrap($app);
+            (new LoadEnvironmentVariables)->bootstrap($app);
 
             // Env vars should NOT be loaded since config is cached.
             $this->assertNull(env('APP_NAME'));
@@ -154,7 +154,7 @@ class LoadEnvironmentVariablesTest extends TestCase
 
         $app = $this->createApp();
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertSame('HypervelTesting', env('APP_NAME'));
         $this->assertSame('testing_value', env('TEST_KEY'));
@@ -168,7 +168,7 @@ class LoadEnvironmentVariablesTest extends TestCase
 
         $app = $this->createApp();
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         // .env.nonexistent doesn't exist, so falls back to .env.
         $this->assertSame('Hypervel', env('APP_NAME'));
@@ -179,7 +179,7 @@ class LoadEnvironmentVariablesTest extends TestCase
     {
         $app = $this->createApp();
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         // After bootstrap, DotenvManager should track loaded keys
         // so reload() can clean them up. Verify by reloading with a
@@ -198,7 +198,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $app = new Application(__DIR__ . '/../Fixtures/envs/nonexistent');
 
         // Should not throw — safeLoad handles missing files gracefully.
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertNull(env('APP_NAME'));
     }
@@ -211,7 +211,7 @@ class LoadEnvironmentVariablesTest extends TestCase
         $app = $this->createApp();
         $app->setRunningInConsole(true);
 
-        (new LoadEnvironmentVariables())->bootstrap($app);
+        (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertSame('HypervelTesting', env('APP_NAME'));
         $this->assertSame('testing_value', env('TEST_KEY'));

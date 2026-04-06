@@ -58,7 +58,7 @@ class MailLogTransportTest extends TestCase
 
     public function testItDecodesTheMessageBeforeLogging()
     {
-        $message = (new Message(new Email()))
+        $message = (new Message(new Email))
             ->from('noreply@example.com', 'no-reply')
             ->to('taylor@example.com', 'Taylor')
             ->html(<<<'BODY'
@@ -82,7 +82,7 @@ class MailLogTransportTest extends TestCase
 
     public function testItOnlyDecodesQuotedPrintablePartsOfTheMessageBeforeLogging()
     {
-        $message = (new Message(new Email()))
+        $message = (new Message(new Email))
             ->from('noreply@example.com', 'no-reply')
             ->to('taylor@example.com', 'Taylor')
             ->html(<<<'BODY'
@@ -117,7 +117,7 @@ class MailLogTransportTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(LoggerInterface::class, new NullLogger());
+        $this->app->instance(LoggerInterface::class, new NullLogger);
 
         $transportLogger = $this->app->make('mail.manager')->getSymfonyTransport()->logger();
 

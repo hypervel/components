@@ -40,8 +40,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Relations\HasOne<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->latestPost());
     assertType('Hypervel\Types\Relations\Post', $user->posts()->make());
     assertType('Hypervel\Types\Relations\Post', $user->posts()->create());
-    assertType('Hypervel\Types\Relations\Post|false', $user->posts()->save(new Post()));
-    assertType('Hypervel\Types\Relations\Post|false', $user->posts()->saveQuietly(new Post()));
+    assertType('Hypervel\Types\Relations\Post|false', $user->posts()->save(new Post));
+    assertType('Hypervel\Types\Relations\Post|false', $user->posts()->saveQuietly(new Post));
 
     assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Database\\Eloquent\\Relations\\Pivot, 'pivot'>", $user->roles());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->getResults());
@@ -66,8 +66,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->create());
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->createOrFirst());
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->updateOrCreate([]));
-    assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->save(new Role()));
-    assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->saveQuietly(new Role()));
+    assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->save(new Role));
+    assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->saveQuietly(new Role));
     $roles = $user->roles()->getResults();
     assertType('iterable<(int|string), Hypervel\Types\Relations\Role>', $user->roles()->saveMany($roles));
     assertType('iterable<(int|string), Hypervel\Types\Relations\Role>', $user->roles()->saveMany($roles->all()));
@@ -104,7 +104,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\User|null', $post->user()->getResults());
     assertType('Hypervel\Types\Relations\User', $post->user()->make());
     assertType('Hypervel\Types\Relations\User', $post->user()->create());
-    assertType('Hypervel\Types\Relations\Post', $post->user()->associate(new User()));
+    assertType('Hypervel\Types\Relations\Post', $post->user()->associate(new User));
     assertType('Hypervel\Types\Relations\Post', $post->user()->dissociate());
     assertType('Hypervel\Types\Relations\Post', $post->user()->disassociate());
     assertType('Hypervel\Types\Relations\Post', $post->user()->getChild());
@@ -121,7 +121,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Model|null', $comment->commentable()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Comment>', $comment->commentable()->getEager());
     assertType('Hypervel\Database\Eloquent\Model', $comment->commentable()->createModelByType('foo'));
-    assertType('Hypervel\Types\Relations\Comment', $comment->commentable()->associate(new Post()));
+    assertType('Hypervel\Types\Relations\Comment', $comment->commentable()->associate(new Post));
     assertType('Hypervel\Types\Relations\Comment', $comment->commentable()->dissociate());
 
     assertType("Hypervel\\Database\\Eloquent\\Relations\\MorphToMany<Hypervel\\Types\\Relations\\Tag, Hypervel\\Types\\Relations\\Post, Hypervel\\Database\\Eloquent\\Relations\\MorphPivot, 'pivot'>", $post->tags());

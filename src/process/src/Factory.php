@@ -57,7 +57,7 @@ class Factory
      */
     public function describe(): FakeProcessDescription
     {
-        return new FakeProcessDescription();
+        return new FakeProcessDescription;
     }
 
     /**
@@ -78,7 +78,7 @@ class Factory
         $this->recording = true;
 
         if (is_null($callback)) {
-            $this->fakeHandlers = ['*' => fn () => new FakeProcessResult()];
+            $this->fakeHandlers = ['*' => fn () => new FakeProcessResult];
 
             return $this;
         }

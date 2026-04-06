@@ -20,7 +20,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -163,7 +163,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         try {
             $user->withoutTimestamps(function () use ($user) {
                 $this->assertFalse($user->usesTimestamps());
-                throw new RuntimeException();
+                throw new RuntimeException;
             });
             $this->fail();
         } catch (RuntimeException) {
@@ -174,9 +174,9 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     public function testWithoutTimestampsRespectsClasses()
     {
-        $a = new UserWithCreatedAndUpdated();
-        $b = new UserWithCreatedAndUpdated();
-        $z = new UserWithUpdated();
+        $a = new UserWithCreatedAndUpdated;
+        $b = new UserWithCreatedAndUpdated;
+        $z = new UserWithUpdated;
 
         $this->assertTrue($a->usesTimestamps());
         $this->assertTrue($b->usesTimestamps());

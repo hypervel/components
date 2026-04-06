@@ -23,7 +23,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
 {
     public function testNotificationsCanBeSent()
     {
-        $notification = new TestNotification();
+        $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
         $manager = m::mock(ChannelManager::class);
         $manager->shouldReceive('sendNow')->once()->withArgs(function ($notifiables, $notification, $channels) {
@@ -39,7 +39,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $identifier = new ModelIdentifier(NotifiableUser::class, [null], [], null);
         $serializedIdentifier = serialize($identifier);
 
-        $job = new SendQueuedNotifications(new NotifiableUser(), new TestNotification());
+        $job = new SendQueuedNotifications(new NotifiableUser, new TestNotification);
         $serialized = serialize($job);
 
         $this->assertStringContainsString($serializedIdentifier, $serialized);
@@ -47,10 +47,10 @@ class NotificationSendQueuedNotificationTest extends TestCase
 
     public function testSerializationOfNormalNotifiable()
     {
-        $notifiable = new AnonymousNotifiable();
+        $notifiable = new AnonymousNotifiable;
         $serializedNotifiable = serialize($notifiable);
 
-        $job = new SendQueuedNotifications($notifiable, new TestNotification());
+        $job = new SendQueuedNotifications($notifiable, new TestNotification);
         $serialized = serialize($job);
 
         $this->assertStringContainsString($serializedNotifiable, $serialized);
@@ -58,7 +58,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
 
     public function testNotificationCanSetMaxExceptions()
     {
-        $notifiable = new NotifiableUser();
+        $notifiable = new NotifiableUser;
         $notification = new class {
             public int $maxExceptions = 23;
         };

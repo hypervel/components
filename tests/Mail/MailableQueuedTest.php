@@ -33,7 +33,7 @@ class MailableQueuedTest extends TestCase
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = new MailableQueueableStub();
+        $mailable = new MailableQueueableStub;
         $queueFake->assertNothingPushed();
         $mailer->send($mailable);
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
@@ -43,7 +43,7 @@ class MailableQueuedTest extends TestCase
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = new MailableQueueableStub();
+        $mailable = new MailableQueueableStub;
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
         $mailable->attach('foo.jpg', $attachmentOption);
         $this->assertIsArray($mailable->attachments);
@@ -58,7 +58,7 @@ class MailableQueuedTest extends TestCase
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = new MailableQueueableStub();
+        $mailable = new MailableQueueableStub;
         $mailer->send($mailable);
 
         $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable) {
@@ -70,7 +70,7 @@ class MailableQueuedTest extends TestCase
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = new MailableQueueableStub();
+        $mailable = new MailableQueueableStub;
         $attachmentOption = ['mime' => 'image/jpeg', 'as' => 'bar.jpg'];
 
         $mailable->attachFromStorage('/', 'foo.jpg', $attachmentOption);
@@ -126,7 +126,7 @@ class MailableQueuedTest extends TestCase
 
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = (new MailableQueueableStub())->withDeduplicator($mockedDeduplicator);
+        $mailable = (new MailableQueueableStub)->withDeduplicator($mockedDeduplicator);
         $queueFake->assertNothingPushed();
         $mailer->send($mailable);
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
@@ -140,7 +140,7 @@ class MailableQueuedTest extends TestCase
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
-        $mailable = new MailableQueueableStubWithDeduplication();
+        $mailable = new MailableQueueableStubWithDeduplication;
         $queueFake->assertNothingPushed();
         $mailer->send($mailable);
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);

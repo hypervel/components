@@ -47,7 +47,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
     {
         $config = $this->app->make('config');
 
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector());
+        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
 
         $connectionConfig = [
             'driver' => 'sqlite',
@@ -417,7 +417,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         });
 
         // Now create a Capsule instance - it should have its own isolated database
-        $capsule = new \Hypervel\Database\Capsule\Manager();
+        $capsule = new \Hypervel\Database\Capsule\Manager;
         $capsule->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -435,7 +435,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
     public function testMultipleCapsuleInstancesAreIsolatedFromEachOther(): void
     {
         // Create first Capsule and add data
-        $capsule1 = new \Hypervel\Database\Capsule\Manager();
+        $capsule1 = new \Hypervel\Database\Capsule\Manager;
         $capsule1->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -446,7 +446,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $connection1->statement("INSERT INTO test_table (value) VALUES ('capsule1_data')");
 
         // Create second Capsule - should be completely isolated
-        $capsule2 = new \Hypervel\Database\Capsule\Manager();
+        $capsule2 = new \Hypervel\Database\Capsule\Manager;
         $capsule2->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -466,13 +466,13 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testCapsuleConnectionsGetFreshPdoEachTime(): void
     {
-        $capsule1 = new \Hypervel\Database\Capsule\Manager();
+        $capsule1 = new \Hypervel\Database\Capsule\Manager;
         $capsule1->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
 
-        $capsule2 = new \Hypervel\Database\Capsule\Manager();
+        $capsule2 = new \Hypervel\Database\Capsule\Manager;
         $capsule2->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',

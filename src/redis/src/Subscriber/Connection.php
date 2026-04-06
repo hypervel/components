@@ -26,7 +26,7 @@ class Connection
             'open_eof_check' => true,
             'package_eof' => Constants::EOF,
         ]);
-        $factory ??= new SocketFactory();
+        $factory ??= new SocketFactory;
         $this->socket = $factory->make($options);
     }
 

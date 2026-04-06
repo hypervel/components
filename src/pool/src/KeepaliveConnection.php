@@ -39,7 +39,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
         protected Container $container,
         protected Pool $pool
     ) {
-        $this->timer = new Timer();
+        $this->timer = new Timer;
     }
 
     public function __destruct()

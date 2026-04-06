@@ -43,7 +43,7 @@ class PendingBroadcastTest extends TestCase
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $result = $pending->via(PendingBroadcastTestConnectionStringEnum::Pusher);
@@ -57,7 +57,7 @@ class PendingBroadcastTest extends TestCase
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via(PendingBroadcastTestConnectionUnitEnum::redis);
@@ -67,7 +67,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
     {
-        $event = new TestPendingBroadcastableEvent();
+        $event = new TestPendingBroadcastableEvent;
         $event->broadcastVia(PendingBroadcastTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);
@@ -83,7 +83,7 @@ class PendingBroadcastTest extends TestCase
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via(null);
@@ -96,7 +96,7 @@ class PendingBroadcastTest extends TestCase
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via('custom-connection');

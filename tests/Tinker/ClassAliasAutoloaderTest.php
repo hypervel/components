@@ -47,7 +47,7 @@ class ClassAliasAutoloaderTest extends TestCase
             ->once();
 
         $this->assertTrue(class_exists('TinkerBar'));
-        $this->assertInstanceOf(TinkerBar::class, new \TinkerBar());
+        $this->assertInstanceOf(TinkerBar::class, new \TinkerBar);
     }
 
     public function testCanExcludeNamespacesFromAliasing()
@@ -89,6 +89,6 @@ class ClassAliasAutoloaderTest extends TestCase
             ->once();
 
         $this->assertTrue(class_exists('TinkerThree'));
-        $this->assertInstanceOf(TinkerThree::class, new \TinkerThree());
+        $this->assertInstanceOf(TinkerThree::class, new \TinkerThree);
     }
 }

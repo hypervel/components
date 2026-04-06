@@ -28,7 +28,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
-        $command = new RefreshCommand();
+        $command = new RefreshCommand;
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -52,7 +52,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
-        $command = new RefreshCommand();
+        $command = new RefreshCommand;
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -76,7 +76,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
-        $command = new RefreshCommand();
+        $command = new RefreshCommand;
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -94,7 +94,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

@@ -2816,7 +2816,7 @@ class Builder implements BuilderContract
 
         $perPage = value($perPage, $total);
 
-        $results = $total ? $this->forPage($page, $perPage)->get($columns) : new Collection();
+        $results = $total ? $this->forPage($page, $perPage)->get($columns) : new Collection;
 
         return $this->paginator($results, $total, $perPage, $page, [
             'path' => Paginator::resolveCurrentPath(),
@@ -3027,7 +3027,7 @@ class Builder implements BuilderContract
         );
 
         if (empty($queryResult)) {
-            return new Collection();
+            return new Collection;
         }
 
         // If the columns are qualified with a table or have an alias, we cannot use
@@ -3681,7 +3681,7 @@ class Builder implements BuilderContract
     {
         return isset($this->unions)
             ? (new Collection($this->unions))->pluck('query')
-            : new Collection();
+            : new Collection;
     }
 
     /**

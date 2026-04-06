@@ -28,7 +28,7 @@ class JsonDeNormalizerTest extends TestCase
 
     public function testDenormalizeWithJsonDeSerializeMethod()
     {
-        $normalizer = new JsonDeNormalizer();
+        $normalizer = new JsonDeNormalizer;
 
         $json = '{"id":1,"name":"Hypervel"}';
 
@@ -41,7 +41,7 @@ class JsonDeNormalizerTest extends TestCase
 
     public function testNormalizeReturnsObjectUnchanged()
     {
-        $normalizer = new JsonDeNormalizer();
+        $normalizer = new JsonDeNormalizer;
 
         $data = ['key' => 'value'];
         $this->assertSame($data, $normalizer->normalize($data));
@@ -52,7 +52,7 @@ class JsonDeNormalizerTest extends TestCase
 
     public function testDenormalizeScalarTypes()
     {
-        $normalizer = new JsonDeNormalizer();
+        $normalizer = new JsonDeNormalizer;
 
         $this->assertSame(42, $normalizer->denormalize('42', 'int'));
         $this->assertSame('42', $normalizer->denormalize(42, 'string'));
@@ -64,7 +64,7 @@ class JsonDeNormalizerTest extends TestCase
 
     public function testDenormalizeMixedReturnsDataUnchanged()
     {
-        $normalizer = new JsonDeNormalizer();
+        $normalizer = new JsonDeNormalizer;
 
         $this->assertSame('hello', $normalizer->denormalize('hello', 'mixed'));
         $this->assertSame(42, $normalizer->denormalize(42, 'mixed'));
@@ -73,7 +73,7 @@ class JsonDeNormalizerTest extends TestCase
 
     public function testDenormalizeUnknownClassWithoutJsonDeSerializeReturnsData()
     {
-        $normalizer = new JsonDeNormalizer();
+        $normalizer = new JsonDeNormalizer;
 
         $data = ['key' => 'value'];
         $result = $normalizer->denormalize($data, 'NonExistentClass');

@@ -54,7 +54,7 @@ class File extends UploadedFile
      */
     public static function create(string $name, string|int $kilobytes = 0): self
     {
-        return (new FileFactory())->create($name, $kilobytes);
+        return (new FileFactory)->create($name, $kilobytes);
     }
 
     /**
@@ -62,7 +62,7 @@ class File extends UploadedFile
      */
     public static function createWithContent(string $name, string $content): self
     {
-        return (new FileFactory())->createWithContent($name, $content);
+        return (new FileFactory)->createWithContent($name, $content);
     }
 
     /**
@@ -70,7 +70,7 @@ class File extends UploadedFile
      */
     public static function image(string $name, int $width = 10, int $height = 10): self
     {
-        return (new FileFactory())->image($name, $width, $height);
+        return (new FileFactory)->image($name, $width, $height);
     }
 
     /**

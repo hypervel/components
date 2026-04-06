@@ -21,8 +21,8 @@ class Ast
 
     public function __construct()
     {
-        $this->astParser = (new ParserFactory())->createForNewestSupportedVersion();
-        $this->printer = new Standard();
+        $this->astParser = (new ParserFactory)->createForNewestSupportedVersion();
+        $this->printer = new Standard;
     }
 
     /**
@@ -43,7 +43,7 @@ class Ast
     {
         $code = $this->getCodeByClassName($className);
         $stmts = $this->astParser->parse($code);
-        $traverser = new NodeTraverser();
+        $traverser = new NodeTraverser;
         $visitorMetadata = new VisitorMetadata($className);
         // Users can modify or replace node visitors via AstVisitorRegistry.
         $queue = clone AstVisitorRegistry::getQueue();

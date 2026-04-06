@@ -65,7 +65,7 @@ class AstVisitorRegistry
     public static function getQueue(): SplPriorityQueue
     {
         if (! static::$queue instanceof SplPriorityQueue) {
-            static::$queue = new SplPriorityQueue();
+            static::$queue = new SplPriorityQueue;
         }
         return static::$queue;
     }

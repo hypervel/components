@@ -26,7 +26,7 @@ trait SoftDeletes
      */
     public static function bootSoftDeletes(): void
     {
-        static::addGlobalScope(new SoftDeletingScope());
+        static::addGlobalScope(new SoftDeletingScope);
     }
 
     /**
@@ -89,7 +89,7 @@ trait SoftDeletes
         // We will actually pull the models from the database table and call delete on
         // each of them individually so that their events get fired properly with a
         // correct set of attributes in case the developers wants to check these.
-        $key = ($instance = new static())->getKeyName();
+        $key = ($instance = new static)->getKeyName();
 
         $count = 0;
 

@@ -76,7 +76,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     public static function phpBinary(): string
     {
         return ProcessUtils::escapeArgument(
-            (new PhpExecutableFinder())->find(false)
+            (new PhpExecutableFinder)->find(false)
         );
     }
 
@@ -141,7 +141,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
         return $this->run(
             $input,
-            CoroutineContext::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput())
+            CoroutineContext::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput)
         );
     }
 

@@ -95,7 +95,7 @@ trait InteractsWithPHPUnit
         $methodName = $this->resolvePhpUnitTestMethodName();
 
         if ($className === null) {
-            return new Collection();
+            return new Collection;
         }
 
         return static::resolvePhpUnitAttributesForMethod($className, $methodName);

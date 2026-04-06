@@ -17,10 +17,10 @@ class BootProvidersTest extends TestCase
 {
     public function testBoot()
     {
-        $app = new Application();
+        $app = new Application;
         $app->register(ApplicationBasicServiceProviderStub::class);
 
-        (new BootProviders())->bootstrap($app);
+        (new BootProviders)->bootstrap($app);
 
         $this->assertSame('bar', $app->make('foo'));
     }

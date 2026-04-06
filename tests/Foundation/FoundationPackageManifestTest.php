@@ -40,7 +40,7 @@ class FoundationPackageManifestTest extends TestCase
 
     private function makeManifest(): PackageManifest
     {
-        return new PackageManifest(new Filesystem(), $this->basePath, $this->manifestPath);
+        return new PackageManifest(new Filesystem, $this->basePath, $this->manifestPath);
     }
 
     public function testProvidersReturnsDiscoveredProviders()

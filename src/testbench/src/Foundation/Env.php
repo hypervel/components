@@ -14,7 +14,7 @@ class Env extends \Hypervel\Support\Env
      */
     public static function has(string $key): bool
     {
-        return static::get($key, new UndefinedValue()) instanceof UndefinedValue === false;
+        return static::get($key, new UndefinedValue) instanceof UndefinedValue === false;
     }
 
     /**
@@ -36,7 +36,7 @@ class Env extends \Hypervel\Support\Env
     /**
      * Forward environment value.
      */
-    public static function forward(string $key, mixed $default = new UndefinedValue()): mixed
+    public static function forward(string $key, mixed $default = new UndefinedValue): mixed
     {
         $value = static::get($key, $default);
 

@@ -28,8 +28,8 @@ class DatabaseEloquentRelationTest extends TestCase
 {
     public function testSetRelationFail()
     {
-        $parent = new ResetModelStub();
-        $relation = new ResetModelStub();
+        $parent = new ResetModelStub;
+        $relation = new ResetModelStub;
         $parent->setRelation('test', $relation);
         $parent->setRelation('foo', 'bar');
         $this->assertArrayNotHasKey('foo', $parent->toArray());
@@ -37,8 +37,8 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testUnsetExistingRelation()
     {
-        $parent = new ResetModelStub();
-        $relation = new ResetModelStub();
+        $parent = new ResetModelStub;
+        $relation = new ResetModelStub;
         $parent->setRelation('foo', $relation);
         $parent->unsetRelation('foo');
         $this->assertFalse($parent->relationLoaded('foo'));
@@ -207,7 +207,7 @@ class DatabaseEloquentRelationTest extends TestCase
                 $this->assertTrue($related::isIgnoringTouch());
                 $this->assertTrue($relatedChild::isIgnoringTouch());
 
-                throw new Exception();
+                throw new Exception;
             });
 
             $this->fail('Exception was not thrown');
@@ -251,7 +251,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testWithoutRelations()
     {
-        $original = new NoTouchingModelStub();
+        $original = new NoTouchingModelStub;
 
         $original->setRelation('foo', 'baz');
 
@@ -276,7 +276,7 @@ class DatabaseEloquentRelationTest extends TestCase
             return 'foo';
         });
 
-        $model = new ResetModelStub();
+        $model = new ResetModelStub;
         $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
@@ -294,7 +294,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testIsRelationIgnoresAttribute()
     {
-        $model = new RelationAndAttributeModelStub();
+        $model = new RelationAndAttributeModelStub;
 
         $this->assertTrue($model->isRelation('parent'));
         $this->assertFalse($model->isRelation('field'));

@@ -63,7 +63,7 @@ class HttpClientTest extends TestCase
     {
         parent::setUp();
 
-        $this->factory = new Factory();
+        $this->factory = new Factory;
 
         RequestException::truncate();
     }
@@ -1246,7 +1246,7 @@ class HttpClientTest extends TestCase
 
     public function testExceptionAccessorOnSuccess()
     {
-        $resp = new Response(new Psr7Response());
+        $resp = new Response(new Psr7Response);
 
         $this->assertNull($resp->toException());
     }
@@ -3280,7 +3280,7 @@ class HttpClientTest extends TestCase
 
     public function testItCanReturnCustomResponseClass(): void
     {
-        $factory = new CustomFactory();
+        $factory = new CustomFactory;
 
         $factory->fake([
             '*' => $factory::response('expected content'),
@@ -3393,7 +3393,7 @@ class HttpClientTest extends TestCase
 
     public function testGetConnectionConfigReturnsConfigForRegisteredConnection()
     {
-        $factory = new Factory();
+        $factory = new Factory;
         $factory->registerConnection('connection1');
         $factory->setConnectionConfig('connection1', ['key' => 'value']);
 
@@ -3402,7 +3402,7 @@ class HttpClientTest extends TestCase
 
     public function testGetEmptyConfigWhenConfigNotSet()
     {
-        $factory = new Factory();
+        $factory = new Factory;
 
         $this->assertEquals([], $factory->getConnectionConfig('connection2'));
     }
@@ -3446,7 +3446,7 @@ class HttpClientTest extends TestCase
 
     protected function getContainer(array $config = []): ContainerContract
     {
-        $container = new \Hypervel\Container\Container();
+        $container = new \Hypervel\Container\Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository(['http_client' => $config]));
         $container->singleton(PoolFactory::class, PoolManager::class);

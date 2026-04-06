@@ -143,8 +143,8 @@ trait EloquentTransactionWithAfterCommitTests
     public function testTransactionCallbackExceptions()
     {
         [$firstObject, $secondObject] = [
-            new EloquentTransactionWithAfterCommitTestsTestObjectForTransactions(),
-            new EloquentTransactionWithAfterCommitTestsTestObjectForTransactions(),
+            new EloquentTransactionWithAfterCommitTestsTestObjectForTransactions,
+            new EloquentTransactionWithAfterCommitTestsTestObjectForTransactions,
         ];
 
         $rootTransactionLevel = DB::transactionLevel();
@@ -169,7 +169,7 @@ trait EloquentTransactionWithAfterCommitTests
 
                 $this->assertSame($rootTransactionLevel + 1, DB::transactionLevel());
 
-                DB::afterCommit(fn () => throw new RuntimeException());
+                DB::afterCommit(fn () => throw new RuntimeException);
                 DB::afterCommit(fn () => $secondObject->handle());
             });
         } finally {
@@ -191,7 +191,7 @@ class EloquentTransactionWithAfterCommitTestsUserObserver
     {
         static::$calledTimes = 0;
 
-        return new static();
+        return new static;
     }
 
     public function created(User $user): void

@@ -47,9 +47,9 @@ class DoctorCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
+        $command = new DoctorCommand;
         $command->setHypervel($this->app);
-        $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput());
+        $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput);
 
         $this->assertSame(1, $result);
     }
@@ -99,9 +99,9 @@ class DoctorCommandTest extends TestCase
 
         // The command will fail at environment checks (Redis version check for 'any' mode)
         // but this tests that store detection works
-        $command = new DoctorCommand();
+        $command = new DoctorCommand;
         $command->setHypervel($this->app);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $command->run(new ArrayInput([]), $output);
 
         // Verify it detected the redis store (case-insensitive check)
@@ -171,7 +171,7 @@ class DoctorCommandTest extends TestCase
             }
         };
         $command->setHypervel($this->app);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $command->run(new ArrayInput(['--store' => 'custom-redis']), $output);
 
         // Verify the custom store was used
@@ -231,7 +231,7 @@ class DoctorCommandTest extends TestCase
             }
         };
         $command->setHypervel($this->app);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $command->run(new ArrayInput(['--store' => 'redis']), $output);
 
         // Verify tag mode is displayed
@@ -255,9 +255,9 @@ class DoctorCommandTest extends TestCase
 
         $this->app->instance('config', $config);
 
-        $command = new DoctorCommand();
+        $command = new DoctorCommand;
         $command->setHypervel($this->app);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $result = $command->run(new ArrayInput([]), $output);
 
         $this->assertSame(1, $result);
@@ -305,9 +305,9 @@ class DoctorCommandTest extends TestCase
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
+        $command = new DoctorCommand;
         $command->setHypervel($this->app);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $command->run(new ArrayInput([]), $output);
 
         $outputText = $output->fetch();

@@ -17,8 +17,8 @@ class CoroutineProxyTest extends TestCase
 {
     public function testCoroutineProxy()
     {
-        CoroutineContext::set('bar', new Bar());
-        $foo = new Foo();
+        CoroutineContext::set('bar', new Bar);
+        $foo = new Foo;
         $this->assertSame('bar', $foo->callBar());
         $this->assertSame('bar', $foo->bar);
         $foo->bar = 'foo';
@@ -29,7 +29,7 @@ class CoroutineProxyTest extends TestCase
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Missing $proxyKey property in Hypervel\Tests\Context\Traits\Foo2.');
-        $foo = new Foo2();
+        $foo = new Foo2;
         $foo->callBar();
     }
 }

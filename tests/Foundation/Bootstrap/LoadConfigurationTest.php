@@ -19,19 +19,19 @@ class LoadConfigurationTest extends TestCase
 {
     public function testLoadsBaseConfiguration()
     {
-        $app = new Application();
+        $app = new Application;
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         $this->assertSame('Hypervel', $app['config']['app.name']);
     }
 
     public function testSetsEnvironmentResolver()
     {
-        $app = new Application();
+        $app = new Application;
         $this->assertNull((new ReflectionClass($app))->getProperty('environmentResolver')->getValue($app));
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         $this->assertInstanceOf(
             Closure::class,
@@ -41,10 +41,10 @@ class LoadConfigurationTest extends TestCase
 
     public function testDontLoadBaseConfiguration()
     {
-        $app = new Application();
+        $app = new Application;
         $app->dontMergeFrameworkConfiguration();
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         $this->assertNull($app['config']['app.name']);
     }
@@ -54,7 +54,7 @@ class LoadConfigurationTest extends TestCase
         $app = new Application(__DIR__ . '/../Fixtures');
         $app->useConfigPath(__DIR__ . '/../Fixtures/config');
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         $this->assertNull($app['config']['bar.foo']);
         $this->assertSame('bar', $app['config']['custom.foo']);
@@ -65,14 +65,14 @@ class LoadConfigurationTest extends TestCase
         $baseConfigPath = dirname((new ReflectionClass(LoadConfiguration::class))->getFileName(), 3) . '/config';
         $customConfigPath = __DIR__ . '/../Fixtures/config';
 
-        $app = new Application();
+        $app = new Application;
         $app->useConfigPath($customConfigPath);
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         $this->assertEqualsCanonicalizing(
             array_keys($app['config']->all()),
-            collect((new Filesystem())->files([
+            collect((new Filesystem)->files([
                 $baseConfigPath,
                 $customConfigPath,
             ]))->map(fn ($file) => $file->getBaseName('.php'))->unique()->values()->toArray()
@@ -81,14 +81,14 @@ class LoadConfigurationTest extends TestCase
 
     public function testShouldMergeFrameworkConfigurationDefaultsToTrue()
     {
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->shouldMergeFrameworkConfiguration());
     }
 
     public function testDontMergeFrameworkConfigurationReturnsSelf()
     {
-        $app = new Application();
+        $app = new Application;
 
         $result = $app->dontMergeFrameworkConfiguration();
 
@@ -98,9 +98,9 @@ class LoadConfigurationTest extends TestCase
 
     public function testBaseConfigurationIncludesCoreFrameworkConfigs()
     {
-        $app = new Application();
+        $app = new Application;
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         // All centralized framework configs should be loaded
         foreach (['app', 'auth', 'cache', 'database', 'logging', 'session', 'view'] as $key) {
@@ -113,10 +113,10 @@ class LoadConfigurationTest extends TestCase
 
     public function testDontMergeFrameworkConfigurationSkipsAllBaseConfigs()
     {
-        $app = new Application();
+        $app = new Application;
         $app->dontMergeFrameworkConfiguration();
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         // No base config should be present (app has no config dir with files)
         $this->assertNull($app['config']['auth']);
@@ -129,7 +129,7 @@ class LoadConfigurationTest extends TestCase
         $app = new Application(__DIR__ . '/../Fixtures');
         $app->useConfigPath(__DIR__ . '/../Fixtures/config');
 
-        (new LoadConfiguration())->bootstrap($app);
+        (new LoadConfiguration)->bootstrap($app);
 
         // custom.php is app-specific, should be loaded
         $this->assertSame('bar', $app['config']['custom.foo']);

@@ -276,7 +276,7 @@ class LogManager implements LoggerInterface
                 ),
                 $config
             ),
-        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor()] : []);
+        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
 
     /**
@@ -293,7 +293,7 @@ class LogManager implements LoggerInterface
                 $config['permission'] ?? null,
                 $config['locking'] ?? false
             ), $config),
-        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor()] : []);
+        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
 
     /**
@@ -314,7 +314,7 @@ class LogManager implements LoggerInterface
                 $config['bubble'] ?? true,
                 $config['exclude_fields'] ?? []
             ), $config),
-        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor()] : []);
+        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
 
     /**
@@ -328,7 +328,7 @@ class LogManager implements LoggerInterface
                 $config['facility'] ?? LOG_USER,
                 $this->level($config)
             ), $config),
-        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor()] : []);
+        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
 
     /**
@@ -341,7 +341,7 @@ class LogManager implements LoggerInterface
                 $config['type'] ?? ErrorLogHandler::OPERATING_SYSTEM,
                 $this->level($config)
             )),
-        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor()] : []);
+        ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
 
     /**

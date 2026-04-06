@@ -121,7 +121,7 @@ class ServerRequestTest extends TestCase
         $this->getContainer();
         $this->assertSame(Parser::class, get_class(RequestStub::getParser()));
 
-        RequestStub::setParser(new ParserStub());
+        RequestStub::setParser(new ParserStub);
         $json = ['name' => 'Hyperf'];
 
         $request = m::mock(ServerRequestInterface::class);
@@ -215,9 +215,9 @@ class ServerRequestTest extends TestCase
         $container = m::mock(Container::class);
 
         $container->shouldReceive('has')->andReturn(true);
-        $container->shouldReceive('make')->with(JsonParser::class, m::any())->andReturn(new JsonParser());
-        $container->shouldReceive('make')->with(XmlParser::class, m::any())->andReturn(new XmlParser());
-        $container->shouldReceive('make')->with(RequestParserInterface::class)->andReturn(new Parser());
+        $container->shouldReceive('make')->with(JsonParser::class, m::any())->andReturn(new JsonParser);
+        $container->shouldReceive('make')->with(XmlParser::class, m::any())->andReturn(new XmlParser);
+        $container->shouldReceive('make')->with(RequestParserInterface::class)->andReturn(new Parser);
 
         Container::setInstance($container);
 

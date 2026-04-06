@@ -19,7 +19,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
     public function testForReturnsScopedManagerNotSelf()
     {
         $manager = $this->app->make(ChannelManager::class);
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $scoped = $manager->for($connection->app());
 
         $this->assertInstanceOf(ScopedChannelManager::class, $scoped);
@@ -44,7 +44,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
 
     public function testFindReturnsChannelForCorrectApp()
     {
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $scoped = $this->channels();
 
         $scoped->findOrCreate('test-channel');
@@ -55,7 +55,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
 
     public function testConnectionsReturnsOnlyAppConnections()
     {
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $scoped = $this->channels();
 
         $channel = $scoped->findOrCreate('test-channel');

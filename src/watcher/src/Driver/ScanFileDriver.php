@@ -20,7 +20,7 @@ class ScanFileDriver extends AbstractDriver
     public function __construct(protected Option $option, private StdoutLoggerInterface $logger)
     {
         parent::__construct($option);
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
     }
 
     /**

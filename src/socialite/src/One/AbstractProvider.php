@@ -58,7 +58,7 @@ abstract class AbstractProvider implements ProviderContract
             $this->shouldBypassCache($token->getIdentifier(), $token->getSecret())
         );
 
-        $instance = (new User())->setRaw($user->extra)
+        $instance = (new User)->setRaw($user->extra)
             ->setToken($token->getIdentifier(), $token->getSecret());
 
         return $instance->map([
@@ -75,7 +75,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function userFromTokenAndSecret(string $token, string $secret): User
     {
-        $tokenCredentials = new TokenCredentials();
+        $tokenCredentials = new TokenCredentials;
 
         $tokenCredentials->setIdentifier($token);
         $tokenCredentials->setSecret($secret);
@@ -85,7 +85,7 @@ abstract class AbstractProvider implements ProviderContract
             $this->shouldBypassCache($token, $secret)
         );
 
-        $instance = (new User())->setRaw($user->extra)
+        $instance = (new User)->setRaw($user->extra)
             ->setToken($tokenCredentials->getIdentifier(), $tokenCredentials->getSecret());
 
         return $instance->map([

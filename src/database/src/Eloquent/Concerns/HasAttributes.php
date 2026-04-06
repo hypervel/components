@@ -1791,7 +1791,7 @@ trait HasAttributes
      */
     public function getOriginal(?string $key = null, mixed $default = null): mixed
     {
-        return (new static())->setRawAttributes(
+        return (new static)->setRawAttributes(
             $this->original,
             $sync = true
         )->getOriginalWithoutRewindingModel($key, $default);
@@ -2241,7 +2241,7 @@ trait HasAttributes
      */
     protected static function getAttributeMarkedMutatorMethods(mixed $class): array
     {
-        $instance = is_object($class) ? $class : new $class();
+        $instance = is_object($class) ? $class : new $class;
 
         return (new Collection((new ReflectionClass($instance))->getMethods()))->filter(function ($method) use ($instance) {
             $returnType = $method->getReturnType();

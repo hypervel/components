@@ -36,7 +36,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
-                new ArrayLoader(),
+                new ArrayLoader,
                 'en'
             )
         );

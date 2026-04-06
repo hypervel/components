@@ -19,7 +19,7 @@ class SupportReflectsClosuresTest extends TestCase
     {
         $this->assertParameterTypes([ExampleParameter::class], function (ExampleParameter $one) {
             // assert the Closure isn't actually executed
-            throw new RuntimeException();
+            throw new RuntimeException;
         });
 
         $this->assertParameterTypes([], function () {
@@ -44,7 +44,7 @@ class SupportReflectsClosuresTest extends TestCase
         $type = ReflectsClosuresClass::reflectFirst(function (ExampleParameter $a) {
         });
 
-        $this->assertInstanceOf($type, new ExampleParameter());
+        $this->assertInstanceOf($type, new ExampleParameter);
     }
 
     public function testItThrowsWhenNoParameters()
@@ -112,17 +112,17 @@ class ReflectsClosuresClass
 
     public static function reflect(Closure $closure): array
     {
-        return array_values((new static())->closureParameterTypes($closure));
+        return array_values((new static)->closureParameterTypes($closure));
     }
 
     public static function reflectFirst(Closure $closure): string
     {
-        return (new static())->firstClosureParameterType($closure);
+        return (new static)->firstClosureParameterType($closure);
     }
 
     public static function reflectFirstAll(Closure $closure): array
     {
-        return (new static())->firstClosureParameterTypes($closure);
+        return (new static)->firstClosureParameterTypes($closure);
     }
 }
 

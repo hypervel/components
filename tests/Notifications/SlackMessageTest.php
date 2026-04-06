@@ -660,7 +660,7 @@ class SlackMessageTest extends TestCase
         ], [], 'config-set-token');
 
         $this->slackChannel->send(
-            new SlackChannelTestNotifiable(),
+            new SlackChannelTestNotifiable,
             new SlackChannelTestNotification(function (SlackMessage $message) {
                 $message->text('Content');
             })
@@ -678,7 +678,7 @@ class SlackMessageTest extends TestCase
         ], [], 'config-set-token');
 
         $this->slackChannel->send(
-            new SlackChannelTestNotifiable(),
+            new SlackChannelTestNotifiable,
             new SlackChannelTestNotification(function (SlackMessage $message) {
                 $message->text('Content')->to('notification-channel');
             })
@@ -693,7 +693,7 @@ class SlackMessageTest extends TestCase
         $this->expectExceptionMessage('Slack notification channel is not set.');
 
         $this->slackChannel->send(
-            new SlackChannelTestNotifiable(),
+            new SlackChannelTestNotifiable,
             new SlackChannelTestNotification(function (SlackMessage $message) {
                 $message->text('Content');
             })
@@ -780,6 +780,6 @@ class SlackChannelTestNotification extends Notification
 
     public function toSlack($notifiable)
     {
-        return tap(new SlackMessage(), $this->callback);
+        return tap(new SlackMessage, $this->callback);
     }
 }

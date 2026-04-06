@@ -213,7 +213,7 @@ class Env
      */
     public static function writeVariables(array $variables, string $pathToFile, bool $overwrite = false): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         if ($filesystem->missing($pathToFile)) {
             throw new RuntimeException("The file [{$pathToFile}] does not exist.");
@@ -236,7 +236,7 @@ class Env
      */
     public static function writeVariable(string $key, mixed $value, string $pathToFile, bool $overwrite = false): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         if ($filesystem->missing($pathToFile)) {
             throw new RuntimeException("The file [{$pathToFile}] does not exist.");

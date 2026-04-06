@@ -79,7 +79,7 @@ abstract class Broadcaster implements BroadcasterContract
         if ($channel instanceof HasBroadcastChannel) {
             $channel = $channel->broadcastChannelRoute();
         } elseif (class_exists($channel) && is_a($channel, HasBroadcastChannel::class, true)) {
-            $channel = (new $channel())->broadcastChannelRoute();
+            $channel = (new $channel)->broadcastChannelRoute();
         }
 
         static::$channels[$channel] = $callback;
@@ -108,14 +108,14 @@ abstract class Broadcaster implements BroadcasterContract
             $result = $handler($this->retrieveUser($request, $channel), ...$parameters);
 
             if ($result === false) {
-                throw new AccessDeniedHttpException();
+                throw new AccessDeniedHttpException;
             }
             if ($result) {
                 return $this->validAuthenticationResponse($request, $result);
             }
         }
 
-        throw new AccessDeniedHttpException();
+        throw new AccessDeniedHttpException;
     }
 
     /**
@@ -216,8 +216,8 @@ abstract class Broadcaster implements BroadcasterContract
 
             $className = Reflector::getParameterClassName($parameter);
 
-            if (is_null($model = (new $className())->resolveRouteBinding($value))) {
-                throw new AccessDeniedHttpException();
+            if (is_null($model = (new $className)->resolveRouteBinding($value))) {
+                throw new AccessDeniedHttpException;
             }
 
             return $model;

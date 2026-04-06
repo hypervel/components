@@ -427,7 +427,7 @@ class SessionStoreTest extends TestCase
         $session = new Store('test', $handler);
         $this->assertTrue($session->handlerNeedsRequest());
         $handler->shouldReceive('setRequest')->once();
-        $session->setRequestOnHandler(new Request());
+        $session->setRequestOnHandler(new Request);
     }
 
     public function testToken()
@@ -764,7 +764,7 @@ class SessionStoreTest extends TestCase
         $session = $this->getSession('json');
         $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
         $session->start();
-        $session->put('errors', $errorBag = new ViewErrorBag());
+        $session->put('errors', $errorBag = new ViewErrorBag);
         $messageBag = new MessageBag([
             'first_name' => [
                 'Your first name is required',

@@ -390,8 +390,8 @@ class TypeTest extends TestCase
 
     protected function makeValidator(): Validator
     {
-        $loader = new SchemaLoader();
-        $resolver = new SchemaResolver();
+        $loader = new SchemaLoader;
+        $resolver = new SchemaResolver;
 
         $loader->setResolver($resolver);
         $resolver->registerProtocol('https', function (Uri $uri) {

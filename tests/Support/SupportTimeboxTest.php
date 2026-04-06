@@ -21,7 +21,7 @@ class SupportTimeboxTest extends TestCase
             $this->assertTrue(true);
         };
 
-        (new Timebox())->call($callback, 0);
+        (new Timebox)->call($callback, 0);
     }
 
     public function testMakeWaitsForMicroseconds()

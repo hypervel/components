@@ -30,14 +30,14 @@ class HandleExceptionsTest extends TestCase
     {
         parent::setUp();
 
-        $this->app = m::mock(Application::setInstance(new Application()));
+        $this->app = m::mock(Application::setInstance(new Application));
 
-        $this->app->instance('config', $this->config = new Config());
+        $this->app->instance('config', $this->config = new Config);
     }
 
     protected function handleExceptions(): HandleExceptions
     {
-        return tap(new HandleExceptions(), function ($instance) {
+        return tap(new HandleExceptions, function ($instance) {
             (new ReflectionClass($instance))->getProperty('app')->setValue($instance, $this->app);
         });
     }
@@ -347,7 +347,7 @@ class HandleExceptionsTest extends TestCase
 
     public function testIgnoreDeprecationIfLoggerUnresolvable()
     {
-        $this->app->bind(LogManager::class, fn () => throw new RuntimeException());
+        $this->app->bind(LogManager::class, fn () => throw new RuntimeException);
         $this->app->expects('runningUnitTests')->andReturn(false);
         $this->app->expects('hasBeenBootstrapped')->andReturn(true);
 
@@ -365,7 +365,7 @@ class HandleExceptionsTest extends TestCase
         $this->app->bind(LogManager::class, function () use (&$resolved) {
             $resolved = true;
 
-            throw new RuntimeException();
+            throw new RuntimeException;
         });
         $this->app->expects('runningUnitTests')->andReturn(true);
         $this->app->expects('hasBeenBootstrapped')->andReturn(true);

@@ -29,7 +29,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testNewModelBuilderReturnsDefaultBuilderWhenNoAttribute(): void
     {
-        $model = new UseEloquentBuilderTestModel();
+        $model = new UseEloquentBuilderTestModel;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         $builder = $model->newEloquentBuilder($query);
@@ -40,7 +40,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testNewModelBuilderReturnsCustomBuilderWhenAttributePresent(): void
     {
-        $model = new UseEloquentBuilderTestModelWithAttribute();
+        $model = new UseEloquentBuilderTestModelWithAttribute;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         $builder = $model->newEloquentBuilder($query);
@@ -50,8 +50,8 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testNewModelBuilderCachesResolvedBuilderClass(): void
     {
-        $model1 = new UseEloquentBuilderTestModelWithAttribute();
-        $model2 = new UseEloquentBuilderTestModelWithAttribute();
+        $model1 = new UseEloquentBuilderTestModelWithAttribute;
+        $model2 = new UseEloquentBuilderTestModelWithAttribute;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         // First call should resolve and cache
@@ -67,7 +67,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testResolveCustomBuilderClassReturnsFalseWhenNoAttribute(): void
     {
-        $model = new UseEloquentBuilderTestModel();
+        $model = new UseEloquentBuilderTestModel;
 
         $result = $model->testResolveCustomBuilderClass();
 
@@ -76,7 +76,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testResolveCustomBuilderClassReturnsBuilderClassWhenAttributePresent(): void
     {
-        $model = new UseEloquentBuilderTestModelWithAttribute();
+        $model = new UseEloquentBuilderTestModelWithAttribute;
 
         $result = $model->testResolveCustomBuilderClass();
 
@@ -85,8 +85,8 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testDifferentModelsUseDifferentCaches(): void
     {
-        $modelWithoutAttribute = new UseEloquentBuilderTestModel();
-        $modelWithAttribute = new UseEloquentBuilderTestModelWithAttribute();
+        $modelWithoutAttribute = new UseEloquentBuilderTestModel;
+        $modelWithAttribute = new UseEloquentBuilderTestModelWithAttribute;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         $builder1 = $modelWithoutAttribute->newEloquentBuilder($query);
@@ -99,7 +99,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testChildModelWithoutAttributeUsesDefaultBuilder(): void
     {
-        $model = new UseEloquentBuilderTestChildModel();
+        $model = new UseEloquentBuilderTestChildModel;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         $builder = $model->newEloquentBuilder($query);
@@ -111,7 +111,7 @@ class UseEloquentBuilderTest extends TestCase
 
     public function testChildModelWithOwnAttributeUsesOwnBuilder(): void
     {
-        $model = new UseEloquentBuilderTestChildModelWithOwnAttribute();
+        $model = new UseEloquentBuilderTestChildModelWithOwnAttribute;
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         $builder = $model->newEloquentBuilder($query);

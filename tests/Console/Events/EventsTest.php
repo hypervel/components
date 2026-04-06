@@ -43,7 +43,7 @@ class EventsTest extends TestCase
     public function testCommandStartingCarriesData()
     {
         $input = new ArrayInput([]);
-        $output = new NullOutput();
+        $output = new NullOutput;
 
         $event = new CommandStarting('migrate', $input, $output);
 
@@ -55,7 +55,7 @@ class EventsTest extends TestCase
     public function testCommandFinishedCarriesData()
     {
         $input = new ArrayInput([]);
-        $output = new NullOutput();
+        $output = new NullOutput;
 
         $event = new CommandFinished('migrate', $input, $output, 0);
 
@@ -67,7 +67,7 @@ class EventsTest extends TestCase
 
     public function testCommandFinishedCarriesNonZeroExitCode()
     {
-        $event = new CommandFinished('migrate', new ArrayInput([]), new NullOutput(), 1);
+        $event = new CommandFinished('migrate', new ArrayInput([]), new NullOutput, 1);
 
         $this->assertSame(1, $event->exitCode);
     }

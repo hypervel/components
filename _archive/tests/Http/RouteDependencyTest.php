@@ -40,10 +40,10 @@ class RouteDependencyTest extends TestCase
             return true;
         });
 
-        $callbacks = $routeDependency->getAfterResolvingCallbacks(new BarClass());
+        $callbacks = $routeDependency->getAfterResolvingCallbacks(new BarClass);
         $this->assertSame(0, count($callbacks));
 
-        $callbacks = $routeDependency->getAfterResolvingCallbacks(new FooClass());
+        $callbacks = $routeDependency->getAfterResolvingCallbacks(new FooClass);
         $this->assertSame(1, count($callbacks));
         $this->assertTrue($callbacks[0]());
     }
@@ -56,7 +56,7 @@ class RouteDependencyTest extends TestCase
         });
 
         $routeDependency->fireAfterResolvingCallbacks(
-            ['string', $foo = new FooClass()],
+            ['string', $foo = new FooClass],
             m::mock(DispatchedRoute::class)
         );
 

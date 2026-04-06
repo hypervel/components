@@ -30,7 +30,7 @@ class QueueBackgroundQueueTest extends TestCase
     {
         unset($_SERVER['__background.test']);
 
-        $background = new BackgroundQueue();
+        $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $background->setContainer($container);
@@ -48,7 +48,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $result = null;
 
-        $background = new BackgroundQueue();
+        $background = new BackgroundQueue;
         $background->setExceptionCallback(function ($exception) use (&$result) {
             $result = $exception;
         });
@@ -70,7 +70,7 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $background = new BackgroundQueue();
+        $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -78,12 +78,12 @@ class QueueBackgroundQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $background->setContainer($container);
-        run(fn () => $background->push(new BackgroundQueueAfterCommitJob()));
+        run(fn () => $background->push(new BackgroundQueueAfterCommitJob));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $background = new BackgroundQueue();
+        $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -91,12 +91,12 @@ class QueueBackgroundQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $background->setContainer($container);
-        run(fn () => $background->push(new BackgroundQueueAfterCommitInterfaceJob()));
+        run(fn () => $background->push(new BackgroundQueueAfterCommitInterfaceJob));
     }
 
     protected function getContainer(): Container
     {
-        return new Container();
+        return new Container;
     }
 }
 
@@ -130,7 +130,7 @@ class FailingBackgroundQueueTestHandler
 {
     public function fire($job, $data)
     {
-        throw new Exception();
+        throw new Exception;
     }
 
     public function failed()

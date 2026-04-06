@@ -35,7 +35,7 @@ trait ProxyTrait
         if (! AspectManager::has($className, $methodName)) {
             AspectManager::set($className, $methodName, []);
             $aspects = array_unique(static::getClassesAspects($className, $methodName));
-            $queue = new SplPriorityQueue();
+            $queue = new SplPriorityQueue;
             foreach ($aspects as $aspect) {
                 $queue->insert($aspect, AspectCollector::getPriority($aspect));
             }

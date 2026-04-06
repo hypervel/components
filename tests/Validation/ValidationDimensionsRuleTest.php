@@ -61,7 +61,7 @@ class ValidationDimensionsRuleTest extends TestCase
 
     public function testItCorrectlyFormatsWithSpecialValues()
     {
-        $rule = new Dimensions();
+        $rule = new Dimensions;
 
         $this->assertSame('dimensions:', (string) $rule);
 
@@ -101,7 +101,7 @@ class ValidationDimensionsRuleTest extends TestCase
             ->width(100)->height(100)
             ->ratioBetween(min: 1 / 2, max: 2 / 5);
 
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $image = UploadedFile::fake();
 

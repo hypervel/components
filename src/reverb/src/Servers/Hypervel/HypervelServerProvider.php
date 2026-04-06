@@ -58,7 +58,7 @@ class HypervelServerProvider extends ServerProvider
 
         $this->app->singleton(
             PubSubIncomingMessageHandler::class,
-            fn () => new PusherPubSubIncomingMessageHandler(),
+            fn () => new PusherPubSubIncomingMessageHandler,
         );
 
         $this->app->singleton(PubSubProvider::class, fn ($app) => new RedisPubSubProvider(

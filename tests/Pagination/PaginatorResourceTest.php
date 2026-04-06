@@ -19,7 +19,7 @@ class PaginatorResourceTest extends TestCase
     public function testItCanTransformToExplicitResource()
     {
         $paginator = new PaginatorResourceTestPaginator([
-            new PaginatorResourceTestModel(),
+            new PaginatorResourceTestModel,
         ], 1, 1, 1);
 
         $resource = $paginator->toResourceCollection(PaginatorResourceTestResource::class);
@@ -33,7 +33,7 @@ class PaginatorResourceTest extends TestCase
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\PaginatorResourceTestModel].');
 
         $paginator = new PaginatorResourceTestPaginator([
-            new PaginatorResourceTestModel(),
+            new PaginatorResourceTestModel,
         ], 1, 1, 1);
 
         $paginator->toResourceCollection();
@@ -42,7 +42,7 @@ class PaginatorResourceTest extends TestCase
     public function testItCanGuessResourceWhenNotProvided()
     {
         $paginator = new PaginatorResourceTestPaginator([
-            new PaginatorResourceTestModel(),
+            new PaginatorResourceTestModel,
         ], 1, 1, 1);
 
         class_alias(PaginatorResourceTestResource::class, 'Hypervel\Tests\Pagination\Fixtures\Http\Resources\PaginatorResourceTestModelResource');

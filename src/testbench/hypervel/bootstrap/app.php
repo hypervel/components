@@ -22,7 +22,7 @@ $app = Application::configure(basePath: $APP_BASE_PATH ?? default_skeleton_path(
 // Route files use facades (Route::get(...)) which aren't available until after
 // the kernel bootstraps the app.
 $app->booted(static function () use ($app): void {
-    (new SyncTestbenchCachedRoutes())->bootstrap($app);
+    (new SyncTestbenchCachedRoutes)->bootstrap($app);
 });
 
 return $app;

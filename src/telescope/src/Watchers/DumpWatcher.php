@@ -42,12 +42,12 @@ class DumpWatcher extends Watcher
             return;
         }
 
-        $htmlDumper = new HtmlDumper();
+        $htmlDumper = new HtmlDumper;
         $htmlDumper->setDumpHeader('');
 
         VarDumper::setHandler(function ($var) use ($htmlDumper) {
             $this->recordDump($htmlDumper->dump(
-                (new VarCloner())->cloneVar($var),
+                (new VarCloner)->cloneVar($var),
                 true
             ));
         });

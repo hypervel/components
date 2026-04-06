@@ -31,7 +31,7 @@ class RedisConnectionIntegrationTest extends TestCase
 
     public function testPhpRedisConnectSignatureAndConnection(): void
     {
-        $redis = new Redis();
+        $redis = new Redis;
         $reflection = new ReflectionClass($redis);
         $parameters = $reflection->getMethod('connect')->getParameters();
 

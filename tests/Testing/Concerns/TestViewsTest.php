@@ -31,7 +31,7 @@ class TestViewsTest extends TestCase
 
         parent::setUp();
 
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
 
         Facade::setFacadeApplication($container);
 

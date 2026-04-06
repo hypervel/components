@@ -147,7 +147,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 
         try {
             $lock->block(1, function () {
-                throw new Error();
+                throw new Error;
             });
         } catch (Error) {
         }

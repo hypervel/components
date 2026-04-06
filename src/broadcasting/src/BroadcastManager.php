@@ -418,7 +418,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createNullDriver(array $config): Broadcaster
     {
-        return new NullBroadcaster();
+        return new NullBroadcaster;
     }
 
     /**

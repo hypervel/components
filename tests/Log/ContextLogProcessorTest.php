@@ -24,8 +24,8 @@ class ContextLogProcessorTest extends TestCase
         Repository::getInstance()->add('trace_id', 'abc-123');
         Repository::getInstance()->add('user_id', 42);
 
-        $handler = new TestHandler();
-        $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
+        $handler = new TestHandler;
+        $logger = new Monolog('test', [$handler], [new ContextLogProcessor]);
 
         $logger->info('test message');
 
@@ -38,8 +38,8 @@ class ContextLogProcessorTest extends TestCase
     {
         Repository::getInstance()->addHidden('secret', 'sensitive-data');
 
-        $handler = new TestHandler();
-        $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
+        $handler = new TestHandler;
+        $logger = new Monolog('test', [$handler], [new ContextLogProcessor]);
 
         $logger->info('test message');
 
@@ -51,8 +51,8 @@ class ContextLogProcessorTest extends TestCase
     {
         Repository::getInstance()->add('request_id', 'propagated-value');
 
-        $handler = new TestHandler();
-        $logger = new Monolog('test', [$handler], [new ContextLogProcessor()]);
+        $handler = new TestHandler;
+        $logger = new Monolog('test', [$handler], [new ContextLogProcessor]);
 
         $logger->info('test message', ['request_id' => 'message-value']);
 
@@ -64,10 +64,10 @@ class ContextLogProcessorTest extends TestCase
 
     public function testLogProcessorSkipsWhenNoContextExists()
     {
-        $processor = new ContextLogProcessor();
+        $processor = new ContextLogProcessor;
 
         $record = new LogRecord(
-            datetime: new DateTimeImmutable(),
+            datetime: new DateTimeImmutable,
             channel: 'test',
             level: \Monolog\Level::Info,
             message: 'test',
@@ -86,10 +86,10 @@ class ContextLogProcessorTest extends TestCase
         Repository::getInstance();
         $this->assertTrue(Repository::hasInstance());
 
-        $processor = new ContextLogProcessor();
+        $processor = new ContextLogProcessor;
 
         $record = new LogRecord(
-            datetime: new DateTimeImmutable(),
+            datetime: new DateTimeImmutable,
             channel: 'test',
             level: \Monolog\Level::Info,
             message: 'test',
@@ -114,7 +114,7 @@ class ContextLogProcessorTest extends TestCase
             }
         };
 
-        $handler = new TestHandler();
+        $handler = new TestHandler;
         $logger = new Monolog('test', [$handler], [$custom]);
 
         $logger->info('test message');

@@ -22,7 +22,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
     {
         parent::setUp();
 
-        $this->dispatcher = new Dispatcher();
+        $this->dispatcher = new Dispatcher;
         EventListCommand::resolveEventsUsing(fn () => $this->dispatcher);
     }
 

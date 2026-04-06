@@ -32,7 +32,7 @@ class CallQueuedHandlerTest extends TestCase
     {
         $handler = $this->createHandler();
 
-        $command = new CallQueuedHandlerTestUniqueJob();
+        $command = new CallQueuedHandlerTestUniqueJob;
 
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
@@ -61,7 +61,7 @@ class CallQueuedHandlerTest extends TestCase
     {
         $handler = $this->createHandler();
 
-        $command = new CallQueuedHandlerTestRegularJob();
+        $command = new CallQueuedHandlerTestRegularJob;
 
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
@@ -70,7 +70,7 @@ class CallQueuedHandlerTest extends TestCase
     {
         $handler = $this->createHandler();
 
-        $command = new CallQueuedHandlerTestUniqueUntilProcessingJob();
+        $command = new CallQueuedHandlerTestUniqueUntilProcessingJob;
 
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$command]));
     }
@@ -117,7 +117,7 @@ class CallQueuedHandlerTest extends TestCase
         $job->shouldReceive('delete')->once();
 
         // Serialize before setting the mock job (mocks aren't serializable)
-        $command = new CallQueuedHandlerTestUniqueJob();
+        $command = new CallQueuedHandlerTestUniqueJob;
         $serialized = serialize($command);
 
         $handler = new CallQueuedHandler($dispatcher, $container);
@@ -133,7 +133,7 @@ class CallQueuedHandlerTest extends TestCase
         $job->shouldReceive('fail')->once();
 
         $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
-        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException()]);
+        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
     public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue()
@@ -148,7 +148,7 @@ class CallQueuedHandlerTest extends TestCase
         $job->shouldReceive('fail')->never();
 
         $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
-        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException()]);
+        $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
     public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext()
@@ -169,7 +169,7 @@ class CallQueuedHandlerTest extends TestCase
 
         $dispatcher = m::mock(BusDispatcher::class);
 
-        $command = new CallQueuedHandlerTestRegularJob();
+        $command = new CallQueuedHandlerTestRegularJob;
         $serialized = serialize($command);
 
         $job = m::mock(Job::class);

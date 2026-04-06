@@ -33,7 +33,7 @@ class SendingQueuedMailTest extends TestCase
     {
         Queue::fake();
 
-        Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail());
+        Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail);
 
         Queue::assertPushed(SendQueuedMailable::class, function ($job) {
             return $job->middleware[0] instanceof RateLimited;
@@ -46,7 +46,7 @@ class SendingQueuedMailTest extends TestCase
 
         Queue::route(Mailable::class, 'mail-queue', 'mail-connection');
 
-        Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail());
+        Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail);
 
         Queue::connection('mail-connection')->assertPushedOn('mail-queue', SendQueuedMailable::class);
     }
@@ -57,7 +57,7 @@ class SendingQueuedMailTest extends TestCase
 
         $delay = now()->addMinutes(10);
 
-        Mail::to('test@mail.com')->later($delay, new SendingQueuedMailTestMail());
+        Mail::to('test@mail.com')->later($delay, new SendingQueuedMailTestMail);
 
         Queue::assertPushed(SendQueuedMailable::class, function ($job) use ($delay) {
             return $job->delay === $delay;

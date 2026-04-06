@@ -53,7 +53,7 @@ class ChannelTest extends TestCase
     public function testChannelClose()
     {
         /** @var ChannelInterface $channel */
-        $channel = new Channel();
+        $channel = new Channel;
         $this->assertFalse($channel->isClosing());
         Coroutine::create(function () use ($channel) {
             usleep(1000);
@@ -161,7 +161,7 @@ class ChannelTest extends TestCase
 
     public function testSplId()
     {
-        $obj = new stdClass();
+        $obj = new stdClass;
         $chan = new Channel(1);
         $chan->push($obj);
 

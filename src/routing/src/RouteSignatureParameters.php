@@ -47,7 +47,7 @@ class RouteSignatureParameters
         if (is_string($callback)) {
             $parameters = static::$cache[$callback] ??= static::fromClassMethodString($callback);
         } else {
-            $closureCache = static::$closureCache ??= new WeakMap();
+            $closureCache = static::$closureCache ??= new WeakMap;
 
             if (! isset($closureCache[$callback])) {
                 $closureCache[$callback] = (new ReflectionFunction($callback))->getParameters();
@@ -69,7 +69,7 @@ class RouteSignatureParameters
     public static function flushCache(): void
     {
         static::$cache = [];
-        static::$closureCache = new WeakMap();
+        static::$closureCache = new WeakMap;
     }
 
     /**

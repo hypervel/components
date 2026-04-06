@@ -57,7 +57,7 @@ class RequestGuard implements Guard
      */
     public function user(): ?AuthenticatableContract
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $contextKey = $this->getContextKey();
         $cached = CoroutineContext::get($contextKey);
@@ -96,7 +96,7 @@ class RequestGuard implements Guard
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $cached = CoroutineContext::get($this->getContextKey());
 

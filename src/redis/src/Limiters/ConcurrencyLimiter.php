@@ -42,7 +42,7 @@ class ConcurrencyLimiter
 
         while (! $slot = $this->acquire($id)) {
             if (time() - $timeout >= $starting) {
-                throw new LimiterTimeoutException();
+                throw new LimiterTimeoutException;
             }
 
             Sleep::usleep($sleep * 1000);

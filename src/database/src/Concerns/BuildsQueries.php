@@ -88,7 +88,7 @@ trait BuildsQueries
      */
     public function chunkMap(callable $callback, int $count = 1000): Collection
     {
-        $collection = new Collection();
+        $collection = new Collection;
 
         $this->chunk($count, function ($items) use ($collection, $callback) {
             $items->each(function ($item) use ($collection, $callback) {
@@ -356,7 +356,7 @@ trait BuildsQueries
         $count = $result->count();
 
         if ($count === 0) {
-            throw new RecordsNotFoundException();
+            throw new RecordsNotFoundException;
         }
 
         if ($count > 1) {

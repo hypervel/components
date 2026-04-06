@@ -296,6 +296,6 @@ class DatabasePostgresBuilderTest extends TestCase
 
     protected function getGrammar()
     {
-        return new PostgresGrammar();
+        return new PostgresGrammar;
     }
 }

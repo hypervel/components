@@ -82,8 +82,8 @@ class SentryServiceProvider extends ServiceProvider
                 ->getClient();
         });
 
-        $this->app->singleton(ClientBuilder::class, fn () => (new ClientBuilderFactory())($this->app));
-        $this->app->singleton(HubInterface::class, fn () => new Hub());
+        $this->app->singleton(ClientBuilder::class, fn () => (new ClientBuilderFactory)($this->app));
+        $this->app->singleton(HubInterface::class, fn () => new Hub);
         $this->app->singleton(HttpClientInterface::class, fn () => new HttpClient(
             Version::getSdkIdentifier(),
             Version::getSdkVersion(),

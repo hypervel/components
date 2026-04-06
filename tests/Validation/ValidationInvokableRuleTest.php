@@ -409,7 +409,7 @@ class ValidationInvokableRuleTest extends TestCase
     private function getArrayTranslator()
     {
         return new Translator(
-            new ArrayLoader(),
+            new ArrayLoader,
             'en'
         );
     }

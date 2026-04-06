@@ -27,7 +27,7 @@ class AuthorizesRequestsTest extends TestCase
 
         $gate->shouldReceive('authorize')->with('foo', ['bar'])->once()->andReturn($response);
 
-        $this->assertEquals($response, (new AuthorizesRequestsStub())->authorize('foo', ['bar']));
+        $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize('foo', ['bar']));
     }
 
     public function testAuthorizeMayBeGuessedPassingModelInstance()
@@ -39,7 +39,7 @@ class AuthorizesRequestsTest extends TestCase
 
         $gate->shouldReceive('authorize')->with(__FUNCTION__, $model)->once()->andReturn($response);
 
-        $this->assertEquals($response, (new AuthorizesRequestsStub())->authorize($model));
+        $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize($model));
     }
 
     public function testAuthorizeMayBeGuessedPassingClassName()
@@ -51,7 +51,7 @@ class AuthorizesRequestsTest extends TestCase
 
         $gate->shouldReceive('authorize')->with(__FUNCTION__, $class)->once()->andReturn($response);
 
-        $this->assertEquals($response, (new AuthorizesRequestsStub())->authorize($class));
+        $this->assertEquals($response, (new AuthorizesRequestsStub)->authorize($class));
     }
 
     public function testAuthorizeMayBeGuessedAndNormalized()
@@ -78,7 +78,7 @@ class AuthorizesRequestsTest extends TestCase
     {
         $gate = m::mock(Gate::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(Gate::class, $gate);
         Container::setInstance($container);
 

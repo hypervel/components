@@ -64,7 +64,7 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 
@@ -87,7 +87,7 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 
@@ -110,7 +110,7 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 
@@ -133,7 +133,7 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 
@@ -156,7 +156,7 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 

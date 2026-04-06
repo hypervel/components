@@ -63,7 +63,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
 
-        $kernel->handle(new StringInput('foo'), new ConsoleOutput());
+        $kernel->handle(new StringInput('foo'), new ConsoleOutput);
 
         $this->assertNotNull($kernel->commandStartedAt());
     }
@@ -76,7 +76,7 @@ class KernelTerminateTest extends TestCase
         Carbon::setTestNow(Carbon::now());
 
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
         $this->assertNotNull($kernel->commandStartedAt());
 
         $kernel->terminate($input, 0);
@@ -95,7 +95,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
@@ -117,7 +117,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         Carbon::setTestNow(Carbon::now()->addSeconds(1));
         $kernel->terminate($input, 0);
@@ -137,7 +137,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow($startedAt = Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         Carbon::setTestNow(Carbon::now()->addSeconds(1));
         $kernel->terminate($input, 21);
@@ -160,7 +160,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
@@ -182,7 +182,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         Carbon::setTestNow(Carbon::now()->addSeconds(1));
         $kernel->terminate($input, 0);
@@ -203,7 +203,7 @@ class KernelTerminateTest extends TestCase
         });
 
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
@@ -226,7 +226,7 @@ class KernelTerminateTest extends TestCase
         });
 
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         Carbon::setTestNow(Carbon::now()->addSeconds(1));
         $kernel->terminate($input, 0);
@@ -249,7 +249,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         Carbon::setTestNow(now()->addMinute());
         $kernel->terminate($input, 0);
@@ -275,7 +275,7 @@ class KernelTerminateTest extends TestCase
 
         Carbon::setTestNow(Carbon::now());
         $input = new StringInput('foo');
-        $kernel->handle($input, new ConsoleOutput());
+        $kernel->handle($input, new ConsoleOutput);
 
         // Advance 1 second — exceeds first threshold (500ms) but not second (2000ms).
         Carbon::setTestNow(Carbon::now()->addSeconds(1));

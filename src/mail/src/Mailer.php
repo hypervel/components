@@ -424,7 +424,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function createMessage(): Message
     {
-        $message = new Message(new Email());
+        $message = new Message(new Email);
 
         // If a global from address has been specified we will set it on every message
         // instance so the developer does not have to repeat themselves every time

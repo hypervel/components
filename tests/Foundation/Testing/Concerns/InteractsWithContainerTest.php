@@ -18,7 +18,7 @@ class InteractsWithContainerTest extends TestCase
 {
     public function testSwap()
     {
-        $this->app->instance(InstanceStub::class, new InstanceStub());
+        $this->app->instance(InstanceStub::class, new InstanceStub);
 
         $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
 
@@ -81,7 +81,7 @@ class InteractsWithContainerTest extends TestCase
 
     public function testWithViteRestoresOriginalHandlerAndReturnsInstance()
     {
-        $handler = new Vite();
+        $handler = new Vite;
         $this->app->instance(Vite::class, $handler);
 
         $this->withoutVite();

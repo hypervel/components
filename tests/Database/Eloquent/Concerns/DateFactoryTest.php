@@ -102,7 +102,7 @@ class DateFactoryTest extends TestCase
 
     public function testModelFreshTimestampReturnsDefaultCarbonByDefault(): void
     {
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
 
         $timestamp = $model->freshTimestamp();
 
@@ -115,7 +115,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $timestamp = $model->freshTimestamp();
 
         $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
@@ -129,7 +129,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => Carbon::parse('2024-01-15 10:30:00')]);
 
         $date = $model->published_at;
@@ -142,7 +142,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => new DateTime('2024-01-15 10:30:00')]);
 
         $date = $model->published_at;
@@ -155,7 +155,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => new DateTimeImmutable('2024-01-15 10:30:00')]);
 
         $date = $model->published_at;
@@ -168,7 +168,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         // 1705312200 = 2024-01-15 10:30:00 UTC
         $model->setRawAttributes(['published_at' => 1705312200]);
 
@@ -181,7 +181,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => '2024-01-15']);
 
         $date = $model->published_at;
@@ -196,7 +196,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => '2024-01-15 10:30:00']);
 
         $date = $model->published_at;
@@ -213,7 +213,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryDateCastModel();
+        $model = new DateFactoryDateCastModel;
         $model->setRawAttributes(['event_date' => '2024-01-15']);
 
         $date = $model->event_date;
@@ -227,7 +227,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryDateCastModel();
+        $model = new DateFactoryDateCastModel;
         $model->setRawAttributes(['event_datetime' => '2024-01-15 10:30:00']);
 
         $date = $model->event_datetime;
@@ -244,7 +244,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $pivot = new DateFactoryTestPivot();
+        $pivot = new DateFactoryTestPivot;
         $timestamp = $pivot->freshTimestamp();
 
         $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
@@ -254,7 +254,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $pivot = new DateFactoryTestMorphPivot();
+        $pivot = new DateFactoryTestMorphPivot;
         $timestamp = $pivot->freshTimestamp();
 
         $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
@@ -268,7 +268,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => null]);
 
         // The $dates array functionality will still return null for null values
@@ -279,7 +279,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryTestModel();
+        $model = new DateFactoryTestModel;
         $immutable = CarbonImmutable::parse('2024-01-15 10:30:00');
         $model->setRawAttributes(['published_at' => $immutable]);
 
@@ -293,7 +293,7 @@ class DateFactoryTest extends TestCase
     {
         Date::use(CarbonImmutable::class);
 
-        $model = new DateFactoryMultipleDatesModel();
+        $model = new DateFactoryMultipleDatesModel;
         $model->setRawAttributes([
             'created_at' => '2024-01-15 08:00:00',
             'updated_at' => '2024-01-15 09:00:00',

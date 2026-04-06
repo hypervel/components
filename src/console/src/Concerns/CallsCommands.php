@@ -30,7 +30,7 @@ trait CallsCommands
      */
     public function callSilent(SymfonyCommand|string $command, array $arguments = []): int
     {
-        return $this->runCommand($command, $arguments, new NullOutput());
+        return $this->runCommand($command, $arguments, new NullOutput);
     }
 
     /**

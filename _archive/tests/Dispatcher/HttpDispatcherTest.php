@@ -78,14 +78,14 @@ class HttpDispatcherTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
 
-        $container->shouldReceive('make')->with(CoreMiddleware::class)->andReturn(new CoreMiddleware());
+        $container->shouldReceive('make')->with(CoreMiddleware::class)->andReturn(new CoreMiddleware);
         $container->shouldReceive('make')->with(Pipeline::class)
             ->andReturnUsing(fn () => new Pipeline($container));
-        $container->shouldReceive('make')->with(TestMiddleware::class)->andReturn(new TestMiddleware());
-        $container->shouldReceive('make')->with(Test2Middleware::class)->andReturn(new Test2Middleware());
+        $container->shouldReceive('make')->with(TestMiddleware::class)->andReturn(new TestMiddleware);
+        $container->shouldReceive('make')->with(Test2Middleware::class)->andReturn(new Test2Middleware);
 
         $request = m::mock(ServerRequestInterface::class);
-        $response = new Response();
+        $response = new Response;
         Context::set(ServerRequestInterface::class, $request);
         Context::set(ResponseInterface::class, $response);
 

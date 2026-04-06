@@ -38,13 +38,13 @@ class ResponseTest extends TestCase
 
     public function testMake()
     {
-        $container = new Container();
+        $container = new Container;
         Container::setInstance($container);
 
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $response = new Response();
+        $response = new Response;
 
         // Test with string content
         $result = $response->make('Hello World', 200, ['X-Test' => 'Test']);
@@ -85,13 +85,13 @@ class ResponseTest extends TestCase
 
     public function testNoContent()
     {
-        $container = new Container();
+        $container = new Container;
         Container::setInstance($container);
 
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $response = new Response();
+        $response = new Response;
         $result = $response->noContent(204, ['X-Empty' => 'Yes']);
 
         $this->assertInstanceOf(ResponseInterface::class, $result);
@@ -102,10 +102,10 @@ class ResponseTest extends TestCase
 
     public function testView()
     {
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $container = new Container();
+        $container = new Container;
         Container::setInstance($container);
 
         $view = m::mock(ViewContract::class);
@@ -115,7 +115,7 @@ class ResponseTest extends TestCase
 
         $container->instance(FactoryContract::class, $viewFactory);
 
-        $response = new Response();
+        $response = new Response;
         $result = $response->view('test-view', ['data' => 'value'], 200, ['X-View' => 'Rendered']);
 
         $this->assertInstanceOf(ResponseInterface::class, $result);
@@ -127,7 +127,7 @@ class ResponseTest extends TestCase
 
     public function testGetPsr7Response()
     {
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         $response = new Response($psrResponse);
 
         $this->assertSame($psrResponse, $response->getPsr7Response());
@@ -141,13 +141,13 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn(false);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(Filesystem::class, $filesystem);
         Container::setInstance($container);
 
         $this->expectException(FileNotFoundException::class);
 
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         (new Response($psrResponse))
             ->file('file_path');
     }
@@ -164,11 +164,11 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn($fileContent = 'file_content');
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(Filesystem::class, $filesystem);
         Container::setInstance($container);
 
-        $psrResponse = new \Hypervel\HttpMessage\Base\Response();
+        $psrResponse = new \Hypervel\HttpMessage\Base\Response;
         $response = (new Response($psrResponse))
             ->file('file_path', ['Content-Type' => $mime = 'image/jpeg']);
 
@@ -185,7 +185,7 @@ class ResponseTest extends TestCase
             ->andReturnTrue();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $stream = new SwooleStream($content);
         $result = $response->stream(
             fn () => $stream->eof() ? false : $stream->read(1024),
@@ -208,7 +208,7 @@ class ResponseTest extends TestCase
             ->andReturnTrue();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $result = $response->stream(
             fn () => $content,
             ['X-Download' => 'Yes']
@@ -229,7 +229,7 @@ class ResponseTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('The response is not a chunkable response.');
 
-        (new \Hypervel\Http\Response())
+        (new \Hypervel\Http\Response)
             ->stream(fn () => 'test');
     }
 
@@ -242,7 +242,7 @@ class ResponseTest extends TestCase
             ->andReturnTrue();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $stream = new SwooleStream($content);
         $result = $response->streamDownload(
             fn () => $stream->eof() ? false : $stream->read(1024),
@@ -273,7 +273,7 @@ class ResponseTest extends TestCase
             'Range' => ['bytes=0-1023'],
         ]);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $stream = new SwooleStream($content);
         $result = $response->withRangeHeaders(8888)
             ->streamDownload(
@@ -309,7 +309,7 @@ class ResponseTest extends TestCase
             'Range' => ['bytes=1024-2047'],
         ]);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $stream = new SwooleStream($content);
         $result = $response->withRangeHeaders()
             ->streamDownload(
@@ -343,7 +343,7 @@ class ResponseTest extends TestCase
 
         $this->expectException(RangeNotSatisfiableHttpException::class);
 
-        $response = new \Hypervel\Http\Response();
+        $response = new \Hypervel\Http\Response;
         $stream = new SwooleStream('File content');
         $response->withRangeHeaders(8888)
             ->streamDownload(

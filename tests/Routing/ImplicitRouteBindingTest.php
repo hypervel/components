@@ -129,7 +129,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
         $route = new Route('GET', '/test/{user}', $action);
         $route->bind(Request::create('/test/1'));
-        $route->setParameter('user', new ImplicitRouteBindingUser());
+        $route->setParameter('user', new ImplicitRouteBindingUser);
 
         $route->prepareForSerialization();
 
@@ -189,7 +189,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
             $cache = $reflectionProperty->getValue();
 
             if (! $cache instanceof WeakMap) {
-                $cache = new WeakMap();
+                $cache = new WeakMap;
             }
 
             $cache[$staleClosure] = $signature;

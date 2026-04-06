@@ -128,7 +128,7 @@ class AttributesTest extends TestCase
 
     public function testResetRefreshDatabaseStateImplementsLifecycleInterfaces(): void
     {
-        $attribute = new ResetRefreshDatabaseState();
+        $attribute = new ResetRefreshDatabaseState;
 
         $this->assertInstanceOf(BeforeAll::class, $attribute);
         $this->assertInstanceOf(AfterAll::class, $attribute);
@@ -158,7 +158,7 @@ class AttributesTest extends TestCase
 
     public function testWithMigrationDefaultsToLaravel(): void
     {
-        $attribute = new WithMigration();
+        $attribute = new WithMigration;
 
         $this->assertSame(['hypervel'], $attribute->types);
     }

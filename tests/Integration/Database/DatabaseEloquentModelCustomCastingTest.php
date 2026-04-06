@@ -33,7 +33,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testBasicCustomCasting()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->uppercase = 'taylor';
 
         $this->assertSame('TAYLOR', $model->uppercase);
@@ -50,7 +50,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $model->uppercase = 'dries';
         $this->assertSame('TAYLOR', $model->getOriginal('uppercase'));
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->uppercase = 'taylor';
         $model->syncOriginal();
         $model->uppercase = 'dries';
@@ -58,13 +58,13 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
         $this->assertSame('DRIES', $model->uppercase);
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
 
         $model->address = $address = new Address('110 Kingsbrook St.', 'My Childhood House');
         $address->lineOne = '117 Spencer St.';
         $this->assertSame('117 Spencer St.', $model->getAttributes()['address_line_one']);
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
 
         $model->setRawAttributes([
             'address_line_one' => '110 Kingsbrook St.',
@@ -106,11 +106,11 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
         $model->options = ['foo' => 'bar'];
         $this->assertTrue($model->isDirty('options'));
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->birthday_at = now();
         $this->assertIsString($model->toArray()['birthday_at']);
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $now = now()->toImmutable();
         $model->anniversary_on_with_object_caching = $now;
         $model->anniversary_on_without_object_caching = $now;
@@ -162,7 +162,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testDeviableCasts()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->price = '123.456';
         $model->save();
 
@@ -185,7 +185,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testSerializableCasts()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->price = '123.456';
 
         $expectedValue = (new Decimal('123.456'))->getValue();
@@ -204,7 +204,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
     public function testOneWayCasting()
     {
         // CastsInboundAttributes is used for casting that is unidirectional... only use case I can think of is one-way hashing...
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
 
         $model->password = 'secret';
 
@@ -223,7 +223,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testSettingRawAttributesClearsTheCastCache()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
 
         $model->setRawAttributes([
             'address_line_one' => '110 Kingsbrook St.',
@@ -242,7 +242,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testSettingAttributesUsingArrowClearsTheCastCache()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->typed_settings = ['foo' => true];
 
         $this->assertTrue($model->typed_settings->foo);
@@ -254,7 +254,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
     public function testWithCastableInterface()
     {
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
 
         $model->setRawAttributes([
             'value_object_with_caster' => serialize(new ValueObject('hello')),
@@ -280,7 +280,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
     {
         $this->expectException(InvalidCastException::class);
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $model->undefined_cast_column;
     }
 
@@ -288,7 +288,7 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
     {
         $this->expectException(InvalidCastException::class);
 
-        $model = new TestEloquentModelWithCustomCast();
+        $model = new TestEloquentModelWithCustomCast;
         $this->assertTrue($model->hasCast('undefined_cast_column'));
 
         $model->undefined_cast_column = 'Glāžšķūņu rūķīši';
@@ -505,7 +505,7 @@ class ValueObjectWithCasterInstance extends ValueObject
 {
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new ValueObjectCaster();
+        return new ValueObjectCaster;
     }
 }
 

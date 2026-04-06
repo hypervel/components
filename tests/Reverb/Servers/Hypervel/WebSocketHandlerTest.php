@@ -69,7 +69,7 @@ class WebSocketHandlerTest extends ReverbTestCase
             ->with(m::type(\Hypervel\Reverb\Connection::class));
 
         $swooleServer = m::mock(WebSocketServer::class);
-        $swooleRequest = new SwooleRequest();
+        $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
 
         $this->handler->onOpen($swooleServer, $swooleRequest);
@@ -98,7 +98,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         );
         $swooleServer->shouldReceive('disconnect')->once()->with(1);
 
-        $swooleRequest = new SwooleRequest();
+        $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
 
         $handler->onOpen($swooleServer, $swooleRequest);
@@ -116,7 +116,7 @@ class WebSocketHandlerTest extends ReverbTestCase
 
         $swooleServer = m::mock(WebSocketServer::class);
 
-        $frame = new Frame();
+        $frame = new Frame;
         $frame->fd = 1;
         $frame->opcode = WEBSOCKET_OPCODE_TEXT;
         $frame->data = '{"event":"pusher:ping"}';
@@ -135,7 +135,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $swooleServer->shouldReceive('push')->once()
             ->with(1, 'Maximum message size exceeded');
 
-        $frame = new Frame();
+        $frame = new Frame;
         $frame->fd = 1;
         $frame->opcode = WEBSOCKET_OPCODE_TEXT;
         // max_message_size in test config is 10_000
@@ -155,7 +155,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $swooleServer->shouldReceive('push')->once()
             ->with(1, '', WEBSOCKET_OPCODE_PONG);
 
-        $frame = new Frame();
+        $frame = new Frame;
         $frame->fd = 1;
         $frame->opcode = WEBSOCKET_OPCODE_PING;
 
@@ -173,7 +173,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         // No pong response should be sent for pong frames
         $swooleServer->shouldNotReceive('push');
 
-        $frame = new Frame();
+        $frame = new Frame;
         $frame->fd = 1;
         $frame->opcode = WEBSOCKET_OPCODE_PONG;
 
@@ -187,7 +187,7 @@ class WebSocketHandlerTest extends ReverbTestCase
 
         $swooleServer = m::mock(WebSocketServer::class);
 
-        $frame = new Frame();
+        $frame = new Frame;
         $frame->fd = 999;
         $frame->opcode = WEBSOCKET_OPCODE_TEXT;
         $frame->data = '{"event":"pusher:ping"}';

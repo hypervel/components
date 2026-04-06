@@ -37,7 +37,7 @@ abstract class QueryTestCase extends TestCase
     {
         return new Builder(
             $this->getMockConnection(),
-            new MySqlGrammar(),
+            new MySqlGrammar,
             m::mock(Processor::class)
         );
     }
@@ -46,7 +46,7 @@ abstract class QueryTestCase extends TestCase
     {
         return new Builder(
             $this->getMockConnection(),
-            new PostgresGrammar(),
+            new PostgresGrammar,
             m::mock(Processor::class)
         );
     }
@@ -55,7 +55,7 @@ abstract class QueryTestCase extends TestCase
     {
         return new Builder(
             $this->getMockConnection(),
-            new SQLiteGrammar(),
+            new SQLiteGrammar,
             m::mock(Processor::class)
         );
     }

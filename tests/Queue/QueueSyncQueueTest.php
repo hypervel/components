@@ -42,7 +42,7 @@ class QueueSyncQueueTest extends TestCase
     {
         unset($_SERVER['__sync.test']);
 
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $sync->setContainer($container);
@@ -57,7 +57,7 @@ class QueueSyncQueueTest extends TestCase
     {
         unset($_SERVER['__sync.failed']);
 
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
@@ -77,7 +77,7 @@ class QueueSyncQueueTest extends TestCase
     {
         unset($_SERVER['__sync.failed']);
 
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = new EventsDispatcher($container);
@@ -91,7 +91,7 @@ class QueueSyncQueueTest extends TestCase
         });
 
         try {
-            $sync->push(new FailingSyncQueueJob());
+            $sync->push(new FailingSyncQueueJob);
         } catch (LogicException) {
             $this->assertSame('extraValue', $_SERVER['__sync.failed']);
         }
@@ -99,7 +99,7 @@ class QueueSyncQueueTest extends TestCase
 
     public function testCreatesPayloadObject()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
@@ -117,7 +117,7 @@ class QueueSyncQueueTest extends TestCase
         });
 
         try {
-            $sync->push(new SyncQueueJob());
+            $sync->push(new SyncQueueJob);
         } catch (LogicException $e) {
             $this->assertSame('extraValue', $e->getMessage());
         }
@@ -127,7 +127,7 @@ class QueueSyncQueueTest extends TestCase
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -135,12 +135,12 @@ class QueueSyncQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitJob());
+        $sync->push(new SyncQueueAfterCommitJob);
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -148,12 +148,12 @@ class QueueSyncQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitInterfaceJob());
+        $sync->push(new SyncQueueAfterCommitInterfaceJob);
     }
 
     public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -162,12 +162,12 @@ class QueueSyncQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitUniqueJob());
+        $sync->push(new SyncQueueAfterCommitUniqueJob);
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -176,12 +176,12 @@ class QueueSyncQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob());
+        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob);
     }
 
     protected function getContainer(): Container
     {
-        $container = new Container();
+        $container = new Container;
         $container->instance(ContainerContract::class, $container);
         Container::setInstance($container);
 
@@ -219,7 +219,7 @@ class FailingSyncQueueTestHandler
 {
     public function fire($job, $data)
     {
-        throw new Exception();
+        throw new Exception;
     }
 
     public function failed()
@@ -234,7 +234,7 @@ class FailingSyncQueueJob implements ShouldQueue
 
     public function handle(): void
     {
-        throw new LogicException();
+        throw new LogicException;
     }
 
     public function failed(): void

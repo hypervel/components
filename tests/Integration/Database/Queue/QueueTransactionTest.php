@@ -62,10 +62,10 @@ class QueueTransactionTest extends DatabaseTestCase
     public static function timeoutJobs(): array
     {
         return [
-            [new Fixtures\TimeOutJobWithTransaction()],
-            [new Fixtures\TimeOutJobWithNestedTransactions()],
-            [new Fixtures\TimeOutNonBatchableJobWithTransaction()],
-            [new Fixtures\TimeOutNonBatchableJobWithNestedTransactions()],
+            [new Fixtures\TimeOutJobWithTransaction],
+            [new Fixtures\TimeOutJobWithNestedTransactions],
+            [new Fixtures\TimeOutNonBatchableJobWithTransaction],
+            [new Fixtures\TimeOutNonBatchableJobWithNestedTransactions],
         ];
     }
 }

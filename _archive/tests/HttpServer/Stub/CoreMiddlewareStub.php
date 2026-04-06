@@ -17,6 +17,6 @@ class CoreMiddlewareStub extends CoreMiddleware
 
     protected function response(): ResponsePlusInterface
     {
-        return new Response();
+        return new Response;
     }
 }

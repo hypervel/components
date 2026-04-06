@@ -283,7 +283,7 @@ trait ResolvesJsonApiElements
         }
         if ($relatedModel instanceof Pivot
             || in_array(AsPivot::class, class_uses_recursive($relatedModel), true)) {
-            yield $relationName => new MissingValue();
+            yield $relationName => new MissingValue;
 
             return;
         }
@@ -329,19 +329,19 @@ trait ResolvesJsonApiElements
     public function resolveIncludedResourceObjects(JsonApiRequest $request): Collection
     {
         if (! $this->resource instanceof Model) {
-            return new Collection();
+            return new Collection;
         }
 
         $this->compileResourceRelationships($request);
 
-        $relations = new Collection();
+        $relations = new Collection;
         $index = 0;
 
         // Track visited objects by instance + type to prevent infinite loops from circular
         // references created by "chaperone()". We use object instances rather than type
         // and ID for any possible cases like BelongsToMany with different pivot data.
         // We'll track types to allow the same models with different resource types.
-        $visitedObjects = new WeakMap();
+        $visitedObjects = new WeakMap;
 
         $visitedObjects[$this->resource] = [
             $this->resolveResourceType($request) => true,

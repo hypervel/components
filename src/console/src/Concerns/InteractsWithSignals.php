@@ -20,7 +20,7 @@ trait InteractsWithSignals
     public function trap(array|int $signo, callable $callback): void
     {
         if (! $this->signalRegistry) {
-            $this->signalRegistry = new SignalRegistry();
+            $this->signalRegistry = new SignalRegistry;
             Coroutine::defer(fn () => $this->signalRegistry->unregister());
         }
 

@@ -439,7 +439,7 @@ class ProviderOrderingTest extends TestCase
         $app->instance('registration_order', []);
 
         // Run the bootstrapper (merges explicit providers into config)
-        (new RegisterProviders())->bootstrap($app);
+        (new RegisterProviders)->bootstrap($app);
 
         return $app;
     }

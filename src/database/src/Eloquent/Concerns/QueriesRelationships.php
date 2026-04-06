@@ -268,7 +268,7 @@ trait QueriesRelationships
                     }
 
                     // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-                    $query->where($this->qualifyColumn($relation->getMorphType()), '=', (new $type())->getMorphClass())
+                    $query->where($this->qualifyColumn($relation->getMorphType()), '=', (new $type)->getMorphClass())
                         ->whereHas($belongsTo, $callback, $operator, $count);
                 });
             }

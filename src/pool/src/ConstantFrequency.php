@@ -26,7 +26,7 @@ class ConstantFrequency implements LowFrequencyInterface
     public function __construct(
         protected ?Pool $pool = null
     ) {
-        $this->timer = new Timer();
+        $this->timer = new Timer;
 
         if ($pool) {
             $this->timerId = $this->timer->tick(

@@ -22,7 +22,7 @@ class ConfigCacheCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
 
         $this->afterApplicationCreated(function () use ($files) {
             $files->ensureDirectoryExists($this->app->configPath());
@@ -37,7 +37,7 @@ class ConfigCacheCommandTest extends TestCase
 
     public function testConfigurationCanBeCachedSuccessfully()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $files->put(
             $this->app->configPath('testconfig.php'),
             <<<'PHP'
@@ -65,7 +65,7 @@ class ConfigCacheCommandTest extends TestCase
 
     public function testConfigurationCacheFailsWithNonSerializableValue()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $files->put(
             $this->app->configPath('testconfig.php'),
             <<<'PHP'
@@ -87,7 +87,7 @@ class ConfigCacheCommandTest extends TestCase
 
     public function testConfigurationCacheFailsWithNestedNonSerializableValue()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $files->put(
             $this->app->configPath('testconfig.php'),
             <<<'PHP'
@@ -113,7 +113,7 @@ class ConfigCacheCommandTest extends TestCase
 
     public function testConfigurationCacheIsDeletedWhenSerializationFails()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $files->put(
             $this->app->configPath('testconfig.php'),
             <<<'PHP'
@@ -149,7 +149,7 @@ class ConfigCacheCommandTest extends TestCase
 
     public function testConfigurationCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedConfig()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
 
         $files->put(
             $this->app->configPath('testconfig.php'),

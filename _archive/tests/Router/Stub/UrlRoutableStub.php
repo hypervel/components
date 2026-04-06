@@ -21,6 +21,6 @@ class UrlRoutableStub implements UrlRoutable
 
     public function resolveRouteBinding($value)
     {
-        return new Model();
+        return new Model;
     }
 }

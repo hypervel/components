@@ -41,7 +41,7 @@ class PruneCommandTest extends TestCase
         $container->useAppPath(__DIR__ . '/Pruning');
 
         $container->singleton(DispatcherContract::class, function () {
-            return new Dispatcher();
+            return new Dispatcher;
         });
 
         $container->alias(DispatcherContract::class, 'events');
@@ -103,7 +103,7 @@ class PruneCommandTest extends TestCase
 
     public function testPrunableSoftDeletedModelWithPrunableRecords()
     {
-        $db = new DB();
+        $db = new DB;
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -182,7 +182,7 @@ class PruneCommandTest extends TestCase
 
     public function testTheCommandMayBePretended()
     {
-        $db = new DB();
+        $db = new DB;
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -216,7 +216,7 @@ class PruneCommandTest extends TestCase
 
     public function testTheCommandMayBePretendedOnSoftDeletedModel()
     {
-        $db = new DB();
+        $db = new DB;
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -271,9 +271,9 @@ class PruneCommandTest extends TestCase
     protected function artisan($arguments)
     {
         $input = new ArrayInput($arguments);
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
 
-        tap(new PruneCommand())
+        tap(new PruneCommand)
             ->setHypervel(Application::getInstance())
             ->run($input, $output);
 

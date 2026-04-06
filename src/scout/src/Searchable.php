@@ -37,11 +37,11 @@ trait Searchable
      */
     public static function bootSearchable(): void
     {
-        static::addGlobalScope(new SearchableScope());
+        static::addGlobalScope(new SearchableScope);
 
-        static::observe(new ModelObserver());
+        static::observe(new ModelObserver);
 
-        (new static())->registerSearchableMacros();
+        (new static)->registerSearchableMacros();
     }
 
     /**
@@ -186,7 +186,7 @@ trait Searchable
     public static function search(string $query = '', ?Closure $callback = null): Builder
     {
         return new Builder(
-            model: new static(),
+            model: new static,
             query: $query,
             callback: $callback,
             softDelete: static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)
@@ -206,7 +206,7 @@ trait Searchable
      */
     public static function makeAllSearchableQuery(): EloquentBuilder
     {
-        $self = new static();
+        $self = new static;
         $softDelete = static::usesSoftDelete() && static::getScoutConfig('soft_delete', false);
 
         return $self->newQuery()
@@ -255,7 +255,7 @@ trait Searchable
      */
     public static function removeAllFromSearch(): void
     {
-        $self = new static();
+        $self = new static;
         $self->searchableUsing()->flush($self);
     }
 

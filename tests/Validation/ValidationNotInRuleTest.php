@@ -46,11 +46,11 @@ class ValidationNotInRuleTest extends TestCase
 
         $this->assertSame('not_in:"1","2","3","4"', (string) $rule);
 
-        $rule = Rule::notIn(new Values());
+        $rule = Rule::notIn(new Values);
 
         $this->assertSame('not_in:"1","2","3","4"', (string) $rule);
 
-        $rule = new NotIn(new Values());
+        $rule = new NotIn(new Values);
 
         $this->assertSame('not_in:"1","2","3","4"', (string) $rule);
 
@@ -77,7 +77,7 @@ class ValidationNotInRuleTest extends TestCase
 
     public function testNotInRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => Rule::notIn('bar', 'baz')]);
         $this->assertTrue($v->passes());

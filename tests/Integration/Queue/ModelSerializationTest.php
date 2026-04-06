@@ -294,7 +294,7 @@ class ModelSerializationTest extends TestCase
 
     public function testItCanRunModelBootsAndTraitInitializations()
     {
-        $model = new ModelBootTestWithTraitInitialization();
+        $model = new ModelBootTestWithTraitInitialization;
 
         $this->assertTrue($model->fooBar);
         $this->assertTrue($model->initializedViaAttributeInClass);
@@ -480,7 +480,7 @@ class ModelSerializationTest extends TestCase
     public function testSerializationTypesEmptyCustomEloquentCollection()
     {
         $class = new ModelSerializationTypedCustomCollectionTestClass(
-            new ModelSerializationTestCustomUserCollection()
+            new ModelSerializationTestCustomUserCollection
         );
 
         $serialized = serialize($class);

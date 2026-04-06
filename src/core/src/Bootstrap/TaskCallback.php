@@ -28,7 +28,7 @@ class TaskCallback
             $task = $arguments[0];
         } else {
             [$taskId, $srcWorkerId, $data] = $arguments;
-            $task = new Task();
+            $task = new Task;
             $task->id = $taskId;
             $task->worker_id = $srcWorkerId;
             $task->data = $data;

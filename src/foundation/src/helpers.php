@@ -230,7 +230,7 @@ if (! function_exists('broadcast_if')) {
             return app(BroadcastFactory::class)->event(value($event));
         }
 
-        return new FakePendingBroadcast();
+        return new FakePendingBroadcast;
     }
 }
 

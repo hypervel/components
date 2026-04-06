@@ -17,7 +17,7 @@ class ConvertEmptyStringsToNullTest extends TestCase
 {
     public function testConvertsEmptyStringsToNull()
     {
-        $middleware = new ConvertEmptyStringsToNull();
+        $middleware = new ConvertEmptyStringsToNull;
         $symfonyRequest = new SymfonyRequest([
             'foo' => 'bar',
             'baz' => '',
@@ -33,7 +33,7 @@ class ConvertEmptyStringsToNullTest extends TestCase
 
     public function testSkipConvertsEmptyStringsToNull()
     {
-        $middleware = new ConvertEmptyStringsToNull();
+        $middleware = new ConvertEmptyStringsToNull;
         ConvertEmptyStringsToNull::skipWhen(fn ($request) => $request->baz === '');
         $symfonyRequest = new SymfonyRequest([
             'foo' => 'bar',

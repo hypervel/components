@@ -56,7 +56,7 @@ class MonitoringTest extends IntegrationTestCase
     public function testCompletedJobsAreStoredInDatabaseWhenOneOfTheirTagsIsBeingMonitored()
     {
         dispatch(new MonitorTag('first'));
-        $id = Queue::push(new Jobs\BasicJob());
+        $id = Queue::push(new Jobs\BasicJob);
         $this->work();
         $this->assertSame(1, $this->monitoredJobs('first'));
         $this->assertGreaterThan(0, Redis::connection('horizon')->ttl($id));
@@ -65,7 +65,7 @@ class MonitoringTest extends IntegrationTestCase
     public function testCompletedJobsAreRemovedFromDatabaseWhenTheirTagIsNoLongerMonitored()
     {
         dispatch(new MonitorTag('first'));
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
         $this->work();
         dispatch(new StopMonitoringTag('first'));
         $this->assertSame(0, $this->monitoredJobs('first'));
@@ -76,7 +76,7 @@ class MonitoringTest extends IntegrationTestCase
         dispatch(new MonitorTag('first'));
 
         for ($i = 0; $i < 80; ++$i) {
-            Queue::push(new Jobs\BasicJob());
+            Queue::push(new Jobs\BasicJob);
         }
 
         $this->work();

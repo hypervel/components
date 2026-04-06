@@ -31,7 +31,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 {
     public function testStandardRelationships()
     {
-        $post = new RelationshipsPost();
+        $post = new RelationshipsPost;
 
         $this->assertInstanceOf(HasOne::class, $post->attachment());
         $this->assertInstanceOf(BelongsTo::class, $post->author());
@@ -47,7 +47,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testOverriddenRelationships()
     {
-        $post = new RelationshipsCustomPost();
+        $post = new RelationshipsCustomPost;
 
         $this->assertInstanceOf(CustomHasOne::class, $post->attachment());
         $this->assertInstanceOf(CustomBelongsTo::class, $post->author());
@@ -64,11 +64,11 @@ class DatabaseEloquentRelationshipsTest extends TestCase
     public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId()
     {
         // create users
-        $user1 = (new FakeRelationship())->forceFill(['id' => 1]);
-        $user2 = (new FakeRelationship())->forceFill(['id' => 2]);
+        $user1 = (new FakeRelationship)->forceFill(['id' => 1]);
+        $user2 = (new FakeRelationship)->forceFill(['id' => 2]);
 
         // sync user 1 using Model
-        $post = new RelationshipsPost();
+        $post = new RelationshipsPost;
         $post->author()->associate($user1);
         $post->syncOriginal();
 
@@ -88,8 +88,8 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testPendingHasThroughRelationship()
     {
-        $fluent = (new FluentMechanic())->owner();
-        $classic = (new ClassicMechanic())->owner();
+        $fluent = (new FluentMechanic)->owner();
+        $classic = (new ClassicMechanic)->owner();
 
         $this->assertInstanceOf(HasOneThrough::class, $classic);
         $this->assertInstanceOf(HasOneThrough::class, $fluent);
@@ -106,8 +106,8 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('cars.mechanic_id', $fluent->getQualifiedFirstKeyName());
         $this->assertSame('cars.mechanic_id', $classic->getQualifiedFirstKeyName());
 
-        $fluent = (new FluentProject())->deployments();
-        $classic = (new ClassicProject())->deployments();
+        $fluent = (new FluentProject)->deployments();
+        $classic = (new ClassicProject)->deployments();
 
         $this->assertInstanceOf(HasManyThrough::class, $classic);
         $this->assertInstanceOf(HasManyThrough::class, $fluent);
@@ -124,8 +124,8 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('environments.pro_id', $fluent->getQualifiedFirstKeyName());
         $this->assertSame('environments.pro_id', $classic->getQualifiedFirstKeyName());
 
-        $fluent = (new FluentProject())->environmentData();
-        $classic = (new ClassicProject())->environmentData();
+        $fluent = (new FluentProject)->environmentData();
+        $classic = (new ClassicProject)->environmentData();
 
         $this->assertInstanceOf(HasManyThrough::class, $classic);
         $this->assertInstanceOf(HasManyThrough::class, $fluent);
@@ -145,7 +145,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testStringyHasThroughApi()
     {
-        $fluent = (new FluentMechanic())->owner();
+        $fluent = (new FluentMechanic)->owner();
         $stringy = (new class extends FluentMechanic {
             public function owner()
             {
@@ -173,7 +173,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('cars.mechanic_id', $stringy->getQualifiedFirstKeyName());
         $this->assertSame('cars.mechanic_id', $fluent->getQualifiedFirstKeyName());
 
-        $fluent = (new FluentProject())->deployments();
+        $fluent = (new FluentProject)->deployments();
         $stringy = (new class extends FluentProject {
             public function deployments()
             {
@@ -204,7 +204,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testHigherOrderHasThroughApi()
     {
-        $fluent = (new FluentMechanic())->owner();
+        $fluent = (new FluentMechanic)->owner();
         $higher = (new class extends FluentMechanic {
             public function owner()
             {
@@ -232,7 +232,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('cars.mechanic_id', $higher->getQualifiedFirstKeyName());
         $this->assertSame('cars.mechanic_id', $fluent->getQualifiedFirstKeyName());
 
-        $fluent = (new FluentProject())->deployments();
+        $fluent = (new FluentProject)->deployments();
         $higher = (new class extends FluentProject {
             public function deployments()
             {

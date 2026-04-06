@@ -135,7 +135,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testSamePathDifferentPortThrowsLogicException()
     {
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
         $collection->add((new Route('GET', '/foo', fn () => 'a'))->port(8080));
 
         $this->expectException(LogicException::class);
@@ -146,7 +146,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testSamePathNullVsPortThrowsLogicException()
     {
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
         $collection->add(new Route('GET', '/foo', fn () => 'a'));
 
         $this->expectException(LogicException::class);
@@ -157,7 +157,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testSamePathPortVsNullThrowsLogicException()
     {
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
         $collection->add((new Route('GET', '/foo', fn () => 'a'))->port(8080));
 
         $this->expectException(LogicException::class);
@@ -168,7 +168,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testSamePathSamePortAllowed()
     {
-        $collection = new RouteCollection();
+        $collection = new RouteCollection;
         $collection->add((new Route('GET', '/foo', ['uses' => fn () => 'a', 'as' => 'foo1']))->port(8080));
         $collection->add((new Route('GET', '/foo', ['uses' => fn () => 'b', 'as' => 'foo2']))->port(8080));
 
@@ -222,7 +222,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRouteUrlGenerationUsesRoutePort()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
@@ -235,7 +235,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRouteUrlGenerationOmitsDefaultPort()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(80);
         $routes->add($route);
 
@@ -247,7 +247,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRouteUrlGenerationWithHttpsAndPort443()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = new Route(['GET'], 'foo', ['as' => 'secureRoute', 'https']);
         $route->port(443);
         $routes->add($route);
@@ -260,7 +260,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRouteUrlGenerationWithoutPortUsesRequestPort()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = new Route(['GET'], 'foo', ['as' => 'noPort']);
         $routes->add($route);
 
@@ -273,7 +273,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRelativeUrlIgnoresPort()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
@@ -285,7 +285,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testRouteUrlGenerationPreservesForcedRootPath()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
@@ -298,7 +298,7 @@ class RoutePortTest extends RoutingTestCase
 
     public function testSignedRouteUsesRoutePort()
     {
-        $routes = new RouteCollection();
+        $routes = new RouteCollection;
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
@@ -364,7 +364,7 @@ class RoutePortTest extends RoutingTestCase
      */
     protected function getRouter(): array
     {
-        $container = new Container();
+        $container = new Container;
         $router = new Router($container->make(Dispatcher::class), $container);
 
         $container->instance(Registrar::class, $router);

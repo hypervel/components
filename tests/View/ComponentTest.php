@@ -36,7 +36,7 @@ class ComponentTest extends TestCase
         $this->viewFactory = m::mock(Factory::class);
         $this->config = m::mock(Config::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance('config', $this->config);
         $container->instance('view', $this->viewFactory);
         $container->instance(FactoryContract::class, $this->viewFactory);
@@ -50,7 +50,7 @@ class ComponentTest extends TestCase
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
         $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
 
-        $component = new TestInlineViewComponent();
+        $component = new TestInlineViewComponent;
         $this->assertSame('__components::57b7a54afa0eb51fd9b88eec031c9e9e', $component->resolveView());
     }
 
@@ -59,7 +59,7 @@ class ComponentTest extends TestCase
         $view = m::mock(View::class);
         $this->viewFactory->shouldReceive('make')->once()->with('alert', [], [])->andReturn($view);
 
-        $component = new TestRegularViewComponentUsingViewHelper();
+        $component = new TestRegularViewComponentUsingViewHelper;
 
         $this->assertSame($view, $component->resolveView());
     }
@@ -104,7 +104,7 @@ class ComponentTest extends TestCase
         $view = m::mock(View::class);
         $this->viewFactory->shouldReceive('make')->once()->with('alert', [], [])->andReturn($view);
 
-        $component = new TestRegularViewComponentUsingViewMethod();
+        $component = new TestRegularViewComponentUsingViewMethod;
 
         $this->assertSame($view, $component->resolveView());
     }
@@ -114,14 +114,14 @@ class ComponentTest extends TestCase
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(true);
         $this->viewFactory->shouldReceive('addNamespace')->never();
 
-        $component = new TestRegularViewNameViewComponent();
+        $component = new TestRegularViewNameViewComponent;
 
         $this->assertSame('alert', $component->resolveView());
     }
 
     public function testHtmlableGetReturned()
     {
-        $component = new TestHtmlableReturningViewComponent();
+        $component = new TestHtmlableReturningViewComponent;
 
         $view = $component->resolveView();
 
@@ -171,7 +171,7 @@ class ComponentTest extends TestCase
 
     public function testResolveComponentsUsing()
     {
-        $component = new TestInlineViewComponent();
+        $component = new TestInlineViewComponent;
 
         Component::resolveComponentsUsing(function ($class, $data) use ($component) {
             $this->assertSame(Component::class, $class, 'It takes the component class name as the first parameter.');
@@ -185,7 +185,7 @@ class ComponentTest extends TestCase
 
     public function testBladeViewCacheWithRegularViewNameViewComponent()
     {
-        $component = new TestRegularViewNameViewComponent();
+        $component = new TestRegularViewNameViewComponent;
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(true);
 
@@ -210,7 +210,7 @@ class ComponentTest extends TestCase
 
     public function testBladeViewCacheWithInlineViewComponent()
     {
-        $component = new TestInlineViewComponent();
+        $component = new TestInlineViewComponent;
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
@@ -284,8 +284,8 @@ class ComponentTest extends TestCase
 
     public function testFactoryGetsSharedBetweenComponents()
     {
-        $regular = new TestRegularViewNameViewComponent();
-        $inline = new TestInlineViewComponent();
+        $regular = new TestRegularViewNameViewComponent;
+        $inline = new TestInlineViewComponent;
 
         $getFactory = fn ($component) => (fn () => $component->factory())->call($component);
 
@@ -296,7 +296,7 @@ class ComponentTest extends TestCase
 
     public function testComponentSlotIsEmpty()
     {
-        $slot = new ComponentSlot();
+        $slot = new ComponentSlot;
 
         $this->assertTrue((bool) $slot->isEmpty());
     }

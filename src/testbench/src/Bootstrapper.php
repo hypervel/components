@@ -86,7 +86,7 @@ class Bootstrapper
             return static::$filesystem;
         }
 
-        return static::$filesystem = new Filesystem();
+        return static::$filesystem = new Filesystem;
     }
 
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void

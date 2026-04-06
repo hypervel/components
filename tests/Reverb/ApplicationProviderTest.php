@@ -18,7 +18,7 @@ class ApplicationProviderTest extends ReverbTestCase
 {
     public function testRetrievesApplicationsFromCustomProvider()
     {
-        $this->app->make(ApplicationManager::class)->extend('fake', fn () => new FakeApplicationProvider());
+        $this->app->make(ApplicationManager::class)->extend('fake', fn () => new FakeApplicationProvider);
 
         config([
             'reverb.apps.provider' => 'fake',

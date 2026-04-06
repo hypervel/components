@@ -394,7 +394,7 @@ class Handler implements ExceptionHandlerContract
         $map = CoroutineContext::get(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY);
 
         if (! $map instanceof WeakMap) {
-            $map = new WeakMap();
+            $map = new WeakMap;
             CoroutineContext::set(self::REPORTED_EXCEPTION_MAP_CONTEXT_KEY, $map);
         }
 
@@ -871,7 +871,7 @@ class Handler implements ExceptionHandlerContract
                 return response()->view(
                     $view,
                     [
-                        'errors' => new ViewErrorBag(),
+                        'errors' => new ViewErrorBag,
                         'exception' => $e,
                     ],
                     $e->getStatusCode(),
@@ -892,7 +892,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function registerErrorViewPaths(): void
     {
-        (new RegisterErrorViewPaths())();
+        (new RegisterErrorViewPaths)();
     }
 
     /**
@@ -988,7 +988,7 @@ class Handler implements ExceptionHandlerContract
             return;
         }
 
-        (new ConsoleApplication())->renderThrowable($e, $output);
+        (new ConsoleApplication)->renderThrowable($e, $output);
     }
 
     /**

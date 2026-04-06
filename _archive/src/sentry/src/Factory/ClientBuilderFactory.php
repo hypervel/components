@@ -136,9 +136,9 @@ class ClientBuilderFactory
                 $integrations = array_merge(
                     $integrations,
                     [
-                        new Integration(),
-                        new ExceptionContextIntegration(),
-                        new RequestIntegration(),
+                        new Integration,
+                        new ExceptionContextIntegration,
+                        new RequestIntegration,
                     ],
                     $userIntegrations
                 );

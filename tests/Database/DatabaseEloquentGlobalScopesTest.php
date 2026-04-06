@@ -21,7 +21,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         parent::setUp();
 
-        tap(new DB())->addConnection([
+        tap(new DB)->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ])->bootEloquent();
@@ -29,7 +29,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopeIsApplied()
     {
-        $model = new GlobalScopesModel();
+        $model = new GlobalScopesModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -37,7 +37,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopeCanBeRemoved()
     {
-        $model = new GlobalScopesModel();
+        $model = new GlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope(ActiveScope::class);
         $this->assertSame('select * from "table"', $query->toSql());
         $this->assertEquals([], $query->getBindings());
@@ -45,7 +45,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testClassNameGlobalScopeIsApplied()
     {
-        $model = new ClassNameGlobalScopesModel();
+        $model = new ClassNameGlobalScopesModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -53,7 +53,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopeInAttributeIsApplied()
     {
-        $model = new GlobalScopeInAttributeModel();
+        $model = new GlobalScopeInAttributeModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -61,7 +61,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopeInInheritedAttributeIsApplied()
     {
-        $model = new GlobalScopeInInheritedAttributeModel();
+        $model = new GlobalScopeInInheritedAttributeModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -69,7 +69,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testClosureGlobalScopeIsApplied()
     {
-        $model = new ClosureGlobalScopesModel();
+        $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -77,7 +77,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopesCanBeRegisteredViaArray()
     {
-        $model = new GlobalScopesArrayModel();
+        $model = new GlobalScopesArrayModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -85,7 +85,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testClosureGlobalScopeCanBeRemoved()
     {
-        $model = new ClosureGlobalScopesModel();
+        $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope('active_scope');
         $this->assertSame('select * from "table" order by "name" asc', $query->toSql());
         $this->assertEquals([], $query->getBindings());
@@ -93,7 +93,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopeCanBeRemovedAfterTheQueryIsExecuted()
     {
-        $model = new ClosureGlobalScopesModel();
+        $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
         $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -105,7 +105,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testAllGlobalScopesCanBeRemoved()
     {
-        $model = new ClosureGlobalScopesModel();
+        $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopes();
         $this->assertSame('select * from "table"', $query->toSql());
         $this->assertEquals([], $query->getBindings());
@@ -117,7 +117,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testAllGlobalScopesCanBeRemovedExceptSpecified()
     {
-        $model = new ClosureGlobalScopesModel();
+        $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopesExcept(['active_scope']);
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
@@ -129,7 +129,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
     public function testGlobalScopesWithOrWhereConditionsAreNested()
     {
-        $model = new ClosureGlobalScopesWithOrModel();
+        $model = new ClosureGlobalScopesWithOrModel;
 
         $query = $model->newQuery();
         $this->assertSame('select "email", "password" from "table" where ("email" = ? or "email" = ?) and "active" = ? order by "name" asc', $query->toSql());
@@ -228,7 +228,7 @@ class GlobalScopesModel extends Model
 
     public static function boot(): void
     {
-        static::addGlobalScope(new ActiveScope());
+        static::addGlobalScope(new ActiveScope);
 
         parent::boot();
     }
@@ -253,7 +253,7 @@ class GlobalScopesArrayModel extends Model
     public static function boot(): void
     {
         static::addGlobalScopes([
-            'active_scope' => new ActiveScope(),
+            'active_scope' => new ActiveScope,
             fn ($query) => $query->orderBy('name'),
         ]);
 

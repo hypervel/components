@@ -72,7 +72,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', ['foreign.value', 'foreign.value.two']);
-        $models = [new ModelStub(), new ModelStub(), new AnotherModelStub()];
+        $models = [new ModelStub, new ModelStub, new AnotherModelStub];
         $relation->addEagerConstraints($models);
     }
 
@@ -82,7 +82,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', [0, 'foreign.value']);
-        $models = [new ModelStub(), new ModelStubWithZeroId()];
+        $models = [new ModelStub, new ModelStubWithZeroId];
         $relation->addEagerConstraints($models);
     }
 
@@ -92,7 +92,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', [5, 'foreign.value']);
-        $models = [new ModelStub(), new ModelStubWithBackedEnumCast()];
+        $models = [new ModelStub, new ModelStubWithBackedEnumCast];
         $relation->addEagerConstraints($models);
     }
 
@@ -135,18 +135,18 @@ class DatabaseEloquentBelongsToTest extends TestCase
             protected array $attributes = ['id' => 5];
         };
 
-        $model1 = new ModelStub();
+        $model1 = new ModelStub;
         $model1->foreign_key = 1;
-        $model2 = new ModelStub();
+        $model2 = new ModelStub;
         $model2->foreign_key = 2;
-        $model3 = new ModelStub();
+        $model3 = new ModelStub;
         $model3->foreign_key = new class {
             public function __toString()
             {
                 return '3';
             }
         };
-        $model4 = new ModelStub();
+        $model4 = new ModelStub;
         $model4->foreign_key = 5;
         $models = $relation->match(
             [$model1, $model2, $model3, $model4],
@@ -206,7 +206,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub(), new MissingModelStub()];
+        $models = [new MissingModelStub, new MissingModelStub];
         $relation->addEagerConstraints($models);
     }
 
@@ -214,7 +214,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
     {
         $relation = $this->getRelation(null, 'string');
         $relation->getQuery()->shouldReceive('whereIn')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub(), new MissingModelStub()];
+        $models = [new MissingModelStub, new MissingModelStub];
         $relation->addEagerConstraints($models);
     }
 
@@ -224,7 +224,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub(), new MissingModelStub()];
+        $models = [new MissingModelStub, new MissingModelStub];
         $relation->addEagerConstraints($models);
     }
 
@@ -401,7 +401,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new ModelStub();
+        $parent = $parent ?: new ModelStub;
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
     }
@@ -424,7 +424,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new ModelStub();
+        $parent = $parent ?: new ModelStub;
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
     }

@@ -30,7 +30,7 @@ final class UsesVendor implements AfterEach, BeforeEach
     public function afterEach(ApplicationContract $app): void
     {
         if ($this->vendorSymlinkCreated === true) {
-            (new DeleteVendorSymlink())->handle($app);
+            (new DeleteVendorSymlink)->handle($app);
         }
     }
 }

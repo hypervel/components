@@ -161,7 +161,7 @@ class ClientEventTest extends ReverbTestCase
     public function testForwardsAClientMessageForUnauthenticatedClientWhenSetToAll()
     {
         $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'all');
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
         $this->channels()->findOrCreate('test-channel');
 
         $this->channelConnectionManager->shouldReceive('all')
@@ -186,7 +186,7 @@ class ClientEventTest extends ReverbTestCase
 
     public function testDoesNotForwardAMessageToItself()
     {
-        $connection = new ChannelConnection(new FakeConnection());
+        $connection = new ChannelConnection(new FakeConnection);
         $this->channels()->findOrCreate('test-channel');
 
         $this->channelConnectionManager->shouldReceive('all')
@@ -249,7 +249,7 @@ class ClientEventTest extends ReverbTestCase
     {
         $this->channels()->findOrCreate('test-channel');
 
-        $connection = new FakeConnection();
+        $connection = new FakeConnection;
 
         $this->channelConnectionManager->shouldNotReceive('hydratedConnections');
 

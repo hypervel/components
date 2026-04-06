@@ -21,7 +21,7 @@ final class BasicOperationsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Put and get
         $context->cache->put($context->prefixed('basic:key1'), 'value1', 60);

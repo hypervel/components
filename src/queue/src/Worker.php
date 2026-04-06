@@ -158,7 +158,7 @@ class Worker
 
         $this->raiseWorkerStartingEvent($connectionName, $queue, $options);
 
-        $waiter = new Waiter();
+        $waiter = new Waiter;
         $concurrent = new Concurrent($options->concurrency);
 
         // Before we begin processing, we will setup the monitor to check for timeout jobs
@@ -263,7 +263,7 @@ class Worker
             return;
         }
 
-        $this->monitorId = (new Timer())->tick($this->monitorInterval, function () use ($options) {
+        $this->monitorId = (new Timer)->tick($this->monitorInterval, function () use ($options) {
             if ($this->monitorLocked) {
                 return;
             }

@@ -148,6 +148,6 @@ class InteractsWithExceptionHandlingTest extends TestCase
 
         $handler = $this->app->make(ExceptionHandler::class);
 
-        $this->assertFalse($handler->shouldReport(new RuntimeException()));
+        $this->assertFalse($handler->shouldReport(new RuntimeException));
     }
 }

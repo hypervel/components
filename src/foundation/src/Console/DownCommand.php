@@ -55,7 +55,7 @@ class DownCommand extends Command
                 file_get_contents(__DIR__ . '/stubs/maintenance-mode.stub')
             );
 
-            $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled());
+            $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled);
 
             $this->reloadWorkers();
 
@@ -127,7 +127,7 @@ class DownCommand extends Command
      */
     protected function prerenderView(): string
     {
-        (new RegisterErrorViewPaths())();
+        (new RegisterErrorViewPaths)();
 
         return view($this->option('render'), [
             'retryAfter' => $this->option('retry'),

@@ -19,7 +19,7 @@ class InteractsWithSignalsTest extends TestCase
 {
     public function testTrapCreatesRegistry()
     {
-        $command = new InteractsWithSignalsTestStub();
+        $command = new InteractsWithSignalsTestStub;
 
         $invoker = new ClassInvoker($command);
         $this->assertNull($invoker->signalRegistry);
@@ -39,7 +39,7 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
         $signalRegistry->shouldReceive('register')->twice();
 
-        $command = new InteractsWithSignalsTestStub();
+        $command = new InteractsWithSignalsTestStub;
         $this->setSignalRegistry($command, $signalRegistry);
 
         $command->callTrap(SIGTERM, fn (int $signo) => null);
@@ -52,7 +52,7 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry->shouldReceive('register')->once();
         $signalRegistry->shouldReceive('unregister')->with(SIGTERM)->once();
 
-        $command = new InteractsWithSignalsTestStub();
+        $command = new InteractsWithSignalsTestStub;
         $this->setSignalRegistry($command, $signalRegistry);
 
         $command->callTrap(SIGTERM, fn (int $signo) => null);
@@ -61,7 +61,7 @@ class InteractsWithSignalsTest extends TestCase
 
     public function testUntrapWithNoRegistryIsNoop()
     {
-        $command = new InteractsWithSignalsTestStub();
+        $command = new InteractsWithSignalsTestStub;
 
         // Should not throw — signalRegistry is null
         $command->callUntrap();
@@ -73,7 +73,7 @@ class InteractsWithSignalsTest extends TestCase
         $signalRegistry->shouldReceive('register')->once();
         $signalRegistry->shouldReceive('unregister')->with(null)->once();
 
-        $command = new InteractsWithSignalsTestStub();
+        $command = new InteractsWithSignalsTestStub;
         $this->setSignalRegistry($command, $signalRegistry);
 
         $command->callTrap(SIGTERM, fn (int $signo) => null);

@@ -20,7 +20,7 @@ class SupportCapsuleManagerTraitTest extends TestCase
 
     public function testSetupContainerForCapsule()
     {
-        $app = new Container();
+        $app = new Container;
 
         $this->setupContainer($app);
         $this->assertEquals($app, $this->getContainer());
@@ -29,7 +29,7 @@ class SupportCapsuleManagerTraitTest extends TestCase
 
     public function testSetupContainerForCapsuleWhenConfigIsBound()
     {
-        $app = new Container();
+        $app = new Container;
         $app['config'] = new Repository([]);
 
         $this->setupContainer($app);

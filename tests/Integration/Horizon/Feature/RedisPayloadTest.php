@@ -38,16 +38,16 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $JobPayload->prepare(new BroadcastEvent(new StdClass()));
+        $JobPayload->prepare(new BroadcastEvent(new StdClass));
         $this->assertSame('broadcast', $JobPayload->decoded['type']);
 
-        $JobPayload->prepare(new CallQueuedListener('stdClass', 'method', [new StdClass()]));
+        $JobPayload->prepare(new CallQueuedListener('stdClass', 'method', [new StdClass]));
         $this->assertSame('event', $JobPayload->decoded['type']);
 
         $JobPayload->prepare(new SendQueuedMailable(m::mock(Mailable::class)));
         $this->assertSame('mail', $JobPayload->decoded['type']);
 
-        $JobPayload->prepare(new SendQueuedNotifications([], new StdClass(), ['mail']));
+        $JobPayload->prepare(new SendQueuedNotifications([], new StdClass, ['mail']));
         $this->assertSame('notification', $JobPayload->decoded['type']);
     }
 
@@ -55,10 +55,10 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $first = new FakeModel();
+        $first = new FakeModel;
         $first->id = 1;
 
-        $second = new FakeModel();
+        $second = new FakeModel;
         $second->id = 2;
 
         $JobPayload->prepare(new FakeJobWithEloquentModel($first, $second));
@@ -69,10 +69,10 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $first = new FakeModel();
+        $first = new FakeModel;
         $first->id = 1;
 
-        $second = new FakeModel();
+        $second = new FakeModel;
         $second->id = 2;
 
         $JobPayload->prepare(new FakeJobWithEloquentCollection(new EloquentCollection([$first, $second])));
@@ -83,7 +83,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $job = new CallQueuedListener(FakeListener::class, 'handle', [new FakeEvent()]);
+        $job = new CallQueuedListener(FakeListener::class, 'handle', [new FakeEvent]);
 
         $JobPayload->prepare($job);
 
@@ -96,7 +96,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $job = new CallQueuedListener(FakeListenerWithDynamicTags::class, 'handle', [new FakeEvent()]);
+        $job = new CallQueuedListener(FakeListenerWithDynamicTags::class, 'handle', [new FakeEvent]);
 
         $JobPayload->prepare($job);
 
@@ -144,7 +144,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $JobPayload->prepare(new FakeJobWithTagsMethod());
+        $JobPayload->prepare(new FakeJobWithTagsMethod);
         $this->assertEquals(['first', 'second'], $JobPayload->decoded['tags']);
     }
 
@@ -161,7 +161,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $JobPayload->prepare(new SendQueuedNotifications([], new class implements Silenced {}, ['mail']));
         $this->assertTrue($JobPayload->isSilenced());
 
-        $JobPayload->prepare(new FakeSilencedJob());
+        $JobPayload->prepare(new FakeSilencedJob);
         $this->assertTrue($JobPayload->isSilenced());
 
         $JobPayload->prepare(new BroadcastEvent(new class {}));

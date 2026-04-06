@@ -26,7 +26,7 @@ class PipelineTest extends TestCase
             return $next($piped);
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class, $pipeTwo])
             ->then(function ($piped) {
@@ -42,9 +42,9 @@ class PipelineTest extends TestCase
 
     public function testPipelineUsageWithObjects()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
-            ->through([new PipelineTestPipeOne()])
+            ->through([new PipelineTestPipeOne])
             ->then(function ($piped) {
                 return $piped;
             });
@@ -57,9 +57,9 @@ class PipelineTest extends TestCase
 
     public function testPipelineUsageWithInvokableObjects()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
-            ->through([new PipelineTestPipeTwo()])
+            ->through([new PipelineTestPipeTwo])
             ->then(
                 function ($piped) {
                     return $piped;
@@ -80,7 +80,7 @@ class PipelineTest extends TestCase
             return $next($piped);
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([$function])
             ->then(
@@ -94,7 +94,7 @@ class PipelineTest extends TestCase
 
         unset($_SERVER['__test.pipe.one']);
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('bar')
             ->through($function)
             ->thenReturn();
@@ -107,7 +107,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineUsageWithPipe()
     {
-        $object = new stdClass();
+        $object = new stdClass;
 
         $object->value = 0;
 
@@ -117,7 +117,7 @@ class PipelineTest extends TestCase
             return $next($object);
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send($object)
             ->through([$function])
             ->pipe([$function])
@@ -133,7 +133,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineThroughMethodOverwritesPreviouslySetAndAppendedPipes()
     {
-        $object = new stdClass();
+        $object = new stdClass;
 
         $object->value = 0;
 
@@ -143,7 +143,7 @@ class PipelineTest extends TestCase
             return $next($object);
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send($object)
             ->through([$function])
             ->pipe([$function])
@@ -156,7 +156,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineUsageWithInvokableClass()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeTwo::class])
             ->then(
@@ -176,7 +176,7 @@ class PipelineTest extends TestCase
         $_SERVER['__test.pipe.then'] = '(*_*)';
         $_SERVER['__test.pipe.second'] = '(*_*)';
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([
                 fn ($value, $next) => 'm(-_-)m',
@@ -199,7 +199,7 @@ class PipelineTest extends TestCase
 
     public function testThenMethodInputValue()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([function ($value, $next) {
                 $value = $next('::not_foo::');
@@ -224,7 +224,7 @@ class PipelineTest extends TestCase
     {
         $parameters = ['one', 'two'];
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through(PipelineTestParameterPipe::class . ':' . implode(',', $parameters))
             ->then(function ($piped) {
@@ -239,7 +239,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineViaChangesTheMethodBeingCalledOnThePipes()
     {
-        $pipelineInstance = new Pipeline(new Container());
+        $pipelineInstance = new Pipeline(new Container);
         $result = $pipelineInstance->send('data')
             ->through(PipelineTestPipeOne::class)
             ->via('differentMethod')
@@ -254,7 +254,7 @@ class PipelineTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
 
-        (new Pipeline())->send('data')
+        (new Pipeline)->send('data')
             ->through(PipelineTestPipeOne::class)
             ->then(function ($piped) {
                 return $piped;
@@ -266,7 +266,7 @@ class PipelineTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
 
-        (new Pipeline())->send('data')
+        (new Pipeline)->send('data')
             ->through(PipelineTestPipeOne::class)
             ->withinTransaction()
             ->then(function ($piped) {
@@ -276,7 +276,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineThenReturnMethodRunsPipelineThenReturnsPassable()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class])
             ->thenReturn();
@@ -289,7 +289,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineConditionable()
     {
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->when(true, function (Pipeline $pipeline) {
                 $pipeline->pipe([PipelineTestPipeOne::class]);
@@ -303,7 +303,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
 
         $_SERVER['__test.pipe.one'] = null;
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->when(false, function (Pipeline $pipeline) {
                 $pipeline->pipe([PipelineTestPipeOne::class]);
@@ -325,7 +325,7 @@ class PipelineTest extends TestCase
             $next($piped);
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class, $pipeTwo])
             ->finally(function ($piped) {
@@ -349,7 +349,7 @@ class PipelineTest extends TestCase
             $_SERVER['__test.pipe.two'] = $piped;
         };
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class, $pipeTwo])
             ->finally(function ($piped) {
@@ -369,9 +369,9 @@ class PipelineTest extends TestCase
 
     public function testPipelineFinallyOrder()
     {
-        $std = new stdClass();
+        $std = new stdClass;
 
-        $result = (new Pipeline(new Container()))
+        $result = (new Pipeline(new Container))
             ->send($std)
             ->through([
                 function ($std, $next) {
@@ -400,13 +400,13 @@ class PipelineTest extends TestCase
 
     public function testPipelineFinallyWhenExceptionOccurs()
     {
-        $std = new stdClass();
+        $std = new stdClass;
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('My Exception: 1');
 
         try {
-            (new Pipeline(new Container()))
+            (new Pipeline(new Container))
                 ->send($std)
                 ->through([
                     function ($std, $next) {
@@ -436,7 +436,7 @@ class PipelineTest extends TestCase
 
     public function testHandleCarry()
     {
-        $result = (new FooPipeline(new Container()))
+        $result = (new FooPipeline(new Container))
             ->send($id = rand(0, 99))
             ->through([PipelineTestPipeOne::class])
             ->via('incr')
@@ -457,7 +457,7 @@ class PipelineTest extends TestCase
             return 'custom_' . $value;
         });
 
-        $pipeline = new Pipeline(new Container());
+        $pipeline = new Pipeline(new Container);
         $this->assertTrue($pipeline->hasMacro('customMethod'));
         $this->assertSame('custom_test', $pipeline->customMethod('test'));
     }
@@ -468,7 +468,7 @@ class PipelineTest extends TestCase
             return $this->pipes;
         });
 
-        $pipeline = new Pipeline(new Container());
+        $pipeline = new Pipeline(new Container);
         $pipeline->through(['pipe1', 'pipe2']);
 
         $this->assertEquals(['pipe1', 'pipe2'], $pipeline->getPipes());
@@ -480,7 +480,7 @@ class PipelineTest extends TestCase
             return 'exists';
         });
 
-        $pipeline = new Pipeline(new Container());
+        $pipeline = new Pipeline(new Container);
 
         $this->assertTrue($pipeline->hasMacro('existingMacro'));
         $this->assertFalse($pipeline->hasMacro('nonExistingMacro'));
@@ -492,14 +492,14 @@ class PipelineTest extends TestCase
             return 'first';
         });
 
-        $pipeline = new Pipeline(new Container());
+        $pipeline = new Pipeline(new Container);
         $this->assertSame('first', $pipeline->testMacro());
 
         Pipeline::macro('testMacro', function () {
             return 'second';
         });
 
-        $pipeline2 = new Pipeline(new Container());
+        $pipeline2 = new Pipeline(new Container);
         $this->assertSame('second', $pipeline2->testMacro());
     }
 }

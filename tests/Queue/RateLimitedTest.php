@@ -89,7 +89,7 @@ class RateLimitedTest extends TestCase
     {
         $limiter = m::mock(RateLimiter::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(RateLimiter::class, $limiter);
 
         Container::setInstance($container);

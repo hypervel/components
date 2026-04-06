@@ -437,7 +437,7 @@ class Blueprint
     public function dropForeignIdFor(object|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
-            $model = new $model();
+            $model = new $model;
         }
 
         return $this->dropColumn($column ?: $model->getForeignKey());
@@ -449,7 +449,7 @@ class Blueprint
     public function dropConstrainedForeignIdFor(object|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
-            $model = new $model();
+            $model = new $model;
         }
 
         return $this->dropConstrainedForeignId($column ?: $model->getForeignKey());
@@ -803,7 +803,7 @@ class Blueprint
     public function foreignIdFor(object|string $model, ?string $column = null): ForeignIdColumnDefinition
     {
         if (is_string($model)) {
-            $model = new $model();
+            $model = new $model;
         }
 
         $column = $column ?: $model->getForeignKey();

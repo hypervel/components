@@ -106,7 +106,7 @@ trait HasNode
             return static::$hasSoftDelete;
         }
 
-        return static::$hasSoftDelete = method_exists(new static(), 'bootSoftDeletes');
+        return static::$hasSoftDelete = method_exists(new static, 'bootSoftDeletes');
     }
 
     protected function actionRaw(): bool
@@ -584,7 +584,7 @@ trait HasNode
 
     public static function scoped(array $attributes): mixed
     {
-        $instance = new static();
+        $instance = new static;
 
         $instance->setRawAttributes($attributes);
 
@@ -614,7 +614,7 @@ trait HasNode
 
         $instance->save();
 
-        $relation = new Collection();
+        $relation = new Collection;
 
         foreach ((array) $children as $child) {
             $relation->add($child = static::create($child, $instance));

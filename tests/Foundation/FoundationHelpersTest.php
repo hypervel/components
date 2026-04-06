@@ -233,7 +233,7 @@ class FoundationHelpersTest extends TestCase
     public function testAbortReceivesCodeAsSymfonyResponseInstance()
     {
         try {
-            abort($code = new SymfonyResponse());
+            abort($code = new SymfonyResponse);
 
             $this->fail(
                 sprintf('abort function must throw %s when receiving code as Symfony Response instance.', HttpResponseException::class)
@@ -256,7 +256,7 @@ class FoundationHelpersTest extends TestCase
                 {
                     $this->request = $request;
 
-                    return new SymfonyResponse();
+                    return new SymfonyResponse;
                 }
             });
 
@@ -288,7 +288,7 @@ class FoundationHelpersTest extends TestCase
 
     public function testBroadcastIfReturnsRealBroadcastOnTrue()
     {
-        $result = broadcast_if(true, new stdClass());
+        $result = broadcast_if(true, new stdClass);
 
         $this->assertInstanceOf(PendingBroadcast::class, $result);
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
@@ -300,7 +300,7 @@ class FoundationHelpersTest extends TestCase
 
         broadcast_if(false, function () use (&$evaluated) {
             $evaluated = true;
-            return new stdClass();
+            return new stdClass;
         });
 
         $this->assertFalse($evaluated, 'Event closure should not be evaluated when condition is false');
@@ -313,7 +313,7 @@ class FoundationHelpersTest extends TestCase
 
     public function testBroadcastUnlessReturnsRealBroadcastOnFalse()
     {
-        $result = broadcast_unless(false, new stdClass());
+        $result = broadcast_unless(false, new stdClass);
 
         $this->assertInstanceOf(PendingBroadcast::class, $result);
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
@@ -321,7 +321,7 @@ class FoundationHelpersTest extends TestCase
 
     public function testFakePendingBroadcastMethodsAreNoOps()
     {
-        $fake = new FakePendingBroadcast();
+        $fake = new FakePendingBroadcast;
 
         $this->assertSame($fake, $fake->via('pusher'));
         $this->assertSame($fake, $fake->toOthers());

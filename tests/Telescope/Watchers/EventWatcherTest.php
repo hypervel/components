@@ -43,7 +43,7 @@ class EventWatcherTest extends FeatureTestCase
     public function testEventWatcherRegistersAnyEvents()
     {
         $this->app->make(Dispatcher::class)
-            ->dispatch(new DummyEvent());
+            ->dispatch(new DummyEvent);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -69,7 +69,7 @@ class EventWatcherTest extends FeatureTestCase
     public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
     {
         $this->app->make(Dispatcher::class)
-            ->dispatch(new DummyEventWithObject());
+            ->dispatch(new DummyEventWithObject);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -85,7 +85,7 @@ class EventWatcherTest extends FeatureTestCase
     public function testEventWatcherIgnoreEvent()
     {
         $this->app->make(Dispatcher::class)
-            ->dispatch(new IgnoredEvent());
+            ->dispatch(new IgnoredEvent);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -101,7 +101,7 @@ class EventWatcherTest extends FeatureTestCase
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
         $method->setAccessible(true);
 
-        $this->assertSame($formatted, $method->invoke(new EventWatcher(), DummyEvent::class)[0]['name']);
+        $this->assertSame($formatted, $method->invoke(new EventWatcher, DummyEvent::class)[0]['name']);
     }
 
     public static function formatListenersProvider()
@@ -120,7 +120,7 @@ class EventWatcherTest extends FeatureTestCase
                 DummyEventListener::class . '@handle',
             ],
             'array object and method' => [
-                [new DummyEventListener(), 'handle'],
+                [new DummyEventListener, 'handle'],
                 DummyEventListener::class . '@handle',
             ],
             'closure' => [
@@ -154,7 +154,7 @@ class DummyEventWithObject
 
     public function __construct()
     {
-        $this->thing = new DummyObject();
+        $this->thing = new DummyObject;
     }
 }
 

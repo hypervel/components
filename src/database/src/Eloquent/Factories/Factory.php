@@ -136,13 +136,13 @@ abstract class Factory
         array $excludeRelationships = [],
     ) {
         $this->count = $count;
-        $this->states = $states ?? new Collection();
-        $this->has = $has ?? new Collection();
-        $this->for = $for ?? new Collection();
-        $this->afterMaking = $afterMaking ?? new Collection();
-        $this->afterCreating = $afterCreating ?? new Collection();
+        $this->states = $states ?? new Collection;
+        $this->has = $has ?? new Collection;
+        $this->for = $for ?? new Collection;
+        $this->afterMaking = $afterMaking ?? new Collection;
+        $this->afterCreating = $afterCreating ?? new Collection;
         $this->connection = $connection;
-        $this->recycle = $recycle ?? new Collection();
+        $this->recycle = $recycle ?? new Collection;
         $this->faker = $this->withFaker();
         $this->expandRelationships = $expandRelationships ?? self::$expandRelationshipsByDefault;
         $this->excludeRelationships = $excludeRelationships;
@@ -162,7 +162,7 @@ abstract class Factory
      */
     public static function new(callable|array $attributes = []): static
     {
-        return (new static())->state($attributes)->configure();
+        return (new static)->state($attributes)->configure();
     }
 
     /**
@@ -702,7 +702,7 @@ abstract class Factory
      */
     public function withoutAfterMaking(): static
     {
-        return $this->newInstance(['afterMaking' => new Collection()]);
+        return $this->newInstance(['afterMaking' => new Collection]);
     }
 
     /**
@@ -710,7 +710,7 @@ abstract class Factory
      */
     public function withoutAfterCreating(): static
     {
-        return $this->newInstance(['afterCreating' => new Collection()]);
+        return $this->newInstance(['afterCreating' => new Collection]);
     }
 
     /**

@@ -29,7 +29,7 @@ class Port
     {
         $config = self::filter($config);
 
-        $port = new static();
+        $port = new static;
         isset($config['name']) && $port->setName($config['name']);
         isset($config['type']) && $port->setType($config['type']);
         isset($config['host']) && $port->setHost($config['host']);

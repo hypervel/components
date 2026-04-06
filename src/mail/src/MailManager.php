@@ -206,7 +206,7 @@ class MailManager implements FactoryContract
      */
     protected function createSmtpTransport(array $config): EsmtpTransport
     {
-        $factory = new EsmtpTransportFactory();
+        $factory = new EsmtpTransportFactory;
 
         $scheme = $config['scheme'] ?? null;
 
@@ -307,7 +307,7 @@ class MailManager implements FactoryContract
      */
     protected function createMailTransport(): SendmailTransport
     {
-        return new SendmailTransport();
+        return new SendmailTransport;
     }
 
     /**
@@ -420,7 +420,7 @@ class MailManager implements FactoryContract
      */
     protected function createArrayTransport(): ArrayTransport
     {
-        return new ArrayTransport();
+        return new ArrayTransport;
     }
 
     /**
@@ -461,7 +461,7 @@ class MailManager implements FactoryContract
         $config = $this->config->get("mail.mailers.{$name}");
 
         if (isset($config['url'])) {
-            $config = array_merge($config, (new ConfigurationUrlParser())->parseConfiguration($config));
+            $config = array_merge($config, (new ConfigurationUrlParser)->parseConfiguration($config));
 
             $config['transport'] = Arr::pull($config, 'driver');
         }

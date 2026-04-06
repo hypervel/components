@@ -24,7 +24,7 @@ class QueueFakeTest extends TestCase
     public function testFakeFor()
     {
         Queue::fakeFor(function () {
-            Queue::push(new TestJob());
+            Queue::push(new TestJob);
             Queue::assertPushed(TestJob::class);
         });
     }
@@ -32,8 +32,8 @@ class QueueFakeTest extends TestCase
     public function testFakeExceptFor()
     {
         Queue::fakeExceptFor(function () {
-            Queue::push(new TestJob());
-            Queue::push(new OtherTestJob());
+            Queue::push(new TestJob);
+            Queue::push(new OtherTestJob);
 
             Queue::assertNotPushed(TestJob::class);
             Queue::assertPushed(OtherTestJob::class);

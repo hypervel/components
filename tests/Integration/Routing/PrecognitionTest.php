@@ -208,7 +208,7 @@ class PrecognitionTest extends RoutingTestCase
     {
         Route::get('test-route', function () {
             precognitive(function () {
-                throw new ModelNotFoundException();
+                throw new ModelNotFoundException;
             });
             fail();
         })->middleware(PrecognitionInvokingController::class);

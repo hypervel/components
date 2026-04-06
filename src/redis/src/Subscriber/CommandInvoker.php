@@ -23,10 +23,10 @@ class CommandInvoker
 
     public function __construct(protected Connection $connection, protected ?StdoutLoggerInterface $logger = null)
     {
-        $this->resultChannel = new Channel();
-        $this->pingChannel = new Channel();
+        $this->resultChannel = new Channel;
+        $this->pingChannel = new Channel;
         $this->messageChannel = new Channel(100);
-        $this->timer = new Timer();
+        $this->timer = new Timer;
         $this->loop();
         $this->watchForShutdown();
     }

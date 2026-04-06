@@ -25,7 +25,7 @@ class Channel
         protected int $size
     ) {
         $this->channel = new CoChannel($size);
-        $this->queue = new SplQueue();
+        $this->queue = new SplQueue;
     }
 
     /**

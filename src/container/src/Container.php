@@ -927,7 +927,7 @@ class Container implements ArrayAccess, ContainerContract
 
         if (! $needsContextualBuild) {
             if (in_array($abstract, $this->getResolvingStack(), true)) {
-                $e = new CircularDependencyException();
+                $e = new CircularDependencyException;
                 $e->addDefinitionName($abstract);
 
                 throw $e;
@@ -1394,7 +1394,7 @@ class Container implements ArrayAccess, ContainerContract
             // we can just resolve the instances of the objects right away, without
             // resolving any other types or dependencies out of these containers.
             if (! $recipe->hasConstructor) {
-                $instance = new $concrete();
+                $instance = new $concrete;
 
                 $this->fireAfterResolvingAttributeCallbacks(
                     $recipe->classAttributes,
@@ -1957,7 +1957,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public static function getInstance(): static
     {
-        return static::$instance ??= new static();
+        return static::$instance ??= new static;
     }
 
     /**

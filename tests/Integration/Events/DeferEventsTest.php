@@ -43,7 +43,7 @@ class DeferEventsTest extends TestCase
         });
 
         $response = Event::defer(function () {
-            $model = new TestModel();
+            $model = new TestModel;
             $model->fireModelEvent('saved', false);
 
             $this->assertSame([], $_SERVER['__model_event.test']);
@@ -68,10 +68,10 @@ class DeferEventsTest extends TestCase
         });
 
         $response = Event::defer(function () {
-            $model1 = new TestModel();
+            $model1 = new TestModel;
             $model1->fireModelEvent('saved');
 
-            $model2 = new AnotherTestModel();
+            $model2 = new AnotherTestModel;
             $model2->fireModelEvent('created');
 
             // Events should not have fired yet
@@ -97,7 +97,7 @@ class DeferEventsTest extends TestCase
         });
 
         $response = Event::defer(function () {
-            $model = new TestModel();
+            $model = new TestModel;
             $model->fireModelEvent('creating');
             $model->fireModelEvent('saved');
 

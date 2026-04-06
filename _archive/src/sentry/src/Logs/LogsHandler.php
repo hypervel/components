@@ -76,7 +76,7 @@ class LogsHandler extends AbstractProcessingHandler
     public function getBatchFormatter(): FormatterInterface
     {
         if (! $this->batchFormatter) {
-            $this->batchFormatter = new LineFormatter();
+            $this->batchFormatter = new LineFormatter;
         }
 
         return $this->batchFormatter;

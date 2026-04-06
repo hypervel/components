@@ -107,7 +107,7 @@ trait InteractsWithSqliteDatabaseFile
     protected function withoutSqliteDatabase(callable $callback): void
     {
         $time = time();
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         $baseDatabase = $this->baseSqliteDatabasePath();
         $activeDatabase = $this->activeSqliteDatabasePath();
@@ -159,7 +159,7 @@ trait InteractsWithSqliteDatabaseFile
     protected function withSqliteDatabase(callable $callback): void
     {
         $this->withoutSqliteDatabase(function () use ($callback) {
-            $filesystem = new Filesystem();
+            $filesystem = new Filesystem;
 
             $baseDatabase = $this->baseSqliteDatabasePath();
             $activeDatabase = $this->activeSqliteDatabasePath();
@@ -199,7 +199,7 @@ trait InteractsWithSqliteDatabaseFile
     #[AfterClass]
     public static function cleanupBackupSqliteDatabaseFilesOnFailed(): void
     {
-        $filesystem = new Filesystem();
+        $filesystem = new Filesystem;
 
         $filesystem->delete(
             (new Collection([

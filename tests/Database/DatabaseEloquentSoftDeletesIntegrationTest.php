@@ -27,7 +27,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -229,7 +229,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
             {
                 $mock = m::mock(\Hypervel\Database\Eloquent\Builder::class);
                 $mock->shouldReceive('where')->andReturnSelf();
-                $mock->shouldReceive('forceDelete')->andThrow(new Exception());
+                $mock->shouldReceive('forceDelete')->andThrow(new Exception);
 
                 return $mock;
             }
@@ -685,7 +685,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     public function testSoftDeleteIsAppliedToNewQuery()
     {
-        $query = (new User())->newQuery();
+        $query = (new User)->newQuery();
         $this->assertSame('select * from "users" where "users"."deleted_at" is null', $query->toSql());
     }
 

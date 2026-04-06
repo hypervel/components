@@ -319,7 +319,7 @@ class ArtisanCommandTest extends TestCase
      */
     public function testPromptValidationExceptionProducesFailureWithoutErrorOutput(): void
     {
-        $this->app->make(Kernel::class)->registerCommand(new FakeCommandWithPromptValidation());
+        $this->app->make(Kernel::class)->registerCommand(new FakeCommandWithPromptValidation);
 
         $this->artisan('fake-prompt-validation-test')
             ->expectsQuestion('What is your name?', '')

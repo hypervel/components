@@ -66,7 +66,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $uuid = Str::uuid();
 
         return [
-            [$uuid, new MyTestJob(), 'MyTestJob', 'CallQueuedHandler'],
+            [$uuid, new MyTestJob, 'MyTestJob', 'CallQueuedHandler'],
             [$uuid, fn () => 0, 'Closure', 'CallQueuedHandler'],
             [$uuid, 'foo', 'foo', 'foo'],
         ];
@@ -114,7 +114,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         Str::createUuidsUsing(fn () => $uuid);
 
-        $job = (new MyBatchableJob())->withBatchId('test-batch-id');
+        $job = (new MyBatchableJob)->withBatchId('test-batch-id');
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -142,7 +142,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     {
         $this->expectException('InvalidArgumentException');
 
-        $job = new stdClass();
+        $job = new stdClass;
         $job->invalid = "\xc3\x28";
 
         $queue = m::mock(Queue::class)->makePartial();

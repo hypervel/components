@@ -32,7 +32,7 @@ final class TestingFeature
         ?Closure $pest = null
     ): Fluent {
         /** @var Fluent<string, FeaturesCollection> $result */
-        $result = new Fluent(['attribute' => new FeaturesCollection()]);
+        $result = new Fluent(['attribute' => new FeaturesCollection]);
 
         $defaultResolver = self::once($default);
 

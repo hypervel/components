@@ -225,10 +225,10 @@ class ConnectionFactory
         }
 
         return match ($config['driver']) {
-            'mysql' => new MySqlConnector(),
-            'mariadb' => new MariaDbConnector(),
-            'pgsql' => new PostgresConnector(),
-            'sqlite' => new SQLiteConnector(),
+            'mysql' => new MySqlConnector,
+            'mariadb' => new MariaDbConnector,
+            'pgsql' => new PostgresConnector,
+            'sqlite' => new SQLiteConnector,
             default => throw new InvalidArgumentException("Unsupported driver [{$config['driver']}]."),
         };
     }

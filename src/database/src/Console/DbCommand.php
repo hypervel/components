@@ -76,7 +76,7 @@ class DbCommand extends Command
         }
 
         if (! empty($connection['url'])) {
-            $connection = (new ConfigurationUrlParser())->parseConfiguration($connection);
+            $connection = (new ConfigurationUrlParser)->parseConfiguration($connection);
         }
 
         if ($this->option('read')) {

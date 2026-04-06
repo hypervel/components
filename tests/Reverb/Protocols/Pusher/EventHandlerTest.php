@@ -24,7 +24,7 @@ class EventHandlerTest extends ReverbTestCase
     {
         parent::setUp();
 
-        $this->connection = new FakeConnection();
+        $this->connection = new FakeConnection;
         $this->pusher = new EventHandler($this->app->make(ChannelManager::class));
     }
 

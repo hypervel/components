@@ -34,7 +34,7 @@ class FoundationApplicationTest extends TestCase
             return $event->locale === 'foo' && $event->previousLocale === 'bar';
         }));
 
-        $app = new Application();
+        $app = new Application;
         $app->singleton('translator', fn () => $trans);
         $app->singleton('events', fn () => $events);
 
@@ -46,7 +46,7 @@ class FoundationApplicationTest extends TestCase
         $trans = m::mock(stdClass::class);
         $trans->shouldReceive('setFallback')->once()->with('fr');
 
-        $app = new Application();
+        $app = new Application;
         $app->singleton('translator', fn () => $trans);
 
         $app->setFallbackLocale('fr');
@@ -57,7 +57,7 @@ class FoundationApplicationTest extends TestCase
         $trans = m::mock(stdClass::class);
         $trans->shouldReceive('getFallback')->once()->andReturn('en');
 
-        $app = new Application();
+        $app = new Application;
         $app->singleton('translator', fn () => $trans);
 
         $this->assertSame('en', $app->getFallbackLocale());
@@ -68,7 +68,7 @@ class FoundationApplicationTest extends TestCase
         $provider = m::mock(ApplicationBasicServiceProviderStub::class);
         $class = get_class($provider);
         $provider->shouldReceive('register')->once();
-        $app = new Application();
+        $app = new Application;
         $app->register($provider);
 
         $this->assertArrayHasKey($class, $app->getLoadedProviders());
@@ -76,7 +76,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testClassesAreBoundWhenServiceProviderIsRegistered()
     {
-        $app = new Application();
+        $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
             public $bindings = [
                 AbstractClass::class => ConcreteClass::class,
@@ -93,7 +93,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testSingletonsAreCreatedWhenServiceProviderIsRegistered()
     {
-        $app = new Application();
+        $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
             public $singletons = [
                 NonContractBackedClass::class,
@@ -119,7 +119,7 @@ class FoundationApplicationTest extends TestCase
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
         $provider->shouldReceive('register')->once();
-        $app = new Application();
+        $app = new Application;
         $app->register($provider);
 
         $this->assertArrayHasKey($class, $app->getLoadedProviders());
@@ -130,7 +130,7 @@ class FoundationApplicationTest extends TestCase
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
         $provider->shouldReceive('register')->once();
-        $app = new Application();
+        $app = new Application;
         $app->register($provider);
 
         $this->assertTrue($app->providerIsLoaded($class));
@@ -139,7 +139,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironment()
     {
-        $app = new Application();
+        $app = new Application;
         $app->instance('env', 'foo');
 
         $this->assertSame('foo', $app->environment());
@@ -157,21 +157,21 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvironmentHelpers()
     {
-        $local = new Application();
+        $local = new Application;
         $local->instance('env', 'local');
 
         $this->assertTrue($local->isLocal());
         $this->assertFalse($local->isProduction());
         $this->assertFalse($local->runningUnitTests());
 
-        $production = new Application();
+        $production = new Application;
         $production->instance('env', 'production');
 
         $this->assertTrue($production->isProduction());
         $this->assertFalse($production->isLocal());
         $this->assertFalse($production->runningUnitTests());
 
-        $testing = new Application();
+        $testing = new Application;
         $testing->instance('env', 'testing');
 
         $this->assertTrue($testing->runningUnitTests());
@@ -181,12 +181,12 @@ class FoundationApplicationTest extends TestCase
 
     public function testDebugHelper()
     {
-        $debugOff = new Application();
+        $debugOff = new Application;
         $debugOff->instance('config', new Repository(['app' => ['debug' => false]]));
 
         $this->assertFalse($debugOff->hasDebugModeEnabled());
 
-        $debugOn = new Application();
+        $debugOn = new Application;
         $debugOn->instance('config', new Repository(['app' => ['debug' => true]]));
 
         $this->assertTrue($debugOn->hasDebugModeEnabled());
@@ -194,7 +194,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testBeforeBootstrappingAddsClosure()
     {
-        $app = new Application();
+        $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
         $app->instance('events', $eventDispatcher);
 
@@ -205,7 +205,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testAfterBootstrappingAddsClosure()
     {
-        $app = new Application();
+        $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
         $app->instance('events', $eventDispatcher);
 
@@ -216,7 +216,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testTerminationTests()
     {
-        $app = new Application();
+        $app = new Application;
 
         $result = [];
         $callback1 = function () use (&$result) {
@@ -242,7 +242,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testTerminationCallbacksCanAcceptAtNotation()
     {
-        $app = new Application();
+        $app = new Application;
         $app->terminating(ConcreteTerminator::class . '@terminate');
 
         $app->terminate();
@@ -252,7 +252,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testBootingCallbacks()
     {
-        $application = new Application();
+        $application = new Application;
 
         $counter = 0;
         $closure = function ($app) use (&$counter, $application) {
@@ -275,7 +275,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testBootedCallbacks()
     {
-        $application = new Application();
+        $application = new Application;
 
         $counter = 0;
         $closure = function ($app) use (&$counter, $application) {
@@ -404,7 +404,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithNullBasePath()
     {
-        $app = new Application();
+        $app = new Application;
         $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
         $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
@@ -446,7 +446,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testMacroable()
     {
-        $app = new Application();
+        $app = new Application;
         $app->macro('foo', function () {
             return 'bar';
         });
@@ -456,7 +456,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testUseConfigPath()
     {
-        $app = new Application();
+        $app = new Application;
         $app->useConfigPath(__DIR__ . '/Fixtures/config');
         $app->bootstrapWith([LoadConfiguration::class]);
 
@@ -465,7 +465,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testMergingConfig()
     {
-        $app = new Application();
+        $app = new Application;
         $app->useConfigPath(__DIR__ . '/Fixtures/config');
         $app->bootstrapWith([LoadConfiguration::class]);
 
@@ -527,7 +527,7 @@ class FoundationApplicationTest extends TestCase
         $this->expectException(NotFoundHttpException::class);
         $this->expectExceptionMessage('Page was not found');
 
-        $app = new Application();
+        $app = new Application;
         $app->abort(404, 'Page was not found');
     }
 
@@ -536,14 +536,14 @@ class FoundationApplicationTest extends TestCase
         $this->expectException(HttpException::class);
         $this->expectExceptionMessage('Request is bad');
 
-        $app = new Application();
+        $app = new Application;
         $app->abort(400, 'Request is bad');
     }
 
     public function testAbortAcceptsHeaders()
     {
         try {
-            $app = new Application();
+            $app = new Application;
             $app->abort(400, 'Bad request', ['X-FOO' => 'BAR']);
             $this->fail(sprintf('abort must throw an %s.', HttpException::class));
         } catch (HttpException $exception) {
@@ -553,7 +553,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testMethodAfterLoadingEnvironmentAddsClosure()
     {
-        $app = new Application();
+        $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
         $app->instance('events', $eventDispatcher);
 
@@ -644,7 +644,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testCoreContainerAliasesAreRegisteredByDefault()
     {
-        $app = new Application();
+        $app = new Application;
 
         $this->assertTrue($app->isAlias(\Hypervel\Contracts\Translation\Translator::class));
         $this->assertSame('translator', $app->getAlias(\Hypervel\Contracts\Translation\Translator::class));
@@ -656,7 +656,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testAddAbsoluteCachePathPrefixReturnsSelf()
     {
-        $app = new Application();
+        $app = new Application;
 
         $this->assertSame($app, $app->addAbsoluteCachePathPrefix('s3:'));
     }

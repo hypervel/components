@@ -74,7 +74,7 @@ class CallableDispatcher implements CallableDispatcherContract
     protected function resolveParameters(Route $route, callable $callable): array
     {
         if ($callable instanceof Closure) {
-            $reflectionCache = static::$reflectionCache ??= new WeakMap();
+            $reflectionCache = static::$reflectionCache ??= new WeakMap;
 
             if (! isset($reflectionCache[$callable])) {
                 $reflectionCache[$callable] = (new ReflectionFunction($callable))->getParameters();
@@ -97,7 +97,7 @@ class CallableDispatcher implements CallableDispatcherContract
      */
     public static function flushCache(): void
     {
-        static::$reflectionCache = new WeakMap();
+        static::$reflectionCache = new WeakMap;
     }
 
     /**

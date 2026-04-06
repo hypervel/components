@@ -93,7 +93,7 @@ class CommandMutexTest extends TestCase
     protected function runCommand(bool $withIsolated = true)
     {
         $input = new ArrayInput(['--isolated' => $withIsolated]);
-        $output = new NullOutput();
+        $output = new NullOutput;
         $this->command->run($input, $output);
     }
 }

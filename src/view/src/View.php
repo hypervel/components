@@ -238,7 +238,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {
-        return $this->with('errors', (new ViewErrorBag())->put(
+        return $this->with('errors', (new ViewErrorBag)->put(
             $bag,
             $this->formatErrors($provider)
         ));

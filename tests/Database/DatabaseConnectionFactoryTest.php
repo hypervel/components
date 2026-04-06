@@ -23,7 +23,7 @@ class DatabaseConnectionFactoryTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->db = new DB();
+        $this->db = new DB;
 
         $this->db->addConnection([
             'driver' => 'sqlite',

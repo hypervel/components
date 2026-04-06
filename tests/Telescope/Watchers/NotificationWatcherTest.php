@@ -32,11 +32,11 @@ class NotificationWatcherTest extends FeatureTestCase
 
     public function testNotificationWatcherRegistersEntry()
     {
-        $notifiable = new AnonymousNotifiable();
+        $notifiable = new AnonymousNotifiable;
         $notifiable->routes = ['route1', 'route2'];
         $event = new NotificationSent(
             $notifiable,
-            new Notification(),
+            new Notification,
             'channel',
             'response'
         );

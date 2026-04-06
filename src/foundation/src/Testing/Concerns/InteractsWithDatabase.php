@@ -348,7 +348,7 @@ trait InteractsWithDatabase
      */
     protected function newModelFor($table)
     {
-        return is_subclass_of($table, Model::class) ? (new $table()) : null;
+        return is_subclass_of($table, Model::class) ? (new $table) : null;
     }
 
     /**

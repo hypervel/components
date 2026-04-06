@@ -117,7 +117,7 @@ class PhpRedisConnection extends RedisConnection
             $parameters[] = $config['context'];
         }
 
-        $redis = new Redis();
+        $redis = new Redis;
         if (! $redis->connect(...$parameters)) {
             throw new ConnectionException('Connection reconnect failed.');
         }

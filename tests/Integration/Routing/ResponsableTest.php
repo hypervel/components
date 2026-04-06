@@ -19,7 +19,7 @@ class ResponsableTest extends RoutingTestCase
     public function testResponsableObjectsAreRendered()
     {
         Route::get('/responsable', function () {
-            return new TestResponsableResponse();
+            return new TestResponsableResponse;
         });
 
         $response = $this->get('/responsable');

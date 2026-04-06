@@ -22,7 +22,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 {
     public function testBasicCreateDumpsAutoload()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
@@ -38,7 +38,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     public function testBasicCreateGivesCreatorProperArguments()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
@@ -54,7 +54,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     public function testBasicCreateGivesCreatorProperArgumentsWhenNameIsStudlyCase()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
@@ -70,7 +70,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     public function testBasicCreateGivesCreatorProperArgumentsWhenTableIsSet()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
@@ -86,7 +86,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     public function testBasicCreateGivesCreatorProperArgumentsWhenCreateTablePatternIsFound()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
@@ -102,7 +102,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     public function testCanSpecifyPathToCreateMigrationsIn()
     {
-        $app = new ApplicationDatabaseMigrationMakeStub();
+        $app = new ApplicationDatabaseMigrationMakeStub;
         $command = new MigrateMakeCommand(
             $creator = m::mock(MigrationCreator::class),
             m::mock(Composer::class)->shouldIgnoreMissing()
@@ -117,7 +117,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput());
+        return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
 

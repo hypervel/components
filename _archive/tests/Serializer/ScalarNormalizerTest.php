@@ -16,7 +16,7 @@ class ScalarNormalizerTest extends TestCase
 {
     public function testSupportsNormalizationForScalars()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertTrue($normalizer->supportsNormalization(42));
         $this->assertTrue($normalizer->supportsNormalization('hello'));
@@ -27,16 +27,16 @@ class ScalarNormalizerTest extends TestCase
 
     public function testDoesNotSupportNormalizationForNonScalars()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertFalse($normalizer->supportsNormalization(null));
         $this->assertFalse($normalizer->supportsNormalization([]));
-        $this->assertFalse($normalizer->supportsNormalization(new stdClass()));
+        $this->assertFalse($normalizer->supportsNormalization(new stdClass));
     }
 
     public function testNormalizeReturnsScalarUnchanged()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertSame(42, $normalizer->normalize(42));
         $this->assertSame('hello', $normalizer->normalize('hello'));
@@ -46,7 +46,7 @@ class ScalarNormalizerTest extends TestCase
 
     public function testSupportsDenormalizationForKnownTypes()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertTrue($normalizer->supportsDenormalization(null, 'int'));
         $this->assertTrue($normalizer->supportsDenormalization(null, 'string'));
@@ -58,7 +58,7 @@ class ScalarNormalizerTest extends TestCase
 
     public function testDoesNotSupportDenormalizationForUnknownTypes()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertFalse($normalizer->supportsDenormalization(null, 'object'));
         $this->assertFalse($normalizer->supportsDenormalization(null, stdClass::class));
@@ -67,7 +67,7 @@ class ScalarNormalizerTest extends TestCase
 
     public function testDenormalizeInt()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertSame(42, $normalizer->denormalize('42', 'int'));
         $this->assertSame(0, $normalizer->denormalize('abc', 'int'));
@@ -75,21 +75,21 @@ class ScalarNormalizerTest extends TestCase
 
     public function testDenormalizeString()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertSame('42', $normalizer->denormalize(42, 'string'));
     }
 
     public function testDenormalizeFloat()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertSame(4.2, $normalizer->denormalize('4.2', 'float'));
     }
 
     public function testDenormalizeBool()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertTrue($normalizer->denormalize(1, 'bool'));
         $this->assertFalse($normalizer->denormalize(0, 'bool'));
@@ -97,14 +97,14 @@ class ScalarNormalizerTest extends TestCase
 
     public function testDenormalizeUnknownTypeReturnsDataUnchanged()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $this->assertSame('hello', $normalizer->denormalize('hello', 'unknown'));
     }
 
     public function testGetSupportedTypes()
     {
-        $normalizer = new ScalarNormalizer();
+        $normalizer = new ScalarNormalizer;
 
         $types = $normalizer->getSupportedTypes(null);
 

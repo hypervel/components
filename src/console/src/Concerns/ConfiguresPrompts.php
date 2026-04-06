@@ -133,7 +133,7 @@ trait ConfiguresPrompts
                 $this->components->error(is_string($required) ? $required : 'Required.');
 
                 if ($this->hypervel->runningUnitTests()) {
-                    throw new PromptValidationException();
+                    throw new PromptValidationException;
                 }
                 continue;
             }
@@ -144,7 +144,7 @@ trait ConfiguresPrompts
                 $this->components->error($error);
 
                 if ($this->hypervel->runningUnitTests()) {
-                    throw new PromptValidationException();
+                    throw new PromptValidationException;
                 }
                 continue;
             }

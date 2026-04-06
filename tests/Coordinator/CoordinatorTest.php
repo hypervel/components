@@ -18,22 +18,22 @@ class CoordinatorTest extends TestCase
 {
     public function testYield()
     {
-        $coord = new Coordinator();
+        $coord = new Coordinator;
         $aborted = $coord->yield(0.001);
         $this->assertFalse($aborted);
     }
 
     public function testYieldMicroSeconds()
     {
-        $coord = new Coordinator();
+        $coord = new Coordinator;
         $aborted = $coord->yield(0.000001);
         $this->assertFalse($aborted);
     }
 
     public function testYieldResume()
     {
-        $coord = new Coordinator();
-        $wg = new WaitGroup();
+        $coord = new Coordinator;
+        $wg = new WaitGroup;
         $wg->add();
         go(function () use ($coord, $wg) {
             $aborted = $coord->yield(10);

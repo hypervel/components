@@ -32,7 +32,7 @@ final class ConcurrencyCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Check if we're in a coroutine context
         if (! Coroutine::inCoroutine()) {

@@ -71,7 +71,7 @@ class ThrottlesExceptionsTest extends TestCase
         $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
 
         $instance->call($job, [
-            'command' => serialize($command = new $class()),
+            'command' => serialize($command = new $class),
         ]);
 
         $this->assertTrue($class::$handled);
@@ -93,7 +93,7 @@ class ThrottlesExceptionsTest extends TestCase
         $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
 
         $instance->call($job, [
-            'command' => serialize($command = new $class()),
+            'command' => serialize($command = new $class),
         ]);
 
         $this->assertFalse($class::$handled);
@@ -114,7 +114,7 @@ class ThrottlesExceptionsTest extends TestCase
         $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
 
         $instance->call($job, [
-            'command' => serialize($command = new $class()),
+            'command' => serialize($command = new $class),
         ]);
 
         $this->assertTrue($class::$handled);
@@ -135,7 +135,7 @@ class ThrottlesExceptionsTest extends TestCase
         $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
 
         $instance->call($job, [
-            'command' => serialize($command = new $class()),
+            'command' => serialize($command = new $class),
         ]);
 
         $this->assertTrue($class::$handled);
@@ -155,7 +155,7 @@ class ThrottlesExceptionsTest extends TestCase
         $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
 
         $instance->call($job, [
-            'command' => serialize($command = new $class()),
+            'command' => serialize($command = new $class),
         ]);
 
         $this->assertTrue($class::$handled);
@@ -287,7 +287,7 @@ class ThrottlesExceptionsTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptions();
+        $middleware = new ThrottlesExceptions;
 
         Carbon::setTestNow('2000-00-00 00:00:00.000');
 
@@ -337,7 +337,7 @@ class ThrottlesExceptionsTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptions();
+        $middleware = new ThrottlesExceptions;
 
         $middleware->report();
         $middleware->handle($job, $next);
@@ -379,7 +379,7 @@ class ThrottlesExceptionsTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptions();
+        $middleware = new ThrottlesExceptions;
         $middleware->handle($job, $next);
 
         $this->assertTrue($job->released);
@@ -420,7 +420,7 @@ class ThrottlesExceptionsTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptions();
+        $middleware = new ThrottlesExceptions;
         $middleware->handle($job, $next);
 
         $this->assertTrue($job->released);
@@ -438,7 +438,7 @@ class CircuitBreakerTestJob
     {
         static::$handled = true;
 
-        throw new Exception();
+        throw new Exception;
     }
 
     public function middleware(): array
@@ -458,7 +458,7 @@ class CircuitBreakerSkipJob
     {
         static::$handled = true;
 
-        throw new Exception();
+        throw new Exception;
     }
 
     public function middleware(): array
@@ -478,7 +478,7 @@ class CircuitBreakerFailedJob
     {
         static::$handled = true;
 
-        throw new Exception();
+        throw new Exception;
     }
 
     public function middleware(): array

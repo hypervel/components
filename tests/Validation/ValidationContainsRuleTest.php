@@ -42,7 +42,7 @@ class ValidationContainsRuleTest extends TestCase
 
         $this->assertSame('contains:"1","2","3"', (string) $rule);
 
-        $rule = Rule::contains(new Values());
+        $rule = Rule::contains(new Values);
 
         $this->assertSame('contains:"1","2","3","4"', (string) $rule);
 
@@ -69,7 +69,7 @@ class ValidationContainsRuleTest extends TestCase
 
     public function testContainsRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         // Array contains the required value
         $v = new Validator($trans, ['x' => ['foo', 'bar', 'baz']], ['x' => Rule::contains('foo')]);
@@ -98,7 +98,7 @@ class ValidationContainsRuleTest extends TestCase
 
     public function testContainsValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         // Test fails when value is string
         $v = new Validator($trans, ['roles' => 'admin'], ['roles' => Rule::contains('editor')]);

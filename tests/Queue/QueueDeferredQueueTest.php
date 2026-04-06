@@ -30,7 +30,7 @@ class QueueDeferredQueueTest extends TestCase
     {
         unset($_SERVER['__deferred.test']);
 
-        $deferred = new DeferredQueue();
+        $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $deferred->setContainer($container);
@@ -48,7 +48,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $result = null;
 
-        $deferred = new DeferredQueue();
+        $deferred = new DeferredQueue;
         $deferred->setExceptionCallback(function ($exception) use (&$result) {
             $result = $exception;
         });
@@ -70,7 +70,7 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $deferred = new DeferredQueue();
+        $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -78,12 +78,12 @@ class QueueDeferredQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $deferred->setContainer($container);
-        run(fn () => $deferred->push(new DeferredQueueAfterCommitJob()));
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitJob));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $deferred = new DeferredQueue();
+        $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -91,12 +91,12 @@ class QueueDeferredQueueTest extends TestCase
         $container->instance('db.transactions', $transactionManager);
 
         $deferred->setContainer($container);
-        run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceJob()));
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceJob));
     }
 
     protected function getContainer(): Container
     {
-        return new Container();
+        return new Container;
     }
 }
 
@@ -130,7 +130,7 @@ class FailingDeferredQueueTestHandler
 {
     public function fire($job, $data)
     {
-        throw new Exception();
+        throw new Exception;
     }
 
     public function failed()

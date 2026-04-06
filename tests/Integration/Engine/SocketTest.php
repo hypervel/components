@@ -43,7 +43,7 @@ class SocketTest extends EngineIntegrationTestCase
 
     public function testSocketRecvPacketFromTcpServerViaFactory()
     {
-        $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption(
+        $socket = (new Socket\SocketFactory)->make(new Socket\SocketOption(
             $this->getServerHost(),
             $this->getServerPort(),
             protocol: [

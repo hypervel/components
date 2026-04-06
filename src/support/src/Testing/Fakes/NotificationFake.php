@@ -44,7 +44,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function assertSentOnDemand(Closure|string $notification, ?callable $callback = null): void
     {
-        $this->assertSentTo(new AnonymousNotifiable(), $notification, $callback);
+        $this->assertSentTo(new AnonymousNotifiable, $notification, $callback);
     }
 
     /**
@@ -86,7 +86,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function assertSentOnDemandTimes(string $notification, int $times = 1): void
     {
-        $this->assertSentToTimes(new AnonymousNotifiable(), $notification, $times);
+        $this->assertSentToTimes(new AnonymousNotifiable, $notification, $times);
     }
 
     /**

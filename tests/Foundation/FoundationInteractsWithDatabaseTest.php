@@ -163,7 +163,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseCount(ProductStub::class, 1);
-        $this->assertDatabaseCount(new ProductStub(), 1);
+        $this->assertDatabaseCount(new ProductStub, 1);
     }
 
     public function testAssertDatabaseEmpty()
@@ -171,7 +171,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseEmpty(ProductStub::class);
-        $this->assertDatabaseEmpty(new ProductStub());
+        $this->assertDatabaseEmpty(new ProductStub);
     }
 
     public function testAssertTableEntriesCountWrong()
@@ -378,22 +378,22 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     public function testGetTableNameFromModel()
     {
         $this->assertEquals($this->table, $this->getTable(ProductStub::class));
-        $this->assertEquals($this->table, $this->getTable(new ProductStub()));
+        $this->assertEquals($this->table, $this->getTable(new ProductStub));
         $this->assertEquals($this->table, $this->getTable($this->table));
-        $this->assertEquals('all_products', $this->getTable((new ProductStub())->setTable('all_products')));
+        $this->assertEquals('all_products', $this->getTable((new ProductStub)->setTable('all_products')));
     }
 
     public function testGetTableConnectionNameFromModel()
     {
         $this->assertSame(null, $this->getTableConnection(ProductStub::class));
-        $this->assertSame(null, $this->getTableConnection(new ProductStub()));
-        $this->assertSame('mysql', $this->getTableConnection((new ProductStub())->setConnection('mysql')));
+        $this->assertSame(null, $this->getTableConnection(new ProductStub));
+        $this->assertSame('mysql', $this->getTableConnection((new ProductStub)->setConnection('mysql')));
     }
 
     public function testGetTableCustomizedDeletedAtColumnName()
     {
         $this->assertEquals('trashed_at', $this->getDeletedAtColumn(CustomProductStub::class));
-        $this->assertEquals('trashed_at', $this->getDeletedAtColumn(new CustomProductStub()));
+        $this->assertEquals('trashed_at', $this->getDeletedAtColumn(new CustomProductStub));
     }
 
     public function testExpectsDatabaseQueryCount()

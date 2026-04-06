@@ -39,9 +39,9 @@ class AuthTest extends IntegrationTestCase
             return true;
         });
 
-        $middleware = new Authenticate();
+        $middleware = new Authenticate;
         $request = Request::create('/');
-        $response = new Response();
+        $response = new Response;
 
         $responseFromMiddleware = $middleware->handle(
             $request,
@@ -59,9 +59,9 @@ class AuthTest extends IntegrationTestCase
             return false;
         });
 
-        $middleware = new Authenticate();
+        $middleware = new Authenticate;
         $request = Request::create('/');
-        $response = new Response();
+        $response = new Response;
 
         $middleware->handle(
             $request,

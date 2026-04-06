@@ -33,7 +33,7 @@ class RequestTest extends TestCase
             'file' => new UploadedFile('/tmp/tmp_name', 32, 0),
         ]);
         Context::set(ServerRequestInterface::class, $psrRequest);
-        $request = new Request();
+        $request = new Request;
 
         $this->assertTrue($request->hasFile('file'));
         $this->assertFalse($request->hasFile('file2'));
@@ -48,7 +48,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getHeaderLine')->with('Hyperf-Version')->andReturn('v1.0');
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
         $res = $psrRequest->header('Version', 'v1');
         $this->assertSame('v1', $res);
 
@@ -63,7 +63,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
         $this->assertSame(1, $psrRequest->input('id'));
         $this->assertSame('Hyperf', $psrRequest->input('name', 'Hyperf'));
     }
@@ -75,7 +75,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['name' => 'Hyperf']);
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
         $this->assertSame(['name' => 'Hyperf', 'id' => 1, 123 => '123'], $psrRequest->all());
 
         $psrRequest = m::mock(ServerRequestPlusInterface::class);
@@ -83,7 +83,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['id' => 1, '123' => '123']);
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
 
         $this->assertSame(['name' => 'Hyperf', 'id' => 1, 123 => '123'], $psrRequest->all());
     }
@@ -95,7 +95,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['data' => 'Hyperf']);
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
         $this->assertEquals(['id' => 1, 'data' => 'Hyperf'], $psrRequest->all());
     }
 
@@ -106,7 +106,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         RequestContext::set($psrRequest);
 
-        $psrRequest = new Request();
+        $psrRequest = new Request;
         $this->assertSame(['id' => 1, 'name' => 'Hyperf'], $psrRequest->inputs(['id', 'name'], ['name' => 'Hyperf']));
     }
 
@@ -116,7 +116,7 @@ class RequestTest extends TestCase
         $psrRequest = $psrRequest->withParsedBody(['id' => 1]);
         RequestContext::set($psrRequest);
 
-        $request = new Request();
+        $request = new Request;
         $this->assertSame(['id' => 1], $request->all());
 
         $psrRequest = $psrRequest->withParsedBody(['id' => 1, 'name' => 'hyperf']);

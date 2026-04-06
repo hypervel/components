@@ -456,7 +456,7 @@ class Gate implements GateContract
     protected function callbackAllowsGuests(callable $callback): bool
     {
         if ($callback instanceof Closure) {
-            $cache = static::$guestClosureCache ??= new WeakMap();
+            $cache = static::$guestClosureCache ??= new WeakMap;
 
             return $cache[$callback] ??= $this->resolveCallbackAllowsGuests($callback);
         }
@@ -912,7 +912,7 @@ class Gate implements GateContract
         if (! $query instanceof Builder) {
             $query = is_object($query)
                 ? $query->newQuery()
-                : (new $query())->newQuery();
+                : (new $query)->newQuery();
         }
 
         $user = $this->resolveUser();
@@ -963,7 +963,7 @@ class Gate implements GateContract
     {
         static::$policyClassCache = [];
         static::$guestMethodCache = [];
-        static::$guestClosureCache = new WeakMap();
+        static::$guestClosureCache = new WeakMap;
         static::$abilityMethodCache = [];
     }
 }

@@ -11,6 +11,6 @@ class FooPool extends ObjectPool
 {
     protected function createObject(): object
     {
-        return new stdClass();
+        return new stdClass;
     }
 }

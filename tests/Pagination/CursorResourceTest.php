@@ -19,7 +19,7 @@ class CursorResourceTest extends TestCase
     public function testItCanTransformToExplicitResource()
     {
         $paginator = new CursorResourceTestPaginator([
-            new CursorResourceTestModel(),
+            new CursorResourceTestModel,
         ], 1);
 
         $resource = $paginator->toResourceCollection(CursorResourceTestResource::class);
@@ -33,7 +33,7 @@ class CursorResourceTest extends TestCase
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].');
 
         $paginator = new CursorResourceTestPaginator([
-            new CursorResourceTestModel(),
+            new CursorResourceTestModel,
         ], 1);
 
         $paginator->toResourceCollection();
@@ -42,7 +42,7 @@ class CursorResourceTest extends TestCase
     public function testItCanGuessResourceWhenNotProvided()
     {
         $paginator = new CursorResourceTestPaginator([
-            new CursorResourceTestModel(),
+            new CursorResourceTestModel,
         ], 1);
 
         class_alias(CursorResourceTestResource::class, 'Hypervel\Tests\Pagination\Fixtures\Http\Resources\CursorResourceTestModelResource');

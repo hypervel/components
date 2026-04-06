@@ -147,7 +147,7 @@ class RateLimiterTest extends TestCase
 
     public function testShouldUseOriginKeyAsPrefixWhenMultipleLimiterWithSameKey()
     {
-        $rateLimiter = new RateLimiter(new Repository(new ArrayStore()));
+        $rateLimiter = new RateLimiter(new Repository(new ArrayStore));
 
         $rateLimiter->for('user_limiter', fn (string $userId) => [
             Limit::perSecond(3)->by($userId),

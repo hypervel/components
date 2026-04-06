@@ -20,7 +20,7 @@ class TestCommandTest extends TestCase
     #[Test]
     public function itResolvesThePhpunitConfigurationFileFromThePackageRoot(): void
     {
-        $command = new TestCommandHarness();
+        $command = new TestCommandHarness;
 
         $this->assertSame(package_path('phpunit.xml.dist'), $command->phpUnitConfigurationFilePublic());
     }
@@ -28,7 +28,7 @@ class TestCommandTest extends TestCase
     #[Test]
     public function itBuildsPackageRootBinaryPaths(): void
     {
-        $phpunitCommand = new TestCommandHarness();
+        $phpunitCommand = new TestCommandHarness;
         $paratestCommand = new TestCommandHarness(['parallel' => true]);
 
         $this->assertSame(

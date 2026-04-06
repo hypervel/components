@@ -74,7 +74,7 @@ class UniqueJobTest extends QueueTestCase
     public function testLockIsReleasedForSuccessfulJobs()
     {
         UniqueTestJob::$handled = false;
-        dispatch($job = new UniqueTestJob());
+        dispatch($job = new UniqueTestJob);
         $this->runQueueWorkerCommand(['--once' => true]);
 
         $this->assertTrue($job::$handled);
@@ -88,7 +88,7 @@ class UniqueJobTest extends QueueTestCase
         $this->expectException(Exception::class);
 
         try {
-            dispatch_sync($job = new UniqueTestFailJob());
+            dispatch_sync($job = new UniqueTestFailJob);
         } finally {
             $this->assertTrue($job::$handled);
             $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
@@ -101,7 +101,7 @@ class UniqueJobTest extends QueueTestCase
 
         UniqueTestRetryJob::$handled = false;
 
-        dispatch($job = new UniqueTestRetryJob());
+        dispatch($job = new UniqueTestRetryJob);
 
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
 
@@ -122,7 +122,7 @@ class UniqueJobTest extends QueueTestCase
         $this->markTestSkippedWhenUsingSyncQueueDriver();
 
         UniqueTestReleasedJob::$handled = false;
-        dispatch($job = new UniqueTestReleasedJob());
+        dispatch($job = new UniqueTestReleasedJob);
 
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
 
@@ -144,7 +144,7 @@ class UniqueJobTest extends QueueTestCase
 
         UniqueUntilStartTestJob::$handled = false;
 
-        dispatch($job = new UniqueUntilStartTestJob());
+        dispatch($job = new UniqueUntilStartTestJob);
 
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
 
@@ -210,7 +210,7 @@ class UniqueJobTest extends QueueTestCase
 
         $lockKey = 'laravel_unique_job:App\Actions\UniqueTestAction:';
 
-        dispatch(new UniqueTestJobWithDisplayName());
+        dispatch(new UniqueTestJobWithDisplayName);
         $this->runQueueWorkerCommand(['--once' => true]);
         Bus::assertDispatched(UniqueTestJobWithDisplayName::class);
 
@@ -219,7 +219,7 @@ class UniqueJobTest extends QueueTestCase
         );
 
         Bus::assertDispatchedTimes(UniqueTestJobWithDisplayName::class);
-        dispatch(new UniqueTestJobWithDisplayName());
+        dispatch(new UniqueTestJobWithDisplayName);
         $this->runQueueWorkerCommand(['--once' => true]);
         Bus::assertDispatchedTimes(UniqueTestJobWithDisplayName::class);
 
@@ -232,7 +232,7 @@ class UniqueJobTest extends QueueTestCase
     {
         $this->assertEquals(
             'laravel_unique_job:' . UniqueTestJob::class . ':',
-            UniqueLock::getKey(new UniqueTestJob())
+            UniqueLock::getKey(new UniqueTestJob)
         );
     }
 
@@ -240,7 +240,7 @@ class UniqueJobTest extends QueueTestCase
     {
         $this->assertEquals(
             'laravel_unique_job:' . UniqueIdTestJob::class . ':unique-id-1',
-            UniqueLock::getKey(new UniqueIdTestJob())
+            UniqueLock::getKey(new UniqueIdTestJob)
         );
     }
 
@@ -248,7 +248,7 @@ class UniqueJobTest extends QueueTestCase
     {
         $this->assertEquals(
             'laravel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
-            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName())
+            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
         );
     }
 
@@ -256,7 +256,7 @@ class UniqueJobTest extends QueueTestCase
     {
         $this->assertEquals(
             'laravel_unique_job:App\Actions\UniqueTestAction:unique-id-2',
-            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName())
+            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
         );
     }
 }
@@ -289,7 +289,7 @@ class UniqueTestFailJob implements ShouldQueue, ShouldBeUnique
     {
         static::$handled = true;
 
-        throw new Exception();
+        throw new Exception;
     }
 }
 

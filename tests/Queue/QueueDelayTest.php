@@ -22,7 +22,7 @@ class QueueDelayTest extends TestCase
     {
         $this->mockContainer();
 
-        new PendingDispatch($job = new TestJob());
+        new PendingDispatch($job = new TestJob);
 
         $this->assertEquals(60, $job->delay);
     }
@@ -31,7 +31,7 @@ class QueueDelayTest extends TestCase
     {
         $this->mockContainer();
 
-        $job = new TestJob();
+        $job = new TestJob;
 
         dispatch($job->withoutDelay());
 
@@ -42,7 +42,7 @@ class QueueDelayTest extends TestCase
     {
         $this->mockContainer();
 
-        $job = new TestJob();
+        $job = new TestJob;
 
         dispatch($job)->withoutDelay();
 
@@ -53,7 +53,7 @@ class QueueDelayTest extends TestCase
     {
         $event = m::mock(Dispatcher::class);
         $event->shouldReceive('dispatch');
-        $container = new Container();
+        $container = new Container;
         $container->instance(Dispatcher::class, $event);
 
         Container::setInstance($container);

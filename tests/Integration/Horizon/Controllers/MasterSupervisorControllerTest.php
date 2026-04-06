@@ -19,15 +19,15 @@ class MasterSupervisorControllerTest extends ControllerTestCase
 {
     public function testMasterSupervisorListingWithoutSupervisors()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->name = 'risa';
         resolve(MasterSupervisorRepository::class)->update($master);
 
-        $master2 = new MasterSupervisor();
+        $master2 = new MasterSupervisor;
         $master2->name = 'risa-2';
         resolve(MasterSupervisorRepository::class)->update($master2);
 
-        $response = $this->actingAs(new Fakes\User())->get('/horizon/api/masters');
+        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa' => ['name' => 'risa', 'status' => 'running'],
@@ -37,18 +37,18 @@ class MasterSupervisorControllerTest extends ControllerTestCase
 
     public function testMasterSupervisorListingWithSupervisors()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->name = 'risa';
         resolve(MasterSupervisorRepository::class)->update($master);
 
-        $master2 = new MasterSupervisor();
+        $master2 = new MasterSupervisor;
         $master2->name = 'risa-2';
         resolve(MasterSupervisorRepository::class)->update($master2);
 
         $supervisor = new Supervisor(new SupervisorOptions('risa:name', 'redis'));
         resolve(SupervisorRepository::class)->update($supervisor);
 
-        $response = $this->actingAs(new Fakes\User())->get('/horizon/api/masters');
+        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa' => [
@@ -71,18 +71,18 @@ class MasterSupervisorControllerTest extends ControllerTestCase
 
     public function testMasterSupervisorWithCustomNameListingWithSupervisors()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->name = 'risa:production';
         resolve(MasterSupervisorRepository::class)->update($master);
 
-        $master2 = new MasterSupervisor();
+        $master2 = new MasterSupervisor;
         $master2->name = 'risa:production-2';
         resolve(MasterSupervisorRepository::class)->update($master2);
 
         $supervisor = new Supervisor(new SupervisorOptions('risa:production:name', 'redis'));
         resolve(SupervisorRepository::class)->update($supervisor);
 
-        $response = $this->actingAs(new Fakes\User())->get('/horizon/api/masters');
+        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa:production' => [

@@ -43,13 +43,13 @@ class EloquentThroughTest extends DatabaseTestCase
         });
 
         $post = tap(new Post(['public' => true]))->save();
-        $comment = tap((new Comment())->commentable()->associate($post))->save();
-        (new Like())->comment()->associate($comment)->save();
-        (new Like())->comment()->associate($comment)->save();
+        $comment = tap((new Comment)->commentable()->associate($post))->save();
+        (new Like)->comment()->associate($comment)->save();
+        (new Like)->comment()->associate($comment)->save();
 
-        $otherCommentable = tap(new OtherCommentable())->save();
-        $comment2 = tap((new Comment())->commentable()->associate($otherCommentable))->save();
-        (new Like())->comment()->associate($comment2)->save();
+        $otherCommentable = tap(new OtherCommentable)->save();
+        $comment2 = tap((new Comment)->commentable()->associate($otherCommentable))->save();
+        (new Like)->comment()->associate($comment2)->save();
     }
 
     public function test()

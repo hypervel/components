@@ -296,7 +296,7 @@ abstract class RedisCacheTestCase extends TestCase
         string $connectionName = 'default',
         ?string $tagMode = null,
     ): RedisStore {
-        $connection = new PhpRedisConnectionStub();
+        $connection = new PhpRedisConnectionStub;
         $connection->setActiveConnection($fakeClient);
 
         // Register RedisFactory mock for StoreContext::withConnection()

@@ -18,7 +18,7 @@ class SimpleObjectPoolTest extends TestCase
     public function testCreateObject()
     {
         $container = $this->getContainer();
-        $object = new stdClass();
+        $object = new stdClass;
         $pool = new SimpleObjectPool($container, fn () => $object);
 
         $this->assertSame($object, $pool->get());
@@ -26,7 +26,7 @@ class SimpleObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = new Container();
+        $container = new Container;
         Container::setInstance($container);
 
         return $container;

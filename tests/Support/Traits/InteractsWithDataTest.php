@@ -39,7 +39,7 @@ class InteractsWithDataTest extends TestCase
     {
         parent::setUp();
 
-        Container::setInstance(new Application());
+        Container::setInstance(new Application);
     }
 
     public function testDateReturnsNullWhenKeyIsNotFilled(): void

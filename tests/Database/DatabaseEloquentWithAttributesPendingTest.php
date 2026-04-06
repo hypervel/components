@@ -20,7 +20,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -32,7 +32,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->schema()->dropIfExists((new PendingAttributesModel())->getTable());
+        $this->schema()->dropIfExists((new PendingAttributesModel)->getTable());
 
         parent::tearDown();
     }
@@ -113,7 +113,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
 
     protected function bootTable(): void
     {
-        $this->schema()->create((new PendingAttributesModel())->getTable(), function ($table) {
+        $this->schema()->create((new PendingAttributesModel)->getTable(), function ($table) {
             $table->id();
             $table->boolean('is_admin');
             $table->string('first_name');

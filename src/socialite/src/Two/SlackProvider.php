@@ -68,7 +68,7 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => Arr::get($user, 'user.id'),
             'name' => Arr::get($user, 'user.name'),
             'email' => Arr::get($user, 'user.email'),

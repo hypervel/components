@@ -23,7 +23,7 @@ class IntegrationsConfigOptionTest extends SentryTestCase
         parent::defineEnvironment($app);
 
         $app->singleton('custom-sentry-integration', static function () {
-            return new IntegrationsOptionTestIntegrationStub();
+            return new IntegrationsOptionTestIntegrationStub;
         });
     }
 
@@ -53,7 +53,7 @@ class IntegrationsConfigOptionTest extends SentryTestCase
     {
         $this->resetApplicationWithConfig([
             'sentry.integrations' => [
-                new IntegrationsOptionTestIntegrationStub(),
+                new IntegrationsOptionTestIntegrationStub,
             ],
         ]);
 
@@ -96,7 +96,7 @@ class IntegrationsConfigOptionTest extends SentryTestCase
     {
         $this->resetApplicationWithConfig([
             'sentry.integrations' => [
-                new IntegrationsOptionTestIntegrationStub(),
+                new IntegrationsOptionTestIntegrationStub,
             ],
         ]);
 

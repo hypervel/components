@@ -17,7 +17,7 @@ class SupportMaintenanceModeTest extends TestCase
 {
     public function testExtend()
     {
-        MaintenanceMode::extend('test', fn () => new TestMaintenanceMode());
+        MaintenanceMode::extend('test', fn () => new TestMaintenanceMode);
 
         $this->app->config->set('app.maintenance.driver', 'test');
 

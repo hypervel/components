@@ -48,13 +48,13 @@ class SeedCommandTest extends TestCase
 
         $command->run(
             new ArrayInput(['--force' => true, '--database' => 'sqlite']),
-            new NullOutput(),
+            new NullOutput,
         );
     }
 
     public function testWithoutModelEvents()
     {
-        $instance = new UserWithoutModelEventsSeeder();
+        $instance = new UserWithoutModelEventsSeeder;
 
         $seeder = m::mock($instance);
         $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
@@ -81,7 +81,7 @@ class SeedCommandTest extends TestCase
                 '--database' => 'sqlite',
                 '--class' => UserWithoutModelEventsSeeder::class,
             ]),
-            new NullOutput(),
+            new NullOutput,
         );
 
         Assert::assertSame($dispatcher, Model::getEventDispatcher());
@@ -96,7 +96,7 @@ class SeedCommandTest extends TestCase
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
-            ThrowingSeeder::class => new ThrowingSeeder(),
+            ThrowingSeeder::class => new ThrowingSeeder,
         ]);
 
         $command = new SeedCommand($resolver);
@@ -109,7 +109,7 @@ class SeedCommandTest extends TestCase
                     '--database' => 'sqlite',
                     '--class' => ThrowingSeeder::class,
                 ]),
-                new NullOutput(),
+                new NullOutput,
             );
 
             self::fail('Expected the seeder to throw.');
@@ -131,7 +131,7 @@ class SeedCommandTest extends TestCase
 
         SeedCommand::prohibit();
 
-        $code = $command->run(new ArrayInput([]), new NullOutput());
+        $code = $command->run(new ArrayInput([]), new NullOutput);
 
         Assert::assertSame(Command::FAILURE, $code);
     }

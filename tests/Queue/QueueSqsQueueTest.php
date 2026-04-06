@@ -137,7 +137,7 @@ class QueueSqsQueueTest extends TestCase
             ->andReturn(true);
         $container->shouldReceive('make')
             ->with('queue.routes')
-            ->andReturn(new QueueRoutes());
+            ->andReturn(new QueueRoutes);
 
         return $container;
     }
@@ -298,7 +298,7 @@ class QueueSqsQueueTest extends TestCase
 
     public function testPushProperlyPushesJobObjectOntoSqs()
     {
-        $job = new FakeSqsJob();
+        $job = new FakeSqsJob;
 
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
         $queue->setContainer($container = m::spy(ContainerContract::class));
@@ -335,7 +335,7 @@ class QueueSqsQueueTest extends TestCase
 
     public function testPushProperlyPushesJobObjectOntoSqsFairQueue()
     {
-        $job = (new FakeSqsJob())->onGroup($this->mockedMessageGroupId);
+        $job = (new FakeSqsJob)->onGroup($this->mockedMessageGroupId);
 
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
         $queue->setContainer($container = m::spy(ContainerContract::class));
@@ -394,7 +394,7 @@ class QueueSqsQueueTest extends TestCase
     {
         Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
 
-        $job = (new FakeSqsJob())->onGroup($this->mockedMessageGroupId);
+        $job = (new FakeSqsJob)->onGroup($this->mockedMessageGroupId);
 
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
         $queue->setContainer($container = m::spy(ContainerContract::class));
@@ -680,7 +680,7 @@ class QueueSqsQueueTest extends TestCase
     {
         Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
 
-        $job = (new FakeSqsJob())->onGroup($this->mockedMessageGroupId);
+        $job = (new FakeSqsJob)->onGroup($this->mockedMessageGroupId);
 
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
         $queue->setContainer($container = m::spy(ContainerContract::class));

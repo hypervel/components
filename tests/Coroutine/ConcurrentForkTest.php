@@ -21,7 +21,7 @@ class ConcurrentForkTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Container::setInstance(new Container());
+        Container::setInstance(new Container);
     }
 
     public function testForkCopiesSpecifiedContextKeys()

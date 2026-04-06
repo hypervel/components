@@ -96,7 +96,7 @@ abstract class Lock implements LockContract
             $now = ((int) now()->format('Uu')) / 1000;
 
             if (($now + $this->sleepMilliseconds - $milliseconds) >= $starting) {
-                throw new LockTimeoutException();
+                throw new LockTimeoutException;
             }
 
             Sleep::usleep($this->sleepMilliseconds * 1000);

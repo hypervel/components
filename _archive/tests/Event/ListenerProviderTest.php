@@ -18,11 +18,11 @@ class ListenerProviderTest extends TestCase
 {
     public function testListenNotExistEvent(): void
     {
-        $provider = new ListenerProvider();
-        $provider->on(Alpha::class, [new AlphaListener(), 'process']);
-        $provider->on('NotExistEvent', [new AlphaListener(), 'process']);
+        $provider = new ListenerProvider;
+        $provider->on(Alpha::class, [new AlphaListener, 'process']);
+        $provider->on('NotExistEvent', [new AlphaListener, 'process']);
 
-        $listeners = $provider->getListenersForEvent(new Alpha());
+        $listeners = $provider->getListenersForEvent(new Alpha);
         $this->assertCount(1, $listeners);
         $listenerData = $listeners[0];
         [$class, $method] = $listenerData['listener'];
@@ -30,7 +30,7 @@ class ListenerProviderTest extends TestCase
         $this->assertSame('process', $method);
         $this->assertFalse($listenerData['isWildcard']);
 
-        $betaListeners = $provider->getListenersForEvent(new Beta());
+        $betaListeners = $provider->getListenersForEvent(new Beta);
         $this->assertEmpty($betaListeners);
     }
 }

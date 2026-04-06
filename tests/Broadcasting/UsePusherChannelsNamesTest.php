@@ -19,7 +19,7 @@ class UsePusherChannelsNamesTest extends TestCase
     #[DataProvider('channelsProvider')]
     public function testChannelNameNormalization($requestChannelName, $normalizedName, $guarded)
     {
-        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
+        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
         $this->assertSame(
             $normalizedName,
@@ -29,7 +29,7 @@ class UsePusherChannelsNamesTest extends TestCase
 
     public function testChannelNameNormalizationSpecialCase()
     {
-        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
+        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
         $this->assertSame(
             'private-123',
@@ -39,7 +39,7 @@ class UsePusherChannelsNamesTest extends TestCase
 
     public function testChannelNamePatternMatching()
     {
-        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
+        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
         $this->assertEquals(
             0,
@@ -53,7 +53,7 @@ class UsePusherChannelsNamesTest extends TestCase
     #[DataProvider('channelsProvider')]
     public function testIsGuardedChannel($requestChannelName, $_, $guarded)
     {
-        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames();
+        $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
         $this->assertSame(
             $guarded,

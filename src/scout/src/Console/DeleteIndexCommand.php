@@ -47,7 +47,7 @@ class DeleteIndexCommand extends Command
     protected function indexName(string $name, Repository $config): string
     {
         if (class_exists($name)) {
-            return (new $name())->indexableAs();
+            return (new $name)->indexableAs();
         }
 
         $prefix = $config->get('scout.prefix', '');

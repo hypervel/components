@@ -43,10 +43,10 @@ class ValidationExceptionHandle
     {
         $value = $this->parseErrors($provider);
 
-        $errors = $request->session()->get('errors', new ViewErrorBag());
+        $errors = $request->session()->get('errors', new ViewErrorBag);
 
         if (! $errors instanceof ViewErrorBag) {
-            $errors = new ViewErrorBag();
+            $errors = new ViewErrorBag;
         }
 
         $request->session()->flash(

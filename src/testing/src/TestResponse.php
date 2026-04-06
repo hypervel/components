@@ -76,7 +76,7 @@ class TestResponse implements ArrayAccess
     {
         $this->baseResponse = $response;
         $this->baseRequest = $request;
-        $this->exceptions = new Collection();
+        $this->exceptions = new Collection;
     }
 
     /**

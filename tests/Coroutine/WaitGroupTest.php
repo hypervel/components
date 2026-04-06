@@ -16,7 +16,7 @@ class WaitGroupTest extends TestCase
 {
     public function testWaitAgain()
     {
-        $wg = new WaitGroup();
+        $wg = new WaitGroup;
         $wg->add(2);
         $result = [];
         $i = 2;

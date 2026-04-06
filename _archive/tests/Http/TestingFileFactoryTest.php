@@ -24,7 +24,7 @@ class TestingFileFactoryTest extends TestCase
             $this->markTestSkipped('Requires PNG support.');
         }
 
-        $image = (new FileFactory())->image('test.png', 15, 20);
+        $image = (new FileFactory)->image('test.png', 15, 20);
 
         $info = getimagesize($image->getRealPath());
 
@@ -39,8 +39,8 @@ class TestingFileFactoryTest extends TestCase
             $this->markTestSkipped('Requires JPEG support.');
         }
 
-        $jpeg = (new FileFactory())->image('test.jpeg', 15, 20);
-        $jpg = (new FileFactory())->image('test.jpg');
+        $jpeg = (new FileFactory)->image('test.jpeg', 15, 20);
+        $jpg = (new FileFactory)->image('test.jpg');
 
         $info = getimagesize($jpeg->getRealPath());
 
@@ -59,7 +59,7 @@ class TestingFileFactoryTest extends TestCase
             $this->markTestSkipped('Requires GIF Create support.');
         }
 
-        $image = (new FileFactory())->image('test.gif');
+        $image = (new FileFactory)->image('test.gif');
 
         $this->assertSame(
             'image/gif',
@@ -73,7 +73,7 @@ class TestingFileFactoryTest extends TestCase
             $this->markTestSkipped('Requires Webp support.');
         }
 
-        $image = (new FileFactory())->image('test.webp');
+        $image = (new FileFactory)->image('test.webp');
 
         $this->assertSame(
             'image/webp',
@@ -87,7 +87,7 @@ class TestingFileFactoryTest extends TestCase
             $this->markTestSkipped('Requires WBMP support.');
         }
 
-        $image = (new FileFactory())->image('test.wbmp');
+        $image = (new FileFactory)->image('test.wbmp');
 
         $this->assertSame(
             'image/vnd.wap.wbmp',
@@ -97,7 +97,7 @@ class TestingFileFactoryTest extends TestCase
 
     public function testImageBmp()
     {
-        $image = (new FileFactory())->image('test.bmp');
+        $image = (new FileFactory)->image('test.bmp');
 
         $imagePath = $image->getRealPath();
 
@@ -112,7 +112,7 @@ class TestingFileFactoryTest extends TestCase
     {
         $this->assertSame(
             'audio/webm',
-            (new FileFactory())->create('someaudio.webm', 0, 'audio/webm')->getMimeType()
+            (new FileFactory)->create('someaudio.webm', 0, 'audio/webm')->getMimeType()
         );
     }
 
@@ -120,7 +120,7 @@ class TestingFileFactoryTest extends TestCase
     {
         $this->assertSame(
             'video/webm',
-            (new FileFactory())->create('someaudio.webm')->getMimeType()
+            (new FileFactory)->create('someaudio.webm')->getMimeType()
         );
     }
 
@@ -132,7 +132,7 @@ class TestingFileFactoryTest extends TestCase
         }
 
         $this->expectException(LogicException::class);
-        (new FileFactory())->image("test.{$fileExtension}");
+        (new FileFactory)->image("test.{$fileExtension}");
     }
 
     public static function generateImageDataProvider(): array

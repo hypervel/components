@@ -59,7 +59,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
     public function testBoundControllerUsesContextNotRouteProperty()
     {
-        $container = new Container();
+        $container = new Container;
         $container->bind(BoundController::class);
 
         $router = $this->getRouter($container);
@@ -79,7 +79,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
     public function testSingletonControllerIsCachedOnRouteProperty()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton(SingletonController::class);
 
         $router = $this->getRouter($container);
@@ -119,7 +119,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
     public function testSetContainerClearsControllerCache()
     {
-        $container = new Container();
+        $container = new Container;
         $router = $this->getRouter($container);
         $router->get('foo', UnboundController::class . '@index');
 
@@ -137,7 +137,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
         // Swapping the container should clear all controller caches
         // since the caching decision was made against the old container.
-        $route->setContainer(new Container());
+        $route->setContainer(new Container);
 
         $this->assertNull($controllerRef->getValue($route));
         $this->assertNull($cacheDecisionRef->getValue($route));
@@ -168,7 +168,7 @@ class RouteControllerCachingTest extends RoutingTestCase
 
     protected function getRouter(?Container $container = null): Router
     {
-        $container ??= new Container();
+        $container ??= new Container;
 
         $router = new Router($container->make(Dispatcher::class), $container);
 

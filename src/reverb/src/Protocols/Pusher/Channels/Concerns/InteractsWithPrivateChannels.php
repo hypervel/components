@@ -26,7 +26,7 @@ trait InteractsWithPrivateChannels
     protected function verify(Connection $connection, ?string $auth = null, ?string $data = null): bool
     {
         if ($auth === null) {
-            throw new ConnectionUnauthorized();
+            throw new ConnectionUnauthorized;
         }
 
         $signature = "{$connection->id()}:{$this->name()}";
@@ -43,7 +43,7 @@ trait InteractsWithPrivateChannels
             ),
             Str::after($auth, ':')
         )) {
-            throw new ConnectionUnauthorized();
+            throw new ConnectionUnauthorized;
         }
 
         return true;

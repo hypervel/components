@@ -93,8 +93,8 @@ class Commander
      */
     public function handle(): void
     {
-        $input = new ArgvInput();
-        $output = new ConsoleOutput();
+        $input = new ArgvInput;
+        $output = new ConsoleOutput;
 
         $this->prepareCommandEnvironment($input);
 
@@ -135,7 +135,7 @@ class Commander
                 }
             );
 
-            $filesystem = new Filesystem();
+            $filesystem = new Filesystem;
 
             $hasEnvironmentFile = static fn () => is_file(join_paths($appBasePath, '.env'));
 
@@ -223,7 +223,7 @@ class Commander
                 $handler->renderForConsole($output, $error);
             });
         } else {
-            (new ConsoleApplication())->renderThrowable($error, $output);
+            (new ConsoleApplication)->renderThrowable($error, $output);
         }
 
         return 1;

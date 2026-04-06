@@ -120,7 +120,7 @@ class ServerFactory
      */
     private function getDefaultEventDispatcher(): DispatcherContract
     {
-        return new EventDispatcher();
+        return new EventDispatcher;
     }
 
     /**
@@ -128,6 +128,6 @@ class ServerFactory
      */
     private function getDefaultLogger(): LoggerInterface
     {
-        return new Logger();
+        return new Logger;
     }
 }

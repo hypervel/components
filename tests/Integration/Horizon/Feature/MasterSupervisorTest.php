@@ -32,7 +32,7 @@ class MasterSupervisorTest extends IntegrationTestCase
             return 'test-name';
         });
 
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
 
         $this->assertStringStartsWith('test-name', $master->name);
         $this->assertStringStartsWith('test-name', $master->name());
@@ -44,7 +44,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessMarksCleanExitsAsDeadAndRemovesThem()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
             $this->supervisorOptions(),
@@ -64,7 +64,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessMarksDuplicatesAsDeadAndRemovesThem()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
             $this->supervisorOptions(),
@@ -84,7 +84,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessRestartsUnexpectedExits()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
             $this->supervisorOptions(),
@@ -115,7 +115,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessRestartsProcessesThatNeverStarted()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
             $this->supervisorOptions(),
@@ -134,7 +134,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessStartsUnstartedProcessesWhenUnpaused()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
             $this->supervisorOptions(),
             $process
@@ -152,7 +152,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessLoopProcessesPendingCommands()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
 
         resolve(HorizonCommandQueue::class)->push(
@@ -176,7 +176,7 @@ class MasterSupervisorTest extends IntegrationTestCase
     public function testMasterProcessInformationIsPersisted()
     {
         $process = m::mock(Process::class);
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = new SupervisorProcess($this->supervisorOptions(), $process);
         $process->shouldReceive('isStarted')->andReturn(true);
@@ -202,9 +202,9 @@ class MasterSupervisorTest extends IntegrationTestCase
     {
         $this->expectException(Exception::class);
 
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
-        $master2 = new MasterSupervisor();
+        $master2 = new MasterSupervisor;
         $master2->working = true;
 
         $master->persist();
@@ -220,7 +220,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
 
         $master->persist();
@@ -234,10 +234,10 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testSupervisorContinuesTerminationIfSupervisorsTakeTooLong()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $master->working = true;
 
-        $master->supervisors = collect([new EternalSupervisor()]);
+        $master->supervisors = collect([new EternalSupervisor]);
 
         $master->persist();
         $master->terminate();

@@ -13,7 +13,7 @@ class MaintenanceModeManager extends Manager
      */
     protected function createFileDriver(): FileBasedMaintenanceMode
     {
-        return new FileBasedMaintenanceMode();
+        return new FileBasedMaintenanceMode;
     }
 
     /**

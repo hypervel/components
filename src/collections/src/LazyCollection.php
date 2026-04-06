@@ -115,7 +115,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     public static function times(int|float $number, ?callable $callback = null): static
     {
         if ($number < 1) {
-            return new static();
+            return new static;
         }
 
         $collection = new static(function () use ($number) {
@@ -262,7 +262,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     public function contains(mixed $key, mixed $operator = null, mixed $value = null): bool
     {
         if (func_num_args() === 1 && $this->useAsCallable($key)) {
-            $placeholder = new stdClass();
+            $placeholder = new stdClass;
 
             /** @var callable $key */
             return $this->first($key, $placeholder) !== $placeholder;
@@ -700,7 +700,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      */
     public function last(?callable $callback = null, mixed $default = null): mixed
     {
-        $needle = $placeholder = new stdClass();
+        $needle = $placeholder = new stdClass;
 
         foreach ($this as $key => $value) {
             if (is_null($callback) || $callback($value, $key)) {
@@ -1368,7 +1368,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         return new static(function () use ($callback) {
             $iterator = $this->getIterator();
 
-            $chunk = new Collection();
+            $chunk = new Collection;
 
             if ($iterator->valid()) {
                 $chunk[$iterator->key()] = $iterator->current();
@@ -1381,7 +1381,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
                 if (! $callback($iterator->current(), $iterator->key(), $chunk)) {
                     yield new static($chunk);
 
-                    $chunk = new Collection();
+                    $chunk = new Collection;
                 }
 
                 $chunk[$iterator->key()] = $iterator->current();
@@ -1670,7 +1670,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      */
     protected function intervalSeconds(DateInterval $interval): int
     {
-        $start = new DateTimeImmutable();
+        $start = new DateTimeImmutable;
 
         return $start->add($interval)->getTimestamp() - $start->getTimestamp();
     }

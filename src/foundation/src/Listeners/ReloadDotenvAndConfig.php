@@ -74,7 +74,7 @@ class ReloadDotenvAndConfig
      */
     protected function rebuildConfigRepository(): Repository
     {
-        (new LoadConfiguration())->bootstrap($this->container);
+        (new LoadConfiguration)->bootstrap($this->container);
 
         return $this->container->make(Repository::class);
     }

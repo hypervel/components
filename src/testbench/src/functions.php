@@ -334,7 +334,7 @@ function parse_environment_variables(iterable $variables): array
  */
 function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath = null): bool
 {
-    $filesystem = new \Hypervel\Filesystem\Filesystem();
+    $filesystem = new \Hypervel\Filesystem\Filesystem;
 
     $appVendorPath = $app->basePath('vendor');
     $workingPath ??= package_path('vendor');
@@ -397,7 +397,7 @@ function workbench(): array
     /** @var ConfigContract $config */
     $config = app()->bound(ConfigContract::class)
         ? app()->make(ConfigContract::class)
-        : new Config();
+        : new Config;
 
     return $config->getWorkbenchAttributes();
 }
@@ -468,7 +468,7 @@ function package_version_compare(string $package, string $version, ?string $oper
         throw new RuntimeException(sprintf('Unable to compare "%s" version', $package));
     }
 
-    $versionParser = new VersionParser();
+    $versionParser = new VersionParser;
     $normalizedPackageVersion = $versionParser->normalize($prettyVersion);
     $normalizedVersion = $versionParser->normalize($version);
 
@@ -484,7 +484,7 @@ function package_version_compare(string $package, string $version, ?string $oper
  */
 function hypervel_version_compare(string $version, ?string $operator = null): int|bool
 {
-    $versionParser = new VersionParser();
+    $versionParser = new VersionParser;
     $normalizedApplicationVersion = $versionParser->normalize(Application::VERSION);
     $normalizedVersion = $versionParser->normalize($version);
 

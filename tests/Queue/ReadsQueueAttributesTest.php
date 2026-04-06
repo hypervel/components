@@ -26,91 +26,91 @@ class ReadsQueueAttributesTest extends TestCase
 
     public function testTriesAttributeIsRead()
     {
-        $job = new TriesJob();
+        $job = new TriesJob;
 
         $this->assertSame(3, $this->getAttributeValue($job, Tries::class));
     }
 
     public function testTimeoutAttributeIsRead()
     {
-        $job = new TimeoutJob();
+        $job = new TimeoutJob;
 
         $this->assertSame(60, $this->getAttributeValue($job, Timeout::class));
     }
 
     public function testMaxExceptionsAttributeIsRead()
     {
-        $job = new MaxExceptionsJob();
+        $job = new MaxExceptionsJob;
 
         $this->assertSame(5, $this->getAttributeValue($job, MaxExceptions::class));
     }
 
     public function testBackoffAttributeIsRead()
     {
-        $job = new BackoffJob();
+        $job = new BackoffJob;
 
         $this->assertSame(30, $this->getAttributeValue($job, Backoff::class));
     }
 
     public function testBackoffAttributeWithArrayIsRead()
     {
-        $job = new BackoffArrayJob();
+        $job = new BackoffArrayJob;
 
         $this->assertSame([10, 20, 30], $this->getAttributeValue($job, Backoff::class));
     }
 
     public function testConnectionAttributeIsRead()
     {
-        $job = new ConnectionJob();
+        $job = new ConnectionJob;
 
         $this->assertSame('redis', $this->getAttributeValue($job, Connection::class));
     }
 
     public function testQueueAttributeIsRead()
     {
-        $job = new QueueJob();
+        $job = new QueueJob;
 
         $this->assertSame('high-priority', $this->getAttributeValue($job, Queue::class));
     }
 
     public function testUniqueForAttributeIsRead()
     {
-        $job = new UniqueForJob();
+        $job = new UniqueForJob;
 
         $this->assertSame(300, $this->getAttributeValue($job, UniqueFor::class));
     }
 
     public function testDeleteWhenMissingModelsAttributeReturnsTrue()
     {
-        $job = new DeleteWhenMissingModelsJob();
+        $job = new DeleteWhenMissingModelsJob;
 
         $this->assertTrue($this->getAttributeValue($job, DeleteWhenMissingModels::class));
     }
 
     public function testFailOnTimeoutAttributeReturnsTrue()
     {
-        $job = new FailOnTimeoutJob();
+        $job = new FailOnTimeoutJob;
 
         $this->assertTrue($this->getAttributeValue($job, FailOnTimeout::class));
     }
 
     public function testAttributeOnParentClassIsRead()
     {
-        $job = new ChildJob();
+        $job = new ChildJob;
 
         $this->assertSame(3, $this->getAttributeValue($job, Tries::class));
     }
 
     public function testPropertyFallbackWhenNoAttribute()
     {
-        $job = new PropertyOnlyJob();
+        $job = new PropertyOnlyJob;
 
         $this->assertSame(5, $this->getAttributeValue($job, Tries::class, 'tries'));
     }
 
     public function testDefaultReturnedWhenNoAttributeOrProperty()
     {
-        $job = new PlainJob();
+        $job = new PlainJob;
 
         $this->assertNull($this->getAttributeValue($job, Tries::class));
         $this->assertNull($this->getAttributeValue($job, Tries::class, 'tries'));
@@ -119,14 +119,14 @@ class ReadsQueueAttributesTest extends TestCase
 
     public function testDefaultReturnedWhenNoPropertyNameGiven()
     {
-        $job = new PlainJob();
+        $job = new PlainJob;
 
         $this->assertSame('default', $this->getAttributeValue($job, Tries::class, null, 'default'));
     }
 
     public function testAttributeTakesPrecedenceOverProperty()
     {
-        $job = new AttributeAndPropertyJob();
+        $job = new AttributeAndPropertyJob;
 
         $this->assertSame(10, $this->getAttributeValue($job, Tries::class, 'tries'));
     }

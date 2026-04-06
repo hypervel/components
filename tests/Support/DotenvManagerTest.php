@@ -216,12 +216,12 @@ class DotenvManagerTestAdapter implements AdapterInterface
 
     public static function create()
     {
-        return Some::create(new self());
+        return Some::create(new self);
     }
 
     public static function makeWithStore(): self
     {
-        return new self();
+        return new self;
     }
 
     /** @return array<string, string> */

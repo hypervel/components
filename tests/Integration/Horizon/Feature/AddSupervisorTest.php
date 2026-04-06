@@ -19,7 +19,7 @@ class AddSupervisorTest extends IntegrationTestCase
 {
     public function testAddSupervisorCommandCreatesNewSupervisorOnMasterProcess()
     {
-        $master = new MasterSupervisor();
+        $master = new MasterSupervisor;
         $phpBinary = PhpBinary::path();
 
         $master->loop();

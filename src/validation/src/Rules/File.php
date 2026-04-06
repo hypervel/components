@@ -104,7 +104,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
             ? call_user_func(static::$defaultCallback)
             : static::$defaultCallback;
 
-        return $file instanceof Rule ? $file : new self();
+        return $file instanceof Rule ? $file : new self;
     }
 
     /**
@@ -122,7 +122,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      */
     public static function types(array|string $mimetypes): static
     {
-        return tap(new static(), fn ($file) => $file->allowedMimetypes = (array) $mimetypes);
+        return tap(new static, fn ($file) => $file->allowedMimetypes = (array) $mimetypes);
     }
 
     /**

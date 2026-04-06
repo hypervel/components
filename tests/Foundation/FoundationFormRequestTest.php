@@ -190,9 +190,9 @@ class FoundationFormRequestTest extends TestCase
                 ];
             }
         };
-        $request->setContainer($container = new Container());
+        $request->setContainer($container = new Container);
         $container->instance(ValidationFactoryContract::class, (new ValidationFactory(
-            new \Hypervel\Translation\Translator(new \Hypervel\Translation\ArrayLoader(), 'en')
+            new \Hypervel\Translation\Translator(new \Hypervel\Translation\ArrayLoader, 'en')
         ))->setContainer($container));
         $container->instance(InjectedDependency::class, new InjectedDependency('value-from-dependency'));
 
@@ -272,7 +272,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createRequest($payload = [], $class = FoundationTestFormRequestStub::class)
     {
-        $container = tap(new Container(), function ($container) {
+        $container = tap(new Container, function ($container) {
             $container->instance(
                 ValidationFactoryContract::class,
                 $this->createValidationFactory($container)

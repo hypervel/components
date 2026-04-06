@@ -96,7 +96,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         protected ?string $hashKey = null,
     ) {
         $this->provider = $provider;
-        $this->timebox = $timebox ?: new Timebox();
+        $this->timebox = $timebox ?: new Timebox;
 
         $classHash = sha1(static::class);
         $this->hashedName = 'login_' . $this->name . '_' . $classHash;
@@ -113,7 +113,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function user(): ?AuthenticatableContract
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         if ($this->getContextState('loggedOut', false)) {
             return null;
@@ -831,7 +831,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass();
+        self::$nullUserSentinel ??= new stdClass;
 
         $unstartedCached = CoroutineContext::get($this->getUnstartedContextKey());
 

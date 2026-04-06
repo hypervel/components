@@ -92,20 +92,20 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDefault()
     {
-        $this->addMockConnection(new ModelStub());
+        $this->addMockConnection(new ModelStub);
 
         $relation = $this->getRelation()->withDefault();
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new ModelStub();
+        $newModel = new ModelStub;
 
         $this->assertEquals($newModel, $relation->getResults());
     }
 
     public function testMorphToWithDynamicDefault()
     {
-        $this->addMockConnection(new ModelStub());
+        $this->addMockConnection(new ModelStub);
 
         $relation = $this->getRelation()->withDefault(function ($newModel) {
             $newModel->username = 'taylor';
@@ -113,7 +113,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new ModelStub();
+        $newModel = new ModelStub;
         $newModel->username = 'taylor';
 
         $result = $relation->getResults();
@@ -125,13 +125,13 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithArrayDefault()
     {
-        $this->addMockConnection(new ModelStub());
+        $this->addMockConnection(new ModelStub);
 
         $relation = $this->getRelation()->withDefault(['username' => 'taylor']);
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new ModelStub();
+        $newModel = new ModelStub;
         $newModel->username = 'taylor';
 
         $result = $relation->getResults();
@@ -163,14 +163,14 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithSpecifiedClassDefault()
     {
-        $this->addMockConnection(new RelatedStub());
+        $this->addMockConnection(new RelatedStub);
 
-        $parent = new ModelStub();
+        $parent = new ModelStub;
         $parent->relation_type = RelatedStub::class;
 
         $relation = $parent->relation()->withDefault();
 
-        $newModel = new RelatedStub();
+        $newModel = new RelatedStub;
 
         $result = $relation->getResults();
 
@@ -408,7 +408,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new ModelStub();
+        $parent = $parent ?: new ModelStub;
 
         return m::mock(MorphTo::class . '[createModelByType]', [$this->builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation']);
     }

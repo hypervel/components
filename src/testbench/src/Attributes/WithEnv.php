@@ -29,7 +29,7 @@ final class WithEnv implements Invokable
     public function __invoke(ApplicationContract $app): Closure
     {
         $key = $this->key;
-        $value = Env::get($key, new UndefinedValue());
+        $value = Env::get($key, new UndefinedValue);
 
         Env::set($key, $this->value ?? '(null)');
 

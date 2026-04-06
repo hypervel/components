@@ -52,7 +52,7 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
         $models[] = null; // deleted
 
         foreach ($models as $model) {
-            $comment = new Comment();
+            $comment = new Comment;
             $comment->commentable()->associate($model);
             $comment->title = 'foo';
             $comment->save();

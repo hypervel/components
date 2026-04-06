@@ -97,7 +97,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             // This is needed for the direct streaming path: Response::stream() accesses the
             // WritableConnection to write chunks directly to the Swoole socket. Controllers
             // reach it via ResponseContext::get()->getConnection()->getSocket().
-            $response = new Response();
+            $response = new Response;
             $response->setConnection(new WritableConnection($swooleResponse));
             if ($rawMethod === 'HEAD') {
                 $response->withoutBody();

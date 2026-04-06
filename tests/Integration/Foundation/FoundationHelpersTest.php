@@ -18,14 +18,14 @@ class FoundationHelpersTest extends TestCase
         $this->assertEquals(
             'rescued!',
             rescue(function () {
-                throw new Exception();
+                throw new Exception;
             }, 'rescued!')
         );
 
         $this->assertEquals(
             'rescued!',
             rescue(function () {
-                throw new Exception();
+                throw new Exception;
             }, function () {
                 return 'rescued!';
             })

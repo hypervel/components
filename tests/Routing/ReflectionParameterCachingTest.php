@@ -199,7 +199,7 @@ class ReflectionParameterCachingTest extends RoutingTestCase
 
     protected function getRouter(?Container $container = null): Router
     {
-        $container ??= new Container();
+        $container ??= new Container;
 
         $router = new Router($container->make(Dispatcher::class), $container);
 

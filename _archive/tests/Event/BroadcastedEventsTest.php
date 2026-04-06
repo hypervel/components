@@ -24,11 +24,11 @@ class BroadcastedEventsTest extends TestCase
 
         $d->makePartial()->shouldAllowMockingProtectedMethods();
 
-        $event = new BroadcastEvent();
+        $event = new BroadcastEvent;
 
         $this->assertTrue($d->shouldBroadcast($event));
 
-        $event = new AlwaysBroadcastEvent();
+        $event = new AlwaysBroadcastEvent;
 
         $this->assertTrue($d->shouldBroadcast($event));
     }
@@ -40,13 +40,13 @@ class BroadcastedEventsTest extends TestCase
         $broadcast->shouldReceive('queue')->once();
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->once()->with(BroadcastFactory::class)->andReturn($broadcast);
-        $d = new EventDispatcher(new ListenerProvider(), null, $container);
+        $d = new EventDispatcher(new ListenerProvider, null, $container);
 
         $d->listen(AlwaysBroadcastEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
 
-        $d->dispatch($e = new AlwaysBroadcastEvent());
+        $d->dispatch($e = new AlwaysBroadcastEvent);
 
         $this->assertSame($e, $_SERVER['__event.test']);
     }
@@ -57,11 +57,11 @@ class BroadcastedEventsTest extends TestCase
 
         $d->makePartial()->shouldAllowMockingProtectedMethods();
 
-        $event = new BroadcastFalseCondition();
+        $event = new BroadcastFalseCondition;
 
         $this->assertFalse($d->shouldBroadcast($event));
 
-        $event = new ExampleEvent();
+        $event = new ExampleEvent;
 
         $this->assertFalse($d->shouldBroadcast($event));
     }

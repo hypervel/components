@@ -76,7 +76,7 @@ class EventTest extends TestCase
     {
         $event = new RequestReceived(
             request: Request::create('/'),
-            response: new Response(),
+            response: new Response,
         );
 
         $this->assertSame('http', $event->server);
@@ -100,7 +100,7 @@ class EventTest extends TestCase
     {
         $event = new RequestReceived(
             request: Request::create('/ws'),
-            response: new Response(),
+            response: new Response,
             server: 'ws'
         );
 

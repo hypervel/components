@@ -71,7 +71,7 @@ class CommandTest extends TestCase
         $input->shouldReceive('getOption')->andReturn(true);
 
         /** @var FooExitCommand $command */
-        $instance = new FooExitCommand();
+        $instance = new FooExitCommand;
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
@@ -80,7 +80,7 @@ class CommandTest extends TestCase
         $this->assertSame(11, $exitCode);
 
         /** @var FooCommand $command */
-        $instance = new FooCommand();
+        $instance = new FooCommand;
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
@@ -97,7 +97,7 @@ class CommandTest extends TestCase
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getOption')->andReturnFalse();
 
-        $command = new FooTraitCommand();
+        $command = new FooTraitCommand;
         $command->setApplication($application);
         $command->setOutput($output);
         $this->assertArrayHasKey(Foo::class, (fn () => $this->setUpTraits($input, $output))->call($command));
@@ -120,7 +120,7 @@ class CommandTest extends TestCase
         $application->shouldReceive('getHelperSet');
 
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $instance = new FooProhibitableCommand();
+        $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
@@ -133,7 +133,7 @@ class CommandTest extends TestCase
         FooProhibitableCommand::prohibit(true);
 
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $instance = new FooProhibitableCommand();
+        $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $instance->setApplication($application);
         $instance->setOutput($output);
@@ -149,7 +149,7 @@ class CommandTest extends TestCase
 
     public function testFailWithNullThrowsManuallyFailedExceptionWithDefaultMessage(): void
     {
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
         $this->expectExceptionMessage('Command failed manually.');
@@ -159,7 +159,7 @@ class CommandTest extends TestCase
 
     public function testFailWithStringThrowsManuallyFailedExceptionWithMessage(): void
     {
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
         $this->expectExceptionMessage('Custom failure message');
@@ -169,7 +169,7 @@ class CommandTest extends TestCase
 
     public function testFailWithThrowableRethrowsTheSameException(): void
     {
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $exception = new RuntimeException('Original exception');
 
         $this->expectException(RuntimeException::class);
@@ -180,7 +180,7 @@ class CommandTest extends TestCase
 
     public function testFailWithManuallyFailedExceptionRethrowsIt(): void
     {
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $exception = new ManuallyFailedException('Pre-created failure');
 
         $this->expectException(ManuallyFailedException::class);
@@ -218,7 +218,7 @@ class CommandTest extends TestCase
         });
         $app->shouldReceive('runningUnitTests')->andReturn(true);
 
-        $command->run(new ArrayInput([]), new NullOutput());
+        $command->run(new ArrayInput([]), new NullOutput);
     }
 
     public function testGettingCommandArgumentsAndOptionsByClass()
@@ -265,7 +265,7 @@ class CommandTest extends TestCase
             '--option-one' => 'test-first-option',
             '--option-two' => 'test-second-option',
         ]);
-        $output = new NullOutput();
+        $output = new NullOutput;
 
         $command->run($input, $output);
 
@@ -282,7 +282,7 @@ class CommandTest extends TestCase
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
 
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $command->setInput($input);
 
         $this->assertFalse($command->hasArgument('foo'));
@@ -295,7 +295,7 @@ class CommandTest extends TestCase
             return $args[0] === '<info>foo</info>';
         });
 
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $command->setOutput($output);
 
         $command->info('foo');
@@ -357,7 +357,7 @@ class CommandTest extends TestCase
             return $question->isMultiselect() === false;
         })->andReturn('yes');
 
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $command->setOutput($output);
 
         $command->choice('Do you need further help?', ['yes', 'no']);
@@ -370,7 +370,7 @@ class CommandTest extends TestCase
             return $question->isMultiselect() === true;
         })->andReturn(['option-1']);
 
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $command->setOutput($output);
 
         $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
@@ -378,7 +378,7 @@ class CommandTest extends TestCase
 
     public function testSignatureAttributeCanSetAliases()
     {
-        $command = new CommandTestSignatureWithAliasesCommand();
+        $command = new CommandTestSignatureWithAliasesCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
@@ -386,7 +386,7 @@ class CommandTest extends TestCase
 
     public function testCommandCanBeConstructedWithoutBootedApplication()
     {
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
 
         $this->assertSame('test:stub', $command->getName());
     }
@@ -396,7 +396,7 @@ class CommandTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('The Hypervel application instance has not been set on this command.');
 
-        $command = new CommandTestStubCommand();
+        $command = new CommandTestStubCommand;
         $command->getHypervel();
     }
 }

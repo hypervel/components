@@ -75,7 +75,7 @@ trait InteractsWithQueue
      */
     public function withFakeQueueInteractions(): static
     {
-        $this->job = new FakeJob();
+        $this->job = new FakeJob;
 
         return $this;
     }

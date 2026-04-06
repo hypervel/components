@@ -30,7 +30,7 @@ class EloquentMorphToSelectTest extends DatabaseTestCase
         });
 
         $post = Post::create();
-        (new Comment())->commentable()->associate($post)->save();
+        (new Comment)->commentable()->associate($post)->save();
     }
 
     public function testSelect()

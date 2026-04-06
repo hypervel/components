@@ -113,11 +113,11 @@ class DatabaseServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton('db.schema', function () {
-            return new SchemaProxy();
+            return new SchemaProxy;
         });
 
         $this->app->singleton('db.transactions', function () {
-            return new DatabaseTransactionsManager();
+            return new DatabaseTransactionsManager;
         });
     }
 

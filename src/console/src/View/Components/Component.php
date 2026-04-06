@@ -66,7 +66,7 @@ abstract class Component
     protected function mutate(array|string $data, array $mutators): array|string
     {
         foreach ($mutators as $mutator) {
-            $mutator = new $mutator();
+            $mutator = new $mutator;
 
             if (is_iterable($data)) {
                 foreach ($data as $key => $value) {
@@ -91,9 +91,9 @@ abstract class Component
 
         $currentHelper = $property->isInitialized($this->output)
             ? $property->getValue($this->output)
-            : new SymfonyQuestionHelper();
+            : new SymfonyQuestionHelper;
 
-        $property->setValue($this->output, new QuestionHelper());
+        $property->setValue($this->output, new QuestionHelper);
 
         try {
             return $callable();

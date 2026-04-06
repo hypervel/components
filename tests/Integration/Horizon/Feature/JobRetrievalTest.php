@@ -21,11 +21,11 @@ class JobRetrievalTest extends IntegrationTestCase
     {
         $ids = [];
 
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
 
         $repository = resolve(JobRepository::class);
 
@@ -56,11 +56,11 @@ class JobRetrievalTest extends IntegrationTestCase
     {
         $ids = [];
 
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
-        $ids[] = Queue::push(new Jobs\BasicJob());
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new Jobs\BasicJob);
 
         $repository = resolve(JobRepository::class);
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(3));
@@ -82,7 +82,7 @@ class JobRetrievalTest extends IntegrationTestCase
         $ids = [];
 
         for ($i = 0; $i < 75; ++$i) {
-            $ids[] = Queue::push(new Jobs\BasicJob());
+            $ids[] = Queue::push(new Jobs\BasicJob);
         }
 
         $repository = resolve(JobRepository::class);

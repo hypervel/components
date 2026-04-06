@@ -228,7 +228,7 @@ class SubscriberIntegrationTest extends TestCase
      */
     private function publishViaRawClient(string $channel, string $message): void
     {
-        $client = new Redis();
+        $client = new Redis;
         $client->connect(
             env('REDIS_HOST', '127.0.0.1'),
             (int) env('REDIS_PORT', 6379)

@@ -18,7 +18,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -34,7 +34,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -53,7 +53,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -72,7 +72,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -92,7 +92,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -112,7 +112,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $defaultValue = 'a value';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
 
         $relationship = $parent
             ->hasMany(RelatedPendingAttributesModel::class, 'relatable')
@@ -129,7 +129,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -145,7 +145,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
 
     public function testAttributesCanBeAppended(): void
     {
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
 
         $relationship = $parent
             ->hasMany(RelatedPendingAttributesModel::class, 'parent_id')
@@ -165,7 +165,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
 
     public function testSingleAttributeApi(): void
     {
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $key = 'attr';
         $value = 'Value';
 
@@ -184,7 +184,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -216,7 +216,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $parentId = 123;
         $key = 'a key';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -252,7 +252,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -272,7 +272,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -291,7 +291,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesPendingTest extends TestCase
     {
         $parentId = 123;
 
-        $parent = new RelatedPendingAttributesModel();
+        $parent = new RelatedPendingAttributesModel;
         $parent->id = $parentId;
 
         $relationship = $parent

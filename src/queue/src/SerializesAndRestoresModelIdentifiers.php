@@ -67,13 +67,13 @@ trait SerializesAndRestoresModelIdentifiers
     {
         if (! $value->class || count($value->id) === 0) {
             return ! is_null($value->collectionClass ?? null)
-                ? new $value->collectionClass()
-                : new EloquentCollection();
+                ? new $value->collectionClass
+                : new EloquentCollection;
         }
 
         /** @var EloquentCollection<int, Model> $collection */
         $collection = $this->getQueryForModelRestoration(
-            (new $value->class())->setConnection($value->connection),
+            (new $value->class)->setConnection($value->connection),
             $value->id
         )->useWritePdo()->get();
 

@@ -24,13 +24,13 @@ class EventsDispatcherTest extends TestCase
 
         // Each test needs a fresh container to prevent auto-singletoned
         // listener instances from leaking between tests.
-        Container::setInstance(new Container());
+        Container::setInstance(new Container);
     }
 
     public function testBasicEventExecution()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
@@ -51,7 +51,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferEventExecution()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
@@ -70,7 +70,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferMultipleEvents()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($value) {
             $_SERVER['__event.test'][] = $value;
         });
@@ -89,7 +89,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferNestedEvents()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
@@ -112,7 +112,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferSpecificEvents()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
@@ -135,7 +135,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferSpecificNestedEvents()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
@@ -167,7 +167,7 @@ class EventsDispatcherTest extends TestCase
     public function testDeferSpecificObjectEvents()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         $d->listen(DeferTestEvent::class, function () {
             $_SERVER['__event.test'][] = 'DeferTestEvent';
@@ -178,8 +178,8 @@ class EventsDispatcherTest extends TestCase
         });
 
         $d->defer(function () use ($d) {
-            $d->dispatch(new DeferTestEvent());
-            $d->dispatch(new ImmediateTestEvent());
+            $d->dispatch(new DeferTestEvent);
+            $d->dispatch(new ImmediateTestEvent);
 
             $this->assertSame(['ImmediateTestEvent'], $_SERVER['__event.test']);
         }, [DeferTestEvent::class]);
@@ -190,7 +190,7 @@ class EventsDispatcherTest extends TestCase
     public function testHaltingEventExecution()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($foo) {
             $this->assertTrue(true);
 
@@ -209,7 +209,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testResponseWhenNoListenersAreSet()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $response = $d->dispatch('foo');
 
         $this->assertEquals([], $response);
@@ -221,7 +221,7 @@ class EventsDispatcherTest extends TestCase
     public function testReturningFalseStopsPropagation()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function ($foo) {
             return $foo;
         });
@@ -245,7 +245,7 @@ class EventsDispatcherTest extends TestCase
     public function testReturningFalsyValuesContinuesPropagation()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function () {
             return 0;
         });
@@ -266,7 +266,7 @@ class EventsDispatcherTest extends TestCase
     public function testContainerResolutionOfEventHandlers()
     {
         $d = new Dispatcher($container = m::mock(Container::class));
-        $container->shouldReceive('make')->once()->with(TestEventListener::class)->andReturn(new TestEventListener());
+        $container->shouldReceive('make')->once()->with(TestEventListener::class)->andReturn(new TestEventListener);
         $d->listen('foo', TestEventListener::class . '@onFooEvent');
         $response = $d->dispatch('foo', ['foo', 'bar']);
 
@@ -275,7 +275,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testContainerResolutionOfEventHandlersWithDefaultMethods()
     {
-        $d = new Dispatcher(new Container());
+        $d = new Dispatcher(new Container);
         $d->listen('foo', TestEventListener::class);
         $response = $d->dispatch('foo', ['foo', 'bar']);
         $this->assertEquals(['baz'], $response);
@@ -284,7 +284,7 @@ class EventsDispatcherTest extends TestCase
     public function testQueuedEventsAreFired()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
         });
@@ -304,7 +304,7 @@ class EventsDispatcherTest extends TestCase
     public function testQueuedEventsCanBeForgotten()
     {
         $_SERVER['__event.test'] = 'unset';
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->push('update', ['name' => 'taylor']);
         $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
@@ -318,7 +318,7 @@ class EventsDispatcherTest extends TestCase
     public function testMultiplePushedEventsWillGetFlushed()
     {
         $_SERVER['__event.test'] = '';
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->push('update', ['name' => 'taylor ']);
         $d->push('update', ['name' => 'otwell']);
         $d->listen('update', function ($name) {
@@ -332,8 +332,8 @@ class EventsDispatcherTest extends TestCase
     public function testPushMethodCanAcceptObjectAsPayload()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
-        $d->push(ExampleEvent::class, $e = new ExampleEvent());
+        $d = new Dispatcher;
+        $d->push(ExampleEvent::class, $e = new ExampleEvent);
         $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
@@ -346,7 +346,7 @@ class EventsDispatcherTest extends TestCase
     public function testWildcardListeners()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.bar', function () {
             $_SERVER['__event.test'] = 'regular';
         });
@@ -366,7 +366,7 @@ class EventsDispatcherTest extends TestCase
     public function testWildcardListenersWithResponses()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.bar', function () {
             return 'regular';
         });
@@ -385,7 +385,7 @@ class EventsDispatcherTest extends TestCase
     public function testWildcardListenersCacheFlushing()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.*', function () {
             $_SERVER['__event.test'] = 'cached_wildcard';
         });
@@ -402,7 +402,7 @@ class EventsDispatcherTest extends TestCase
     public function testListenersCanBeRemoved()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function () {
             $_SERVER['__event.test'] = 'foo';
         });
@@ -415,7 +415,7 @@ class EventsDispatcherTest extends TestCase
     public function testWildcardListenersCanBeRemoved()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.*', function () {
             $_SERVER['__event.test'] = 'foo';
         });
@@ -429,7 +429,7 @@ class EventsDispatcherTest extends TestCase
     {
         unset($_SERVER['__event.test']);
 
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo*', function () {
             $_SERVER['__event.test'] = 'foo';
         });
@@ -447,7 +447,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasWildcardListeners()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', 'listener1');
         $this->assertFalse($d->hasWildcardListeners('foo'));
 
@@ -457,7 +457,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testListenersCanBeFound()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $this->assertFalse($d->hasListeners('foo'));
 
         $d->listen('foo', function () {
@@ -467,7 +467,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testWildcardListenersCanBeFound()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $this->assertFalse($d->hasListeners('foo.*'));
 
         $d->listen('foo.*', function () {
@@ -478,7 +478,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCachesFalseResult(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         // First call — uncached, scans listeners and wildcards.
         $this->assertFalse($d->hasListeners('nonexistent'));
@@ -494,7 +494,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCachesTrueResult(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo', function () {});
 
         // First call — uncached.
@@ -510,7 +510,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheIsClearedWhenListenerIsAdded(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         // Populate cache with false.
         $this->assertFalse($d->hasListeners('bar'));
@@ -524,7 +524,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheIsClearedWhenWildcardIsAdded(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         // Populate cache with false for a specific event.
         $this->assertFalse($d->hasListeners('foo.bar'));
@@ -538,7 +538,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheIsClearedOnForget(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('baz', function () {});
 
         // Populate cache with true.
@@ -553,7 +553,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheIsClearedOnForgetWildcard(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('ns.*', function () {});
 
         // Populate cache.
@@ -568,7 +568,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheWithWildcardMatch(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('app.*', function () {});
 
         // First call — wildcard scan finds the match, caches true.
@@ -587,7 +587,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testHasListenersCacheIsIndependentPerEventName(): void
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('exists', function () {});
 
         $this->assertTrue($d->hasListeners('exists'));
@@ -600,14 +600,14 @@ class EventsDispatcherTest extends TestCase
 
     public function testEventPassedFirstToWildcards()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.*', function ($event, $data) {
             $this->assertSame('foo.bar', $event);
             $this->assertEquals(['first', 'second'], $data);
         });
         $d->dispatch('foo.bar', ['first', 'second']);
 
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('foo.bar', function ($first, $second) {
             $this->assertSame('first', $first);
             $this->assertSame('second', $second);
@@ -618,11 +618,11 @@ class EventsDispatcherTest extends TestCase
     public function testClassesWork()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(ExampleEvent::class, function () {
             $_SERVER['__event.test'] = 'baz';
         });
-        $d->dispatch(new ExampleEvent());
+        $d->dispatch(new ExampleEvent);
 
         $this->assertSame('baz', $_SERVER['__event.test']);
     }
@@ -630,11 +630,11 @@ class EventsDispatcherTest extends TestCase
     public function testClassesWorkWithAnonymousListeners()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(function (ExampleEvent $event) {
             $_SERVER['__event.test'] = 'qux';
         });
-        $d->dispatch(new ExampleEvent());
+        $d->dispatch(new ExampleEvent);
 
         $this->assertSame('qux', $_SERVER['__event.test']);
     }
@@ -642,11 +642,11 @@ class EventsDispatcherTest extends TestCase
     public function testEventClassesArePayload()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
-        $d->dispatch($e = new ExampleEvent(), ['foo']);
+        $d->dispatch($e = new ExampleEvent, ['foo']);
 
         $this->assertSame($e, $_SERVER['__event.test']);
     }
@@ -654,11 +654,11 @@ class EventsDispatcherTest extends TestCase
     public function testInterfacesWork()
     {
         unset($_SERVER['__event.test']);
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(SomeEventInterface::class, function () {
             $_SERVER['__event.test'] = 'bar';
         });
-        $d->dispatch(new AnotherEvent());
+        $d->dispatch(new AnotherEvent);
 
         $this->assertSame('bar', $_SERVER['__event.test']);
     }
@@ -667,7 +667,7 @@ class EventsDispatcherTest extends TestCase
     {
         unset($_SERVER['__event.test']);
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(AnotherEvent::class, function ($p) {
             $_SERVER['__event.test'][] = $p;
             $_SERVER['__event.test1'] = 'fooo';
@@ -676,7 +676,7 @@ class EventsDispatcherTest extends TestCase
             $_SERVER['__event.test'][] = $p;
             $_SERVER['__event.test2'] = 'baar';
         });
-        $d->dispatch($e = new AnotherEvent(), ['foo']);
+        $d->dispatch($e = new AnotherEvent, ['foo']);
 
         $this->assertSame($e, $_SERVER['__event.test'][0]);
         $this->assertSame($e, $_SERVER['__event.test'][1]);
@@ -689,7 +689,7 @@ class EventsDispatcherTest extends TestCase
     public function testNestedEvent()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
 
         $d->listen('event', function () use ($d) {
             $d->listen('event', function () {
@@ -708,7 +708,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testDuplicateListenersWillFire()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('event', TestListener::class);
         $d->listen('event', TestListener::class);
         $d->listen('event', TestListener::class . '@handle');
@@ -721,7 +721,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testGetListeners()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(ExampleEvent::class, 'Listener1');
         $d->listen(ExampleEvent::class, 'Listener2');
         $listeners = $d->getListeners(ExampleEvent::class);
@@ -735,7 +735,7 @@ class EventsDispatcherTest extends TestCase
     public function testListenersObjectsCreationOrder()
     {
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(TestEvent::class, TestListener1::class);
         $d->listen(TestEvent::class, TestListener2::class);
         $d->listen(TestEvent::class, TestListener3::class);
@@ -777,7 +777,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testListenerObjectCreationIsLazy()
     {
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(TestEvent::class, TestListener1::class);
         $d->listen(TestEvent::class, TestListener2Falser::class);
         $d->listen(TestEvent::class, TestListener3::class);
@@ -803,7 +803,7 @@ class EventsDispatcherTest extends TestCase
 
         // Halting dispatch stops after first listener returns a non-null value.
         // TestListener1 was already auto-singletoned above, so only handle runs.
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen(TestEvent::class, TestListener1::class);
         $d->listen(TestEvent::class, TestListener2Falser::class);
         $d->listen(TestEvent::class, TestListener3::class);
@@ -822,7 +822,7 @@ class EventsDispatcherTest extends TestCase
     {
         // Only "handle" is called when both "handle" and "__invoke" exist on listener.
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('myEvent', TestListenerInvokeyHandler::class);
         $d->dispatch('myEvent');
         $this->assertEquals(['__construct', 'handle'], $_SERVER['__event.test']);
@@ -831,7 +831,7 @@ class EventsDispatcherTest extends TestCase
         // TestListenerInvokeyHandler was auto-singletoned above — no constructor on reuse.
         // TestListenerInvokey is new — constructor runs.
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('myEvent', TestListenerInvokey::class);
         $d->listen('myEvent', TestListenerInvokeyHandler::class);
         $d->dispatch('myEvent', 'somePayload');
@@ -840,13 +840,13 @@ class EventsDispatcherTest extends TestCase
         // It falls back to __invoke if the referenced method is not found.
         // TestListenerInvokey was auto-singletoned above — no constructor on reuse.
         $_SERVER['__event.test'] = [];
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('myEvent', [TestListenerInvokey::class, 'someAbsentMethod']);
         $d->dispatch('myEvent', 'somePayload');
         $this->assertEquals(['__invoke_somePayload'], $_SERVER['__event.test']);
 
         // It throws an "Error" when there is no method to be called.
-        $d = new Dispatcher();
+        $d = new Dispatcher;
         $d->listen('myEvent', TestListenerLean::class);
 
         $this->expectException(Error::class);

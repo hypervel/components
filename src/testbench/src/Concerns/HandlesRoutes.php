@@ -94,7 +94,7 @@ trait HandlesRoutes
      */
     protected function defineCacheRoutes(Closure|string $route, bool $cached = true): void
     {
-        static::usesTestingFeature($attribute = new UsesVendor(), Attribute::TARGET_METHOD);
+        static::usesTestingFeature($attribute = new UsesVendor, Attribute::TARGET_METHOD);
 
         if (
             $this->app instanceof HypervelApplication
@@ -104,7 +104,7 @@ trait HandlesRoutes
             $attribute->beforeEach($this->app);
         }
 
-        $files = new Filesystem();
+        $files = new Filesystem;
 
         $time = time();
 
@@ -167,7 +167,7 @@ trait HandlesRoutes
                 if ($cached === true) {
                     require $app->getCachedRoutesPath();
                 } else {
-                    (new SyncTestbenchCachedRoutes())->bootstrap($app);
+                    (new SyncTestbenchCachedRoutes)->bootstrap($app);
                 }
             }
         });

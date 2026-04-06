@@ -134,7 +134,7 @@ class UrlGeneratorTest extends TestCase
 
         $this->assertEquals('http://example.com/foo/bar/baz', $urlGenerator->to('foo', ['bar', 'baz']));
         $this->assertEquals('http://example.com/foo/%3F/%3D', $urlGenerator->to('foo', ['?', '=']));
-        $this->assertEquals('http://example.com/foo/1', $urlGenerator->to('foo', [new UrlRoutableStub()]));
+        $this->assertEquals('http://example.com/foo/1', $urlGenerator->to('foo', [new UrlRoutableStub]));
     }
 
     public function testToWithSecure()
@@ -417,7 +417,7 @@ class UrlGeneratorTest extends TestCase
         $method = new ReflectionMethod(UrlGenerator::class, 'formatParameters');
         $method->setAccessible(true);
 
-        $urlRoutable = new UrlRoutableStub();
+        $urlRoutable = new UrlRoutableStub;
         $parameters = ['key' => $urlRoutable, 'normal' => 'value'];
 
         $result = $method->invoke($urlGenerator, $parameters);
@@ -440,7 +440,7 @@ class UrlGeneratorTest extends TestCase
         $urlGenerator = new UrlGenerator($this->container);
         $urlGenerator->setSignedKey('secret');
 
-        $request = new Request();
+        $request = new Request;
 
         $this->mockRequest(
             $urlGenerator->signedRoute('foo')
@@ -471,7 +471,7 @@ class UrlGeneratorTest extends TestCase
         $urlGenerator = new UrlGenerator($this->container);
         $urlGenerator->setSignedKey('secret');
 
-        $request = new Request();
+        $request = new Request;
 
         $this->mockRequest(
             $urlGenerator->signedRoute('foo', [], null, false)
@@ -615,8 +615,8 @@ class UrlGeneratorTest extends TestCase
 
     private function mockContainer()
     {
-        $container = new Container();
-        $container->instance(RequestInterface::class, new Request());
+        $container = new Container;
+        $container->instance(RequestInterface::class, new Request);
 
         Container::setInstance($container);
 

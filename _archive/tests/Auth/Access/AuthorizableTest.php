@@ -19,7 +19,7 @@ class AuthorizableTest extends TestCase
 {
     public function testCan()
     {
-        $user = new AuthorizableStub();
+        $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
         $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
@@ -30,7 +30,7 @@ class AuthorizableTest extends TestCase
 
     public function testCanAny()
     {
-        $user = new AuthorizableStub();
+        $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
         $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
@@ -41,7 +41,7 @@ class AuthorizableTest extends TestCase
 
     public function testCant()
     {
-        $user = new AuthorizableStub();
+        $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
         $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
@@ -52,7 +52,7 @@ class AuthorizableTest extends TestCase
 
     public function testCannot()
     {
-        $user = new AuthorizableStub();
+        $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
         $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
@@ -68,7 +68,7 @@ class AuthorizableTest extends TestCase
     {
         $gate = m::mock(Gate::class);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(Gate::class, $gate);
         Container::setInstance($container);
 

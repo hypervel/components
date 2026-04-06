@@ -15,7 +15,7 @@ class WhoopsHandler
      */
     public function forDebug(): PrettyPageHandler
     {
-        return tap(new PrettyPageHandler(), function ($handler) {
+        return tap(new PrettyPageHandler, function ($handler) {
             $handler->handleUnconditionally(true);
 
             $this->registerApplicationPaths($handler)
@@ -42,7 +42,7 @@ class WhoopsHandler
     protected function directoriesExceptVendor(): array
     {
         return Arr::except(
-            array_flip((new Filesystem())->directories(base_path())),
+            array_flip((new Filesystem)->directories(base_path())),
             [base_path('vendor')]
         );
     }

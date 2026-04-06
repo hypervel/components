@@ -51,7 +51,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSend()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Foo subject');
         $message->text('Bar body');
         $message->sender('myself@example.com');
@@ -82,7 +82,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSendError()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Foo subject');
         $message->text('Bar body');
         $message->sender('myself@example.com');

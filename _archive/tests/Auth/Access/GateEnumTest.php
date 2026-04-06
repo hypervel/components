@@ -162,7 +162,7 @@ class GateEnumTest extends TestCase
 
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyWithAllPermissions::class);
 
-        $this->assertTrue($gate->any(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy()));
+        $this->assertTrue($gate->any(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy));
     }
 
     public function testAnyWithUnitEnum(): void
@@ -185,7 +185,7 @@ class GateEnumTest extends TestCase
 
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyWithNoPermissions::class);
 
-        $this->assertTrue($gate->none(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy()));
+        $this->assertTrue($gate->none(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy));
     }
 
     public function testNoneWithUnitEnum(): void
@@ -339,11 +339,11 @@ class GateEnumTest extends TestCase
 
     protected function getBasicGate(bool $isGuest = false): Gate
     {
-        $container = new Container();
+        $container = new Container;
 
         return new Gate(
             $container,
-            fn () => $isGuest ? null : new AccessGateTestAuthenticatable()
+            fn () => $isGuest ? null : new AccessGateTestAuthenticatable
         );
     }
 }

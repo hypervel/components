@@ -22,7 +22,7 @@ final class SharedTagFlushCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $tagA = $context->prefixed('tagA-' . bin2hex(random_bytes(4)));
         $tagB = $context->prefixed('tagB-' . bin2hex(random_bytes(4)));

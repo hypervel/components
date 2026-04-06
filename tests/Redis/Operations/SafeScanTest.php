@@ -25,7 +25,7 @@ class SafeScanTest extends TestCase
      */
     private function createConnection(FakeRedisClient $client): RedisConnection
     {
-        $connection = new PhpRedisConnectionStub();
+        $connection = new PhpRedisConnectionStub;
         $connection->setActiveConnection($client);
 
         return $connection;
@@ -233,7 +233,7 @@ class SafeScanTest extends TestCase
      */
     private function createClusterConnection(FakeRedisClusterClient $client): RedisConnection
     {
-        $connection = new PhpRedisClusterConnectionStub();
+        $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
 
         return $connection;

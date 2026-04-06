@@ -29,7 +29,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
     {
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
-        Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+        Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
 
         $this->assertTrue(ShouldDispatchAfterCommitTestEvent::$ran);
     }
@@ -40,9 +40,9 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
 
         try {
             DB::transaction(function () {
-                Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
 
-                throw new Exception();
+                throw new Exception;
             });
         } catch (Exception) {
         }
@@ -55,7 +55,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         Event::listen(ShouldDispatchAfterCommitTestEvent::class, ShouldDispatchAfterCommitListener::class);
 
         DB::transaction(function () {
-            Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+            Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
         });
 
         $this->assertTrue(ShouldDispatchAfterCommitTestEvent::$ran);
@@ -74,14 +74,14 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
             try {
                 DB::transaction(function () {
                     // This event should not be dispatched since the transaction is going to fail.
-                    Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
-                    throw new Exception();
+                    Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
+                    throw new Exception;
                 });
             } catch (Exception) {
             }
 
             // This event should be dispatched, as the parent transaction does not fail.
-            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent());
+            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent);
         });
 
         $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
@@ -94,10 +94,10 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         Event::listen(AnotherShouldDispatchAfterCommitTestEvent::class, AnotherShouldDispatchAfterCommitListener::class);
 
         DB::transaction(function () {
-            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent());
+            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent);
 
             DB::transaction(function () {
-                Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
             });
 
             // Although the child transaction has been concluded, the parent transaction has not.
@@ -119,7 +119,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
 
         DB::transaction(function () {
             DB::transaction(function () {
-                Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
             });
 
             // Although the child transaction has been concluded, the parent transaction has not.
@@ -128,7 +128,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
 
             // The main difference with this test is that we dispatch an event on the parent transaction
             // at the end. This is important due to how the DatabaseTransactionsManager works.
-            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent());
+            Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent);
         });
 
         // Now that the parent transaction has been committed, the event
@@ -145,7 +145,7 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
             DB::transaction(function () {
             });
 
-            Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+            Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
 
             $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
         });
@@ -160,12 +160,12 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
         try {
             DB::transaction(function () {
                 DB::transaction(function () {
-                    Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                    Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
                 });
 
                 $this->assertFalse(ShouldDispatchAfterCommitTestEvent::$ran);
 
-                throw new Exception();
+                throw new Exception;
             });
         } catch (Exception) {
         }
@@ -183,14 +183,14 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
 
         DB::transaction(function () {
             DB::transaction(function () {
-                Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
             });
 
             try {
                 DB::transaction(function () {
                     // This event should not be dispatched since the transaction is going to fail.
-                    Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent());
-                    throw new Exception();
+                    Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent);
+                    throw new Exception;
                 });
             } catch (Exception $e) {
             }
@@ -208,10 +208,10 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
             try {
                 DB::transaction(function () {
                     DB::transaction(function () {
-                        Event::dispatch(new ShouldDispatchAfterCommitTestEvent());
+                        Event::dispatch(new ShouldDispatchAfterCommitTestEvent);
                     });
 
-                    throw new Exception();
+                    throw new Exception;
                 });
             } catch (Exception $e) {
             }
@@ -227,15 +227,15 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
 
         DB::transaction(function () { // lv 1
             DB::transaction(function () { // lv 2
-                DB::transaction(fn () => Event::dispatch(new ShouldDispatchAfterCommitTestEvent()));
+                DB::transaction(fn () => Event::dispatch(new ShouldDispatchAfterCommitTestEvent));
                 // lv 2
             });
 
             try {
                 DB::transaction(function () { // lv 2
                     // This event should not be dispatched since the transaction is going to fail.
-                    Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent());
-                    throw new Exception();
+                    Event::dispatch(new AnotherShouldDispatchAfterCommitTestEvent);
+                    throw new Exception;
                 });
             } catch (Exception $e) {
             }
@@ -254,11 +254,11 @@ class ShouldDispatchAfterCommitEventTest extends TestCase
                 DB::transaction(function () {
                     DB::transaction(function () {
                         DB::transaction(function () {
-                            DB::transaction(fn () => Event::dispatch(new ShouldDispatchAfterCommitTestEvent()));
+                            DB::transaction(fn () => Event::dispatch(new ShouldDispatchAfterCommitTestEvent));
                         });
                     });
 
-                    throw new Exception();
+                    throw new Exception;
                 });
             } catch (Exception $e) {
             }

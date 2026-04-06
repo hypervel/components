@@ -28,7 +28,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
 
         $results = [];
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Coroutine 1: Disable syncing
         $waiter->add(1);
@@ -61,7 +61,7 @@ class CoroutineSafetyTest extends ScoutTestCase
     public function testWithoutSyncingToSearchIsCoroutineIsolated()
     {
         $results = [];
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Coroutine 1: Run without syncing
         $waiter->add(1);
@@ -99,7 +99,7 @@ class CoroutineSafetyTest extends ScoutTestCase
     public function testMultipleConcurrentDisableSync()
     {
         $results = [];
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Create multiple coroutines that each toggle syncing
         for ($i = 0; $i < 5; ++$i) {
@@ -151,7 +151,7 @@ class CoroutineSafetyTest extends ScoutTestCase
     public function testNestedCoroutinesHaveIsolatedContext()
     {
         $results = [];
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         // Parent coroutine
         $waiter->add(1);
@@ -159,7 +159,7 @@ class CoroutineSafetyTest extends ScoutTestCase
             SearchableModel::disableSearchSyncing();
             $results['parent_before_child'] = SearchableModel::isSearchSyncingEnabled();
 
-            $childWaiter = new WaitGroup();
+            $childWaiter = new WaitGroup;
 
             // Nested child coroutine
             $childWaiter->add(1);

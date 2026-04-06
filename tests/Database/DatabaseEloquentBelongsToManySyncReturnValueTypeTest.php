@@ -16,7 +16,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB();
+        $db = new DB;
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -90,7 +90,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         $changes = $user->articles()->sync($articleIDs);
 
         collect($changes['attached'])->map(function ($id) {
-            $this->assertSame(gettype($id), (new Article())->getKeyType());
+            $this->assertSame(gettype($id), (new Article)->getKeyType());
         });
 
         $user->articles->each(function (Article $article) {
@@ -108,7 +108,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         $changes = $user->articles()->syncWithPivotValues($articleIDs, ['visible' => true]);
 
         collect($changes['attached'])->each(function ($id) {
-            $this->assertSame(gettype($id), (new Article())->getKeyType());
+            $this->assertSame(gettype($id), (new Article)->getKeyType());
         });
 
         $user->articles->each(function (Article $article) {

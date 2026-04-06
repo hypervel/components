@@ -27,7 +27,7 @@ class ScheduleTestCommandTest extends TestCase
 
         $this->schedule = $this->app->make(Schedule::class);
 
-        Artisan::registerCommand(new BarCommandStub());
+        Artisan::registerCommand(new BarCommandStub);
     }
 
     public function testRunNoDefinedCommands()

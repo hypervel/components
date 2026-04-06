@@ -21,7 +21,7 @@ class FrequencyTest extends TestCase
 {
     public function testFrequencyHit()
     {
-        $frequency = new FrequencyStub();
+        $frequency = new FrequencyStub;
         $now = time();
         $frequency->setBeginTime($now - 4);
         $frequency->setHits([
@@ -56,7 +56,7 @@ class FrequencyTest extends TestCase
 
     public function testFrequencyHitOneSecondAfter()
     {
-        $frequency = new FrequencyStub();
+        $frequency = new FrequencyStub;
         $now = time();
 
         $frequency->setBeginTime($now - 4);

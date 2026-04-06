@@ -31,12 +31,12 @@ trait Dispatchable
 
             return value($boolean, $dispatchable) // @phpstan-ignore ternary.alwaysTrue (phpstan over-narrows TValue from conditional return PHPDoc)
                 ? new PendingDispatch($dispatchable)
-                : new Fluent();
+                : new Fluent;
         }
 
         return value($boolean)
             ? new PendingDispatch(new static(...$arguments))
-            : new Fluent();
+            : new Fluent;
     }
 
     /**
@@ -49,12 +49,12 @@ trait Dispatchable
 
             return ! value($boolean, $dispatchable) // @phpstan-ignore booleanNot.alwaysFalse
                 ? new PendingDispatch($dispatchable)
-                : new Fluent();
+                : new Fluent;
         }
 
         return ! value($boolean)
             ? new PendingDispatch(new static(...$arguments))
-            : new Fluent();
+            : new Fluent;
     }
 
     /**

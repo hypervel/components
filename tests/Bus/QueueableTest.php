@@ -19,7 +19,7 @@ class QueueableTest extends TestCase
     #[DataProvider('connectionDataProvider')]
     public function testOnConnection(mixed $connection, ?string $expected)
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->onConnection($connection);
 
         $this->assertSame($job->connection, $expected);
@@ -28,7 +28,7 @@ class QueueableTest extends TestCase
     #[DataProvider('connectionDataProvider')]
     public function testAllOnConnection(mixed $connection, ?string $expected)
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->allOnConnection($connection);
 
         $this->assertSame($job->connection, $expected);
@@ -47,7 +47,7 @@ class QueueableTest extends TestCase
 
     public function testOnConnectionWithIntBackedEnumThrowsTypeError()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
 
         $this->expectException(TypeError::class);
         $job->onConnection(IntConnectionEnum::Redis);
@@ -55,7 +55,7 @@ class QueueableTest extends TestCase
 
     public function testAllOnConnectionWithIntBackedEnumThrowsTypeError()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
 
         $this->expectException(TypeError::class);
         $job->allOnConnection(IntConnectionEnum::Redis);
@@ -64,7 +64,7 @@ class QueueableTest extends TestCase
     #[DataProvider('queuesDataProvider')]
     public function testOnQueue(mixed $queue, ?string $expected)
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->onQueue($queue);
 
         $this->assertSame($job->queue, $expected);
@@ -73,7 +73,7 @@ class QueueableTest extends TestCase
     #[DataProvider('queuesDataProvider')]
     public function testAllOnQueue(mixed $queue, ?string $expected)
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->allOnQueue($queue);
 
         $this->assertSame($job->queue, $expected);
@@ -92,7 +92,7 @@ class QueueableTest extends TestCase
 
     public function testOnQueueWithIntBackedEnumThrowsTypeError()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
 
         $this->expectException(TypeError::class);
         $job->onQueue(IntQueueEnum::High);
@@ -100,7 +100,7 @@ class QueueableTest extends TestCase
 
     public function testAllOnQueueWithIntBackedEnumThrowsTypeError()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
 
         $this->expectException(TypeError::class);
         $job->allOnQueue(IntQueueEnum::High);
@@ -109,7 +109,7 @@ class QueueableTest extends TestCase
     #[DataProvider('groupDataProvider')]
     public function testOnGroup(mixed $group, string $expected)
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->onGroup($group);
 
         $this->assertSame($expected, $job->messageGroup);
@@ -126,7 +126,7 @@ class QueueableTest extends TestCase
 
     public function testWithDeduplicatorClosure()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->withDeduplicator(fn () => 'dedup-id');
 
         $this->assertInstanceOf(SerializableClosure::class, $job->deduplicator);
@@ -134,7 +134,7 @@ class QueueableTest extends TestCase
 
     public function testWithDeduplicatorNull()
     {
-        $job = new FakeJob();
+        $job = new FakeJob;
         $job->withDeduplicator(null);
 
         $this->assertNull($job->deduplicator);
@@ -144,10 +144,10 @@ class QueueableTest extends TestCase
 
     public function testPrependToChainWithMultipleJobs()
     {
-        $job = new FakeJob();
-        $job->chain([new FakeJob()]);
+        $job = new FakeJob;
+        $job->chain([new FakeJob]);
 
-        $job->prependToChain([new FakeJob(), new FakeJob()]);
+        $job->prependToChain([new FakeJob, new FakeJob]);
 
         $this->assertCount(3, $job->chained);
         // The two prepended jobs should be first, in the order they were given
@@ -158,10 +158,10 @@ class QueueableTest extends TestCase
 
     public function testAppendToChainWithMultipleJobs()
     {
-        $job = new FakeJob();
-        $job->chain([new FakeJob()]);
+        $job = new FakeJob;
+        $job->chain([new FakeJob]);
 
-        $job->appendToChain([new FakeJob(), new FakeJob()]);
+        $job->appendToChain([new FakeJob, new FakeJob]);
 
         $this->assertCount(3, $job->chained);
         // The two appended jobs should be at the end

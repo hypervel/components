@@ -54,7 +54,7 @@ class SendingMailableNotificationsTest extends TestCase
             'email' => 'nuno@laravel.com',
         ]);
 
-        $user->notify(new MarkdownNotification());
+        $user->notify(new MarkdownNotification);
 
         $message = app('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
         $email = $message->toString();
@@ -90,7 +90,7 @@ class SendingMailableNotificationsTest extends TestCase
         $this->assertStringContainsString('<body style=3D"color: test;">', $contents);
 
         // confirm passing no theme resets to the app's default theme
-        $user->notify(new MarkdownNotification());
+        $user->notify(new MarkdownNotification);
 
         $contents = $mailTransport->messages()[1]->getOriginalMessage()->toString();
         $this->assertStringNotContainsString('<body style=3D"color: test;">', $contents);
@@ -120,7 +120,7 @@ class MarkdownNotification extends Notification
 
     public function toMail($notifiable): MailMessage
     {
-        $message = (new MailMessage())->markdown('markdown');
+        $message = (new MailMessage)->markdown('markdown');
 
         if (! is_null($this->theme)) {
             $message->theme($this->theme);

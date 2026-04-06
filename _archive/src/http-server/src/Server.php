@@ -113,7 +113,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             $psr7Response = $this->container->make(SafeCaller::class)->call(function () use ($throwable) {
                 return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
             }, static function () {
-                return (new Psr7Response())->withStatus(400);
+                return (new Psr7Response)->withStatus(400);
             });
         } finally {
             if (isset($psr7Request) && $this->option?->isEnableRequestLifecycle()) {
@@ -218,7 +218,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
      */
     protected function initRequestAndResponse(SwooleRequest $request, SwooleResponse $response): array
     {
-        ResponseContext::set($psr7Response = new Psr7Response());
+        ResponseContext::set($psr7Response = new Psr7Response);
 
         $psr7Response->setConnection(new WritableConnection($response));
 

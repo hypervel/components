@@ -22,14 +22,14 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
 
     public function testActiveReturnsFalseWhenFileDoesNotExist()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $this->assertFalse($mode->active());
     }
 
     public function testActivateWritesJsonToCorrectPath()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $mode->activate(['status' => 503, 'retry' => 60]);
 
@@ -42,7 +42,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
 
     public function testActiveReturnsTrueWhenFileExists()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $mode->activate(['status' => 503]);
 
@@ -51,7 +51,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
 
     public function testDataReturnsDecodedPayload()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $mode->activate(['status' => 503, 'secret' => 'abc123', 'retry' => null]);
 
@@ -64,7 +64,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
 
     public function testDeactivateDeletesFile()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $mode->activate(['status' => 503]);
         $this->assertTrue($mode->active());
@@ -76,7 +76,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
 
     public function testDeactivateDoesNothingWhenNotActive()
     {
-        $mode = new FileBasedMaintenanceMode();
+        $mode = new FileBasedMaintenanceMode;
 
         $mode->deactivate();
 

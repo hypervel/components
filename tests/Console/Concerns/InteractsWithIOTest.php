@@ -24,9 +24,9 @@ class InteractsWithIOTest extends TestCase
     #[DataProvider('iterableDataProvider')]
     public function testWithProgressBarIterable($iterable)
     {
-        $command = new CommandInteractsWithIO();
-        $bufferedOutput = new BufferedOutput();
-        $output = m::mock(OutputStyle::class, [new ArgvInput(), $bufferedOutput])->makePartial();
+        $command = new CommandInteractsWithIO;
+        $bufferedOutput = new BufferedOutput;
+        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
         $command->setOutput($output);
 
         $output->shouldReceive('createProgressBar')
@@ -58,9 +58,9 @@ class InteractsWithIOTest extends TestCase
 
     public function testWithProgressBarInteger()
     {
-        $command = new CommandInteractsWithIO();
-        $bufferedOutput = new BufferedOutput();
-        $output = m::mock(OutputStyle::class, [new ArgvInput(), $bufferedOutput])->makePartial();
+        $command = new CommandInteractsWithIO;
+        $bufferedOutput = new BufferedOutput;
+        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
         $command->setOutput($output);
 
         $totalSteps = 5;

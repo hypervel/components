@@ -112,7 +112,7 @@ final class StandardStream implements Stringable, StreamInterface
         }
 
         if (is_resource($body)) {
-            $new = new self();
+            $new = new self;
             $new->stream = $body;
             $meta = stream_get_meta_data($new->stream);
             $new->seekable = $meta['seekable'] && fseek($new->stream, 0, SEEK_CUR) === 0;

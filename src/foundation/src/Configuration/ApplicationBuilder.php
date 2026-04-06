@@ -192,7 +192,7 @@ class ApplicationBuilder
                     $exception = null;
 
                     try {
-                        Event::dispatch(new DiagnosingHealth());
+                        Event::dispatch(new DiagnosingHealth);
                     } catch (Throwable $e) {
                         if (app()->hasDebugModeEnabled()) {
                             throw $e;
@@ -243,7 +243,7 @@ class ApplicationBuilder
     public function withMiddleware(?callable $callback = null): static
     {
         $this->app->afterResolving(HttpKernel::class, function ($kernel) use ($callback) {
-            $middleware = (new Middleware())
+            $middleware = (new Middleware)
                 ->redirectGuestsTo(fn () => route('login'));
 
             if (! is_null($callback)) {
@@ -274,7 +274,7 @@ class ApplicationBuilder
 
         $this->app->afterResolving(ConsoleKernel::class, function () use ($callback) {
             if (! is_null($callback)) {
-                $callback(new Middleware());
+                $callback(new Middleware);
             }
         });
 

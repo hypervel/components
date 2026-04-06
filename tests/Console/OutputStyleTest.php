@@ -17,7 +17,7 @@ class OutputStyleTest extends TestCase
 {
     public function testDetectsNewLine()
     {
-        $bufferedOutput = new BufferedOutput();
+        $bufferedOutput = new BufferedOutput;
 
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
@@ -29,7 +29,7 @@ class OutputStyleTest extends TestCase
 
     public function testDetectsNewLineOnUnderlyingOutput()
     {
-        $bufferedOutput = new BufferedOutput();
+        $bufferedOutput = new BufferedOutput;
 
         $underlyingStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
         $style = new OutputStyle(new ArrayInput([]), $underlyingStyle);
@@ -40,7 +40,7 @@ class OutputStyleTest extends TestCase
 
     public function testDetectsNewLineOnWrite()
     {
-        $bufferedOutput = new BufferedOutput();
+        $bufferedOutput = new BufferedOutput;
 
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
@@ -53,7 +53,7 @@ class OutputStyleTest extends TestCase
 
     public function testDetectsNewLineOnWriteln()
     {
-        $bufferedOutput = new BufferedOutput();
+        $bufferedOutput = new BufferedOutput;
 
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 
@@ -63,7 +63,7 @@ class OutputStyleTest extends TestCase
 
     public function testDetectsNewLineOnlyOnOutput()
     {
-        $bufferedOutput = new BufferedOutput();
+        $bufferedOutput = new BufferedOutput;
 
         $style = new OutputStyle(new ArrayInput([]), $bufferedOutput);
 

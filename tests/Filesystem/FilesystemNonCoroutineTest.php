@@ -35,7 +35,7 @@ class FilesystemNonCoroutineTest extends TestCase
 
     protected function tearDown(): void
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $files->deleteDirectory($this->tempDir);
 
         parent::tearDown();
@@ -90,7 +90,7 @@ class FilesystemNonCoroutineTest extends TestCase
 
     public function testLockedPutWithStreamResource()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $path = $this->tempDir . '/stream.txt';
 
         $stream = fopen('php://memory', 'r+');
@@ -105,7 +105,7 @@ class FilesystemNonCoroutineTest extends TestCase
 
     public function testLockedPutTruncatesLongerExistingContent()
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $path = $this->tempDir . '/truncate.txt';
 
         $files->put($path, 'this is longer content that should be gone', true);

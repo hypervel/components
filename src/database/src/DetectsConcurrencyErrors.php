@@ -19,7 +19,7 @@ trait DetectsConcurrencyErrors
 
         $detector = $container->has(ConcurrencyErrorDetectorContract::class)
             ? $container->make(ConcurrencyErrorDetectorContract::class)
-            : new ConcurrencyErrorDetector();
+            : new ConcurrencyErrorDetector;
 
         return $detector->causedByConcurrencyError($e);
     }

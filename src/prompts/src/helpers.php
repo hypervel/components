@@ -90,7 +90,7 @@ if (! function_exists('\Hypervel\Prompts\clear')) {
      */
     function clear(): void
     {
-        (new Clear())->display();
+        (new Clear)->display();
     }
 }
 
@@ -256,6 +256,6 @@ if (! function_exists('\Hypervel\Prompts\progress')) {
 if (! function_exists('\Hypervel\Prompts\form')) {
     function form(): FormBuilder
     {
-        return new FormBuilder();
+        return new FormBuilder;
     }
 }

@@ -46,7 +46,7 @@ class PackageManifestTest extends TestCase
      */
     private function makeManifest(?object $testbench = null, ?array $rootPackage = null): PackageManifest
     {
-        return new class(new Filesystem(), $this->basePath, $this->manifestPath, $testbench, $rootPackage) extends PackageManifest {
+        return new class(new Filesystem, $this->basePath, $this->manifestPath, $testbench, $rootPackage) extends PackageManifest {
             /**
              * Create a new fixture-backed package manifest instance.
              */

@@ -226,7 +226,7 @@ class PendingRequest
             },
         ]);
 
-        $this->afterResponseCallbacks = new Collection();
+        $this->afterResponseCallbacks = new Collection;
     }
 
     /**
@@ -1205,7 +1205,7 @@ class PendingRequest
     {
         return function ($handler) {
             return function ($request, $options) use ($handler) {
-                $response = ($this->stubCallbacks ?? new Collection())
+                $response = ($this->stubCallbacks ?? new Collection)
                     ->map
                     ->__invoke((new Request($request))->withData($options['hypervel_data'])->setRequestAttributes($this->attributes), $options)
                     ->filter()

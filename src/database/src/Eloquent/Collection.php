@@ -44,7 +44,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         if (is_array($key)) {
             if ($this->isEmpty()) {
-                return new static();
+                return new static;
             }
 
             return $this->whereIn($this->first()->getKeyName(), $key);
@@ -72,7 +72,7 @@ class Collection extends BaseCollection implements QueueableCollection
             return $result;
         }
 
-        $exception = new ModelNotFoundException();
+        $exception = new ModelNotFoundException;
 
         if (! $model = head($this->items)) {
             throw $exception;
@@ -429,7 +429,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function fresh(array|string $with = []): static
     {
         if ($this->isEmpty()) {
-            return new static();
+            return new static;
         }
 
         $model = $this->first();
@@ -452,7 +452,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function diff($items): static
     {
-        $diff = new static();
+        $diff = new static;
 
         $dictionary = $this->getDictionary($items);
 
@@ -473,7 +473,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function intersect(mixed $items): static
     {
-        $intersect = new static();
+        $intersect = new static;
 
         if (empty($items)) {
             return $intersect;

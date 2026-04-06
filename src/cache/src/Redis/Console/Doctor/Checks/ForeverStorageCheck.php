@@ -22,7 +22,7 @@ final class ForeverStorageCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Forever without tags
         $context->cache->forever($context->prefixed('forever:key1'), 'permanent');

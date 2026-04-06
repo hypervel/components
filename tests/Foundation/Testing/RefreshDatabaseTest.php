@@ -66,7 +66,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
 
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
@@ -86,7 +86,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
@@ -106,7 +106,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => true,
                 '--seed' => false,
             ])->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
@@ -126,7 +126,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
@@ -146,7 +146,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
-        $this->app = new Application();
+        $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());

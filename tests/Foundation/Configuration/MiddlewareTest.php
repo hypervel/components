@@ -29,8 +29,8 @@ class MiddlewareTest extends TestCase
 {
     public function testConvertEmptyStringsToNull()
     {
-        $configuration = new Middleware();
-        $middleware = new ConvertEmptyStringsToNull();
+        $configuration = new Middleware;
+        $middleware = new ConvertEmptyStringsToNull;
 
         $configuration->convertEmptyStringsToNull(except: [
             fn (Request $request) => $request->has('skip-all-1'),
@@ -79,8 +79,8 @@ class MiddlewareTest extends TestCase
 
     public function testTrimStrings()
     {
-        $configuration = new Middleware();
-        $middleware = new TrimStrings();
+        $configuration = new Middleware;
+        $middleware = new TrimStrings;
 
         $configuration->trimStrings(except: [
             'aaa',
@@ -119,8 +119,8 @@ class MiddlewareTest extends TestCase
 
     public function testTrustProxies()
     {
-        $configuration = new Middleware();
-        $middleware = new TrustProxies();
+        $configuration = new Middleware;
+        $middleware = new TrustProxies;
 
         $reflection = new ReflectionClass($middleware);
         $method = $reflection->getMethod('proxies');
@@ -153,8 +153,8 @@ class MiddlewareTest extends TestCase
 
     public function testTrustHeaders()
     {
-        $configuration = new Middleware();
-        $middleware = new TrustProxies();
+        $configuration = new Middleware;
+        $middleware = new TrustProxies;
 
         $reflection = new ReflectionClass($middleware);
         $method = $reflection->getMethod('headers');
@@ -193,7 +193,7 @@ class MiddlewareTest extends TestCase
     public function testTrustHosts()
     {
         $app = m::mock(Application::class);
-        $configuration = new Middleware();
+        $configuration = new Middleware;
         $middleware = new class($app) extends TrustHosts {
             protected function allSubdomainsOfApplicationUrl(): ?string
             {
@@ -233,7 +233,7 @@ class MiddlewareTest extends TestCase
 
     public function testEncryptCookies()
     {
-        $configuration = new Middleware();
+        $configuration = new Middleware;
         $encrypter = m::mock(Encrypter::class);
         $middleware = new EncryptCookies($encrypter);
 
@@ -251,7 +251,7 @@ class MiddlewareTest extends TestCase
 
     public function testPreventRequestsDuringMaintenance()
     {
-        $configuration = new Middleware();
+        $configuration = new Middleware;
 
         $mode = m::mock(MaintenanceMode::class);
         $mode->shouldReceive('active')->andReturn(true);
@@ -263,7 +263,7 @@ class MiddlewareTest extends TestCase
         $reflection = new ReflectionClass($middleware);
         $method = $reflection->getMethod('inExceptArray');
 
-        $symfonyRequest = new SymfonyRequest();
+        $symfonyRequest = new SymfonyRequest;
         $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
         $symfonyRequest->server->set('REQUEST_URI', 'metrics/requests');
 
@@ -276,7 +276,7 @@ class MiddlewareTest extends TestCase
 
     public function testPreventRequestForgery()
     {
-        $configuration = new Middleware();
+        $configuration = new Middleware;
         $middleware = new PreventRequestForgery(
             m::mock(Application::class),
             m::mock(Encrypter::class)
@@ -299,7 +299,7 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultGlobalMiddleware()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
 
         $this->assertSame([
             \Hypervel\Http\Middleware\ValidatePathEncoding::class,
@@ -314,7 +314,7 @@ class MiddlewareTest extends TestCase
 
     public function testExplicitEmptyGlobalMiddlewareOverridesDefaults()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
 
         $middleware->use([]);
 
@@ -323,7 +323,7 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultWebMiddlewareGroup()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
 
         $this->assertSame([
@@ -338,7 +338,7 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultApiMiddlewareGroup()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
 
         $this->assertSame([
@@ -348,7 +348,7 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultMiddlewareAliases()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
 
         $this->assertSame([
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
@@ -363,7 +363,7 @@ class MiddlewareTest extends TestCase
 
     public function testStatefulApiAddsEnsureFrontendRequestsAreStateful()
     {
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $middleware->statefulApi();
 
         $groups = $middleware->getMiddlewareGroups();
@@ -411,7 +411,7 @@ class MiddlewareTest extends TestCase
             m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
         );
 
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $middleware->priority([
             'FirstMiddleware',
             'SecondMiddleware',
@@ -437,7 +437,7 @@ class MiddlewareTest extends TestCase
             m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
         );
 
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $middleware->appendToPriorityList(
             \Hypervel\Routing\Middleware\SubstituteBindings::class,
             'AppendedMiddleware'
@@ -464,7 +464,7 @@ class MiddlewareTest extends TestCase
             m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
         );
 
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $middleware->prependToPriorityList(
             \Hypervel\Routing\Middleware\SubstituteBindings::class,
             'PrependedMiddleware'
@@ -491,7 +491,7 @@ class MiddlewareTest extends TestCase
             m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
         );
 
-        $middleware = new Middleware();
+        $middleware = new Middleware;
         $middleware->use(['CustomGlobalMiddleware']);
         $middleware->group('custom', ['CustomGroupMiddleware']);
         $middleware->alias(['custom-alias' => 'CustomAliasMiddleware']);

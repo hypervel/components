@@ -134,6 +134,6 @@ class PostgresConnection extends Connection
      */
     protected function getDefaultPostProcessor(): PostgresProcessor
     {
-        return new PostgresProcessor();
+        return new PostgresProcessor;
     }
 }

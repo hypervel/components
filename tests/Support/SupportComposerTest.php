@@ -29,7 +29,7 @@ class SupportComposerTest extends TestCase
     public function testSetAndGetLoader()
     {
         $original = Composer::getLoader();
-        $custom = new ClassLoader();
+        $custom = new ClassLoader;
 
         Composer::setLoader($custom);
 

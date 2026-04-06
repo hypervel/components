@@ -30,7 +30,7 @@ class CliDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = new Application();
+        $this->container = new Application;
         $this->container->singleton('config', fn () => $this->config);
 
         CliDumper::resolveDumpSourceUsing(function () {
@@ -112,7 +112,7 @@ class CliDumperTest extends TestCase
 
     public function testObject()
     {
-        $user = new stdClass();
+        $user = new stdClass;
         $user->name = 'Guus';
 
         $output = $this->dump($user);
@@ -145,7 +145,7 @@ class CliDumperTest extends TestCase
     {
         $file = '/my-work-directory/routes/console.php';
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $dumper = new CliDumper(
             $output,
             '/my-work-directory',
@@ -163,7 +163,7 @@ class CliDumperTest extends TestCase
     {
         $file = '/my-work-directory/storage/framework/views/6687c33c38b71a8560.php';
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $dumper = new CliDumper(
             $output,
             '/my-work-directory',
@@ -182,7 +182,7 @@ class CliDumperTest extends TestCase
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $dumper = new CliDumper(
             $output,
             '/my-work-directory',
@@ -200,7 +200,7 @@ class CliDumperTest extends TestCase
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $dumper = new CliDumper(
             $output,
             '/my-work-directory',
@@ -245,10 +245,10 @@ class CliDumperTest extends TestCase
     {
         $compiledViewPath = $this->config->get('view.config.view_path');
 
-        $output = new BufferedOutput();
+        $output = new BufferedOutput;
         $dumper = new CliDumper($output, '/my-work-directory', $compiledViewPath);
 
-        $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper->dumpWithSource($cloner->cloneVar($value));
 

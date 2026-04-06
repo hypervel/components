@@ -20,7 +20,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $this->db = new DB();
+        $this->db = new DB;
 
         $this->db->addConnection([
             'driver' => 'sqlite',

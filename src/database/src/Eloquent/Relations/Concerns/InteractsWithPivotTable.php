@@ -348,7 +348,7 @@ trait InteractsWithPivotTable
         $fresh = $this->parent->freshTimestamp();
 
         if ($this->using) {
-            $pivotModel = new $this->using();
+            $pivotModel = new $this->using;
 
             $fresh = $pivotModel->fromDateTime($fresh);
         }

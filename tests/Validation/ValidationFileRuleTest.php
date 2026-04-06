@@ -27,7 +27,7 @@ class ValidationFileRuleTest extends TestCase
 
         $this->app->singleton('translator', function () {
             return new Translator(
-                new ArrayLoader(),
+                new ArrayLoader,
                 'en'
             );
         });

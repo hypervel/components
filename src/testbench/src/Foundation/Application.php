@@ -162,7 +162,7 @@ class Application
     {
         $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
 
-        (new Actions\DeleteVendorSymlink())->handle($app);
+        (new Actions\DeleteVendorSymlink)->handle($app);
 
         return $app;
     }
@@ -297,8 +297,8 @@ class Application
             return static fn (): null => null;
         }
 
-        $originalServerValue = $_SERVER['APP_ENV'] ?? new UndefinedValue();
-        $originalEnvironmentValue = $_ENV['APP_ENV'] ?? new UndefinedValue();
+        $originalServerValue = $_SERVER['APP_ENV'] ?? new UndefinedValue;
+        $originalEnvironmentValue = $_ENV['APP_ENV'] ?? new UndefinedValue;
         $originalProcessValue = getenv('APP_ENV');
 
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
@@ -405,6 +405,6 @@ class Application
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
         $this->resolveApplicationConfigurationFromTrait($app);
-        (new EnsuresDefaultConfiguration())->bootstrap($app);
+        (new EnsuresDefaultConfiguration)->bootstrap($app);
     }
 }

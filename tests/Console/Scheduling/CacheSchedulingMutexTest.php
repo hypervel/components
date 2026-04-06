@@ -87,14 +87,14 @@ class CacheSchedulingMutexTest extends TestCase
 
     public function testMutexReceivesCorrectCreateWithLockProvider()
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $this->assertTrue($this->cacheMutex->create($this->event, $this->time));
     }
 
     public function testPreventsMultipleRunsWithLockProvider()
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $this->cacheMutex->create($this->event, $this->time);
 
@@ -103,14 +103,14 @@ class CacheSchedulingMutexTest extends TestCase
 
     public function testChecksForNonRunScheduleWithLockProvider()
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $this->assertFalse($this->cacheMutex->exists($this->event, $this->time));
     }
 
     public function testChecksForAlreadyRunScheduleWithLockProvider()
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore());
+        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
 
         $this->cacheMutex->create($this->event, $this->time);
 

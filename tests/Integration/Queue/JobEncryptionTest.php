@@ -45,7 +45,7 @@ class JobEncryptionTest extends QueueTestCase
 
     public function testEncryptedJobPayloadIsStoredEncrypted()
     {
-        Bus::dispatch(new JobEncryptionTestEncryptedJob());
+        Bus::dispatch(new JobEncryptionTestEncryptedJob);
 
         $this->assertNotEmpty(
             decrypt(json_decode(DB::table('jobs')->first()->payload)->data->command)
@@ -54,7 +54,7 @@ class JobEncryptionTest extends QueueTestCase
 
     public function testNonEncryptedJobPayloadIsStoredRaw()
     {
-        Bus::dispatch(new JobEncryptionTestNonEncryptedJob());
+        Bus::dispatch(new JobEncryptionTestNonEncryptedJob);
 
         $this->expectException(DecryptException::class);
         $this->expectExceptionMessage('The payload is invalid');
@@ -69,7 +69,7 @@ class JobEncryptionTest extends QueueTestCase
 
     public function testQueueCanProcessEncryptedJob()
     {
-        Bus::dispatch(new JobEncryptionTestEncryptedJob());
+        Bus::dispatch(new JobEncryptionTestEncryptedJob);
 
         Queue::pop()->fire();
 
@@ -78,7 +78,7 @@ class JobEncryptionTest extends QueueTestCase
 
     public function testQueueCanProcessUnEncryptedJob()
     {
-        Bus::dispatch(new JobEncryptionTestNonEncryptedJob());
+        Bus::dispatch(new JobEncryptionTestNonEncryptedJob);
 
         Queue::pop()->fire();
 

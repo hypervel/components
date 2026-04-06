@@ -51,7 +51,7 @@ class SupervisorTest extends IntegrationTestCase
     /** @requires extension redis */
     public function testSupervisorCanStartWorkerProcessWithGivenOptions()
     {
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
         $this->assertSame(1, $this->recentJobs());
 
         $this->supervisor = $supervisor = new Supervisor($this->supervisorOptions());
@@ -132,7 +132,7 @@ class SupervisorTest extends IntegrationTestCase
 
     public function testRecentJobsAreCorrectlyMaintained()
     {
-        $id = Queue::push(new Jobs\BasicJob());
+        $id = Queue::push(new Jobs\BasicJob);
         $this->assertSame(1, $this->recentJobs());
 
         $this->supervisor = $supervisor = new Supervisor($this->supervisorOptions());
@@ -298,7 +298,7 @@ class SupervisorTest extends IntegrationTestCase
         $this->assertFalse($supervisor->processPools[0]->working);
         usleep(1100 * 1000);
 
-        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\BasicJob);
         usleep(1100 * 1000);
 
         $this->assertSame(1, $this->recentJobs());

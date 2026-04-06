@@ -25,32 +25,32 @@ class ListenerTest extends TestCase
 {
     public function testInvokeListenerProvider()
     {
-        $listenerProvider = new ListenerProvider();
+        $listenerProvider = new ListenerProvider;
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertTrue(is_array($listenerProvider->listeners));
     }
 
     public function testInvokeListenerProviderWithListeners(): void
     {
-        $listenerProvider = new ListenerProvider();
+        $listenerProvider = new ListenerProvider;
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
 
-        $listenerProvider->on(Alpha::class, [new AlphaListener(), 'process']);
-        $listenerProvider->on(Beta::class, [new BetaListener(), 'process']);
+        $listenerProvider->on(Alpha::class, [new AlphaListener, 'process']);
+        $listenerProvider->on(Beta::class, [new BetaListener, 'process']);
         $this->assertTrue(is_array($listenerProvider->listeners));
         $this->assertSame(2, count($listenerProvider->listeners));
         // getListenersForEvent now returns an array (Laravel-style)
-        $this->assertIsArray($listenerProvider->getListenersForEvent(new Alpha()));
+        $this->assertIsArray($listenerProvider->getListenersForEvent(new Alpha));
     }
 
     public function testListenerProcess()
     {
-        $listenerProvider = new ListenerProvider();
-        $listenerProvider->on(Alpha::class, [$listener = new AlphaListener(), 'process']);
+        $listenerProvider = new ListenerProvider;
+        $listenerProvider->on(Alpha::class, [$listener = new AlphaListener, 'process']);
         $this->assertSame(1, $listener->value);
 
         $dispatcher = new EventDispatcher($listenerProvider);
-        $dispatcher->dispatch(new Alpha());
+        $dispatcher->dispatch(new Alpha);
         $this->assertSame(2, $listener->value);
     }
 
@@ -61,7 +61,7 @@ class ListenerTest extends TestCase
         $container->shouldReceive('make')
             ->once()
             ->with(ListenerProviderContract::class)
-            ->andReturn((new ListenerProviderFactory())($container));
+            ->andReturn((new ListenerProviderFactory)($container));
         $listenerProvider = $container->make(ListenerProviderContract::class);
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
     }
@@ -77,24 +77,24 @@ class ListenerTest extends TestCase
         ]));
         $container->shouldReceive('make')
             ->with(AlphaListener::class)
-            ->andReturn($alphaListener = new AlphaListener());
+            ->andReturn($alphaListener = new AlphaListener);
         $container->shouldReceive('make')
             ->with(BetaListener::class)
-            ->andReturn($betaListener = new BetaListener());
+            ->andReturn($betaListener = new BetaListener);
         $container->shouldReceive('make')
             ->once()
             ->with(ListenerProviderContract::class)
-            ->andReturn((new ListenerProviderFactory())($container));
+            ->andReturn((new ListenerProviderFactory)($container));
         $listenerProvider = $container->make(ListenerProviderContract::class);
         $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertSame(2, count($listenerProvider->listeners));
 
         $dispatcher = new EventDispatcher($listenerProvider);
         $this->assertSame(1, $alphaListener->value);
-        $dispatcher->dispatch(new Alpha());
+        $dispatcher->dispatch(new Alpha);
         $this->assertSame(2, $alphaListener->value);
         $this->assertSame(1, $betaListener->value);
-        $dispatcher->dispatch(new Beta());
+        $dispatcher->dispatch(new Beta);
         $this->assertSame(2, $betaListener->value);
     }
 }

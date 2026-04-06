@@ -133,7 +133,7 @@ class RoutingServiceProvider extends ServiceProvider
         $this->app->bind(ServerRequestInterface::class, function ($app) {
             if (class_exists(PsrHttpFactory::class)) {
                 $illuminateRequest = $app->make('request');
-                $request = (new PsrHttpFactory())->createRequest($illuminateRequest);
+                $request = (new PsrHttpFactory)->createRequest($illuminateRequest);
 
                 if ($illuminateRequest->getContentTypeFormat() !== 'json' && $illuminateRequest->request->count() === 0) {
                     return $request;
@@ -155,7 +155,7 @@ class RoutingServiceProvider extends ServiceProvider
     {
         $this->app->bind(ResponseInterface::class, function () {
             if (class_exists(PsrHttpFactory::class)) {
-                return (new PsrHttpFactory())->createResponse(new Response());
+                return (new PsrHttpFactory)->createResponse(new Response);
             }
 
             throw new BindingResolutionException('Unable to resolve PSR response. Please install the "symfony/psr-http-message-bridge" package.');

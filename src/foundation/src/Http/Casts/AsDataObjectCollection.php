@@ -34,7 +34,7 @@ class AsDataObjectCollection implements Castable
             public function get(string $key, mixed $value, array $inputs): mixed
             {
                 if (! isset($inputs[$key]) || ! is_array($value)) {
-                    return new Collection();
+                    return new Collection;
                 }
 
                 $dataClass = $this->arguments[0];

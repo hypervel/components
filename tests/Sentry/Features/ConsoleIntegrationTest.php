@@ -50,7 +50,7 @@ class ConsoleIntegrationTest extends SentryTestCase
             new CommandStarting(
                 'test:command',
                 new ArgvInput(['artisan', '--foo=bar']),
-                new BufferedOutput()
+                new BufferedOutput
             )
         );
     }

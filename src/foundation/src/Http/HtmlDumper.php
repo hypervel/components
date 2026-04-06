@@ -52,7 +52,7 @@ class HtmlDumper extends BaseHtmlDumper
      */
     public static function register($basePath, $compiledViewPath): void
     {
-        $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper = new static($basePath, $compiledViewPath);
 

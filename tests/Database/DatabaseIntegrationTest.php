@@ -35,7 +35,7 @@ class DatabaseIntegrationTest extends TestCase
             }
         });
 
-        $db = new DB();
+        $db = new DB;
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',

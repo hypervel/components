@@ -34,7 +34,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $request->shouldReceive('user')->andReturn($user);
 
         $expectedResponse = new Response('ok');
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => $expectedResponse);
 
         $this->assertSame($expectedResponse, $result);
@@ -49,7 +49,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $request->shouldReceive('user')->andReturn($user);
 
         $expectedResponse = new Response('ok');
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => $expectedResponse);
 
         $this->assertSame($expectedResponse, $result);
@@ -63,7 +63,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
         $this->expectException(HttpException::class);
 
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
@@ -78,7 +78,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
         $this->expectException(HttpException::class);
 
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
@@ -94,7 +94,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $request->shouldReceive('user')->andReturn($user);
         $request->shouldReceive('expectsJson')->andReturnFalse();
 
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');
 
         $this->assertSame(302, $result->getStatusCode());
@@ -108,7 +108,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $request->shouldReceive('user')->andReturn(null);
         $request->shouldReceive('expectsJson')->andReturnFalse();
 
-        $middleware = new EnsureEmailIsVerified();
+        $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');
 
         $this->assertSame(302, $result->getStatusCode());

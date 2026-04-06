@@ -14,9 +14,9 @@ class HttpServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton('request', fn ($app) => new Request());
+        $this->app->singleton('request', fn ($app) => new Request);
 
-        $this->app->singleton('response', fn ($app) => new Response());
+        $this->app->singleton('response', fn ($app) => new Response);
 
         $this->app->singleton(HttpServerCoreMiddleware::class, CoreMiddleware::class);
     }

@@ -714,7 +714,7 @@ class RedisTest extends TestCase
             ->with('cache')
             ->andReturn($proxy);
 
-        $container = new Container();
+        $container = new Container;
         $container->instance(RedisFactory::class, $factory);
         Container::setInstance($container);
 

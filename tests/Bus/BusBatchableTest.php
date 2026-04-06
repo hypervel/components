@@ -27,7 +27,7 @@ class BusBatchableTest extends TestCase
         $this->assertSame($class, $class->withBatchId('test-batch-id'));
         $this->assertSame('test-batch-id', $class->batchId);
 
-        Container::setInstance($container = new Container());
+        Container::setInstance($container = new Container);
 
         $repository = m::mock(BatchRepository::class);
         $batch = m::mock(Batch::class);

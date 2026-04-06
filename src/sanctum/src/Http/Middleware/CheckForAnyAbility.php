@@ -29,11 +29,11 @@ class CheckForAnyAbility
         $user = $this->auth->guard()->user();
 
         if (! $user || ! method_exists($user, 'currentAccessToken') || ! $user->currentAccessToken()) {
-            throw new AuthenticationException();
+            throw new AuthenticationException;
         }
 
         if (! method_exists($user, 'tokenCan')) {
-            throw new AuthenticationException();
+            throw new AuthenticationException;
         }
 
         foreach ($abilities as $ability) {

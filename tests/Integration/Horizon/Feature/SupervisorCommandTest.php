@@ -49,7 +49,7 @@ class SupervisorCommandTest extends IntegrationTestCase
 
     public function testSupervisorCommandCanStartSupervisorMonitoring()
     {
-        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory());
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', static::OPTIONS);
 
         $this->assertTrue($factory->supervisor->monitoring);
@@ -58,7 +58,7 @@ class SupervisorCommandTest extends IntegrationTestCase
 
     public function testSupervisorCommandCanStartPausedSupervisors()
     {
-        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory());
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--paused' => true] + static::OPTIONS);
 
         $this->assertFalse($factory->supervisor->working);
@@ -66,7 +66,7 @@ class SupervisorCommandTest extends IntegrationTestCase
 
     public function testSupervisorCommandCanSetProcessNiceness()
     {
-        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory());
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--nice' => 10] + static::OPTIONS);
 
         $this->assertSame(10, $this->myNiceness());

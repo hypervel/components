@@ -218,7 +218,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
      */
     protected function createMissingMySqlOrPgsqlDatabase(Connection $connection): bool
     {
-        $adminConfig = (new ConfigurationUrlParser())->parseConfiguration(
+        $adminConfig = (new ConfigurationUrlParser)->parseConfiguration(
             $this->hypervel['config']->get("database.connections.{$connection->getName()}")
         );
 

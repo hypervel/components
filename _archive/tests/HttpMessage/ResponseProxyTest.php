@@ -35,8 +35,8 @@ class ResponseProxyTest extends ResponseTest
 
     protected function newResponse()
     {
-        $response = new ResponseStub();
-        $response->setResponse(new Response());
+        $response = new ResponseStub;
+        $response->setResponse(new Response);
         return $response;
     }
 }

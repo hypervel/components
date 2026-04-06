@@ -19,11 +19,11 @@ class AssertTest extends TestCase
     {
         Assert::assertArraySubset([
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ], [
             'int' => 1,
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ]);
     }
 
@@ -34,11 +34,11 @@ class AssertTest extends TestCase
         Assert::assertArraySubset([
             'int' => 2,
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ], [
             'int' => 1,
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ]);
     }
 
@@ -46,7 +46,7 @@ class AssertTest extends TestCase
     {
         Assert::assertArraySubset([
             'string' => 'string',
-            'object' => $object = new stdClass(),
+            'object' => $object = new stdClass,
         ], [
             'int' => 1,
             'string' => 'string',
@@ -60,11 +60,11 @@ class AssertTest extends TestCase
 
         Assert::assertArraySubset([
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ], [
             'int' => 1,
             'string' => 'string',
-            'object' => new stdClass(),
+            'object' => new stdClass,
         ], true);
     }
 

@@ -33,7 +33,7 @@ class LoadUsingFrameworkConfigurationTest extends TestCase
 
     protected function overrideHypervelConfiguration(ApplicationContract $app): void
     {
-        $app->instance(LoadConfiguration::class, new LoadConfiguration());
+        $app->instance(LoadConfiguration::class, new LoadConfiguration);
         $app->useConfigPath(package_path('src', 'foundation', 'config'));
     }
 }

@@ -225,7 +225,7 @@ class Route
      */
     public function run(): mixed
     {
-        $this->container = $this->container ?: new Container();
+        $this->container = $this->container ?: new Container;
 
         try {
             if ($this->isControllerAction()) {
@@ -1277,9 +1277,9 @@ class Route
         // validator implementations. We will spin through each one making sure it
         // passes and then we will know if the route as a whole matches request.
         return static::$validators = [
-            new UriValidator(), new MethodValidator(),
-            new SchemeValidator(), new HostValidator(),
-            new PortValidator(),
+            new UriValidator, new MethodValidator,
+            new SchemeValidator, new HostValidator,
+            new PortValidator,
         ];
     }
 

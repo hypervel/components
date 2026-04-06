@@ -27,7 +27,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithRequestMiddlewareSetsMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $middleware = [TestRequestMiddleware::class];
 
         $pending = $client->withRequestMiddleware($middleware);
@@ -41,7 +41,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithAddedRequestMiddlewareAppendsMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $middlewareA = [TestRequestMiddleware::class];
         $middlewareB = [AnotherRequestMiddleware::class];
 
@@ -60,7 +60,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithResponseMiddlewareSetsMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $middleware = [TestResponseMiddleware::class];
 
         $pending = $client->withResponseMiddleware($middleware);
@@ -74,7 +74,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithAddedResponseMiddlewareAppendsMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $middlewareA = [TestResponseMiddleware::class];
         $middlewareB = [AnotherResponseMiddleware::class];
 
@@ -93,7 +93,7 @@ class PendingRequestTest extends TestCase
 
     public function testRequestMiddlewareCanModifyRequest(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         $pending = $client->withRequestMiddleware([AddHeaderRequestMiddleware::class]);
 
@@ -108,7 +108,7 @@ class PendingRequestTest extends TestCase
 
     public function testResponseMiddlewareCanModifyResponse(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         $pending = $client->withResponseMiddleware([AddHeaderResponseMiddleware::class]);
 
@@ -124,7 +124,7 @@ class PendingRequestTest extends TestCase
 
     public function testMiddlewareExecutionOrder(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         OrderTrackingMiddleware::reset();
 
@@ -142,7 +142,7 @@ class PendingRequestTest extends TestCase
 
     public function testMiddlewareCanBeDisabled(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         $pending = $client
             ->withRequestMiddleware([TestRequestMiddleware::class])
@@ -157,7 +157,7 @@ class PendingRequestTest extends TestCase
 
     public function testMiddlewareCanBeEnabled(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         $pending = $client
             ->withRequestMiddleware([TestRequestMiddleware::class])
@@ -173,7 +173,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithMiddlewareOptionsPassesOptionsToRequestMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $options = ['key' => 'value', 'timeout' => 30];
 
         $pending = $client
@@ -189,7 +189,7 @@ class PendingRequestTest extends TestCase
 
     public function testWithMiddlewareOptionsPassesOptionsToResponseMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
         $options = ['key' => 'value', 'timeout' => 30];
 
         $pending = $client
@@ -205,7 +205,7 @@ class PendingRequestTest extends TestCase
 
     public function testMiddlewareCaching(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         // First request creates middleware instance
         $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
@@ -225,7 +225,7 @@ class PendingRequestTest extends TestCase
 
     public function testFlushCacheClearsMiddlewareCache(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         // First request creates middleware instance
         $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
@@ -251,7 +251,7 @@ class PendingRequestTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Middleware class `NonExistentMiddleware` does not exist');
 
-        $client = new ApiClient();
+        $client = new ApiClient;
         $pending = $client->withRequestMiddleware(['NonExistentMiddleware']);
 
         Http::fake(['test' => Http::response('{"data": "test"}')]);
@@ -260,7 +260,7 @@ class PendingRequestTest extends TestCase
 
     public function testRequestMiddlewarePipelineFlow(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         PipelineTestMiddleware::reset();
 
@@ -279,7 +279,7 @@ class PendingRequestTest extends TestCase
 
     public function testResponseMiddlewarePipelineFlow(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         PipelineTestMiddleware::reset();
 
@@ -314,7 +314,7 @@ class PendingRequestTest extends TestCase
 
     public function testCombinedRequestAndResponseMiddleware(): void
     {
-        $client = new ApiClient();
+        $client = new ApiClient;
 
         $pending = $client
             ->withRequestMiddleware([AddHeaderRequestMiddleware::class])

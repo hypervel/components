@@ -44,7 +44,7 @@ class ContextTest extends TestCase
         $this->context->add('bool', true);
         $this->context->add('null', null);
         $this->context->add('array', [1, 2, 3]);
-        $object = new stdClass();
+        $object = new stdClass;
         $this->context->add('object', $object);
 
         $this->assertSame('hello', $this->context->get('string'));

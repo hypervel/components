@@ -71,7 +71,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         $app = $this->createApplication();
         $app->instance('blade.compiler', $this->compiler);
 
-        $exampleObject = new Fluent();
+        $exampleObject = new Fluent;
 
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));
     }

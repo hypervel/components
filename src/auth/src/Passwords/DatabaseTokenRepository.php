@@ -62,7 +62,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     protected function getPayload(string $email, #[SensitiveParameter] string $token): array
     {
-        return ['email' => $email, 'token' => $this->hasher->make($token), 'created_at' => new Carbon()];
+        return ['email' => $email, 'token' => $this->hasher->make($token), 'created_at' => new Carbon];
     }
 
     /**

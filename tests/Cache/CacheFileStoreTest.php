@@ -24,7 +24,7 @@ class CacheFileStoreTest extends TestCase
     public function testNullIsReturnedIfFileDoesntExist()
     {
         $files = $this->mockFilesystem();
-        $files->expects($this->once())->method('get')->will($this->throwException(new FileNotFoundException()));
+        $files->expects($this->once())->method('get')->will($this->throwException(new FileNotFoundException));
         $store = new FileStore($files, __DIR__);
         $value = $store->get('foo');
         $this->assertNull($value);
@@ -283,7 +283,7 @@ class CacheFileStoreTest extends TestCase
         $valueAfterIncrement = '9999999999' . serialize(1);
         $store = new FileStore($files, __DIR__);
         // simulates a missing item in file store by the exception
-        $files->expects($this->once())->method('get')->with($this->equalTo($filePath), $this->equalTo(true))->willThrowException(new Exception());
+        $files->expects($this->once())->method('get')->with($this->equalTo($filePath), $this->equalTo(true))->willThrowException(new Exception);
         $files->expects($this->once())->method('put')->with($this->equalTo($filePath), $this->equalTo($valueAfterIncrement));
         $result = $store->increment('foo');
         $this->assertIsInt($result);
@@ -404,7 +404,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testHasSeparateLockStoreReturnsTrueWhenLockDirectoryDiffers()
     {
-        $store = new FileStore(new Filesystem(), __DIR__);
+        $store = new FileStore(new Filesystem, __DIR__);
         $store->setLockDirectory('/locks');
 
         $this->assertTrue($store->hasSeparateLockStore());
@@ -412,7 +412,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsSame()
     {
-        $store = new FileStore(new Filesystem(), __DIR__);
+        $store = new FileStore(new Filesystem, __DIR__);
         $store->setLockDirectory(__DIR__);
 
         $this->assertFalse($store->hasSeparateLockStore());
@@ -420,7 +420,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsNull()
     {
-        $store = new FileStore(new Filesystem(), __DIR__);
+        $store = new FileStore(new Filesystem, __DIR__);
         $store->setLockDirectory(null);
 
         $this->assertFalse($store->hasSeparateLockStore());
@@ -428,7 +428,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testFlushLocksThrowsExceptionWhenLockDirectoryIsSame()
     {
-        $store = new FileStore(new Filesystem(), __DIR__);
+        $store = new FileStore(new Filesystem, __DIR__);
         $store->setLockDirectory(__DIR__);
 
         $this->expectException(RuntimeException::class);
@@ -442,7 +442,7 @@ class CacheFileStoreTest extends TestCase
         mkdir($tempDir, 0777, true);
 
         try {
-            $store = new FileStore(new Filesystem(), $tempDir);
+            $store = new FileStore(new Filesystem, $tempDir);
 
             $key = Str::random();
             $path = $store->path($key);
@@ -458,7 +458,7 @@ class CacheFileStoreTest extends TestCase
             $this->assertFileDoesNotExist($path);
             $this->assertFileDoesNotExist($flexiblePath);
         } finally {
-            (new Filesystem())->deleteDirectory($tempDir);
+            (new Filesystem)->deleteDirectory($tempDir);
         }
     }
 

@@ -46,13 +46,13 @@ class ContextualAttributeBindingTest extends TestCase
 {
     public function testDependencyCanBeResolvedFromAttributeBinding()
     {
-        $container = new Container();
+        $container = new Container;
 
-        $container->bind(ContainerTestContract::class, fn (): ContainerTestImplB => new ContainerTestImplB());
+        $container->bind(ContainerTestContract::class, fn (): ContainerTestImplB => new ContainerTestImplB);
         $container->whenHasAttribute(ContainerTestAttributeThatResolvesContractImpl::class, function (ContainerTestAttributeThatResolvesContractImpl $attribute) {
             return match ($attribute->name) {
-                'A' => new ContainerTestImplA(),
-                'B' => new ContainerTestImplB(),
+                'A' => new ContainerTestImplA,
+                'B' => new ContainerTestImplB,
             };
         });
 
@@ -69,7 +69,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testSimpleDependencyCanBeResolvedCorrectlyFromGiveAttributeBinding()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->bind(ContainerTestContract::class, concrete: ContainerTestImplA::class);
 
@@ -80,7 +80,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testComplexDependencyCanBeResolvedCorrectlyFromGiveAttributeBinding()
     {
-        $container = new Container();
+        $container = new Container;
 
         $container->bind(ContainerTestContract::class, concrete: ContainerTestImplA::class);
 
@@ -92,7 +92,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testScalarDependencyCanBeResolvedFromAttributeBinding()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', fn () => new Repository([
             'app' => [
                 'timezone' => 'Europe/Paris',
@@ -111,7 +111,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testScalarDependencyCanBeResolvedFromAttributeResolveMethod()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', fn () => new Repository([
             'app' => [
                 'env' => 'production',
@@ -126,7 +126,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testDependencyWithAfterCallbackAttributeCanBeResolved()
     {
-        $container = new Container();
+        $container = new Container;
 
         $class = $container->make(ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback::class);
 
@@ -135,7 +135,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testAuthedAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('auth', function () {
             $manager = m::mock(AuthManager::class);
             $manager->shouldReceive('userResolver')->andReturn(fn ($guard = null) => $manager->guard($guard)->user());
@@ -160,7 +160,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testCacheAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('cache', function () {
             $manager = m::mock(CacheManager::class);
             $manager->shouldReceive('store')->with('foo')->andReturn(m::mock(CacheRepository::class));
@@ -174,7 +174,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testConfigAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', function () {
             $repository = m::mock(Repository::class);
             $repository->shouldReceive('get')->with('foo', null)->andReturn('foo');
@@ -188,7 +188,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testDatabaseAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('db', function () {
             $manager = m::mock(DatabaseManager::class);
             $manager->shouldReceive('connection')->with('foo')->andReturn(m::mock(Connection::class));
@@ -202,7 +202,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testAuthAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('auth', function () {
             $manager = m::mock(AuthManager::class);
             $manager->shouldReceive('guard')->with('foo')->andReturn(m::mock(GuardContract::class));
@@ -216,7 +216,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testLogAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('log', function () {
             $manager = m::mock(LogManager::class);
             $manager->shouldReceive('channel')->with('foo')->andReturn(m::mock(LoggerInterface::class));
@@ -230,7 +230,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testRouteParameterAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('request', function () {
             $request = m::mock(Request::class);
             $request->shouldReceive('route')->with('foo')->andReturn(m::mock(Model::class));
@@ -244,7 +244,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testContextAttribute()
     {
-        $container = new Container();
+        $container = new Container;
 
         ContextRepository::getInstance()->add('foo', 'foo');
 
@@ -255,7 +255,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testContextAttributeInteractingWithHidden()
     {
-        $container = new Container();
+        $container = new Container;
 
         ContextRepository::getInstance()->addHidden('bar', 'bar');
 
@@ -266,7 +266,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testStorageAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('filesystem', function () {
             $manager = m::mock(FilesystemManager::class);
             $manager->shouldReceive('disk')->with('foo')->andReturn(m::mock(Filesystem::class));
@@ -280,7 +280,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testInjectionWithAttributeOnAppCall()
     {
-        $container = new Container();
+        $container = new Container;
 
         $person = $container->call(function (ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback $hasAttribute) {
             return $hasAttribute->person;
@@ -291,7 +291,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testAttributeOnAppCall()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', fn () => new Repository([
             'app' => [
                 'timezone' => 'Europe/Paris',
@@ -314,7 +314,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testNestedAttributeOnAppCall()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', fn () => new Repository([
             'app' => [
                 'timezone' => 'Europe/Paris',
@@ -337,7 +337,7 @@ class ContextualAttributeBindingTest extends TestCase
 
     public function testTagAttribute()
     {
-        $container = new Container();
+        $container = new Container;
         $container->bind('one', fn (): int => 1);
         $container->bind('two', fn (): int => 2);
         $container->tag(['one', 'two'], 'numbers');

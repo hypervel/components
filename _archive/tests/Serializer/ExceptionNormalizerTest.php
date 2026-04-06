@@ -19,7 +19,7 @@ class ExceptionNormalizerTest extends TestCase
 {
     public function testNormalizeAndDenormalizeStandardException()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
         $exception = new InvalidArgumentException('invalid param foo');
 
         $result = $normalizer->normalize($exception);
@@ -37,7 +37,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testNormalizeAndDenormalizeExceptionWithCustomSerialization()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
         $exception = new SerializableException('serializable error');
 
         // SerializableException has __serialize/__unserialize but doesn't implement the Serializable interface,
@@ -55,7 +55,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testNormalizeAndDenormalizeCustomException()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
         $exception = new FooException(1000, 'custom error');
 
         $result = $normalizer->normalize($exception);
@@ -73,7 +73,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testDenormalizeInvalidDataReturnsRuntimeException()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
 
         $result = $normalizer->denormalize(12345, RuntimeException::class);
 
@@ -83,10 +83,10 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testSupportsNormalization()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
 
-        $this->assertTrue($normalizer->supportsNormalization(new RuntimeException()));
-        $this->assertTrue($normalizer->supportsNormalization(new InvalidArgumentException()));
+        $this->assertTrue($normalizer->supportsNormalization(new RuntimeException));
+        $this->assertTrue($normalizer->supportsNormalization(new InvalidArgumentException));
         $this->assertFalse($normalizer->supportsNormalization('not an exception'));
         $this->assertFalse($normalizer->supportsNormalization(42));
         $this->assertFalse($normalizer->supportsNormalization(null));
@@ -94,7 +94,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testSupportsDenormalization()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
 
         $this->assertTrue($normalizer->supportsDenormalization(null, RuntimeException::class));
         $this->assertTrue($normalizer->supportsDenormalization(null, InvalidArgumentException::class));
@@ -104,7 +104,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testGetSupportedTypes()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
 
         $types = $normalizer->getSupportedTypes(null);
 
@@ -114,7 +114,7 @@ class ExceptionNormalizerTest extends TestCase
 
     public function testNormalizePreservesFileAndLine()
     {
-        $normalizer = new ExceptionNormalizer();
+        $normalizer = new ExceptionNormalizer;
         $exception = new RuntimeException('test');
 
         $result = $normalizer->normalize($exception);

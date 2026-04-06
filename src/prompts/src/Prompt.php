@@ -157,7 +157,7 @@ abstract class Prompt
                     }
 
                     if ($key === Key::CTRL_U && self::$revertUsing) {
-                        throw new FormRevertedException();
+                        throw new FormRevertedException;
                     }
 
                     return Result::from($this->transformedValue());
@@ -242,10 +242,10 @@ abstract class Prompt
     protected static function output(): OutputInterface
     {
         if (Coroutine::inCoroutine()) {
-            return CoroutineContext::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput());
+            return CoroutineContext::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput);
         }
 
-        return self::$output ??= new ConsoleOutput();
+        return self::$output ??= new ConsoleOutput;
     }
 
     /**
@@ -265,7 +265,7 @@ abstract class Prompt
      */
     public static function terminal(): Terminal
     {
-        return static::$terminal ??= new Terminal();
+        return static::$terminal ??= new Terminal;
     }
 
     /**
@@ -494,8 +494,8 @@ abstract class Prompt
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;
-        static::$output = new ConsoleOutput();
-        static::$terminal = new Terminal();
+        static::$output = new ConsoleOutput;
+        static::$terminal = new Terminal;
 
         CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
         CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);

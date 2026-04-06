@@ -502,7 +502,7 @@ class BasicOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertEquals(['a' => 1, 'b' => 2], Cache::get('type_array'));
 
         // Object (as array after serialization)
-        $obj = new stdClass();
+        $obj = new stdClass;
         $obj->name = 'test';
         Cache::put('type_object', $obj, 60);
         $retrieved = Cache::get('type_object');

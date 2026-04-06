@@ -43,7 +43,7 @@ class VendorPublishCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->filesystem = new Filesystem();
+        $this->filesystem = new Filesystem;
         $this->workingDirectory = package_path('tests', 'Testbench', 'Fixtures', 'vendor-publish-' . uniqid());
         $this->originalPublishes = ServiceProvider::$publishes;
         $this->originalPublishGroups = ServiceProvider::$publishGroups;

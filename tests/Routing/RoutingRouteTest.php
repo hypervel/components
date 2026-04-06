@@ -198,7 +198,7 @@ class RoutingRouteTest extends RoutingTestCase
     {
         $router = $this->getRouter();
         $router->get('test', function () {
-            return (new SymfonyResponse('test', 304, ['foo' => 'bar']))->setLastModified(new DateTime());
+            return (new SymfonyResponse('test', 304, ['foo' => 'bar']))->setLastModified(new DateTime);
         });
 
         $response = $router->dispatch(Request::create('test', 'GET'));
@@ -286,7 +286,7 @@ class RoutingRouteTest extends RoutingTestCase
             return $next($request);
         });
         $router->aliasMiddleware('bar', function ($request, $next) {
-            return new ResponsableResponse();
+            return new ResponsableResponse;
         });
         $router->aliasMiddleware('baz', function ($request, $next) {
             return $next($request);
@@ -507,8 +507,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testNullValuesCanBeInjectedIntoRoutes()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
 
         $container->bind(RoutingTestUserModel::class, function () {
@@ -1061,7 +1061,7 @@ class RoutingRouteTest extends RoutingTestCase
             return $name;
         }]);
         $router->model('bar', RouteModelBindingNullStub::class, function ($value) {
-            return (new RouteModelBindingClosureStub())->findAlternate($value);
+            return (new RouteModelBindingClosureStub)->findAlternate($value);
         });
         $this->assertSame('tayloralt', $router->dispatch(Request::create('foo/TAYLOR', 'GET'))->getContent());
     }
@@ -1083,8 +1083,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testModelBindingThroughIOC()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
         $container->bind(RouteModelInterface::class, RouteModelBindingStub::class);
@@ -1097,13 +1097,13 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteDependenciesCanBeResolvedThroughAttributes()
     {
-        $container = new Container();
+        $container = new Container;
         $container->singleton('config', fn () => new Repository([
             'app' => [
                 'timezone' => 'Europe/Paris',
             ],
         ]));
-        $router = new Router(new Dispatcher(), $container);
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
         $router->get('foo', [
@@ -1118,8 +1118,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testAfterResolvingAttributeCallbackIsCalledOnRouteDependenciesResolution()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
@@ -1606,8 +1606,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouterFiresRoutedEvent()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $router->get('foo/bar', function () {
             return '';
@@ -1639,8 +1639,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouterFiresRouteMatchingEvent()
     {
-        $container = new Container();
-        $router = new Router($events = new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router($events = new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
         $router->get('foo/bar', function () {
@@ -1989,8 +1989,8 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testImplicitBindingThroughIOC()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
@@ -2044,7 +2044,7 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteFlushController()
     {
-        $container = new Container();
+        $container = new Container;
         $router = $this->getRouter();
 
         $router->get('count', ActionCountStub::class);
@@ -2066,12 +2066,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirect()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
@@ -2085,12 +2085,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectRetainsExistingStartingForwardSlash()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
@@ -2104,12 +2104,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectStripsMissingStartingForwardSlash()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
@@ -2126,12 +2126,12 @@ class RoutingRouteTest extends RoutingTestCase
         $this->expectException(UrlGenerationException::class);
         $this->expectExceptionMessage('Missing required parameter for [Route: hypervel_route_redirect_destination] [URI: users/{user}] [Missing parameter: user].');
 
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('users', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('users', function () {
             throw new Exception('Route should not be reachable.');
@@ -2143,12 +2143,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectWithCustomStatus()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
@@ -2162,12 +2162,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRoutePermanentRedirect()
     {
-        $container = new Container();
-        $router = new Router(new Dispatcher(), $container);
+        $container = new Container;
+        $router = new Router(new Dispatcher, $container);
         $container->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
         $container->instance(Request::class, $request);
-        $urlGenerator = new UrlGenerator(new RouteCollection(), $request);
+        $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $container->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
@@ -2208,7 +2208,7 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testItDispatchesEventsWhilePreparingRequest()
     {
-        $events = new Dispatcher();
+        $events = new Dispatcher;
         $preparing = [];
         $prepared = [];
         $events->listen(PreparingResponse::class, function ($event) use (&$preparing) {
@@ -2217,7 +2217,7 @@ class RoutingRouteTest extends RoutingTestCase
         $events->listen(ResponsePrepared::class, function ($event) use (&$prepared) {
             $prepared[] = $event;
         });
-        $container = new Container();
+        $container = new Container;
         $container->instance(Dispatcher::class, $events);
         $router = $this->getRouter($container);
         $router->get('foo/bar', function () {
@@ -2238,7 +2238,7 @@ class RoutingRouteTest extends RoutingTestCase
 
     protected function getRouter($container = null)
     {
-        $container ??= new Container();
+        $container ??= new Container;
 
         $router = new Router($container->make(Dispatcher::class), $container);
 
@@ -2500,12 +2500,12 @@ class RoutingTestUserModel extends Model
 {
     public function posts()
     {
-        return new RoutingTestPostModel();
+        return new RoutingTestPostModel;
     }
 
     public function testTeams()
     {
-        return new RoutingTestTeamModel();
+        return new RoutingTestTeamModel;
     }
 
     public function getRouteKeyName(): string
@@ -2553,7 +2553,7 @@ class RoutingTestTeamModel extends Model
 {
     public function users()
     {
-        return new RoutingTestUserModel();
+        return new RoutingTestUserModel;
     }
 
     public function getRouteKeyName(): string
@@ -2598,7 +2598,7 @@ class RoutingTestTeamWithoutUserModel extends RoutingTestTeamModel
     // that throw, simulating a relationship that doesn't resolve the child model.
     public function users()
     {
-        throw new ModelNotFoundException();
+        throw new ModelNotFoundException;
     }
 }
 

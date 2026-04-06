@@ -170,7 +170,7 @@ class SupportServiceProviderTest extends TestCase
 
     public function testMergeConfigFromWithFlatConfig()
     {
-        $config = new ConfigRepository();
+        $config = new ConfigRepository;
         $this->app->shouldReceive('make')->with('config')->andReturn($config);
 
         $provider = new ServiceProviderForTestingFlat($this->app);
@@ -283,7 +283,7 @@ class SupportServiceProviderTest extends TestCase
 
     public function testMergeConfigFromWithMergeableOptionsWhenNoExistingConfig()
     {
-        $config = new ConfigRepository();
+        $config = new ConfigRepository;
         $this->app->shouldReceive('make')->with('config')->andReturn($config);
 
         $provider = new ServiceProviderForTestingMergeableStores($this->app);
@@ -317,12 +317,12 @@ class SupportServiceProviderTest extends TestCase
         $provider->register();
 
         // Config should not have been touched — merge was skipped
-        $this->assertNull((new ConfigRepository())->get('flat'));
+        $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
     public function testMergeConfigFromRunsWhenConfigIsNotCached()
     {
-        $config = new ConfigRepository();
+        $config = new ConfigRepository;
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(false);
         $app->shouldReceive('make')->with('config')->andReturn($config);
@@ -342,7 +342,7 @@ class SupportServiceProviderTest extends TestCase
         $provider = new ServiceProviderForTestingReplace($app);
         $provider->register();
 
-        $this->assertNull((new ConfigRepository())->get('flat'));
+        $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
     public function testReplaceConfigRecursivelyFromRunsWhenNotCached()

@@ -95,7 +95,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     {
         $results = [];
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter) {
@@ -167,7 +167,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
         $results = [];
         $channel = new Channel(2);
-        $waiter = new WaitGroup();
+        $waiter = new WaitGroup;
 
         $waiter->add(1);
         go(function () use ($channel, $waiter, $manager, $testConnection) {

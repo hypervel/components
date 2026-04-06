@@ -200,7 +200,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFound()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController);
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -214,7 +214,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFoundWithInvokable()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new DemoController);
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -228,7 +228,7 @@ class CoreMiddlewareTest extends TestCase
     public function testHandleFoundWithNamespace()
     {
         $container = $this->getContainer();
-        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new FooController());
+        $container->shouldReceive('make')->with(DemoController::class)->andReturn(new FooController);
         $middleware = new CoreMiddleware($container, 'http');
         $ref = new ReflectionClass($middleware);
         $method = $ref->getMethod('handleFound');
@@ -243,15 +243,15 @@ class CoreMiddlewareTest extends TestCase
     protected function getContainer()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(DispatcherFactory::class)->andReturn(new DispatcherFactory());
+        $container->shouldReceive('make')->with(DispatcherFactory::class)->andReturn(new DispatcherFactory);
         $container->shouldReceive('make')->with(MethodDefinitionCollectorInterface::class)
-            ->andReturn(new MethodDefinitionCollector());
+            ->andReturn(new MethodDefinitionCollector);
         $container->shouldReceive('has')->with(ClosureDefinitionCollectorInterface::class)
             ->andReturn(false);
         $container->shouldReceive('make')->with(ClosureDefinitionCollectorInterface::class)
-            ->andReturn(new ClosureDefinitionCollector());
+            ->andReturn(new ClosureDefinitionCollector);
         $container->shouldReceive('make')->with(NormalizerInterface::class)
-            ->andReturn(new SimpleNormalizer());
+            ->andReturn(new SimpleNormalizer);
         return $container;
     }
 }

@@ -40,8 +40,8 @@ class CoroutineSafetyTest extends TestCase
 
     public function testOutputIsIsolatedBetweenCoroutines()
     {
-        $outputA = new BufferedOutput();
-        $outputB = new NullOutput();
+        $outputA = new BufferedOutput;
+        $outputB = new NullOutput;
 
         $channel = new Channel(2);
         $barrier = new Channel(1);
@@ -183,7 +183,7 @@ class CoroutineSafetyTest extends TestCase
 
         // Set a value in a child coroutine
         go(function () use ($channel) {
-            Prompt::setOutput(new BufferedOutput());
+            Prompt::setOutput(new BufferedOutput);
             $channel->push(true);
         });
 

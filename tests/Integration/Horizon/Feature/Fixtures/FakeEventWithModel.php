@@ -10,7 +10,7 @@ class FakeEventWithModel
 
     public function __construct($id)
     {
-        $this->model = new FakeModel();
+        $this->model = new FakeModel;
         $this->model->id = $id;
     }
 }

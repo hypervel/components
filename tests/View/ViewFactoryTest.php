@@ -63,7 +63,7 @@ class ViewFactoryTest extends TestCase
 
     private function createEventDispatcher()
     {
-        return new EventDispatcher(new Application());
+        return new EventDispatcher(new Application);
     }
 
     public function testExistsPassesAndFailsViews()
@@ -670,7 +670,7 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
         $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
 
         $factory->startComponent('component', ['name' => 'Taylor']);
@@ -687,7 +687,7 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
         $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
 
         $factory->startComponent($factory->make('component'), ['name' => 'Taylor']);
@@ -704,7 +704,7 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
         $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->startComponent(function ($data) use ($factory) {
             $this->assertArrayHasKey('name', $data);
@@ -910,7 +910,7 @@ class ViewFactoryTest extends TestCase
         $this->expectException(ErrorException::class);
         $this->expectExceptionMessage('section exception message');
 
-        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem());
+        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem);
         $engine->getCompiler()->shouldReceive('getCompiledPath')->andReturnUsing(function ($path) {
             return $path;
         });

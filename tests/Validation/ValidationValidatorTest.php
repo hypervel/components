@@ -4804,7 +4804,7 @@ class ValidationValidatorTest extends TestCase
     public function testValidateEmailWithCustomClassCheck()
     {
         $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(NoRFCWarningsValidation::class)->andReturn(new NoRFCWarningsValidation());
+        $container->shouldReceive('make')->with(NoRFCWarningsValidation::class)->andReturn(new NoRFCWarningsValidation);
 
         $v = new Validator($this->getArrayTranslator(), ['x' => 'foo@bar '], ['x' => 'email:' . NoRFCWarningsValidation::class]);
         $v->setContainer($container);
@@ -6229,10 +6229,10 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => ['Not', 'a', 'date']], ['x' => 'date']);
         $this->assertTrue($v->fails());
 
-        $v = new Validator($trans, ['x' => new DateTime()], ['x' => 'date']);
+        $v = new Validator($trans, ['x' => new DateTime], ['x' => 'date']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => new DateTimeImmutable()], ['x' => 'date']);
+        $v = new Validator($trans, ['x' => new DateTimeImmutable], ['x' => 'date']);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['x' => '2000-01-01'], ['x' => 'date_format:Y-m-d']);
@@ -10023,14 +10023,14 @@ class ValidationValidatorTest extends TestCase
     public function getArrayTranslator()
     {
         return new Translator(
-            new ArrayLoader(),
+            new ArrayLoader,
             'en'
         );
     }
 
     protected function mockContainer()
     {
-        $container = new Container();
+        $container = new Container;
 
         Container::setInstance($container);
 

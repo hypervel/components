@@ -19,7 +19,7 @@ use UnitEnum;
  */
 function php_binary(): string
 {
-    return (new PhpExecutableFinder())->find(false) ?: 'php';
+    return (new PhpExecutableFinder)->find(false) ?: 'php';
 }
 
 /**

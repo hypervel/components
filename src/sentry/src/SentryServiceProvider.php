@@ -223,16 +223,16 @@ class SentryServiceProvider extends ServiceProvider
                     });
 
                     $integrations[] = new SdkIntegration\RequestIntegration(
-                        new HypervelRequestFetcher()
+                        new HypervelRequestFetcher
                     );
                 }
 
                 $integrations = array_merge(
                     $integrations,
                     [
-                        new Integration(),
-                        new ContextIntegration(),
-                        new ExceptionContextIntegration(),
+                        new Integration,
+                        new ContextIntegration,
+                        new ExceptionContextIntegration,
                     ],
                     $userIntegrations
                 );

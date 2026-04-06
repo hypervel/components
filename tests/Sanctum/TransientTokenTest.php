@@ -15,7 +15,7 @@ class TransientTokenTest extends TestCase
 {
     public function testCanDetermineWhatItCanAndCantDo()
     {
-        $token = new TransientToken();
+        $token = new TransientToken;
 
         $this->assertTrue($token->can('foo'));
         $this->assertTrue($token->can('bar'));

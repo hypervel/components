@@ -21,7 +21,7 @@ class AttachableTest extends TestCase
         Attachment::macro('fromInvoice', function ($name) {
             return Attachment::fromData(fn () => 'pdf content', $name);
         });
-        $mailable = new Mailable();
+        $mailable = new Mailable;
 
         $mailable->attach(new class implements Attachable {
             public function toMailAttachment(): Attachment

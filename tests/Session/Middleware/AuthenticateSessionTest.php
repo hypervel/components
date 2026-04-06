@@ -22,7 +22,7 @@ class AuthenticateSessionTest extends TestCase
 {
     public function testHandleWithoutSession()
     {
-        $request = new Request();
+        $request = new Request;
         $next = fn () => 'next-1';
 
         $authFactory = m::mock(AuthFactory::class);
@@ -35,7 +35,7 @@ class AuthenticateSessionTest extends TestCase
 
     public function testHandleWithSessionWithoutRequestUser()
     {
-        $request = new Request();
+        $request = new Request;
 
         // set session:
         $request->setHypervelSession(new Store('name', new ArraySessionHandler(1)));
@@ -58,7 +58,7 @@ class AuthenticateSessionTest extends TestCase
             }
         };
 
-        $request = new Request();
+        $request = new Request;
 
         // set session:
         $request->setHypervelSession(new Store('name', new ArraySessionHandler(1)));
@@ -84,7 +84,7 @@ class AuthenticateSessionTest extends TestCase
             }
         };
 
-        $request = new Request();
+        $request = new Request;
         $request->setUserResolver(fn () => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
@@ -343,7 +343,7 @@ class AuthenticateSessionTest extends TestCase
         $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
         $authFactory->shouldReceive('user')->andReturn($user);
         // For legacy guards without hashPasswordForCookie method, we use fallback to raw hash
-        $authFactory->shouldReceive('hashPasswordForCookie')->andThrowExceptions([new BadMethodCallException()]);
+        $authFactory->shouldReceive('hashPasswordForCookie')->andThrowExceptions([new BadMethodCallException]);
 
         $middleware = new AuthenticateSession($authFactory);
         $response = $middleware->handle($request, fn () => 'next-9');
