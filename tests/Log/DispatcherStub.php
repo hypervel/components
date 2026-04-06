@@ -51,7 +51,7 @@ class DispatcherStub implements Dispatcher
 
     public function hasListeners(string $eventName): bool
     {
-        return false;
+        return $this->listener !== null;
     }
 
     public function subscribe(object|string $subscriber): void

@@ -28,6 +28,7 @@ class ContextTest extends TestCase
         parent::setUp();
 
         $this->events = m::mock(Dispatcher::class);
+        $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
         $this->events->shouldReceive('listen')->byDefault();
         $this->events->shouldReceive('dispatch')->byDefault();
         $this->context = new Repository($this->events);
@@ -644,6 +645,35 @@ class ContextTest extends TestCase
             ->with(m::type(ContextHydrated::class));
 
         $this->context->hydrate(null);
+    }
+
+    public function testContextDehydratingEventIsSkippedWhenNoListenersAreRegistered()
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(ContextDehydrating::class)->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $context = new Repository($events);
+        $context->add('key', 'value');
+
+        $payload = $context->dehydrate();
+
+        $this->assertNotNull($payload);
+        $this->assertArrayHasKey('key', $payload['data']);
+    }
+
+    public function testContextHydratedEventIsSkippedWhenNoListenersAreRegistered()
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(ContextHydrated::class)->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $context = new Repository($events);
+        $context->hydrate([
+            'data' => ['key' => serialize('value')],
+        ]);
+
+        $this->assertSame('value', $context->get('key'));
     }
 
     public function testDehydratingEventReceivesCloneNotOriginal()

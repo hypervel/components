@@ -614,7 +614,9 @@ class Repository implements ReplicableContext
             ->add($this->all())
             ->addHidden($this->allHidden());
 
-        $instance->events->dispatch(new ContextDehydrating($instance));
+        if ($instance->events->hasListeners(ContextDehydrating::class)) {
+            $instance->events->dispatch(new ContextDehydrating($instance));
+        }
 
         $serialize = fn (mixed $value): string => serialize(
             $instance->getSerializedPropertyValue($value, withRelations: false)
@@ -673,9 +675,11 @@ class Repository implements ReplicableContext
                 ->all(),
         ];
 
-        $this->events->dispatch(new ContextHydrated(
-            $this->flush()->add($data)->addHidden($hidden)
-        ));
+        $this->flush()->add($data)->addHidden($hidden);
+
+        if ($this->events->hasListeners(ContextHydrated::class)) {
+            $this->events->dispatch(new ContextHydrated($this));
+        }
 
         return $this;
     }

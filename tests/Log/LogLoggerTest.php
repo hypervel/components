@@ -68,6 +68,16 @@ class LogLoggerTest extends TestCase
         $this->assertEquals([], $context['event_context']);
     }
 
+    public function testLoggerSkipsEventDispatchWhenNoListenersAreRegistered()
+    {
+        $writer = new Logger($monolog = m::mock(Monolog::class), $events = m::mock(DispatcherStub::class));
+        $monolog->shouldReceive('error')->once()->with('foo', []);
+        $events->shouldReceive('hasListeners')->once()->with(MessageLogged::class)->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $writer->error('foo');
+    }
+
     public function testListenShortcutFailsWithNoDispatcher()
     {
         $this->expectException(RuntimeException::class);
