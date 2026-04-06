@@ -7,6 +7,7 @@ namespace Hypervel\Foundation;
 use Closure;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
@@ -22,6 +23,8 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -809,6 +812,23 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function isDownForMaintenance(): bool
     {
         return $this->maintenanceMode()->active();
+    }
+
+    /**
+     * Handle the incoming Artisan command.
+     */
+    public function handleCommand(InputInterface $input): int
+    {
+        $kernel = $this->make(ConsoleKernelContract::class);
+
+        $status = $kernel->handle(
+            $input,
+            new ConsoleOutput()
+        );
+
+        $kernel->terminate($input, $status);
+
+        return $status;
     }
 
     /**
