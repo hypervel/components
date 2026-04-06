@@ -312,11 +312,13 @@ class MemoizedStoreTest extends TestCase
     {
         $redis = Cache::driver('redis');
         $events = [];
-        Event::listen('*', function ($type, $event) use (&$events) {
-            if ($event[0] instanceof CacheEvent) {
-                $events[] = $event[0];
-            }
-        });
+        $collect = function (CacheEvent $event) use (&$events) {
+            $events[] = $event;
+        };
+
+        foreach ([RetrievingKey::class, RetrievingManyKeys::class, CacheMissed::class, WritingKey::class, KeyWritten::class, ForgettingKey::class, KeyForgotten::class] as $eventClass) {
+            Event::listen($eventClass, $collect);
+        }
 
         Cache::memo('redis')->get('name');
         $this->assertCount(2, $events);
