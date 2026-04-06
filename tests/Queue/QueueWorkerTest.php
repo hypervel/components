@@ -20,6 +20,7 @@ use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\MaxAttemptsExceededException;
@@ -48,6 +49,7 @@ class QueueWorkerTest extends TestCase
     protected function setUp(): void
     {
         $this->events = m::spy(EventDispatcher::class);
+        $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
         $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
         $this->container = new Container;
         $this->container->instance(EventDispatcher::class, $this->events);
@@ -78,6 +80,21 @@ class QueueWorkerTest extends TestCase
                 && $event->connectionName === 'default'
                 && $event->queue === 'queue';
         }))->once();
+    }
+
+    public function testJobPopEventsAreSkippedWhenNoListenersAreRegistered()
+    {
+        $this->events->shouldReceive('hasListeners')->with(JobPopping::class)->andReturn(false);
+        $this->events->shouldReceive('hasListeners')->with(JobPopped::class)->andReturn(false);
+
+        $worker = $this->getWorker('default', ['queue' => [$job = new WorkerFakeJob]]);
+        $worker->runNextJob('default', 'queue', new WorkerOptions);
+
+        $this->assertTrue($job->fired);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobPopping::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobPopped::class)]);
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
     }
 
     public function testWorkerCanMonitorTimeoutJobs()
@@ -162,6 +179,22 @@ class QueueWorkerTest extends TestCase
     {
         $worker = new Worker(...$this->workerDependencies());
         $this->assertFalse($worker->memoryExceeded(-1));
+    }
+
+    public function testDaemonShouldRunSkipsLoopingEventWhenNoListenersAreRegistered()
+    {
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(Looping::class)->andReturn(false);
+        $events->shouldNotReceive('until');
+
+        $worker = new LoopAwareWorker(
+            new WorkerFakeManager('default', new WorkerFakeConnection('default', [])),
+            $events,
+            $this->exceptionHandler,
+            fn () => false
+        );
+
+        $this->assertTrue($worker->daemonShouldRunForTest(new WorkerOptions, 'default', 'queue'));
     }
 
     public function testJobCanBeFiredBasedOnPriority()
@@ -559,6 +592,14 @@ class InsomniacWorker extends Worker
     public function memoryExceeded(float $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
+    }
+}
+
+class LoopAwareWorker extends Worker
+{
+    public function daemonShouldRunForTest(WorkerOptions $options, string $connectionName, string $queue): bool
+    {
+        return parent::daemonShouldRun($options, $connectionName, $queue);
     }
 }
 

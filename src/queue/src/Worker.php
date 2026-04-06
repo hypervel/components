@@ -354,7 +354,8 @@ class Worker
     {
         return ! ((($this->isDownForMaintenance)() && ! $options->force)
             || $this->paused
-            || $this->events->until(new Looping($connectionName, $queue)) === false);
+            || ($this->events->hasListeners(Looping::class)
+                && $this->events->until(new Looping($connectionName, $queue)) === false));
     }
 
     /**
@@ -724,7 +725,9 @@ class Worker
      */
     protected function raiseBeforeJobPopEvent(string $connectionName, ?string $queue = null): void
     {
-        $this->events->dispatch(new JobPopping($connectionName, $queue));
+        if ($this->events->hasListeners(JobPopping::class)) {
+            $this->events->dispatch(new JobPopping($connectionName, $queue));
+        }
     }
 
     /**
@@ -732,10 +735,12 @@ class Worker
      */
     protected function raiseAfterJobPopEvent(string $connectionName, ?JobContract $job): void
     {
-        $this->events->dispatch(new JobPopped(
-            $connectionName,
-            $job
-        ));
+        if ($this->events->hasListeners(JobPopped::class)) {
+            $this->events->dispatch(new JobPopped(
+                $connectionName,
+                $job
+            ));
+        }
     }
 
     /**
