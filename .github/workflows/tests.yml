@@ -17,7 +17,7 @@ jobs:
       matrix:
         include:
           - php: "8.4"
-            swoole: "6.1.4"
+            swoole: "6.2.0"
 
     name: PHP ${{ matrix.php }} (swoole-${{ matrix.swoole }})
 

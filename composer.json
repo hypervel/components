@@ -137,7 +137,7 @@
         "ext-posix": "*",
         "ext-redis": "^6.1",
         "ext-session": "*",
-        "ext-swoole": "^6.1",
+        "ext-swoole": "^6.2",
         "ext-tokenizer": "*",
         "composer-runtime-api": "^2.2",
         "aws/aws-sdk-php": "^3.322.9",
