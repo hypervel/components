@@ -18,7 +18,6 @@ use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Server;
 use Hypervel\Routing\Router;
-use Hypervel\Server\Option;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -79,7 +78,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -113,7 +111,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -141,7 +138,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -167,7 +163,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
         $swooleRequest = $this->createSwooleRequest(method: 'head');
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -179,7 +174,7 @@ class ServerTest extends TestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testOnRequestDispatchesLifecycleEventsWhenEnabled()
+    public function testOnRequestDispatchesLifecycleEventsWhenListenersAreRegistered()
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -205,7 +200,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => true]));
         $this->setServerName($server, 'http');
 
         $swooleRequest = $this->createSwooleRequest();
@@ -242,35 +236,6 @@ class ServerTest extends TestCase
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => true]));
-
-        $swooleRequest = $this->createSwooleRequest();
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->withAnyArgs();
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->withAnyArgs();
-
-        $server->onRequest($swooleRequest, $swooleResponse);
-    }
-
-    public function testOnRequestDoesNotDispatchLifecycleEventsWhenDisabled()
-    {
-        CoordinatorManager::until(Constants::WORKER_START)->resume();
-
-        $eventDispatcher = m::mock(EventDispatcherContract::class);
-        $eventDispatcher->shouldNotReceive('dispatch');
-
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('handle')->andReturn(new Response('OK'));
-        $kernel->shouldReceive('terminate');
-
-        $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
-
-        $server = new Server($container);
-        $this->setKernel($server, $kernel);
-        $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -328,7 +293,6 @@ class ServerTest extends TestCase
 
             $server = new Server($container);
             $this->setKernel($server, $kernel);
-            $this->setOption($server, Option::make(['enable_request_lifecycle' => false]));
 
             // Raw POST with malicious _method override — should not throw before kernel
             $swooleRequest = $this->createSwooleRequest(method: 'post');
@@ -382,15 +346,6 @@ class ServerTest extends TestCase
     {
         $reflection = new ReflectionProperty($server, 'kernel');
         $reflection->setValue($server, $kernel);
-    }
-
-    /**
-     * Set the option on the server via reflection.
-     */
-    private function setOption(Server $server, Option $option): void
-    {
-        $reflection = new ReflectionProperty($server, 'option');
-        $reflection->setValue($server, $option);
     }
 
     /**

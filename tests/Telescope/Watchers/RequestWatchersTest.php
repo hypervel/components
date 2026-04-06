@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Http\UploadedFile;
-use Hypervel\HttpServer\Server as HttpServer;
-use Hypervel\Server\Event;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RequestWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 /**
@@ -29,26 +26,8 @@ class RequestWatchersTest extends FeatureTestCase
             ->set('telescope.watchers', [
                 RequestWatcher::class => true,
             ]);
-        $this->app->make('config')
-            ->set('server.servers', [
-                'http' => [
-                    'name' => 'http',
-                    'port' => 9501,
-                    'callbacks' => [
-                        Event::ON_REQUEST => [m::mock(HttpServer::class)],
-                    ],
-                ],
-            ]);
 
         $this->startTelescope();
-    }
-
-    public function testRegisterEnableRequestEvents()
-    {
-        $this->assertTrue(
-            $this->app->make('config')
-                ->get('server.servers.http.options.enable_request_lifecycle', false)
-        );
     }
 
     public function testRequestWatcherRegistersRequests()

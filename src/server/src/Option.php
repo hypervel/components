@@ -10,8 +10,6 @@ class Option
 {
     protected int $sendChannelCapacity = 0;
 
-    protected bool $enableRequestLifecycle = false;
-
     protected bool $mustSortMiddlewares = false;
 
     /**
@@ -25,7 +23,6 @@ class Option
 
         return tap(new self, function (Option $option) use ($options) {
             $option->setSendChannelCapacity($options['send_channel_capacity'] ?? 0);
-            $option->setEnableRequestLifecycle($options['enable_request_lifecycle'] ?? false);
         });
     }
 
@@ -43,23 +40,6 @@ class Option
     public function setSendChannelCapacity(int $sendChannelCapacity): static
     {
         $this->sendChannelCapacity = $sendChannelCapacity;
-        return $this;
-    }
-
-    /**
-     * Determine if request lifecycle events are enabled.
-     */
-    public function isEnableRequestLifecycle(): bool
-    {
-        return $this->enableRequestLifecycle;
-    }
-
-    /**
-     * Set whether request lifecycle events are enabled.
-     */
-    public function setEnableRequestLifecycle(bool $enableRequestLifecycle): static
-    {
-        $this->enableRequestLifecycle = $enableRequestLifecycle;
         return $this;
     }
 

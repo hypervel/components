@@ -73,8 +73,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
      * Handle an incoming Swoole HTTP request.
      *
      * Transport only: Swoole → Bridge → Kernel → Bridge → Swoole.
-     * Also dispatches request lifecycle events (used by Telescope, etc.)
-     * when enabled via the server's `enable_request_lifecycle` option.
+     * Also dispatches request lifecycle events when listeners are registered.
      */
     public function onRequest(SwooleRequest $swooleRequest, SwooleResponse $swooleResponse): void
     {
@@ -104,9 +103,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             }
             ResponseContext::set($response);
 
-            if ($this->option?->isEnableRequestLifecycle()
-                && $this->event?->hasListeners(RequestReceived::class)
-            ) {
+            if ($this->event?->hasListeners(RequestReceived::class)) {
                 $this->event->dispatch(new RequestReceived(
                     request: $request,
                     response: $response,
@@ -121,7 +118,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
             // we still need to send something back to the client.
             $response = new SymfonyResponse('Internal Server Error', 500);
         } finally {
-            if (isset($request) && $this->option?->isEnableRequestLifecycle()) {
+            if (isset($request)) {
                 if ($this->event?->hasListeners(RequestTerminated::class)) {
                     Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
                         request: $request,

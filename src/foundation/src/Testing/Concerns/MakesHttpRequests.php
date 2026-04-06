@@ -677,22 +677,13 @@ trait MakesHttpRequests
             return;
         }
 
-        $config = $this->app->make('config');
-        $servers = $config->get('server.servers', []);
-        $enabled = false;
+        $eventDispatcher = $this->app->make('events');
 
-        foreach ($servers as $server) {
-            if (($server['name'] ?? '') === 'http') {
-                $enabled = $server['options']['enable_request_lifecycle'] ?? false;
-                break;
-            }
-        }
-
-        if (! $enabled) {
+        if (! $eventDispatcher->hasListeners($eventClass)) {
             return;
         }
 
-        $this->app['events']->dispatch(new $eventClass(
+        $eventDispatcher->dispatch(new $eventClass(
             request: $request,
             response: $response,
             server: 'http'

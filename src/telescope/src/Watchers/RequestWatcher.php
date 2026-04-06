@@ -11,8 +11,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
-use Hypervel\HttpServer\Server as HttpServer;
-use Hypervel\Server\Event;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -38,31 +36,8 @@ class RequestWatcher extends Watcher
     {
         $this->entriesRepository = $app->make(EntriesRepository::class);
 
-        $this->enableRequestEvents($app);
-
         $app->make(Dispatcher::class)
             ->listen(RequestHandled::class, [$this, 'recordRequest']);
-    }
-
-    protected function enableRequestEvents(Container $app): void
-    {
-        $config = $app->make('config');
-        $servers = $config->get('server.servers', []);
-
-        foreach ($servers as &$server) {
-            $callbacks = $server['callbacks'] ?? [];
-
-            if (! ($handler = $callbacks[Event::ON_REQUEST][0] ?? null)) {
-                continue;
-            }
-
-            if (is_a($handler, HttpServer::class, true)) {
-                $server['options'] ??= [];
-                $server['options']['enable_request_lifecycle'] = true;
-            }
-        }
-
-        $config->set('server.servers', $servers);
     }
 
     /**
