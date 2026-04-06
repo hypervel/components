@@ -104,7 +104,7 @@ class SanctumGuard implements GuardContract
                     /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
                     $user = $tokenable->withAccessToken($accessToken);
 
-                    if ($this->events) {
+                    if ($this->events?->hasListeners(TokenAuthenticated::class)) {
                         $this->events->dispatch(new TokenAuthenticated($accessToken));
                     }
 

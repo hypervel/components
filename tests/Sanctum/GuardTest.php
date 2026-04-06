@@ -13,7 +13,6 @@ use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -262,25 +261,9 @@ class GuardTest extends TestCase
     {
         $tokenAuthenticatedFired = false;
 
-        // Get the real event dispatcher
-        $realDispatcher = $this->app->make(Dispatcher::class);
-
-        // Create a partial mock that delegates to the real dispatcher
-        $events = m::mock($realDispatcher);
-        $events->makePartial(); // This makes it a partial mock
-
-        // Only spy on dispatch calls, don't change behavior
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use ($realDispatcher, &$tokenAuthenticatedFired) {
-                if ($event instanceof TokenAuthenticated) {
-                    $tokenAuthenticatedFired = true;
-                }
-                // Call the real method
-                return $realDispatcher->dispatch($event);
-            });
-
-        $this->app->instance('events', $events);
-        $this->app->instance(Dispatcher::class, $events);
+        $this->app->make(Dispatcher::class)->listen(TokenAuthenticated::class, function () use (&$tokenAuthenticatedFired) {
+            $tokenAuthenticatedFired = true;
+        });
 
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
