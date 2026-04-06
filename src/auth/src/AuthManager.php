@@ -150,20 +150,6 @@ class AuthManager implements FactoryContract
     }
 
     /**
-     * Create a JWT based authentication guard.
-     */
-    public function createJwtDriver(string $name, array $config): JwtGuard
-    {
-        return new JwtGuard(
-            $name,
-            $this->createUserProvider($config['provider'] ?? null),
-            $this->app->make('jwt'),
-            $this->app,
-            (int) $this->app['config']->get('jwt.ttl', 120),
-        );
-    }
-
-    /**
      * Get the guard configuration.
      */
     protected function getConfig(string $name): ?array
