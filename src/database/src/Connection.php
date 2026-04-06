@@ -450,7 +450,7 @@ class Connection implements ConnectionInterface
     {
         $statement->setFetchMode($this->fetchMode);
 
-        $this->event(new StatementPrepared($this, $statement));
+        $this->event(StatementPrepared::class, fn () => new StatementPrepared($this, $statement));
 
         return $statement;
     }
@@ -762,7 +762,7 @@ class Connection implements ConnectionInterface
 
         $readWriteType = $this->latestReadWriteTypeUsed();
 
-        $this->event(new QueryExecuted($query, $bindings, $time, $this, $readWriteType));
+        $this->event(QueryExecuted::class, fn () => new QueryExecuted($query, $bindings, $time, $this, $readWriteType));
 
         $query = $this->pretending === true
             ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
@@ -1006,21 +1006,38 @@ class Connection implements ConnectionInterface
      */
     protected function fireConnectionEvent(string $event): void
     {
-        $this->events?->dispatch(match ($event) {
-            'beganTransaction' => new TransactionBeginning($this),
-            'committed' => new TransactionCommitted($this),
-            'committing' => new TransactionCommitting($this),
-            'rollingBack' => new TransactionRolledBack($this),
-            default => null,
-        });
+        switch ($event) {
+            case 'beganTransaction':
+                if ($this->events?->hasListeners(TransactionBeginning::class)) {
+                    $this->events->dispatch(new TransactionBeginning($this));
+                }
+                break;
+            case 'committed':
+                if ($this->events?->hasListeners(TransactionCommitted::class)) {
+                    $this->events->dispatch(new TransactionCommitted($this));
+                }
+                break;
+            case 'committing':
+                if ($this->events?->hasListeners(TransactionCommitting::class)) {
+                    $this->events->dispatch(new TransactionCommitting($this));
+                }
+                break;
+            case 'rollingBack':
+                if ($this->events?->hasListeners(TransactionRolledBack::class)) {
+                    $this->events->dispatch(new TransactionRolledBack($this));
+                }
+                break;
+        }
     }
 
     /**
-     * Fire the given event if possible.
+     * Fire the given event if listeners are registered.
      */
-    protected function event(mixed $event): void
+    protected function event(string $eventClass, Closure $event): void
     {
-        $this->events?->dispatch($event);
+        if ($this->events?->hasListeners($eventClass)) {
+            $this->events->dispatch($event());
+        }
     }
 
     /**

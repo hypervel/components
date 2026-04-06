@@ -28,6 +28,9 @@ class DatabaseIntegrationTest extends TestCase
         $dispatcher->shouldReceive('listen')->andReturnUsing(function ($event, $callback) {
             $this->listeners[$event] = $callback;
         });
+        $dispatcher->shouldReceive('hasListeners')->andReturnUsing(function ($event) {
+            return isset($this->listeners[$event]);
+        });
         $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) {
             $eventClass = get_class($event);
             if (isset($this->listeners[$eventClass])) {
