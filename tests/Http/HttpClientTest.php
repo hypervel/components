@@ -17,6 +17,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\Events\ConnectionFailed as ConnectionFailedEvent;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Factory;
@@ -1845,6 +1846,8 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent()
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
         $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
@@ -1862,6 +1865,8 @@ class HttpClientTest extends TestCase
     {
         Sleep::fake();
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
+        $events->shouldReceive('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
         $events->shouldReceive('dispatch')->times(2)->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->times(2)->with(m::type(ResponseReceived::class));
 
@@ -1900,6 +1905,8 @@ class HttpClientTest extends TestCase
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject()
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
+        $events->shouldReceive('hasListeners')->once()->with(ResponseReceived::class)->andReturn(true);
         $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(ResponseReceived::class));
 
@@ -1910,6 +1917,25 @@ class HttpClientTest extends TestCase
         $clonedClient = clone $client;
 
         $clonedClient->get('https://example.com');
+    }
+
+    public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect()
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
+        $events->shouldReceive('hasListeners')->once()->with(ConnectionFailedEvent::class)->andReturn(true);
+        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
+        $events->shouldReceive('dispatch')->once()->with(m::type(ConnectionFailedEvent::class));
+
+        $factory = new Factory($events);
+        $factory->fake($factory->failedConnection('Fake'));
+
+        try {
+            $factory->get('https://example.com');
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Fake', $exception->getMessage());
+        }
     }
 
     public function testRequestIsMacroable()

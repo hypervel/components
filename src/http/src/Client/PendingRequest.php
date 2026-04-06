@@ -1394,7 +1394,7 @@ class PendingRequest
      */
     protected function dispatchRequestSendingEvent(): void
     {
-        if ($dispatcher = $this->factory?->getDispatcher()) {
+        if (($dispatcher = $this->factory?->getDispatcher()) && $dispatcher->hasListeners(RequestSending::class)) {
             $dispatcher->dispatch(new RequestSending($this->request));
         }
     }
@@ -1404,7 +1404,7 @@ class PendingRequest
      */
     protected function dispatchResponseReceivedEvent(Response $response): void
     {
-        if (! ($dispatcher = $this->factory?->getDispatcher()) || ! $this->request) {
+        if (! ($dispatcher = $this->factory?->getDispatcher()) || ! $this->request || ! $dispatcher->hasListeners(ResponseReceived::class)) {
             return;
         }
 
@@ -1416,7 +1416,7 @@ class PendingRequest
      */
     protected function dispatchConnectionFailedEvent(Request $request, ConnectionException $exception): void
     {
-        if ($dispatcher = $this->factory?->getDispatcher()) {
+        if (($dispatcher = $this->factory?->getDispatcher()) && $dispatcher->hasListeners(ConnectionFailed::class)) {
             $dispatcher->dispatch(new ConnectionFailed($request, $exception));
         }
     }
