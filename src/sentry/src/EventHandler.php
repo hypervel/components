@@ -71,6 +71,14 @@ class EventHandler
     public function subscribe(Dispatcher $dispatcher): void
     {
         foreach (static::$eventHandlerMap as $eventName => $handler) {
+            if ($eventName === DatabaseEvents\QueryExecuted::class && ! $this->recordSqlQueries) {
+                continue;
+            }
+
+            if ($eventName === LogEvents\MessageLogged::class && ! $this->recordLogs) {
+                continue;
+            }
+
             $dispatcher->listen($eventName, [$this, $handler]);
         }
 
@@ -133,10 +141,6 @@ class EventHandler
      */
     protected function queryExecutedHandler(DatabaseEvents\QueryExecuted $query): void
     {
-        if (! $this->recordSqlQueries) {
-            return;
-        }
-
         $data = ['connectionName' => $query->connectionName];
 
         if ($query->time !== null) {
@@ -176,10 +180,6 @@ class EventHandler
      */
     protected function messageLoggedHandler(LogEvents\MessageLogged $logEntry): void
     {
-        if (! $this->recordLogs) {
-            return;
-        }
-
         Integration::addBreadcrumb(new Breadcrumb(
             $this->logLevelToBreadcrumbLevel($logEntry->level),
             Breadcrumb::TYPE_DEFAULT,
