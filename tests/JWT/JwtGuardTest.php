@@ -2,16 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Auth;
+namespace Hypervel\Tests\JWT;
 
-use Hypervel\Auth\JwtGuard;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\AuthServiceProvider;
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Foundation\Application;
 use Hypervel\Http\Request;
 use Hypervel\JWT\Contracts\ManagerContract;
+use Hypervel\JWT\JwtGuard;
+use Hypervel\JWT\JWTServiceProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -19,7 +24,7 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class AuthJwtGuardTest extends TestCase
+class JwtGuardTest extends TestCase
 {
     public function testParseTokenFromBearerHeader()
     {
@@ -444,6 +449,41 @@ class AuthJwtGuardTest extends TestCase
         $this->assertSame(1, $payload['sub']);
     }
 
+    public function testServiceProviderRegistersJwtGuardWhenAuthManagerResolvesAfterBoot()
+    {
+        $provider = m::mock(UserProvider::class);
+        $container = $this->createAuthTestContainer();
+
+        $jwtServiceProvider = new JWTServiceProvider($container);
+        $jwtServiceProvider->register();
+        $container->instance('jwt', m::mock(ManagerContract::class));
+        $jwtServiceProvider->boot();
+
+        /** @var AuthManager $authManager */
+        $authManager = $container->make(AuthManager::class);
+        $authManager->provider('jwt-test-provider', fn ($app, $config) => $provider);
+
+        $this->assertInstanceOf(JwtGuard::class, $authManager->guard('jwt'));
+    }
+
+    public function testServiceProviderRegistersJwtGuardWhenAuthManagerIsAlreadyResolved()
+    {
+        $provider = m::mock(UserProvider::class);
+        $container = $this->createAuthTestContainer();
+
+        $jwtServiceProvider = new JWTServiceProvider($container);
+        $jwtServiceProvider->register();
+        $container->instance('jwt', m::mock(ManagerContract::class));
+
+        /** @var AuthManager $authManager */
+        $authManager = $container->make(AuthManager::class);
+        $authManager->provider('jwt-test-provider', fn ($app, $config) => $provider);
+
+        $jwtServiceProvider->boot();
+
+        $this->assertInstanceOf(JwtGuard::class, $authManager->guard('jwt'));
+    }
+
     /**
      * Create a JwtGuard instance for testing.
      */
@@ -489,5 +529,37 @@ class AuthJwtGuardTest extends TestCase
         }
 
         return $request;
+    }
+
+    protected function createAuthTestContainer(): Application
+    {
+        $container = new Application();
+        $container->instance('config', new Repository([
+            'auth' => [
+                'defaults' => [
+                    'guard' => 'jwt',
+                    'provider' => 'users',
+                ],
+                'guards' => [
+                    'jwt' => [
+                        'driver' => 'jwt',
+                        'provider' => 'users',
+                    ],
+                ],
+                'providers' => [
+                    'users' => [
+                        'driver' => 'jwt-test-provider',
+                    ],
+                ],
+            ],
+            'jwt' => [
+                'ttl' => 120,
+            ],
+        ]));
+
+        (new AuthServiceProvider($container))->register();
+        $container->alias('auth', AuthManager::class);
+
+        return $container;
     }
 }
