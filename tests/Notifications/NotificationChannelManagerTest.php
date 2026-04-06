@@ -452,12 +452,20 @@ class NotificationChannelManagerTest extends TestCase
         $container->instance(\Hypervel\Contracts\Container\Container::class, $container);
         $container->instance('config', new ConfigRepository([]));
         $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
-        $container->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        $container->instance(Dispatcher::class, $this->mockEventDispatcher());
         $container->singleton(PoolFactory::class, PoolManager::class);
 
         Container::setInstance($container);
 
         return $container;
+    }
+
+    protected function mockEventDispatcher(): Dispatcher
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturn(true);
+
+        return $dispatcher;
     }
 }
 

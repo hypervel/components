@@ -131,9 +131,11 @@ class NotificationSender
                     $exception = new TransportException($exception->getMessage(), $exception->getCode());
                 }
 
-                $this->events->dispatch(
-                    new NotificationFailed($notifiable, $notification, $channel, ['exception' => $exception])
-                );
+                if ($this->events->hasListeners(NotificationFailed::class)) {
+                    $this->events->dispatch(
+                        new NotificationFailed($notifiable, $notification, $channel, ['exception' => $exception])
+                    );
+                }
             }
 
             // Reset so next attempt starts clean
@@ -146,9 +148,11 @@ class NotificationSender
             $notification->afterSending($notifiable, $channel, $response);
         }
 
-        $this->events->dispatch(
-            new NotificationSent($notifiable, $notification, $channel, $response)
-        );
+        if ($this->events->hasListeners(NotificationSent::class)) {
+            $this->events->dispatch(
+                new NotificationSent($notifiable, $notification, $channel, $response)
+            );
+        }
     }
 
     /**
@@ -160,6 +164,10 @@ class NotificationSender
             && $notification->shouldSend($notifiable, $channel) === false
         ) {
             return false;
+        }
+
+        if (! $this->events->hasListeners(NotificationSending::class)) {
+            return true;
         }
 
         return $this->events->until(
