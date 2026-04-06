@@ -33,7 +33,6 @@
         "hypervel/database": "^0.4",
         "hypervel/hashing": "^0.4",
         "hypervel/http": "^0.4",
-        "hypervel/jwt": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4"
     },
