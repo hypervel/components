@@ -20,7 +20,7 @@ class ComposerScripts
      */
     public static function postInstall(Event $event): void
     {
-        require_once $event->getComposer()->getConfig()->get('vendor-dir').'/autoload.php';
+        require_once $event->getComposer()->getConfig()->get('vendor-dir') . '/autoload.php';
 
         static::clearCompiled();
     }
@@ -30,7 +30,7 @@ class ComposerScripts
      */
     public static function postUpdate(Event $event): void
     {
-        require_once $event->getComposer()->getConfig()->get('vendor-dir').'/autoload.php';
+        require_once $event->getComposer()->getConfig()->get('vendor-dir') . '/autoload.php';
 
         static::clearCompiled();
     }
@@ -40,7 +40,7 @@ class ComposerScripts
      */
     public static function postAutoloadDump(Event $event): void
     {
-        require_once $event->getComposer()->getConfig()->get('vendor-dir').'/autoload.php';
+        require_once $event->getComposer()->getConfig()->get('vendor-dir') . '/autoload.php';
 
         static::clearCompiled();
     }
@@ -57,7 +57,7 @@ class ComposerScripts
 
         $eventName = null;
         try {
-            require_once $event->getComposer()->getConfig()->get('vendor-dir').'/autoload.php';
+            require_once $event->getComposer()->getConfig()->get('vendor-dir') . '/autoload.php';
 
             $hypervel = new Application(getcwd());
 
@@ -77,8 +77,8 @@ class ComposerScripts
             );
         } catch (Throwable $e) {
             // Ignore any errors to allow the package removal to complete...
-            $event->getIO()->write('There was an error dispatching or handling the ['.($eventName ?? 'unknown').'] event. Continuing with package removal...');
-            $event->getIO()->writeError('Exception message: '.$e->getMessage(), verbosity: IOInterface::VERBOSE); // @phpstan-ignore class.notFound (Composer exists if this is running)
+            $event->getIO()->write('There was an error dispatching or handling the [' . ($eventName ?? 'unknown') . '] event. Continuing with package removal...');
+            $event->getIO()->writeError('Exception message: ' . $e->getMessage(), verbosity: IOInterface::VERBOSE); // @phpstan-ignore class.notFound (Composer exists if this is running)
         }
     }
 
