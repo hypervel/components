@@ -15,6 +15,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
@@ -34,7 +35,6 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
-use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
@@ -432,11 +432,11 @@ if (! function_exists('info')) {
     /**
      * @throws TypeError
      */
-    function info(string|Stringable $message, array $context = [], bool $backtrace = false)
+    function info(Arrayable|Jsonable|\Stringable|array|string $message, array $context = [], bool $callerLocation = false)
     {
-        if ($backtrace) {
+        if ($callerLocation) {
             $traces = debug_backtrace();
-            $context['backtrace'] = sprintf('%s:%s', $traces[0]['file'], $traces[0]['line']);
+            $context['caller_location'] = sprintf('%s:%s', $traces[0]['file'], $traces[0]['line']);
         }
 
         return logger()->info($message, $context);
@@ -463,9 +463,9 @@ if (! function_exists('logger')) {
     /**
      * Log a debug message to the logs.
      *
-     * @return null|\Hypervel\Log\LogManager
+     * @return null|LogManager
      */
-    function logger(?string $message = null, array $context = []): ?LoggerInterface
+    function logger(Arrayable|Jsonable|\Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
     {
         $logger = app(LoggerInterface::class);
         if (is_null($message)) {
@@ -856,7 +856,7 @@ if (! function_exists('uri')) {
     /**
      * Generate a URI for the application.
      */
-    function uri(UriInterface|Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
+    function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
         return match (true) {
             is_array($uri) || str_contains($uri, '\\') => Uri::action($uri, $parameters, $absolute),

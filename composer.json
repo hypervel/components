@@ -101,6 +101,7 @@
             "src/events/src/Functions.php",
             "src/filesystem/src/Functions.php",
             "src/foundation/src/helpers.php",
+            "src/log/src/Functions.php",
             "src/prompts/src/helpers.php",
             "src/reflection/src/helpers.php",
             "src/session/src/Functions.php",
