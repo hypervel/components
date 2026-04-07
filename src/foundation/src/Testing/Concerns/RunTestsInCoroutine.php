@@ -103,7 +103,7 @@ trait RunTestsInCoroutine
      * Clear transaction context from non-coroutine storage before test starts.
      *
      * RefreshDatabase starts its wrapper transaction in setUp() (outside coroutine),
-     * storing it in nonCoContext. We must preserve this data for copying into the
+     * storing it in nonCoroutineContext. We must preserve this data for copying into the
      * coroutine. Only clear if there are no pending transactions (meaning any data
      * is stale from a previous test that didn't clean up properly).
      */

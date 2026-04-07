@@ -38,7 +38,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Context key for the coroutine-local resolution depth counter.
      */
-    protected const DEPTH_CONTEXT_KEY = '__container.depth';
+    public const DEPTH_CONTEXT_KEY = '__container.depth';
 
     /**
      * Context key for the coroutine-local resolving stack.

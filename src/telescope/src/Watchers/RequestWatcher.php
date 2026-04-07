@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
@@ -32,7 +33,7 @@ class RequestWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(ContainerContract $app): void
     {
         $this->entriesRepository = $app->make(EntriesRepository::class);
 
@@ -250,7 +251,7 @@ class RequestWatcher extends Watcher
     {
         $result = [];
         foreach (CoroutineContext::getContainer() as $key => $value) {
-            if ($key === 'di.depth') {
+            if ($key === Container::DEPTH_CONTEXT_KEY) {
                 continue;
             }
             if (is_object($value)) {

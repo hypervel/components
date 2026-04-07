@@ -80,7 +80,7 @@ trait InteractsWithTestCaseLifecycle
             // Preserve transaction manager context for the test coroutine.
             // RefreshDatabase stores transaction state in Context, but setUpTraits runs
             // in a temporary coroutine. Copy to non-coroutine context so the test
-            // coroutine (which copies from nonCoContext) can access it.
+            // coroutine (which copies from nonCoroutineContext) can access it.
             $this->preserveTransactionContext();
         });
 

@@ -17,10 +17,8 @@ use function Hypervel\Support\enum_value;
  */
 class CoroutineContext
 {
-    protected const DEPTH_KEY = 'di.depth';
-
     /** @var array<TKey, TValue> */
-    protected static array $nonCoContext = [];
+    protected static array $nonCoroutineContext = [];
 
     /**
      * Store a value in the current context.
@@ -36,7 +34,7 @@ class CoroutineContext
         if (Coroutine::id() > 0) {
             Coroutine::getContextFor($coroutineId)[$id] = $value;
         } else {
-            static::$nonCoContext[$id] = $value;
+            static::$nonCoroutineContext[$id] = $value;
         }
 
         return $value;
@@ -56,7 +54,7 @@ class CoroutineContext
             return Coroutine::getContextFor($coroutineId)[$id] ?? $default;
         }
 
-        return static::$nonCoContext[$id] ?? $default;
+        return static::$nonCoroutineContext[$id] ?? $default;
     }
 
     /**
@@ -72,7 +70,7 @@ class CoroutineContext
             return isset(Coroutine::getContextFor($coroutineId)[$id]);
         }
 
-        return isset(static::$nonCoContext[$id]);
+        return isset(static::$nonCoroutineContext[$id]);
     }
 
     /**
@@ -88,7 +86,7 @@ class CoroutineContext
             unset(Coroutine::getContextFor($coroutineId)[$id]);
         }
 
-        unset(static::$nonCoContext[$id]);
+        unset(static::$nonCoroutineContext[$id]);
     }
 
     /**
@@ -181,9 +179,9 @@ class CoroutineContext
         }
 
         if ($keys) {
-            $map = array_intersect_key(static::$nonCoContext, array_flip($keys));
+            $map = array_intersect_key(static::$nonCoroutineContext, array_flip($keys));
         } else {
-            $map = static::$nonCoContext;
+            $map = static::$nonCoroutineContext;
         }
 
         foreach ($map as $key => $value) {
@@ -206,12 +204,12 @@ class CoroutineContext
         if ($keys) {
             foreach ($keys as $key) {
                 if (isset($context[$key])) {
-                    static::$nonCoContext[$key] = $context[$key];
+                    static::$nonCoroutineContext[$key] = $context[$key];
                 }
             }
         } else {
             foreach ($context as $key => $value) {
-                static::$nonCoContext[$key] = $value;
+                static::$nonCoroutineContext[$key] = $value;
             }
         }
     }
@@ -230,7 +228,7 @@ class CoroutineContext
     {
         $id = enum_value($id);
 
-        return static::$nonCoContext[$id] ?? $default;
+        return static::$nonCoroutineContext[$id] ?? $default;
     }
 
     /**
@@ -242,12 +240,12 @@ class CoroutineContext
     public static function clearFromNonCoroutine(array $keys): void
     {
         foreach ($keys as $key) {
-            unset(static::$nonCoContext[$key]);
+            unset(static::$nonCoroutineContext[$key]);
         }
     }
 
     /**
-     * Flush all context data for the specified coroutine, preserving only the depth key.
+     * Flush all context data for the specified coroutine.
      */
     public static function flush(?int $coroutineId = null): void
     {
@@ -255,7 +253,7 @@ class CoroutineContext
 
         // Clear non-coroutine context in non-coroutine environment.
         if ($coroutineId < 0) {
-            static::$nonCoContext = [];
+            static::$nonCoroutineContext = [];
             return;
         }
 
@@ -265,9 +263,6 @@ class CoroutineContext
 
         $contextKeys = [];
         foreach ($context as $key => $_) {
-            if ($key === static::DEPTH_KEY) {
-                continue;
-            }
             $contextKeys[] = $key;
         }
 
@@ -287,6 +282,6 @@ class CoroutineContext
             return Coroutine::getContextFor($coroutineId);
         }
 
-        return static::$nonCoContext;
+        return static::$nonCoroutineContext;
     }
 }

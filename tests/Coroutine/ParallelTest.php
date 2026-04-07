@@ -36,7 +36,7 @@ class ParallelTest extends TestCase
         // Array
         $parallel = new Parallel;
         for ($i = 0; $i < 3; ++$i) {
-            $parallel->add([$this, 'returnCoId']);
+            $parallel->add([$this, 'returnCoroutineId']);
         }
         $result = $parallel->wait();
         $id = $result[0];
@@ -271,7 +271,7 @@ class ParallelTest extends TestCase
         }
     }
 
-    public function returnCoId(): int
+    public function returnCoroutineId(): int
     {
         return Coroutine::id();
     }

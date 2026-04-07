@@ -6,7 +6,7 @@ namespace Hypervel\Pool;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Engine\Channel as CoChannel;
+use Hypervel\Engine\Channel as EngineChannel;
 use SplQueue;
 
 /**
@@ -17,14 +17,14 @@ use SplQueue;
  */
 class Channel
 {
-    protected CoChannel $channel;
+    protected EngineChannel $channel;
 
     protected SplQueue $queue;
 
     public function __construct(
         protected int $size
     ) {
-        $this->channel = new CoChannel($size);
+        $this->channel = new EngineChannel($size);
         $this->queue = new SplQueue;
     }
 
