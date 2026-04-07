@@ -31,15 +31,24 @@
     },
     "require": {
         "php": "^8.4",
+        "laravel/serializable-closure": "^2.0.10",
+        "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
+        "hypervel/process": "^0.4",
         "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Concurrency\\ConcurrencyServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
