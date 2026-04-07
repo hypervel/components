@@ -194,4 +194,12 @@ trait ResolvesDumpSource
     {
         static::$dumpSourceResolver = false;
     }
+
+    /**
+     * Flush the static state of the trait.
+     */
+    public static function flushState(): void
+    {
+        static::$dumpSourceResolver = null;
+    }
 }

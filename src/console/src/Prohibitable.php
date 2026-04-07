@@ -20,6 +20,14 @@ trait Prohibitable
     }
 
     /**
+     * Flush the static state of the trait.
+     */
+    public static function flushState(): void
+    {
+        static::$prohibitedFromRunning = false;
+    }
+
+    /**
      * Determine if the command is prohibited from running and display a warning if so.
      */
     protected function isProhibited(bool $quiet = false): bool

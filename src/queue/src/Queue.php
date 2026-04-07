@@ -283,6 +283,14 @@ abstract class Queue
     }
 
     /**
+     * Flush the static state of the class.
+     */
+    public static function flushState(): void
+    {
+        static::$createPayloadCallbacks = [];
+    }
+
+    /**
      * Create the given payload using any registered payload hooks.
      */
     protected function withCreatePayloadHooks(?string $queue, array $payload): array
