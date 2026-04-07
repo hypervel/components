@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Signal\WorkerStopHandler;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -19,10 +17,15 @@ return [
     | and priority as the value, or just list the class name for default
     | priority (0).
     |
+    | By default, no worker signal handlers are registered. Swoole's native
+    | shutdown path handles worker exit via the onWorkerExit callback, which
+    | resumes the WORKER_EXIT coordinator to unwind long-running coroutines.
+    | Custom handlers should only be added when application-specific shutdown
+    | logic is needed beyond the framework's built-in lifecycle.
+    |
     */
 
     'handlers' => [
-        WorkerStopHandler::class => PHP_INT_MIN,
     ],
 
     /*

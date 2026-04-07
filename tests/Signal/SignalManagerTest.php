@@ -66,6 +66,12 @@ class SignalManagerTest extends TestCase
         $this->assertFalse($manager->isStopped());
     }
 
+    public function testSignalHandlerInterfaceConstantsHaveExpectedValues()
+    {
+        $this->assertSame(1, SignalHandler::WORKER);
+        $this->assertSame(2, SignalHandler::PROCESS);
+    }
+
     public function testInitWithNoHandlersConfigured()
     {
         $container = $this->getContainer();

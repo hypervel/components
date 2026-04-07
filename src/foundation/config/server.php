@@ -30,6 +30,7 @@ return [
         Constant::OPTION_MAX_COROUTINE => 100000,
         Constant::OPTION_OPEN_HTTP2_PROTOCOL => true,
         Constant::OPTION_MAX_REQUEST => 100000,
+        Constant::OPTION_MAX_WAIT_TIME => 3,
         Constant::OPTION_SOCKET_BUFFER_SIZE => 2 * 1024 * 1024,
         Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024,
     ],
