@@ -7,7 +7,7 @@ namespace Hypervel\Reverb;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnPipeMessage;
-use Hypervel\Core\Events\OnWorkerStop;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Reverb\Console\Commands\InstallCommand;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
@@ -251,13 +251,19 @@ class ReverbServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the graceful shutdown handler for worker stop.
+     * Register the graceful shutdown handler for worker exit.
+     *
+     * Runs during onWorkerExit while the event loop is still active, so
+     * coroutine-dependent operations (Redis pub/sub for scaling, webhook
+     * dispatch) still work. This fires before WORKER_EXIT is resumed,
+     * meaning periodic timers and the Redis subscriber are still running
+     * — the drain does not conflict with them.
      */
     protected function registerShutdownHandler(): void
     {
         $events = $this->app->make('events');
 
-        $events->listen(OnWorkerStop::class, function (OnWorkerStop $event) {
+        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event) {
             if ($event->server->taskworker) {
                 return;
             }
