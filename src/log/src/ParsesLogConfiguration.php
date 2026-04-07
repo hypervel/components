@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use InvalidArgumentException;
-use Monolog\Logger as Monolog;
+use Monolog\Level;
 
 trait ParsesLogConfiguration
 {
@@ -13,14 +13,14 @@ trait ParsesLogConfiguration
      * The Log levels.
      */
     protected array $levels = [
-        'debug' => Monolog::DEBUG,
-        'info' => Monolog::INFO,
-        'notice' => Monolog::NOTICE,
-        'warning' => Monolog::WARNING,
-        'error' => Monolog::ERROR,
-        'critical' => Monolog::CRITICAL,
-        'alert' => Monolog::ALERT,
-        'emergency' => Monolog::EMERGENCY,
+        'debug' => Level::Debug,
+        'info' => Level::Info,
+        'notice' => Level::Notice,
+        'warning' => Level::Warning,
+        'error' => Level::Error,
+        'critical' => Level::Critical,
+        'alert' => Level::Alert,
+        'emergency' => Level::Emergency,
     ];
 
     /**
@@ -31,11 +31,9 @@ trait ParsesLogConfiguration
     /**
      * Parse the string level into a Monolog constant.
      *
-     * @return 100|200|250|300|400|500|550|600
-     *
      * @throws InvalidArgumentException
      */
-    protected function level(array $config): int
+    protected function level(array $config): Level
     {
         $level = $config['level'] ?? 'debug';
 
@@ -49,9 +47,9 @@ trait ParsesLogConfiguration
     /**
      * Parse the action level from the given configuration.
      *
-     * @return 100|200|250|300|400|500|550|600
+     * @throws InvalidArgumentException
      */
-    protected function actionLevel(array $config): int
+    protected function actionLevel(array $config): Level
     {
         $level = $config['action_level'] ?? 'debug';
 
