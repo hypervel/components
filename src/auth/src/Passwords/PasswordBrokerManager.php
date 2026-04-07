@@ -111,8 +111,7 @@ class PasswordBrokerManager implements FactoryContract
     /**
      * Set the default password broker name.
      *
-     * Intended for testing only. This mutates process-global config, so it is
-     * not safe for concurrent use in Swoole's long-running worker model.
+     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
      */
     public function setDefaultDriver(string $name): void
     {

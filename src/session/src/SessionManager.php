@@ -206,6 +206,8 @@ class SessionManager extends Manager
 
     /**
      * Set the default session driver name.
+     *
+     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
      */
     public function setDefaultDriver(string $name): void
     {

@@ -297,6 +297,8 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Set the name of the default queue connection.
+     *
+     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
      */
     public function setDefaultDriver(string $name): void
     {
