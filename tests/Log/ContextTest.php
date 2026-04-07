@@ -404,6 +404,13 @@ class ContextTest extends TestCase
         $this->assertFalse($this->context->hiddenStackContains('key', fn ($value) => $value === 99));
     }
 
+    public function testItCannotCheckIfHiddenValueIsInNonHiddenContextStack()
+    {
+        $this->context->pushHidden('key', 'a', 'b');
+
+        $this->assertFalse($this->context->stackContains('key', 'a'));
+    }
+
     public function testHiddenDataIsSeparateFromVisibleData()
     {
         $this->context->add('key', 'visible');
@@ -500,6 +507,8 @@ class ContextTest extends TestCase
             'float' => 3.14,
             'null' => null,
             'array' => [1, 2, 3],
+            'enum' => Suit::Clubs,
+            'backed_enum' => StringBackedSuit::Clubs,
         ]);
 
         $this->events->shouldReceive('dispatch')
@@ -525,6 +534,8 @@ class ContextTest extends TestCase
         $this->assertSame(3.14, $fresh->get('float'));
         $this->assertNull($fresh->get('null'));
         $this->assertSame([1, 2, 3], $fresh->get('array'));
+        $this->assertSame(Suit::Clubs, $fresh->get('enum'));
+        $this->assertSame(StringBackedSuit::Clubs, $fresh->get('backed_enum'));
     }
 
     public function testDehydrateReturnsNullWhenEmpty()
@@ -692,4 +703,20 @@ class ContextTest extends TestCase
 
         $this->assertNotSame($this->context, $eventContext);
     }
+}
+
+enum Suit
+{
+    case Hearts;
+    case Diamonds;
+    case Clubs;
+    case Spades;
+}
+
+enum StringBackedSuit: string
+{
+    case Hearts = 'hearts';
+    case Diamonds = 'diamonds';
+    case Clubs = 'clubs';
+    case Spades = 'spades';
 }
