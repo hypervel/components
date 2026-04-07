@@ -21,7 +21,7 @@ class Server implements ServerInterface
 {
     protected bool $enableHttpServer = false;
 
-    protected bool $enableWebsocketServer = false;
+    protected bool $enableWebSocketServer = false;
 
     protected ?SwooleServer $server = null;
 
@@ -118,14 +118,14 @@ class Server implements ServerInterface
             switch ($server->getType()) {
                 case ServerInterface::SERVER_HTTP:
                     $this->enableHttpServer = true;
-                    if (! $this->enableWebsocketServer) {
+                    if (! $this->enableWebSocketServer) {
                         array_unshift($sortServers, $server);
                     } else {
                         $sortServers[] = $server;
                     }
                     break;
                 case ServerInterface::SERVER_WEBSOCKET:
-                    $this->enableWebsocketServer = true;
+                    $this->enableWebSocketServer = true;
                     array_unshift($sortServers, $server);
                     break;
                 default:

@@ -528,7 +528,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanHandleWebsocketPingControlFrame()
+    public function testCanHandleWebSocketPingControlFrame()
     {
         // Must enable pong frame reception on the client to see the pong response
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -549,7 +549,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCanHandleWebsocketPongControlFrame()
+    public function testCanHandleWebSocketPongControlFrame()
     {
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
         $client->set(['open_websocket_pong_frame' => true]);

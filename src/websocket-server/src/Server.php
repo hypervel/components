@@ -205,7 +205,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     /**
      * Handle an exception that occurred during the handshake.
      *
-     * Subclasses (e.g. Foundation\Http\WebsocketKernel) override this to
+     * Subclasses (e.g. Foundation\Http\WebSocketKernel) override this to
      * use the application's exception handler instead of the default.
      */
     protected function handleException(Throwable $throwable): Response

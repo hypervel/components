@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Servers\Hypervel;
 
 use Hypervel\Contracts\Http\Kernel as KernelContract;
-use Hypervel\Foundation\Http\WebsocketKernel;
+use Hypervel\Foundation\Http\WebSocketKernel;
 use Hypervel\Routing\Router;
 use Hypervel\WebSocketServer\CoreMiddleware;
 
 /**
  * WebSocket handshake handler for the Reverb server port.
  *
- * Extends the foundation WebsocketKernel to inherit proper exception
+ * Extends the foundation WebSocketKernel to inherit proper exception
  * handling, and overrides getRouter() to use the isolated ReverbRouter
  * for route matching during handshake.
  */
-class WebSocketServer extends WebsocketKernel
+class WebSocketServer extends WebSocketKernel
 {
     /**
      * Bootstrap the application and compile the Reverb router.

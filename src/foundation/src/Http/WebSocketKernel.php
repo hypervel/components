@@ -10,7 +10,7 @@ use Hypervel\WebSocketServer\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class WebsocketKernel extends WebSocketServer
+class WebSocketKernel extends WebSocketServer
 {
     /**
      * Handle an exception using the application's exception handler.

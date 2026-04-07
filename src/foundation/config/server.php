@@ -7,7 +7,6 @@ use Hypervel\Server\Server;
 use Swoole\Constant;
 
 return [
-
     /*
     |--------------------------------------------------------------------------
     | Server Mode
@@ -76,5 +75,4 @@ return [
         Event::ON_PIPE_MESSAGE => [Hypervel\Core\Bootstrap\PipeMessageCallback::class, 'onPipeMessage'],
         Event::ON_WORKER_EXIT => [Hypervel\Core\Bootstrap\WorkerExitCallback::class, 'onWorkerExit'],
     ],
-
 ];
