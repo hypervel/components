@@ -106,7 +106,7 @@ class ContextIntegrationTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Value is incomplete class');
+        $this->expectExceptionMessage('Value is incomplete class: {"__PHP_Incomplete_Class_Name":"App\\\MyContextClass"}');
 
         Repository::getInstance()->hydrate($dehydrated);
     }
