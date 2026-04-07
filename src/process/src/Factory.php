@@ -10,6 +10,9 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 
+/**
+ * @mixin PendingProcess
+ */
 class Factory
 {
     use Macroable {
