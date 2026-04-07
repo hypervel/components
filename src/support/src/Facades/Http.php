@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Http\Client\Factory;
+use Hypervel\Http\Client\Response;
+use Hypervel\Http\Client\ResponseSequence;
 
 /**
  * @method static \Hypervel\Http\Client\Factory globalMiddleware(callable $middleware)
@@ -115,6 +118,48 @@ use Hypervel\Http\Client\Factory;
  */
 class Http extends Facade
 {
+    /**
+     * Register a stub callable that will intercept requests and be able to return stub responses.
+     */
+    public static function fake(array|callable|null $callback = null): Factory
+    {
+        return tap(static::getFacadeRoot(), function ($fake) use ($callback) {
+            static::swap($fake->fake($callback));
+        });
+    }
+
+    /**
+     * Register a response sequence for the given URL pattern.
+     */
+    public static function fakeSequence(string $urlPattern = '*'): ResponseSequence
+    {
+        $fake = tap(static::getFacadeRoot(), function ($fake) {
+            static::swap($fake);
+        });
+
+        return $fake->fakeSequence($urlPattern);
+    }
+
+    /**
+     * Indicate that an exception should be thrown if any request is not faked.
+     */
+    public static function preventStrayRequests(bool $prevent = true): Factory
+    {
+        return tap(static::getFacadeRoot(), function ($fake) use ($prevent) {
+            static::swap($fake->preventStrayRequests($prevent));
+        });
+    }
+
+    /**
+     * Stub the given URL using the given callback.
+     */
+    public static function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): Factory
+    {
+        return tap(static::getFacadeRoot(), function ($fake) use ($url, $callback) {
+            static::swap($fake->stubUrl($url, $callback));
+        });
+    }
+
     protected static function getFacadeAccessor(): string
     {
         return Factory::class;

@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Database\Console\Migrations\FreshCommand;
+use Hypervel\Database\Console\Migrations\RefreshCommand;
+use Hypervel\Database\Console\Migrations\ResetCommand;
+use Hypervel\Database\Console\Migrations\RollbackCommand;
+use Hypervel\Database\Console\WipeCommand;
+
 /**
  * @method static \Hypervel\Database\Connection connection(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Database\ConnectionInterface build(array $config)
@@ -44,6 +50,20 @@ namespace Hypervel\Support\Facades;
  */
 class DB extends Facade
 {
+    /**
+     * Indicate that destructive Artisan commands should be prohibited.
+     *
+     * Prohibits: db:wipe, migrate:fresh, migrate:refresh, migrate:reset, and migrate:rollback
+     */
+    public static function prohibitDestructiveCommands(bool $prohibit = true): void
+    {
+        FreshCommand::prohibit($prohibit);
+        RefreshCommand::prohibit($prohibit);
+        ResetCommand::prohibit($prohibit);
+        RollbackCommand::prohibit($prohibit);
+        WipeCommand::prohibit($prohibit);
+    }
+
     protected static function getFacadeAccessor(): string
     {
         return 'db';

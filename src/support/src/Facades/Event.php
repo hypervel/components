@@ -76,12 +76,14 @@ class Event extends Facade
 
         static::fake($eventsToFake);
 
-        return tap($callable(), function () use ($originalDispatcher) {
+        try {
+            return $callable();
+        } finally {
             static::swap($originalDispatcher);
 
             Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
-        });
+        }
     }
 
     /**
@@ -93,12 +95,14 @@ class Event extends Facade
 
         static::fakeExcept($eventsToAllow);
 
-        return tap($callable(), function () use ($originalDispatcher) {
+        try {
+            return $callable();
+        } finally {
             static::swap($originalDispatcher);
 
             Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
-        });
+        }
     }
 
     protected static function getFacadeAccessor(): string

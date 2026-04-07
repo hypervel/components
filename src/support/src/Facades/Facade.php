@@ -244,6 +244,8 @@ abstract class Facade
      */
     public static function defaultAliases(): Collection
     {
+        // Note: Redis is intentionally excluded — the alias would shadow
+        // the \Redis class from the phpredis extension.
         return new Collection([
             'App' => App::class,
             'Arr' => Arr::class,
@@ -253,6 +255,7 @@ abstract class Facade
             'Broadcast' => Broadcast::class,
             'Bus' => Bus::class,
             'Cache' => Cache::class,
+            'Concurrency' => Concurrency::class,
             'Config' => Config::class,
             'Context' => Context::class,
             'Cookie' => Cookie::class,
@@ -278,7 +281,6 @@ abstract class Facade
             'Queue' => Queue::class,
             'RateLimiter' => RateLimiter::class,
             'Redirect' => Redirect::class,
-            'Redis' => Redis::class,
             'Request' => Request::class,
             'Response' => Response::class,
             'Route' => Route::class,
