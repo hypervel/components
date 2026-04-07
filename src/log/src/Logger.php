@@ -10,16 +10,27 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Traits\Conditionable;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;
 
 class Logger implements LoggerInterface
 {
+    use Conditionable;
+
     /**
-     * Context key for per-channel log context set via withContext().
+     * The CoroutineContext key prefix for per-instance logger context.
      */
-    protected const LOG_CONTEXT_KEY = '__log.channel_context';
+    protected const CONTEXT_KEY_PREFIX = '__log.channel_context.';
+
+    /**
+     * The coroutine-local key for this logger instance's context.
+     *
+     * Each Logger gets its own CoroutineContext slot so that
+     * withContext() on one channel does not leak into others.
+     */
+    protected readonly string $contextKey;
 
     /**
      * Create a new log writer instance.
@@ -28,84 +39,69 @@ class Logger implements LoggerInterface
         protected LoggerInterface $logger,
         protected ?Dispatcher $dispatcher = null
     ) {
+        $this->contextKey = self::CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**
      * Log an emergency message to the logs.
-     *
-     * @param string $message
      */
-    public function emergency(string|Stringable $message, array $context = []): void
+    public function emergency(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log an alert message to the logs.
-     *
-     * @param string $message
      */
-    public function alert(string|Stringable $message, array $context = []): void
+    public function alert(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log a critical message to the logs.
-     *
-     * @param string $message
      */
-    public function critical(string|Stringable $message, array $context = []): void
+    public function critical(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log an error message to the logs.
-     *
-     * @param string $message
      */
-    public function error(string|Stringable $message, array $context = []): void
+    public function error(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log a warning message to the logs.
-     *
-     * @param string $message
      */
-    public function warning(string|Stringable $message, array $context = []): void
+    public function warning(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log a notice to the logs.
-     *
-     * @param string $message
      */
-    public function notice(string|Stringable $message, array $context = []): void
+    public function notice(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log an informational message to the logs.
-     *
-     * @param string $message
      */
-    public function info(string|Stringable $message, array $context = []): void
+    public function info(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
 
     /**
      * Log a debug message to the logs.
-     *
-     * @param string $message
      */
-    public function debug(string|Stringable $message, array $context = []): void
+    public function debug(Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog(__FUNCTION__, $message, $context);
     }
@@ -114,32 +110,29 @@ class Logger implements LoggerInterface
      * Log a message to the logs.
      *
      * @param string $level
-     * @param string $message
      */
-    public function log($level, string|Stringable $message, array $context = []): void
+    public function log($level, Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog($level, $message, $context);
     }
 
     /**
      * Dynamically pass log calls into the writer.
-     *
-     * @param string $level
-     * @param string $message
      */
-    public function write($level, string|Stringable $message, array $context = []): void
+    public function write(string $level, Arrayable|Jsonable|Stringable|array|string $message, array $context = []): void
     {
         $this->writeLog($level, $message, $context);
     }
 
     /**
      * Write a message to the log.
-     *
-     * @param string $level
-     * @param string $message
      */
-    protected function writeLog($level, string|Stringable $message, array $context): void
+    protected function writeLog(string $level, Arrayable|Jsonable|Stringable|array|string $message, array $context): void
     {
+        if (method_exists($this->logger, 'isHandling') && ! $this->logger->isHandling($level)) {
+            return;
+        }
+
         $this->logger->{$level}(
             $message = $this->formatMessage($message),
             $context = array_merge($this->getContext(), $context)
@@ -155,7 +148,7 @@ class Logger implements LoggerInterface
      */
     public function withContext(array $context = []): self
     {
-        CoroutineContext::override(self::LOG_CONTEXT_KEY, function ($currentContext) use ($context) {
+        CoroutineContext::override($this->contextKey, function ($currentContext) use ($context) {
             return array_merge($currentContext ?: [], $context);
         });
 
@@ -163,13 +156,20 @@ class Logger implements LoggerInterface
     }
 
     /**
-     * Flush the existing context array.
+     * Flush the log context on all currently resolved channels.
      *
+     * @param null|string[] $keys
      * @return $this
      */
-    public function withoutContext(): self
+    public function withoutContext(?array $keys = null): self
     {
-        CoroutineContext::forget(self::LOG_CONTEXT_KEY);
+        if (is_array($keys)) {
+            CoroutineContext::override($this->contextKey, function ($currentContext) use ($keys) {
+                return array_diff_key($currentContext ?: [], array_flip($keys));
+            });
+        } else {
+            CoroutineContext::forget($this->contextKey);
+        }
 
         return $this;
     }
@@ -181,7 +181,7 @@ class Logger implements LoggerInterface
      */
     public function getContext(): array
     {
-        return (array) CoroutineContext::get(self::LOG_CONTEXT_KEY, []);
+        return (array) CoroutineContext::get($this->contextKey, []);
     }
 
     /**
@@ -199,10 +199,16 @@ class Logger implements LoggerInterface
     }
 
     /**
-     * Fires a log event.
+     * Fire a log event.
      */
     protected function fireLogEvent(string $level, string $message, array $context = []): void
     {
+        // Avoid dispatching the event multiple times if our logger instance is the LogManager...
+        if ($this->logger instanceof LogManager
+            && $this->logger->getEventDispatcher() !== null) {
+            return;
+        }
+
         // If the event dispatcher is set, we will pass along the parameters to the
         // log listeners. These are useful for building profilers or other tools
         // that aggregate all of the log messages for a given "request" cycle.
@@ -213,23 +219,15 @@ class Logger implements LoggerInterface
 
     /**
      * Format the parameters for the logger.
-     *
-     * @param mixed $message
-     * @return mixed
      */
-    protected function formatMessage($message)
+    protected function formatMessage(Arrayable|Jsonable|Stringable|array|string $message): string
     {
-        if (is_array($message)) {
-            return var_export($message, true);
-        }
-        if ($message instanceof Jsonable) {
-            return $message->toJson();
-        }
-        if ($message instanceof Arrayable) {
-            return var_export($message->toArray(), true);
-        }
-
-        return $message;
+        return match (true) {
+            is_array($message) => var_export($message, true),
+            $message instanceof Jsonable => $message->toJson(),
+            $message instanceof Arrayable => var_export($message->toArray(), true),
+            default => (string) $message,
+        };
     }
 
     /**
@@ -243,21 +241,17 @@ class Logger implements LoggerInterface
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): Dispatcher
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->dispatcher;
     }
 
     /**
      * Set the event dispatcher instance.
-     *
-     * @return $this
      */
-    public function setEventDispatcher(Dispatcher $dispatcher): self
+    public function setEventDispatcher(Dispatcher $dispatcher): void
     {
         $this->dispatcher = $dispatcher;
-
-        return $this;
     }
 
     /**
