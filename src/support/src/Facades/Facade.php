@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Closure;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Benchmark;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Js;
 use Hypervel\Support\Number;
@@ -251,6 +252,7 @@ abstract class Facade
             'Arr' => Arr::class,
             'Artisan' => Artisan::class,
             'Auth' => Auth::class,
+            'Benchmark' => Benchmark::class,
             'Blade' => Blade::class,
             'Broadcast' => Broadcast::class,
             'Bus' => Bus::class,
