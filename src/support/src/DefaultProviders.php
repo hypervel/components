@@ -34,6 +34,7 @@ class DefaultProviders
             \Hypervel\Broadcasting\BroadcastServiceProvider::class,
             \Hypervel\Bus\BusServiceProvider::class,
             \Hypervel\Cache\CacheServiceProvider::class,
+            \Hypervel\Concurrency\ConcurrencyServiceProvider::class,
             \Hypervel\Console\ConsoleServiceProvider::class,
             \Hypervel\Cookie\CookieServiceProvider::class,
             \Hypervel\Database\DatabaseServiceProvider::class,

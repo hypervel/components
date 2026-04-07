@@ -293,6 +293,7 @@
                 "Hypervel\\Broadcasting\\BroadcastServiceProvider",
                 "Hypervel\\Bus\\BusServiceProvider",
                 "Hypervel\\Cache\\CacheServiceProvider",
+                "Hypervel\\Concurrency\\ConcurrencyServiceProvider",
                 "Hypervel\\Console\\ConsoleServiceProvider",
                 "Hypervel\\Cookie\\CookieServiceProvider",
                 "Hypervel\\Database\\DatabaseServiceProvider",
