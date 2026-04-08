@@ -9,34 +9,22 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ModelWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    ModelWatcher::class => [
+        'enabled' => true,
+        'events' => ['eloquent.created*', 'eloquent.updated*', 'eloquent.retrieved*'],
+        'hydrations' => true,
+    ],
+])]
 class ModelWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                ModelWatcher::class => [
-                    'enabled' => true,
-                    'actions' => [
-                        'created',
-                        'updated',
-                        'retrieved',
-                    ],
-                    'hydrations' => true,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testModelWatcherRegistersEntry()
     {
         Telescope::withoutRecording(function () {
