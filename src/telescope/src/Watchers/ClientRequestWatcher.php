@@ -206,16 +206,21 @@ class ClientRequestWatcher extends Watcher
      */
     protected function payload(array $payload): array|string
     {
-        $masked = $this->hideParameters($payload, Telescope::$hiddenRequestParameters);
-
-        $encoded = json_encode($masked);
+        $encoded = json_encode($payload);
         $sizeLimit = ($this->options['request_size_limit'] ?? 64) * 1024;
 
         if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-            return substr($encoded, 0, $sizeLimit) . ' (truncated...)';
+            if (! ($this->options['truncate_oversized'] ?? false)) {
+                return 'Purged By Telescope';
+            }
+
+            $masked = $this->hideParameters($payload, Telescope::$hiddenRequestParameters);
+            $maskedEncoded = json_encode($masked);
+
+            return substr($maskedEncoded, 0, $sizeLimit) . ' (truncated...)';
         }
 
-        return $masked;
+        return $this->hideParameters($payload, Telescope::$hiddenRequestParameters);
     }
 
     /**
@@ -224,6 +229,7 @@ class ClientRequestWatcher extends Watcher
     protected function getRequestPayload(RequestInterface $request): array|string
     {
         $stream = $request->getBody();
+        $truncate = $this->options['truncate_oversized'] ?? false;
 
         try {
             if ($stream->isSeekable()) {
@@ -231,6 +237,11 @@ class ClientRequestWatcher extends Watcher
             }
 
             $sizeLimit = ($this->options['request_size_limit'] ?? 64) * 1024;
+
+            if (! $truncate && $stream->getSize() >= $sizeLimit) {
+                return 'Purged By Telescope';
+            }
+
             $content = $stream->getContents();
 
             if (is_array($decoded = json_decode($content, true))
@@ -240,14 +251,18 @@ class ClientRequestWatcher extends Watcher
                 $encoded = json_encode($masked);
 
                 if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-                    return substr($encoded, 0, $sizeLimit) . ' (truncated...)';
+                    return $truncate
+                        ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
+                        : 'Purged By Telescope';
                 }
 
                 return $masked;
             }
 
             if (strlen($content) >= $sizeLimit) {
-                return substr($content, 0, $sizeLimit) . ' (truncated...)';
+                return $truncate
+                    ? substr($content, 0, $sizeLimit) . ' (truncated...)'
+                    : 'Purged By Telescope';
             }
 
             return $content;
@@ -284,6 +299,8 @@ class ClientRequestWatcher extends Watcher
             return 'Streamed Response';
         }
 
+        $truncate = $this->options['truncate_oversized'] ?? false;
+
         try {
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
             $content = $stream->getContents();
@@ -295,7 +312,9 @@ class ClientRequestWatcher extends Watcher
                 $encoded = json_encode($masked);
 
                 if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-                    return substr($encoded, 0, $sizeLimit) . ' (truncated...)';
+                    return $truncate
+                        ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
+                        : 'Purged By Telescope';
                 }
 
                 return $masked;
@@ -303,7 +322,9 @@ class ClientRequestWatcher extends Watcher
 
             if (Str::startsWith(strtolower($response->getHeaderLine('content-type') ?: ''), 'text/plain')) {
                 if (strlen($content) >= $sizeLimit) {
-                    return substr($content, 0, $sizeLimit) . ' (truncated...)';
+                    return $truncate
+                        ? substr($content, 0, $sizeLimit) . ' (truncated...)'
+                        : 'Purged By Telescope';
                 }
 
                 return $content;

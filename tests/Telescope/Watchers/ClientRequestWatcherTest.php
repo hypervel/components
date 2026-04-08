@@ -390,6 +390,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'enabled' => true,
             'request_size_limit' => 1,
             'response_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testClientRequestWatcherPurgesLargeResponses()
@@ -412,6 +413,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'enabled' => true,
             'request_size_limit' => 1,
             'response_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testClientRequestWatcherPurgesLargeRequestPayloads()
@@ -435,6 +437,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'enabled' => true,
             'request_size_limit' => 1,
             'response_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testOversizedRequestPayloadMasksSensitiveFieldsBeforeTruncating()
@@ -460,6 +463,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'enabled' => true,
             'request_size_limit' => 1,
             'response_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testOversizedRawGuzzleRequestPayloadMasksSensitiveFieldsBeforeTruncating()
@@ -485,6 +489,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'enabled' => true,
             'request_size_limit' => 1,
             'response_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testOversizedResponseMasksSensitiveFieldsBeforeTruncating()
@@ -504,6 +509,93 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertStringEndsWith('(truncated...)', $entry->content['response']);
         $this->assertStringContainsString('********', $entry->content['response']);
         $this->assertStringNotContainsString('secret', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'request_size_limit' => 1,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedRequestPayloadIsPurgedByDefault()
+    {
+        $client = $this->makeClient([new Response(204)]);
+        $payload = ['password' => 'secret', 'data' => str_repeat('x', 2000)];
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/api', ['Content-Type' => 'application/json'], json_encode($payload)),
+            ['hypervel_data' => $payload]
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'request_size_limit' => 1,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedResponseIsPurgedByDefault()
+    {
+        $responseBody = json_encode(['password' => 'secret', 'data' => str_repeat('x', 2000)]);
+
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'application/json'], $responseBody),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org/api'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedRedirectResponseIsNotPurged()
+    {
+        $client = $this->makeClient([
+            new Response(301, ['Location' => 'https://foo.bar'], str_repeat('x', 2000)),
+        ], ['allow_redirects' => false, 'http_errors' => false]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('GET', 'https://hypervel.org'),
+            ['allow_redirects' => false, 'http_errors' => false]
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Redirected to https://foo.bar', $entry->content['response']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        ClientRequestWatcher::class => [
+            'enabled' => true,
+            'response_size_limit' => 1,
+        ],
+    ])]
+    public function testOversizedHtmlResponseIsNotPurged()
+    {
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'text/html'], str_repeat('<p>content</p>', 200)),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://hypervel.org'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('HTML Response', $entry->content['response']);
     }
 
     public function testDirectGuzzleClientRequestIsCaptured()
@@ -527,6 +619,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         ClientRequestWatcher::class => [
             'enabled' => true,
             'request_size_limit' => 1,
+            'truncate_oversized' => true,
         ],
     ])]
     public function testDirectGuzzleLargeRequestPayloadIsTruncated()

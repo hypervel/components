@@ -155,6 +155,13 @@ return [
             'ignore_hosts' => [],
             'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
             'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
+
+            // When false (default), oversized payloads are replaced with "Purged By Telescope"
+            // without reading or processing the body — the most performant option. When true,
+            // the full body is read, sensitive fields are masked, and the result is truncated
+            // to the size limit with a "(truncated...)" suffix, giving partial visibility at
+            // the cost of additional memory and CPU for large payloads.
+            'truncate_oversized' => env('TELESCOPE_HTTP_CLIENT_TRUNCATE_OVERSIZED', false),
         ],
 
         Watchers\CommandWatcher::class => [
