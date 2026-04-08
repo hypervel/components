@@ -101,6 +101,15 @@ export default {
                             >Data</a
                         >
                     </li>
+                    <li class="nav-item" v-if="slotProps.entry.content.context">
+                        <a
+                            class="nav-link"
+                            :class="{ active: currentTab == 'context' }"
+                            href="#"
+                            v-on:click.prevent="currentTab = 'context'"
+                            >Context</a
+                        >
+                    </li>
                     <li class="nav-item">
                         <a
                             class="nav-link"
@@ -136,6 +145,11 @@ export default {
                     <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'data'">
                         <copy-clipboard :data="slotProps.entry.content.data">
                             <vue-json-pretty :data="slotProps.entry.content.data"></vue-json-pretty>
+                        </copy-clipboard>
+                    </div>
+                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'context'" v-if="slotProps.entry.content.context">
+                        <copy-clipboard :data="slotProps.entry.content.context">
+                            <vue-json-pretty :data="slotProps.entry.content.context"></vue-json-pretty>
                         </copy-clipboard>
                     </div>
                     <pre

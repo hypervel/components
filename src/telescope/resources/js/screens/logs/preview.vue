@@ -59,6 +59,15 @@ export default {
                             >Context</a
                         >
                     </li>
+                    <li class="nav-item" v-if="slotProps.entry.content.extra">
+                        <a
+                            class="nav-link"
+                            :class="{ active: currentTab == 'extra' }"
+                            href="#"
+                            v-on:click.prevent="currentTab = 'extra'"
+                            >Extra</a
+                        >
+                    </li>
                 </ul>
                 <div>
                     <!-- Log Message -->
@@ -72,6 +81,13 @@ export default {
                     <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'context'">
                         <copy-clipboard :data="slotProps.entry.content.context">
                             <vue-json-pretty :data="slotProps.entry.content.context"></vue-json-pretty>
+                        </copy-clipboard>
+                    </div>
+
+                    <!-- Extra (Context facade data) -->
+                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'extra'" v-if="slotProps.entry.content.extra">
+                        <copy-clipboard :data="slotProps.entry.content.extra">
+                            <vue-json-pretty :data="slotProps.entry.content.extra"></vue-json-pretty>
                         </copy-clipboard>
                     </div>
                 </div>
