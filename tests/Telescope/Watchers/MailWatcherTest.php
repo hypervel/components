@@ -9,6 +9,7 @@ use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\MailWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
@@ -16,20 +17,11 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    MailWatcher::class => true,
+])]
 class MailWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                MailWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testMailWatcherRegistersValidHtml()
     {
         $message = $this->mockSentMessage([

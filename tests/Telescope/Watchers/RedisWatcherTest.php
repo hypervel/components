@@ -9,6 +9,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
@@ -16,28 +17,16 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    RedisWatcher::class => true,
+])]
+#[WithConfig('database.redis.foo', [
+    'host' => '127.0.0.1',
+    'port' => 6379,
+    'db' => 0,
+])]
 class RedisWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                RedisWatcher::class => true,
-            ]);
-        $this->app->make('config')
-            ->set('database.redis.foo', [
-                'host' => '127.0.0.1',
-                'port' => 6379,
-                'db' => 0,
-            ]);
-
-        RedisWatcher::enableRedisEvents($this->app);
-
-        $this->startTelescope();
-    }
-
     public function testRegisterEnableRedisEvents()
     {
         $this->assertTrue(

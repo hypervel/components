@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\LogWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Log\LoggerInterface;
 
@@ -16,6 +17,10 @@ use Psr\Log\LoggerInterface;
  * @internal
  * @coversNothing
  */
+#[WithConfig('logging.default', 'null')]
+#[WithConfig('telescope.watchers', [
+    LogWatcher::class => true,
+])]
 class AvatarTest extends FeatureTestCase
 {
     protected function setUp(): void
@@ -23,17 +28,6 @@ class AvatarTest extends FeatureTestCase
         parent::setUp();
 
         $this->withoutMiddleware(Authorize::class);
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                LogWatcher::class => true,
-            ]);
-        $this->app->make('config')
-            ->set('logging.default', 'null');
-
-        $this->startTelescope();
-
-        $this->loadServiceProviders();
     }
 
     public function testItCanRegisterCustomAvatarPath()

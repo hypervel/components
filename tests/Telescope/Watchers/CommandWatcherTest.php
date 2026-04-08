@@ -8,26 +8,18 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\CommandWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    CommandWatcher::class => true,
+])]
 class CommandWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                CommandWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testCommandWatcherRegisterEntry()
     {
         $this->app->make(KernelContract::class)

@@ -11,29 +11,21 @@ use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\QueryWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    QueryWatcher::class => [
+        'enabled' => true,
+        'slow' => 0.9,
+    ],
+])]
 class TelescopeTest extends FeatureTestCase
 {
     protected int $count = 0;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                QueryWatcher::class => [
-                    'enabled' => true,
-                    'slow' => 0.9,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
 
     public function testRunAfterRecordingCallback()
     {

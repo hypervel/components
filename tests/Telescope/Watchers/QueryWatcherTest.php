@@ -12,6 +12,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PDO;
 use PDOException;
@@ -21,23 +22,14 @@ use ReflectionProperty;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    QueryWatcher::class => [
+        'enabled' => true,
+        'slow' => 0.2,
+    ],
+])]
 class QueryWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                QueryWatcher::class => [
-                    'enabled' => true,
-                    'slow' => 0.2,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testQueryWatcherRegistersDatabaseQueries()
     {
         EntryModel::count();

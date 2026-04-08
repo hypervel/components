@@ -10,26 +10,18 @@ use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notification;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\NotificationWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    NotificationWatcher::class => true,
+])]
 class NotificationWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                NotificationWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testNotificationWatcherRegistersEntry()
     {
         $notifiable = new AnonymousNotifiable;

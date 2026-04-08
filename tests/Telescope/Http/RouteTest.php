@@ -23,7 +23,6 @@ class RouteTest extends FeatureTestCase
 
         $this->withoutMiddleware(Authorize::class);
 
-        $this->loadServiceProviders();
         $this->registerAssertJsonExactFragmentMacro();
     }
 

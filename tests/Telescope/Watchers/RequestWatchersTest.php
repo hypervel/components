@@ -9,6 +9,7 @@ use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RequestWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -16,20 +17,11 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    RequestWatcher::class => true,
+])]
 class RequestWatchersTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                RequestWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testRequestWatcherRegistersRequests()
     {
         $result = ['email' => 'albert@hypervel.org'];

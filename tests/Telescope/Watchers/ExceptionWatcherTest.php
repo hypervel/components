@@ -10,6 +10,7 @@ use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use ParseError;
 
@@ -17,22 +18,12 @@ use ParseError;
  * @internal
  * @coversNothing
  */
+#[WithConfig('logging.default', 'null')]
+#[WithConfig('telescope.watchers', [
+    ExceptionWatcher::class => true,
+])]
 class ExceptionWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                ExceptionWatcher::class => true,
-            ]);
-        $this->app->make('config')
-            ->set('logging.default', 'null');
-
-        $this->startTelescope();
-    }
-
     public function testExceptionWatcherRegisterEntries()
     {
         $handler = $this->app->make(ExceptionHandler::class);

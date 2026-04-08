@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ViewWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
@@ -15,20 +16,11 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    ViewWatcher::class => true,
+])]
 class ViewWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                ViewWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testViewWatcherRegistersViews()
     {
         $view = m::mock(ViewContract::class);

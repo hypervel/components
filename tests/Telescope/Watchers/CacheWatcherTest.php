@@ -8,31 +8,28 @@ use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CacheWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    CacheWatcher::class => [
+        'enabled' => true,
+        'hidden' => [
+            'my-hidden-value-key',
+        ],
+    ],
+])]
 class CacheWatcherTest extends FeatureTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                CacheWatcher::class => [
-                    'enabled' => true,
-                    'hidden' => [
-                        'my-hidden-value-key',
-                    ],
-                ],
-            ]);
-
         CacheWatcher::enableCacheEvents($this->app);
-
-        $this->startTelescope();
     }
 
     public function testCacheWatcherRegistersMissedEntries()

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -20,26 +21,16 @@ use Telescope\Dummies\IgnoredEvent;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    EventWatcher::class => [
+        'enabled' => true,
+        'ignore' => [
+            IgnoredEvent::class,
+        ],
+    ],
+])]
 class EventWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                EventWatcher::class => [
-                    'enabled' => true,
-                    'ignore' => [
-                        IgnoredEvent::class,
-                    ],
-                    'ignore_framework' => false,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testEventWatcherRegistersAnyEvents()
     {
         $this->app->make(Dispatcher::class)

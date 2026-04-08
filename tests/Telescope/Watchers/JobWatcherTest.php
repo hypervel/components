@@ -17,6 +17,7 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Telescope\Watchers\JobWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
@@ -24,20 +25,11 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    JobWatcher::class => true,
+])]
 class JobWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                JobWatcher::class => true,
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testJobRegistersProcessingEntry()
     {
         $batch = m::mock(Batch::class);
