@@ -49,7 +49,7 @@ class EntryQueryOptions
             ->beforeSequence($request->before) // @phpstan-ignore-line
             ->tag($request->tag) // @phpstan-ignore-line
             ->familyHash($request->family_hash) // @phpstan-ignore-line
-            ->limit($request->take ?? 50);
+            ->limit((int) ($request->take ?? 50));
     }
 
     /**
