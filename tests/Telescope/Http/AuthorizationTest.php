@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
-use Hypervel\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
 use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
@@ -17,12 +18,12 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
  */
 class AuthorizationTest extends FeatureTestCase
 {
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        parent::setUp();
-
-        $this->mockGate();
-        $this->loadServiceProviders();
+        return array_merge(
+            parent::getPackageProviders($app),
+            [TelescopeApplicationServiceProvider::class]
+        );
     }
 
     protected function tearDown(): void
@@ -114,15 +115,6 @@ class AuthorizationTest extends FeatureTestCase
 
         $this->post('/telescope/telescope-api/requests')
             ->assertSuccessful();
-    }
-
-    protected function mockGate(): void
-    {
-        $gate = new Gate($this->app, function () {
-            return new Authenticated('email@foo.bar');
-        });
-
-        $this->app->instance(GateContract::class, $gate);
     }
 }
 
