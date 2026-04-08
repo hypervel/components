@@ -595,7 +595,15 @@ class PendingRequest
      */
     public function withoutTelescope(): static
     {
-        return $this->withAttributes(['telescope' => false]);
+        return $this->withOptions(['telescope_enabled' => false]);
+    }
+
+    /**
+     * Set Telescope tags for this request.
+     */
+    public function withTelescopeTags(array $tags): static
+    {
+        return $this->withOptions(['telescope_tags' => $tags]);
     }
 
     /**
