@@ -5,33 +5,42 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Auth\Access\AuthorizesRequests;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\GateWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    GateWatcher::class => true,
+])]
 class GateWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                GateWatcher::class => true,
-            ]);
+        $gate = $app->make(GateContract::class);
 
-        $this->mockGate();
+        $gate->define('potato', function (User $user) {
+            return $user->email === 'allow';
+        });
 
-        $this->startTelescope();
+        $gate->define('guest potato', function (?User $user) {
+            return true;
+        });
+
+        $gate->define('deny potato', function (?User $user) {
+            return false;
+        });
     }
 
     public function testGateWatcherRegistersAllowedEntries()
@@ -200,27 +209,6 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame('delete', $entry->content['ability']);
         $this->assertSame('denied', $entry->content['result']);
         $this->assertSame([[]], $entry->content['arguments']);
-    }
-
-    protected function mockGate(): void
-    {
-        $gate = new Gate($this->app, function () {
-            return new User('email@foo.bar');
-        });
-
-        $gate->define('potato', function (User $user) {
-            return $user->email === 'allow';
-        });
-
-        $gate->define('guest potato', function (?User $user) {
-            return true;
-        });
-
-        $gate->define('deny potato', function (?User $user) {
-            return false;
-        });
-
-        $this->app->instance(GateContract::class, $gate);
     }
 }
 
