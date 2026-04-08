@@ -3470,6 +3470,28 @@ class HttpClientTest extends TestCase
     // REMOVED: testAfterResponseWithAsync - Depends on Http::pool() which uses Guzzle promise
     // concurrency primitives. In Hypervel, use parallel() with coroutines instead.
 
+    public function testWithoutTelescopeSetsOption()
+    {
+        $this->factory->fake();
+
+        $request = $this->factory->withoutTelescope();
+
+        $options = (fn () => $this->options)->call($request);
+
+        $this->assertFalse($options['telescope_enabled']);
+    }
+
+    public function testWithTelescopeTagsSetsOption()
+    {
+        $this->factory->fake();
+
+        $request = $this->factory->withTelescopeTags(['stripe', 'charges']);
+
+        $options = (fn () => $this->options)->call($request);
+
+        $this->assertSame(['stripe', 'charges'], $options['telescope_tags']);
+    }
+
     protected function getContainer(array $config = []): ContainerContract
     {
         $container = new \Hypervel\Container\Container;
