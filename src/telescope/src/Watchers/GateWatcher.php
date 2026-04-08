@@ -60,7 +60,7 @@ class GateWatcher extends Watcher
     /**
      * Determine if the gate result is denied or allowed.
      */
-    private function gateResult(bool|Response $result): string
+    private function gateResult(bool|Response|null $result): string
     {
         if ($result instanceof Response) {
             return $result->allowed() ? 'allowed' : 'denied';
