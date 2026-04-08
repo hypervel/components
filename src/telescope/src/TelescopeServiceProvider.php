@@ -40,9 +40,9 @@ class TelescopeServiceProvider extends ServiceProvider
         /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
             $keys = [
-                Telescope::SHOULD_RECORD => false,
-                Telescope::IS_RECORDING => false,
-                Telescope::BATCH_ID => null,
+                Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
+                Telescope::IS_RECORDING_CONTEXT_KEY => false,
+                Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
                 CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));

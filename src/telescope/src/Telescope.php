@@ -36,17 +36,17 @@ class Telescope
     use ListensForStorageOpportunities;
     use RegistersWatchers;
 
-    public const ENTRIES_QUEUE = 'telescope.entries_queue';
+    public const ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
 
-    public const UPDATES_QUEUE = 'telescope.updates_queue';
+    public const UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
 
-    public const SHOULD_RECORD = 'telescope.should_record';
+    public const SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
 
-    public const IS_RECORDING = 'telescope.is_recording';
+    public const IS_RECORDING_CONTEXT_KEY = '__telescope.is_recording';
 
-    public const HAS_STORED = 'telescope.has_stored';
+    public const HAS_STORED_CONTEXT_KEY = '__telescope.has_stored';
 
-    public const BATCH_ID = 'telescope.batch_id';
+    public const BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
 
     /**
      * The callbacks that filter the entries that should be recorded.
@@ -218,7 +218,7 @@ class Telescope
      */
     public static function startRecording(): void
     {
-        if (CoroutineContext::get(static::SHOULD_RECORD, null)) {
+        if (CoroutineContext::get(static::SHOULD_RECORD_CONTEXT_KEY, null)) {
             return;
         }
 
@@ -231,7 +231,7 @@ class Telescope
         } catch (Exception) {
         }
 
-        CoroutineContext::set(static::SHOULD_RECORD, ! $recordingPaused);
+        CoroutineContext::set(static::SHOULD_RECORD_CONTEXT_KEY, ! $recordingPaused);
         // Ensure batch ID is set when starting recording
         static::getBatchId();
     }
@@ -241,7 +241,7 @@ class Telescope
      */
     public static function stopRecording(): void
     {
-        CoroutineContext::set(static::SHOULD_RECORD, false);
+        CoroutineContext::set(static::SHOULD_RECORD_CONTEXT_KEY, false);
     }
 
     /**
@@ -256,7 +256,7 @@ class Telescope
         try {
             return call_user_func($callback);
         } finally {
-            CoroutineContext::set(static::SHOULD_RECORD, $shouldRecord);
+            CoroutineContext::set(static::SHOULD_RECORD_CONTEXT_KEY, $shouldRecord);
         }
     }
 
@@ -269,7 +269,7 @@ class Telescope
             return false;
         }
 
-        return CoroutineContext::get(static::SHOULD_RECORD, false);
+        return CoroutineContext::get(static::SHOULD_RECORD_CONTEXT_KEY, false);
     }
 
     /**
@@ -281,18 +281,18 @@ class Telescope
             return;
         }
 
-        if (CoroutineContext::get(static::IS_RECORDING, false)) {
+        if (CoroutineContext::get(static::IS_RECORDING_CONTEXT_KEY, false)) {
             return;
         }
 
-        if (! CoroutineContext::get(static::HAS_STORED, false)) {
+        if (! CoroutineContext::get(static::HAS_STORED_CONTEXT_KEY, false)) {
             Coroutine::defer(function () {
                 static::store(static::$store);
             });
-            CoroutineContext::set(static::HAS_STORED, true);
+            CoroutineContext::set(static::HAS_STORED_CONTEXT_KEY, true);
         }
 
-        CoroutineContext::set(static::IS_RECORDING, true);
+        CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, true);
 
         try {
             if (Auth::hasUser()) {
@@ -308,7 +308,7 @@ class Telescope
 
         static::withoutRecording(function () use ($entry) {
             if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                CoroutineContext::override(static::ENTRIES_QUEUE, function ($entries) use ($entry) {
+                CoroutineContext::override(static::ENTRIES_QUEUE_CONTEXT_KEY, function ($entries) use ($entry) {
                     return array_merge($entries ?? [], [$entry]);
                 });
             }
@@ -318,7 +318,7 @@ class Telescope
             }
         });
 
-        CoroutineContext::set(static::IS_RECORDING, false);
+        CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, false);
     }
 
     /**
@@ -326,7 +326,7 @@ class Telescope
      */
     public static function getEntriesQueue(): array
     {
-        return CoroutineContext::get(static::ENTRIES_QUEUE, []);
+        return CoroutineContext::get(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
     }
 
     /**
@@ -334,7 +334,7 @@ class Telescope
      */
     public static function getUpdatesQueue(): array
     {
-        return CoroutineContext::get(static::UPDATES_QUEUE, []);
+        return CoroutineContext::get(static::UPDATES_QUEUE_CONTEXT_KEY, []);
     }
 
     /**
@@ -346,7 +346,7 @@ class Telescope
             return;
         }
 
-        CoroutineContext::override(static::UPDATES_QUEUE, function ($updates) use ($update) {
+        CoroutineContext::override(static::UPDATES_QUEUE_CONTEXT_KEY, function ($updates) use ($update) {
             return array_merge($updates ?? [], [$update]);
         });
     }
@@ -500,7 +500,7 @@ class Telescope
      */
     public static function flushEntries(): static
     {
-        CoroutineContext::set(static::ENTRIES_QUEUE, []);
+        CoroutineContext::set(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
 
         return new static;
     }
@@ -510,7 +510,7 @@ class Telescope
      */
     public static function flushUpdates(): static
     {
-        CoroutineContext::set(static::UPDATES_QUEUE, []);
+        CoroutineContext::set(static::UPDATES_QUEUE_CONTEXT_KEY, []);
 
         return new static;
     }
@@ -667,7 +667,7 @@ class Telescope
 
     protected static function getBatchId(): string
     {
-        return CoroutineContext::getOrSet(static::BATCH_ID, Str::orderedUuid()->toString());
+        return CoroutineContext::getOrSet(static::BATCH_ID_CONTEXT_KEY, Str::orderedUuid()->toString());
     }
 
     /**

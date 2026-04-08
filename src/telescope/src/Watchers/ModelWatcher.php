@@ -17,7 +17,7 @@ use Hypervel\Telescope\Telescope;
 
 class ModelWatcher extends Watcher
 {
-    public const HYDRATIONS = 'telescope.watcher.model.hydrations';
+    public const HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
 
     /**
      * Telescope entries to store the count model hydrations.
@@ -85,7 +85,7 @@ class ModelWatcher extends Watcher
      */
     public function getHydrations(): array
     {
-        return CoroutineContext::get(static::HYDRATIONS, []);
+        return CoroutineContext::get(static::HYDRATIONS_CONTEXT_KEY, []);
     }
 
     /**
@@ -101,7 +101,7 @@ class ModelWatcher extends Watcher
      */
     public function updateHydration(string $modelClass, IncomingEntry $entry): void
     {
-        CoroutineContext::override(static::HYDRATIONS, function ($hydrations) use ($modelClass, $entry) {
+        CoroutineContext::override(static::HYDRATIONS_CONTEXT_KEY, function ($hydrations) use ($modelClass, $entry) {
             $hydrations = $hydrations ?? [];
             $hydrations[$modelClass] = $entry;
 
@@ -146,7 +146,7 @@ class ModelWatcher extends Watcher
      */
     public function flushHydrations(): void
     {
-        CoroutineContext::set(static::HYDRATIONS, []);
+        CoroutineContext::set(static::HYDRATIONS_CONTEXT_KEY, []);
     }
 
     /**

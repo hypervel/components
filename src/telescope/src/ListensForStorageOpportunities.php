@@ -19,7 +19,7 @@ use Hypervel\Telescope\Contracts\EntriesRepository;
 
 trait ListensForStorageOpportunities
 {
-    public const PROCESSING_JOBS = 'telescope.processing_jobs';
+    public const PROCESSING_JOBS_CONTEXT_KEY = '__telescope.processing_jobs';
 
     /**
      * The callback that determines if Telescope should start recording.
@@ -91,7 +91,7 @@ trait ListensForStorageOpportunities
      */
     protected static function getProcessingJobs(): array
     {
-        return CoroutineContext::get(static::PROCESSING_JOBS, []);
+        return CoroutineContext::get(static::PROCESSING_JOBS_CONTEXT_KEY, []);
     }
 
     /**
@@ -99,7 +99,7 @@ trait ListensForStorageOpportunities
      */
     protected static function addProcessingJob(): array
     {
-        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS_CONTEXT_KEY, function ($jobs) {
             $jobs = $jobs ?? [];
             $jobs[] = true;
 
@@ -112,7 +112,7 @@ trait ListensForStorageOpportunities
      */
     protected static function popProcessingJob(): array
     {
-        return CoroutineContext::override(static::PROCESSING_JOBS, function ($jobs) {
+        return CoroutineContext::override(static::PROCESSING_JOBS_CONTEXT_KEY, function ($jobs) {
             $jobs = $jobs ?? [];
             array_pop($jobs);
 
