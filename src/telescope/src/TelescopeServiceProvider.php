@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -113,6 +114,8 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->registerStorageDriver();
         $this->registerRedisEvents();
         $this->registerCacheEvents();
+
+        $this->aspects(GuzzleHttpClientAspect::class);
     }
 
     /**
