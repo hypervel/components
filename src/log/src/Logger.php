@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Traits\Conditionable;
 use Psr\Log\LoggerInterface;
@@ -213,7 +214,11 @@ class Logger implements LoggerInterface
         // log listeners. These are useful for building profilers or other tools
         // that aggregate all of the log messages for a given "request" cycle.
         if ($this->dispatcher?->hasListeners(MessageLogged::class)) {
-            $this->dispatcher->dispatch(new MessageLogged($level, $message, $context));
+            $extra = ContextRepository::hasInstance()
+                ? ContextRepository::getInstance()->all()
+                : [];
+
+            $this->dispatcher->dispatch(new MessageLogged($level, $message, $context, $extra));
         }
     }
 
