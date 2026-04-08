@@ -126,6 +126,7 @@ return [
     ],
 
     'ignore_paths' => [
+        '.well-known*',
     ],
 
     'ignore_commands' => [
