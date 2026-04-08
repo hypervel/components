@@ -1,12 +1,12 @@
 <script type="text/ecmascript-6">
-    export default {
-        data(){
-            return {
-                entry: null,
-                batch: [],
-            };
-        }
+export default {
+    data(){
+        return {
+            entry: null,
+            batch: [],
+        };
     }
+}
 </script>
 
 <template>
@@ -15,35 +15,35 @@
             <tr>
                 <td class="table-fit text-muted">Description</td>
                 <td>
-                    {{slotProps.entry.content.description || '-'}}
+                    {{ slotProps.entry.content.description || '-' }}
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Command</td>
                 <td>
-                    <code>{{slotProps.entry.content.command || '-'}}</code>
+                    <code>{{ slotProps.entry.content.command || '-' }}</code>
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Expression</td>
                 <td>
-                    {{slotProps.entry.content.expression}}
+                    {{ slotProps.entry.content.expression }}
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">User</td>
                 <td>
-                    {{slotProps.entry.content.user || '-'}}
+                    {{ slotProps.entry.content.user || '-' }}
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Timezone</td>
                 <td>
-                    {{slotProps.entry.content.timezone || '-'}}
+                    {{ slotProps.entry.content.timezone || '-' }}
                 </td>
             </tr>
         </template>
