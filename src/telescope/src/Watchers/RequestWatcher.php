@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -67,7 +68,8 @@ class RequestWatcher extends Watcher
             'response_headers' => $this->headers($event->response->headers->all()),
             'response_status' => $event->response->getStatusCode(),
             'response' => $this->response($event->response),
-            'context' => $this->getContext(),
+            'context' => $this->facadeContext(),
+            'coroutine_context' => $this->getContext(),
             'duration' => $startTime > 0 ? floor((microtime(true) - $startTime) * 1000) : null,
             'memory' => round(memory_get_peak_usage(true) / 1024 / 1024, 1),
         ]));
@@ -245,7 +247,33 @@ class RequestWatcher extends Watcher
     }
 
     /**
-     * Get the context data for the request.
+     * Get the current facade context for the request.
+     *
+     * Returns both visible and hidden context. Returns null
+     * when no context exists to avoid showing an empty tab.
+     */
+    protected function facadeContext(): ?array
+    {
+        if (! ContextRepository::hasInstance()) {
+            return null;
+        }
+
+        $repository = ContextRepository::getInstance();
+        $data = $repository->all();
+        $hidden = $repository->allHidden();
+
+        if (! $data && ! $hidden) {
+            return null;
+        }
+
+        return [
+            'data' => $data,
+            'hidden' => $hidden,
+        ];
+    }
+
+    /**
+     * Get the coroutine context data for the request.
      */
     protected function getContext(): array
     {

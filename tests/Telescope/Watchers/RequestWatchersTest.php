@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Http\UploadedFile;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Telescope\EntryType;
@@ -172,5 +173,44 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('GET', $entry->content['method']);
         $this->assertSame(200, $entry->content['response_status']);
         $this->assertSame('plain telescope response', $entry->content['response']);
+    }
+
+    public function testRequestWatcherStoresFacadeContextWhenPresent()
+    {
+        Route::get('/with-context', fn () => 'ok');
+
+        ContextRepository::getInstance()->add('trace_id', 'abc-123');
+        ContextRepository::getInstance()->addHidden('api_key', 'secret');
+
+        $this->get('/with-context');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertIsArray($entry->content['context']);
+        $this->assertSame(['trace_id' => 'abc-123'], $entry->content['context']['data']);
+        $this->assertSame(['api_key' => 'secret'], $entry->content['context']['hidden']);
+    }
+
+    public function testRequestWatcherOmitsFacadeContextWhenAbsent()
+    {
+        Route::get('/no-context', fn () => 'ok');
+
+        $this->get('/no-context');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNull($entry->content['context']);
+    }
+
+    public function testRequestWatcherRecordsCoroutineContext()
+    {
+        Route::get('/coroutine', fn () => 'ok');
+
+        $this->get('/coroutine');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('coroutine_context', $entry->content);
+        $this->assertIsArray($entry->content['coroutine_context']);
     }
 }

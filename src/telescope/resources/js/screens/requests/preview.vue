@@ -138,13 +138,22 @@ export default {
                             >Session</a
                         >
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item" v-if="slotProps.entry.content.context">
                         <a
                             class="nav-link"
                             :class="{ active: currentResponseTab == 'context' }"
                             href="#"
                             v-on:click.prevent="currentResponseTab = 'context'"
                             >Context</a
+                        >
+                    </li>
+                    <li class="nav-item">
+                        <a
+                            class="nav-link"
+                            :class="{ active: currentResponseTab == 'coroutine_context' }"
+                            href="#"
+                            v-on:click.prevent="currentResponseTab = 'coroutine_context'"
+                            >Coroutine Context</a
                         >
                     </li>
                 </ul>
