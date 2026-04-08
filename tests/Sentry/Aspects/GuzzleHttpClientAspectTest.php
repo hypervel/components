@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Aspects;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Promise\FulfilledPromise;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
-use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Psr\Http\Message\RequestInterface;
 use Sentry\Tracing\SpanStatus;
@@ -22,16 +21,19 @@ use Sentry\Tracing\SpanStatus;
  */
 class GuzzleHttpClientAspectTest extends SentryTestCase
 {
+    use InteractsWithAop;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
 
     public function testBreadcrumbIsRecorded()
     {
-        $this->processAspect(
-            new Request('GET', 'https://example.com/api/test'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/api/test'));
 
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
 
@@ -51,32 +53,30 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
             'sentry.breadcrumbs.http_client_requests' => false,
         ]);
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
 
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
     public function testBreadcrumbLevelReflectsHttpStatus()
     {
-        $this->processAspect(
-            new Request('GET', 'https://example.com/ok'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+            new Response(404, [], 'Not Found'),
+            new Response(500, [], 'Internal Server Error'),
+        ], ['http_errors' => false]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/ok'), ['http_errors' => false]);
         $this->assertEquals('info', $this->getLastSentryBreadcrumb()->getLevel());
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com/not-found'),
-            new Response(404, [], 'Not Found')
-        );
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/not-found'), ['http_errors' => false]);
         $this->assertEquals('warning', $this->getLastSentryBreadcrumb()->getLevel());
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com/error'),
-            new Response(500, [], 'Internal Server Error')
-        );
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/error'), ['http_errors' => false]);
         $this->assertEquals('error', $this->getLastSentryBreadcrumb()->getLevel());
     }
 
@@ -84,10 +84,11 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     {
         $transaction = $this->startTransaction();
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
 
         $span = last($transaction->getSpanRecorder()->getSpans());
 
@@ -101,19 +102,16 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     {
         $transaction = $this->startTransaction();
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com/success'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+            new Response(500, [], 'Internal Server Error'),
+        ], ['http_errors' => false]);
 
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/success'), ['http_errors' => false]);
         $span = last($transaction->getSpanRecorder()->getSpans());
         $this->assertEquals(SpanStatus::ok(), $span->getStatus());
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com/error'),
-            new Response(500, [], 'Internal Server Error')
-        );
-
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/error'), ['http_errors' => false]);
         $span = last($transaction->getSpanRecorder()->getSpans());
         $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
     }
@@ -127,10 +125,11 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
 
         $transaction = $this->startTransaction();
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
-            new Response(200, [], 'OK')
-        );
+        $client = $this->makeClient([
+            new Response(200, [], 'OK'),
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
 
         $span = last($transaction->getSpanRecorder()->getSpans());
         $this->assertNotEquals('http.client', $span->getOp());
@@ -142,52 +141,45 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
             'sentry.trace_propagation_targets' => ['example.com'],
         ]);
 
-        $sentRequest = null;
-
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
+        $mock = new MockHandler([
             new Response(200, [], 'OK'),
-            capturedRequest: $sentRequest
-        );
+            new Response(200, [], 'OK'),
+        ]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
 
+        $this->startTransaction();
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
+        $sentRequest = $mock->getLastRequest();
         $this->assertTrue($sentRequest->hasHeader('sentry-trace'));
         $this->assertTrue($sentRequest->hasHeader('baggage'));
 
-        $sentRequest = null;
-
-        $this->processAspect(
-            new Request('GET', 'https://no-headers.example.com'),
-            new Response(200, [], 'OK'),
-            capturedRequest: $sentRequest
-        );
-
+        $this->executeTransfer($client, new Request('GET', 'https://no-headers.example.com'));
+        $sentRequest = $mock->getLastRequest();
         $this->assertFalse($sentRequest->hasHeader('sentry-trace'));
         $this->assertFalse($sentRequest->hasHeader('baggage'));
     }
 
     public function testPerRequestOptOut()
     {
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
+        $client = $this->makeClient([
             new Response(200, [], 'OK'),
-            options: ['no_sentry_aspect' => true]
-        );
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'), ['no_sentry_aspect' => true]);
 
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
     public function testPerClientOptOut()
     {
+        $mock = new MockHandler([new Response(200, [], 'OK')]);
         $client = new Client([
-            'handler' => HandlerStack::create(),
+            'handler' => HandlerStack::create($mock),
             'no_sentry_aspect' => true,
         ]);
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
-            new Response(200, [], 'OK'),
-            client: $client
-        );
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
 
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
@@ -196,69 +188,69 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     {
         $callbackFired = false;
 
-        $this->processAspect(
-            new Request('GET', 'https://example.com'),
+        $client = $this->makeClient([
             new Response(200, [], 'OK'),
-            options: [
-                'on_stats' => function (TransferStats $stats) use (&$callbackFired) {
-                    $callbackFired = true;
-                },
-            ]
-        );
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'), [
+            'on_stats' => function (TransferStats $stats) use (&$callbackFired) {
+                $callbackFired = true;
+            },
+        ]);
 
         $this->assertTrue($callbackFired, 'Existing on_stats callback should be preserved');
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
     }
 
     /**
-     * Execute the aspect with the given request and response.
+     * Create a Guzzle client with a MockHandler queuing the given responses.
      *
-     * Constructs a ProceedingJoinPoint that simulates GuzzleHttp\Client::transfer(),
-     * then passes it through the aspect's process() method. The simulated transfer
-     * fires the on_stats callback (which the aspect injects) with the response data.
+     * The AOP proxy for GuzzleHttp\Client is generated by Testbench's bootstrap
+     * (GenerateProxies), so the aspect intercepts transfer() automatically.
      */
-    private function processAspect(
-        RequestInterface $request,
-        Response $response,
-        array $options = [],
-        ?Client $client = null,
-        ?RequestInterface &$capturedRequest = null,
-    ): void {
-        $aspect = $this->app->make(GuzzleHttpClientAspect::class);
+    private function makeClient(array $responses, array $config = []): Client
+    {
+        return new Client(array_merge($config, [
+            'handler' => HandlerStack::create(new MockHandler($responses)),
+        ]));
+    }
 
-        // The original method simulates Client::transfer() — it receives
-        // the (potentially modified) request and options, fires on_stats,
-        // and returns a fulfilled promise.
-        $originalMethod = function (RequestInterface $request, array $options) use ($response, &$capturedRequest): FulfilledPromise {
-            $capturedRequest = $request;
+    private function executeTransfer(Client $client, RequestInterface $request, array $options = []): void
+    {
+        if ($this->isAopProxied($client)) {
+            $client->send($request, $options);
 
-            if (isset($options['on_stats'])) {
-                ($options['on_stats'])(new TransferStats($request, $response, 0.05));
-            }
-
-            return new FulfilledPromise($response);
-        };
-
-        // Bind the closure to a Client instance so getInstance() returns it
-        // (used by the aspect's isOptedOut() for per-client config checks).
-        if ($client !== null) {
-            $originalMethod = $originalMethod->bindTo($client, Client::class);
+            return;
         }
 
-        $joinPoint = new ProceedingJoinPoint(
-            $originalMethod,
-            Client::class,
-            'transfer',
-            [
-                'keys' => ['request' => $request, 'options' => $options],
-                'order' => ['request', 'options'],
-            ]
+        ['request' => $preparedRequest, 'options' => $preparedOptions] = $this->prepareTransferArguments(
+            $client,
+            $request,
+            $options
         );
 
-        // Set the pipe to simulate being at the end of the aspect pipeline.
-        // When the aspect calls $joinPoint->process(), this runs processOriginalMethod().
-        $joinPoint->pipe = fn (ProceedingJoinPoint $point) => $point->processOriginalMethod();
+        $this->callWithAspects($client, 'transfer', [
+            'request' => $preparedRequest,
+            'options' => $preparedOptions,
+        ])->wait();
+    }
 
-        $aspect->process($joinPoint);
+    /**
+     * Mirror Guzzle's sendAsync() setup before manually invoking transfer().
+     *
+     * @return array{request: RequestInterface, options: array}
+     */
+    private function prepareTransferArguments(Client $client, RequestInterface $request, array $options): array
+    {
+        $preparedOptions = (fn (array $options): array => $this->prepareDefaults($options))
+            ->call($client, $options);
+
+        $preparedUri = (fn ($uri, array $options) => $this->buildUri($uri, $options))
+            ->call($client, $request->getUri(), $preparedOptions);
+
+        return [
+            'request' => $request->withUri($preparedUri, $request->hasHeader('Host')),
+            'options' => $preparedOptions,
+        ];
     }
 }
