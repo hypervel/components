@@ -47,12 +47,18 @@ class LogWatcher extends Watcher
             return;
         }
 
+        $content = [
+            'level' => $event->level,
+            'message' => (string) $event->message,
+            'context' => Arr::except($event->context, ['telescope']),
+        ];
+
+        if ($event->extra) {
+            $content['extra'] = $event->extra;
+        }
+
         Telescope::recordLog(
-            IncomingEntry::make([
-                'level' => $event->level,
-                'message' => (string) $event->message,
-                'context' => Arr::except($event->context, ['telescope']),
-            ])->tags($this->tags($event))
+            IncomingEntry::make($content)->tags($this->tags($event))
         );
     }
 

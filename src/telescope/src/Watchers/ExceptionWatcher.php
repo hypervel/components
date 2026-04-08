@@ -41,18 +41,24 @@ class ExceptionWatcher extends Watcher
             return Arr::only($item, ['file', 'line']);
         })->toArray();
 
+        $content = [
+            'class' => get_class($exception),
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
+            'message' => $exception->getMessage(),
+            'context' => transform(Arr::except($event->context, ['exception', 'telescope']), function ($context) {
+                return ! empty($context) ? $context : null;
+            }),
+            'trace' => $trace,
+            'line_preview' => ExceptionContext::get($exception),
+        ];
+
+        if ($event->extra) {
+            $content['extra'] = $event->extra;
+        }
+
         Telescope::recordException(
-            IncomingExceptionEntry::make($exception, [
-                'class' => get_class($exception),
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'message' => $exception->getMessage(),
-                'context' => transform(Arr::except($event->context, ['exception', 'telescope']), function ($context) {
-                    return ! empty($context) ? $context : null;
-                }),
-                'trace' => $trace,
-                'line_preview' => ExceptionContext::get($exception),
-            ])->tags($this->tags($event))
+            IncomingExceptionEntry::make($exception, $content)->tags($this->tags($event))
         );
     }
 
