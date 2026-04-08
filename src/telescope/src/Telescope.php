@@ -16,10 +16,13 @@ use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\HtmlString;
+use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
+use RuntimeException;
 use Throwable;
 
 use function event;
@@ -734,6 +737,49 @@ class Telescope
         Avatar::register($callback);
 
         return new static;
+    }
+
+    /**
+     * Get the CSS for the Telescope dashboard.
+     */
+    public static function css(): HtmlString
+    {
+        if (($app = @file_get_contents(__DIR__ . '/../dist/app.css')) === false) {
+            throw new RuntimeException('Unable to load the Telescope dashboard app CSS.');
+        }
+
+        $styles = match (static::$useDarkTheme) {
+            true => @file_get_contents(__DIR__ . '/../dist/styles-dark.css'),
+            default => @file_get_contents(__DIR__ . '/../dist/styles.css'),
+        };
+
+        if ($styles === false) {
+            throw new RuntimeException('Unable to load the ' . (static::$useDarkTheme ? 'dark' : 'light') . ' Telescope dashboard styles.');
+        }
+
+        return new HtmlString(<<<HTML
+            <style>{$app}</style>
+            <style>{$styles}</style>
+        HTML);
+    }
+
+    /**
+     * Get the JS for the Telescope dashboard.
+     */
+    public static function js(): HtmlString
+    {
+        if (($js = @file_get_contents(__DIR__ . '/../dist/app.js')) === false) {
+            throw new RuntimeException('Unable to load the Telescope dashboard JavaScript.');
+        }
+
+        $telescope = Js::from(static::scriptVariables());
+
+        return new HtmlString(<<<HTML
+            <script type="module">
+                window.Telescope = {$telescope};
+                {$js}
+            </script>
+            HTML);
     }
 
     /**
