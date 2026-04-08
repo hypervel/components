@@ -302,6 +302,11 @@ class ClientRequestWatcher extends Watcher
         $truncate = $this->options['truncate_oversized'] ?? false;
 
         try {
+            $statusCode = $response->getStatusCode();
+            if ($statusCode >= 300 && $statusCode < 400) {
+                return 'Redirected to ' . $response->getHeaderLine('Location');
+            }
+
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
             $content = $stream->getContents();
 
@@ -328,11 +333,6 @@ class ClientRequestWatcher extends Watcher
                 }
 
                 return $content;
-            }
-
-            $statusCode = $response->getStatusCode();
-            if ($statusCode >= 300 && $statusCode < 400) {
-                return 'Redirected to ' . $response->getHeaderLine('Location');
             }
 
             if (empty($content)) {
