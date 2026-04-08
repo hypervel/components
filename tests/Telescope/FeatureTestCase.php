@@ -18,7 +18,6 @@ use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\TestCase;
 
@@ -36,6 +35,34 @@ class FeatureTestCase extends TestCase
 
     protected ?ApplicationContract $app = null;
 
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            TelescopeServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'database.default' => 'testing',
+            'telescope.storage.database.connection' => 'testing',
+            'telescope.enabled' => true,
+            'telescope.path' => 'telescope',
+            'telescope.middleware' => [
+                Authorize::class,
+            ],
+            // Tests read the DB right after store(), so Telescope must write immediately.
+            'telescope.defer' => false,
+            'cache.default' => 'array',
+            'cache.stores.array' => [
+                'driver' => 'array',
+                'serialize' => false,
+                'events' => true,
+            ],
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -44,26 +71,28 @@ class FeatureTestCase extends TestCase
             EntriesRepository::class,
             fn ($container) => $container->make(DatabaseEntriesRepository::class)
         );
-        $this->app->make('config')
-            ->set('telescope', [
-                'enabled' => true,
-                'path' => 'telescope',
-                'middleware' => [
-                    Authorize::class,
-                ],
-                'defer' => false,
-            ]);
-        $this->app->make('config')
-            ->set('cache.default', 'array');
-        $this->app->make('config')
-            ->set('cache.stores.array', [
-                'driver' => 'array',
-                'serialize' => false,
-                'events' => true,
-            ]);
         $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
         $this->app['env'] = 'production';
+
+        // Clear any entries recorded during bootstrap (e.g. migrations).
+        Telescope::flushEntries();
+        Telescope::$afterStoringHooks = [];
+        EntryModel::truncate();
+
+        // In Swoole, recording state is per-coroutine via CoroutineContext. Unlike
+        // Laravel where Telescope::start() begins recording for the process lifetime,
+        // Hypervel starts recording per-request via RequestReceived event listeners.
+        // Tests don't fire RequestReceived, so we start recording manually.
+        Telescope::startRecording();
+    }
+
+    protected function tearDown(): void
+    {
+        Telescope::flushEntries();
+        Telescope::$afterStoringHooks = [];
+
+        parent::tearDown();
     }
 
     protected function migrateFreshUsing(): array
@@ -74,20 +103,6 @@ class FeatureTestCase extends TestCase
             '--realpath' => true,
             '--path' => dirname(__DIR__, 2) . '/src/telescope/database/migrations',
         ];
-    }
-
-    protected function startTelescope(): void
-    {
-        Telescope::start($this->app);
-        Telescope::startRecording();
-    }
-
-    protected function loadServiceProviders(): void
-    {
-        (new TelescopeServiceProvider($this->app))
-            ->boot();
-        (new TelescopeApplicationServiceProvider($this->app))
-            ->boot();
     }
 
     protected function createEntry(array $attributes = []): DummyEntryModel
