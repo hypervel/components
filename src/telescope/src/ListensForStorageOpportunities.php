@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
@@ -84,12 +83,6 @@ trait ListensForStorageOpportunities
                 ) {
                     static::startRecording();
                 }
-            });
-        $app->make(Dispatcher::class)
-            ->listen(AfterExecuteCommand::class, function () use ($app) {
-                static::store(
-                    $app->make(EntriesRepository::class)
-                );
             });
     }
 
