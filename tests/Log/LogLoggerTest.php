@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Log\Logger;
 use Hypervel\Tests\TestCase;
@@ -201,5 +203,49 @@ class LogLoggerTest extends TestCase
         $events->shouldNotReceive('dispatch');
 
         $writer->error('foo');
+    }
+
+    public function testMessageLoggedExtraContainsVisibleContextAndExcludesHidden()
+    {
+        $events = new Dispatcher;
+        $repository = new ContextRepository($events);
+        $repository->add('trace_id', 'abc-123');
+        $repository->addHidden('api_key', 'secret-token');
+        CoroutineContext::set(ContextRepository::CONTEXT_KEY, $repository);
+
+        $writer = new Logger($monolog = m::mock(Monolog::class), $events);
+        $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
+        $monolog->shouldReceive('info')->once()->with('test', []);
+
+        $captured = null;
+        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured) {
+            $captured = $event;
+        });
+
+        $writer->info('test');
+
+        $this->assertSame(['trace_id' => 'abc-123'], $captured->extra);
+        $this->assertArrayNotHasKey('api_key', $captured->extra);
+
+        CoroutineContext::forget(ContextRepository::CONTEXT_KEY);
+    }
+
+    public function testMessageLoggedExtraIsEmptyWhenNoContextUsed()
+    {
+        CoroutineContext::forget(ContextRepository::CONTEXT_KEY);
+
+        $events = new Dispatcher;
+        $writer = new Logger($monolog = m::mock(Monolog::class), $events);
+        $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
+        $monolog->shouldReceive('info')->once()->with('test', []);
+
+        $captured = null;
+        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured) {
+            $captured = $event;
+        });
+
+        $writer->info('test');
+
+        $this->assertSame([], $captured->extra);
     }
 }

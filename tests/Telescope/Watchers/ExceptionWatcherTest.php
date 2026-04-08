@@ -8,6 +8,7 @@ use Error;
 use ErrorException;
 use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -83,6 +84,29 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(1, $entry->content['line']);
         $this->assertSame("Unclosed '('", $entry->content['message']);
         $this->assertArrayHasKey('trace', $entry->content);
+    }
+
+    public function testExceptionWatcherStoresExtraWhenContextFacadeUsed()
+    {
+        ContextRepository::getInstance()->add('tenant_id', 42);
+
+        $handler = $this->app->make(ExceptionHandler::class);
+        $handler->report(new BananaException('Error with context'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('extra', $entry->content);
+        $this->assertSame(42, $entry->content['extra']['tenant_id']);
+    }
+
+    public function testExceptionWatcherOmitsExtraWhenContextFacadeNotUsed()
+    {
+        $handler = $this->app->make(ExceptionHandler::class);
+        $handler->report(new BananaException('Error without context'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayNotHasKey('extra', $entry->content);
     }
 }
 

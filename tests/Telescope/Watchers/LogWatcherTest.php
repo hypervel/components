@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\LogWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -164,5 +165,34 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('error', $entry->content['level']);
         $this->assertSame('Some message', $entry->content['message']);
         $this->assertSame('Some error message', $entry->content['context']['exception']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
+    public function testLogWatcherStoresExtraWhenContextFacadeUsed()
+    {
+        ContextRepository::getInstance()->add('trace_id', 'abc-123');
+
+        $logger = $this->app->make(LoggerInterface::class);
+        $logger->error('test message');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('extra', $entry->content);
+        $this->assertSame('abc-123', $entry->content['extra']['trace_id']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
+    public function testLogWatcherOmitsExtraWhenContextFacadeNotUsed()
+    {
+        $logger = $this->app->make(LoggerInterface::class);
+        $logger->error('test message');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayNotHasKey('extra', $entry->content);
     }
 }
