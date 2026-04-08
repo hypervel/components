@@ -10,6 +10,7 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ScheduleWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
@@ -17,20 +18,16 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    ScheduleWatcher::class => true,
+])]
 class ScheduleWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment($app): void
     {
-        parent::setUp();
-
-        $this->app->make('config')
-            ->set('telescope.watchers', [
-                ScheduleWatcher::class => true,
-            ]);
-
         $_SERVER['argv'][1] = 'schedule:run';
 
-        $this->startTelescope();
+        parent::defineEnvironment($app);
     }
 
     protected function tearDown(): void
