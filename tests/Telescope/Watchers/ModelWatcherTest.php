@@ -27,14 +27,10 @@ class ModelWatcherTest extends FeatureTestCase
 {
     public function testModelWatcherRegistersEntry()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         UserEloquent::query()
             ->create([
                 'name' => 'Telescope',
-                'email' => 'telescope@laravel.com',
+                'email' => 'telescope@hypervel.org',
                 'password' => 1,
             ]);
 
@@ -47,14 +43,10 @@ class ModelWatcherTest extends FeatureTestCase
 
     public function testModelWatcherCanRestrictEvents()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         $user = UserEloquent::query()
             ->create([
                 'name' => 'Telescope',
-                'email' => 'telescope@laravel.com',
+                'email' => 'telescope@hypervel.org',
                 'password' => 1,
             ]);
 
@@ -71,10 +63,6 @@ class ModelWatcherTest extends FeatureTestCase
 
     public function testModelWatcherRegistersHydrationEntry()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         Telescope::stopRecording();
         $this->createUser();
         $this->createUser();
