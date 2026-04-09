@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
+use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Testing\TestResponse;
@@ -37,7 +38,7 @@ class RouteTest extends FeatureTestCase
     #[DataProvider('telescopeIndexRoutesProvider')]
     public function testSimpleListOfEntries(string $endpoint, string $entryType)
     {
-        $entry = $this->createEntry(['type' => $entryType]);
+        $entry = EntryModelFactory::new()->create(['type' => $entryType]);
 
         $this->post($endpoint)
             ->assertSuccessful()
@@ -84,5 +85,13 @@ class RouteTest extends FeatureTestCase
         };
 
         TestResponse::macro('assertJsonExactFragment', $assertion);
+    }
+
+    public function testNamedRoute()
+    {
+        $this->assertEquals(
+            url(config('telescope.path')),
+            route('telescope')
+        );
     }
 }
