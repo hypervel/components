@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Telescope;
+namespace Hypervel\Tests\Telescope\Telescope;
 
 use Hypervel\Mail\Mailable;
+use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
@@ -14,11 +16,9 @@ use Hypervel\Telescope\FormatModel;
  */
 class ExtractTagTest extends FeatureTestCase
 {
-    protected bool $migrateRefresh = true;
-
     public function testExtractTagFromArrayContainingFlatCollection()
     {
-        $flatCollection = $this->createEntry();
+        $flatCollection = EntryModelFactory::new()->create();
 
         $tag = FormatModel::given($flatCollection->first());
         $extractedTag = ExtractTags::fromArray([$flatCollection]);
@@ -28,7 +28,7 @@ class ExtractTagTest extends FeatureTestCase
 
     public function testExtractTagFromArrayContainingDeepCollection()
     {
-        $deepCollection = $this->createEntry()->groupBy('type')->get();
+        $deepCollection = EntryModelFactory::times(1)->create()->groupBy('type');
 
         $tag = FormatModel::given($deepCollection->first()->first());
         $extractedTag = ExtractTags::fromArray([$deepCollection]);
@@ -38,7 +38,7 @@ class ExtractTagTest extends FeatureTestCase
 
     public function testExtractTagFromMailable()
     {
-        $deepCollection = $this->createEntry()->groupBy('type')->get();
+        $deepCollection = EntryModelFactory::times(1)->create()->groupBy('type');
         $mailable = new DummyMailableWithData($deepCollection);
 
         $tag = FormatModel::given($deepCollection->first()->first());
@@ -61,7 +61,7 @@ class DummyMailableWithData extends Mailable
     {
         return $this->from('from@hypervel.org')
             ->to('to@hypervel.org')
-            ->view('mail', ['raw' => 'simple text content'])
+            ->view(['raw' => 'simple text content'])
             ->with([
                 'mailData' => $this->mailData,
             ]);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Telescope;
+namespace Hypervel\Tests\Telescope\Telescope;
 
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -12,6 +12,7 @@ use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal
