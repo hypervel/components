@@ -12,6 +12,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use stdClass;
 
 /**
  * @internal
@@ -99,7 +100,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => false,
     ])]
-    public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheBooleanFormat(string $level)
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheBooleanFormat(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -120,7 +121,7 @@ class LogWatcherTest extends FeatureTestCase
             'level' => 'error',
         ],
     ])]
-    public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheArrayFormat(string $level)
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheArrayFormat(string $level)
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -151,7 +152,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => true,
     ])]
-    public function testLogWatcherRegistersRetryWithExceptionKey()
+    public function testLogWatcherRegistersEntryWithExceptionKey()
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -165,6 +166,74 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('error', $entry->content['level']);
         $this->assertSame('Some message', $entry->content['message']);
         $this->assertSame('Some error message', $entry->content['context']['exception']);
+    }
+
+    #[DataProvider('interpolationProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => [
+            'enabled' => true,
+            'level' => 'info',
+        ],
+    ])]
+    public function testLogWatcherInterpolatesMessage(string $message, array $context, string $expectedMessage)
+    {
+        $logger = $this->app->make(LoggerInterface::class);
+
+        $logger->info($message, $context);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::LOG, $entry->type);
+        $this->assertSame('info', $entry->content['level']);
+        $this->assertSame($expectedMessage, $entry->content['message']);
+    }
+
+    public static function interpolationProvider()
+    {
+        $stringableObject = new class {
+            public function __toString()
+            {
+                return 'Stringable Object';
+            }
+        };
+
+        return [
+            'all placeholders replaced' => [
+                'User {id} created: {name}.',
+                ['id' => 123, 'name' => 'Jill Valentine'],
+                'User 123 created: Jill Valentine.',
+            ],
+            'some placeholders not replaced' => [
+                'User {id} created: {name}.',
+                ['id' => 456],
+                'User 456 created: {name}.',
+            ],
+            'non-stringable object value' => [
+                'Data: {data}, User: {user_id}.',
+                ['data' => new stdClass, 'user_id' => 789],
+                'Data: {data}, User: 789.',
+            ],
+            'array value' => [
+                'Request data: {payload}.',
+                ['payload' => ['a' => 1, 'b' => 2]],
+                'Request data: {payload}.',
+            ],
+            'stringable object value' => [
+                'Object: {obj}.',
+                ['obj' => $stringableObject],
+                'Object: Stringable Object.',
+            ],
+            'no placeholders present in context' => [
+                'Message with {unprovided} placeholder.',
+                ['some_other_key' => 'value'],
+                'Message with {unprovided} placeholder.',
+            ],
+            'null value' => [
+                'Value is {value}.',
+                ['value' => null],
+                'Value is {value}.',
+            ],
+        ];
     }
 
     #[WithConfig('telescope.watchers', [
