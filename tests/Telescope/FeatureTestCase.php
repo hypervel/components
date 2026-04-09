@@ -4,34 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope;
 
-use Faker\Factory as FakerFactory;
-use Faker\Generator;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection;
-use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Support\Facades\Schema;
+use Hypervel\Queue\Queue;
 use Hypervel\Telescope\Contracts\EntriesRepository;
-use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Http\Middleware\Authorize;
-use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeServiceProvider;
+use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
+
+use function Hypervel\Testbench\load_migration_paths;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithMigration]
 class FeatureTestCase extends TestCase
 {
     use RefreshDatabase;
-
-    protected bool $migrateRefresh = true;
-
-    protected ?Generator $faker = null;
 
     protected ?ApplicationContract $app = null;
 
@@ -61,16 +56,16 @@ class FeatureTestCase extends TestCase
                 'events' => true,
             ],
         ]);
+
+        // Load Telescope's own migrations alongside the testbench defaults.
+        // In Laravel this is done via testbench.yaml; Hypervel registers them explicitly.
+        load_migration_paths($app, dirname(__DIR__, 2) . '/src/telescope/database/migrations');
     }
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app->singleton(
-            EntriesRepository::class,
-            fn ($container) => $container->make(DatabaseEntriesRepository::class)
-        );
         $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
         $this->app['env'] = 'production';
@@ -92,64 +87,9 @@ class FeatureTestCase extends TestCase
         Telescope::flushEntries();
         Telescope::$afterStoringHooks = [];
 
+        Queue::createPayloadUsing(null);
+
         parent::tearDown();
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--seed' => $this->shouldSeed(),
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => dirname(__DIR__, 2) . '/src/telescope/database/migrations',
-        ];
-    }
-
-    protected function createEntry(array $attributes = []): DummyEntryModel
-    {
-        return DummyEntryModel::create(array_merge([
-            'sequence' => random_int(1, 10000),
-            'uuid' => $this->getFaker()->uuid(),
-            'batch_id' => $this->getFaker()->uuid(),
-            'type' => $this->getFaker()->randomElement([
-                EntryType::CACHE,
-                EntryType::CLIENT_REQUEST,
-                EntryType::COMMAND,
-                EntryType::DUMP,
-                EntryType::EVENT,
-                EntryType::EXCEPTION,
-                EntryType::JOB,
-                EntryType::LOG,
-                EntryType::MAIL,
-                EntryType::MODEL,
-                EntryType::NOTIFICATION,
-                EntryType::QUERY,
-                EntryType::REDIS,
-                EntryType::REQUEST,
-                EntryType::SCHEDULED_TASK,
-            ]),
-            'content' => [$this->getFaker()->word() => $this->getFaker()->word()],
-        ], $attributes));
-    }
-
-    protected function getFaker(): Generator
-    {
-        if ($this->faker) {
-            return $this->faker;
-        }
-
-        return $this->faker = FakerFactory::create();
-    }
-
-    protected function createUsersTable()
-    {
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->timestamps();
-        });
     }
 
     protected function loadTelescopeEntries(): Collection
@@ -165,9 +105,4 @@ class FeatureTestCase extends TestCase
             $this->app->make(EntriesRepository::class)
         );
     }
-}
-
-class DummyEntryModel extends EntryModel
-{
-    protected array $guarded = [];
 }
