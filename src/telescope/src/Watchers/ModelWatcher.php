@@ -30,7 +30,7 @@ class ModelWatcher extends Watcher
     public function register(Container $app): void
     {
         $app->make(Dispatcher::class)
-            ->listen($this->options['events'] ?? 'eloquent.*', [$this, 'recordAction']);
+            ->observe($this->options['events'] ?? 'eloquent.*', [$this, 'recordAction']);
 
         Telescope::afterStoring(function () {
             $this->flushHydrations();

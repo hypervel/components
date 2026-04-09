@@ -27,7 +27,7 @@ class EventWatcher extends Watcher
     public function register(Container $app): void
     {
         $app->make(Dispatcher::class)
-            ->listen('*', [$this, 'recordEvent']);
+            ->observe('*', [$this, 'recordEvent']);
     }
 
     /**
