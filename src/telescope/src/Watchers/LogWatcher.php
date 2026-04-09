@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Telescope\IncomingEntry;
@@ -32,7 +32,7 @@ class LogWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordLog']);
@@ -47,10 +47,12 @@ class LogWatcher extends Watcher
             return;
         }
 
+        $context = Arr::except($event->context, ['telescope']);
+
         $content = [
             'level' => $event->level,
-            'message' => (string) $event->message,
-            'context' => Arr::except($event->context, ['telescope']),
+            'message' => $this->interpolate((string) $event->message, $context),
+            'context' => $context,
         ];
 
         if ($event->extra) {
@@ -60,6 +62,22 @@ class LogWatcher extends Watcher
         Telescope::recordLog(
             IncomingEntry::make($content)->tags($this->tags($event))
         );
+    }
+
+    /**
+     * Interpolate the given message with the given context values.
+     */
+    private function interpolate(string $message, array $context): string
+    {
+        $replace = [];
+
+        foreach ($context as $key => $val) {
+            if (is_scalar($val) || (is_object($val) && method_exists($val, '__toString'))) {
+                $replace['{' . $key . '}'] = $val;
+            }
+        }
+
+        return strtr($message, $replace);
     }
 
     /**
