@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Closure;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -14,7 +15,6 @@ use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
 use ReflectionFunction;
 
 class EventWatcher extends Watcher
@@ -24,7 +24,7 @@ class EventWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->observe('*', [$this, 'recordEvent']);
@@ -95,6 +95,9 @@ class EventWatcher extends Watcher
                 }
                 if (is_array($listener) && is_object($listener[0])) {
                     return get_class($listener[0]) . '@' . $listener[1];
+                }
+                if (is_object($listener) && is_callable($listener) && ! $listener instanceof Closure) {
+                    return get_class($listener) . '@__invoke';
                 }
 
                 return $this->formatClosureListener($listener);

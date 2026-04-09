@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Telescope\Watchers\Traits;
+namespace Hypervel\Telescope\Watchers;
 
 use Closure;
 use ReflectionException;
