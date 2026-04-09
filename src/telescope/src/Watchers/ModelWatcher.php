@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -27,7 +27,7 @@ class ModelWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->observe($this->options['events'] ?? 'eloquent.*', [$this, 'recordAction']);

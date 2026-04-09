@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Bus\BatchRepository;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobFailed;
@@ -38,7 +38,7 @@ class JobWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
             return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];

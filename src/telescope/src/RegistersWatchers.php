@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 
 use function Hypervel\Config\config;
 
@@ -34,7 +34,7 @@ trait RegistersWatchers
     /**
      * Register the configured Telescope watchers.
      */
-    protected static function registerWatchers(Container $app): void
+    protected static function registerWatchers(Application $app): void
     {
         foreach (config('telescope.watchers', []) as $key => $watcher) {
             if (is_string($key) && $watcher === false) {

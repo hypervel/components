@@ -6,8 +6,8 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 
@@ -16,7 +16,7 @@ class CommandWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, [$this, 'recordCommand']);

@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Exception;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
@@ -28,7 +28,7 @@ class DumpWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $dumpWatcherCache = false;
 

@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\TransferStats;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Arr;
@@ -25,7 +25,7 @@ class ClientRequestWatcher extends Watcher
      *
      * Interception is handled by GuzzleHttpClientAspect via AOP.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
     }
 

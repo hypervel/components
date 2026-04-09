@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
@@ -18,7 +18,7 @@ class MailWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->listen(MessageSent::class, [$this, 'recordMail']);

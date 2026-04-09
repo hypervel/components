@@ -6,8 +6,8 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
@@ -34,7 +34,7 @@ class RequestWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerContract $app): void
+    public function register(Application $app): void
     {
         $this->entriesRepository = $app->make(EntriesRepository::class);
 

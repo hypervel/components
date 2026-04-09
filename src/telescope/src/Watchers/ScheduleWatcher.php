@@ -6,8 +6,8 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Console\Events;
 use Hypervel\Console\Scheduling\CallbackEvent;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -22,12 +22,12 @@ class ScheduleWatcher extends Watcher
     /**
      * The application instance.
      */
-    protected ?Container $app = null;
+    protected ?Application $app = null;
 
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         if (! in_array($_SERVER['argv'][1] ?? null, ['crontab:run', 'schedule:run'])) {
             return;

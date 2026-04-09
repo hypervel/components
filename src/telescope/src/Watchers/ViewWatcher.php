@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -17,7 +17,7 @@ class ViewWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Factory::class)
             ->observeRendering([$this, 'recordRenderedView']);

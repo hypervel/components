@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -20,7 +20,7 @@ class ExceptionWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         $app->make(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordException']);
