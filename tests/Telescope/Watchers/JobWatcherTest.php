@@ -8,31 +8,154 @@ use Closure;
 use Exception;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchRepository;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\Queue\Events\JobFailed;
-use Hypervel\Queue\Events\JobProcessed;
-use Hypervel\Queue\Jobs\FakeJob;
-use Hypervel\Support\Facades\Bus;
+use Hypervel\Queue\Jobs\Job;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
-use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
+use Throwable;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithMigration('queue')]
+#[WithConfig('queue.failed.database', 'testing')]
+#[WithConfig('logging.default', 'null')]
 #[WithConfig('telescope.watchers', [
     JobWatcher::class => true,
 ])]
 class JobWatcherTest extends FeatureTestCase
 {
-    public function testJobRegistersProcessingEntry()
+    public function testJobRegistersEntry()
+    {
+        $this->app->make(Dispatcher::class)->dispatch(new MyDatabaseJob('Awesome Laravel'));
+
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+            '--queue' => 'on-demand',
+        ])->run();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('processed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MyDatabaseJob::class, $entry->content['name']);
+        $this->assertSame('on-demand', $entry->content['queue']);
+        $this->assertSame('Awesome Laravel', $entry->content['data']['payload']);
+    }
+
+    public function testJobRegistersEntryWithBatchIdInPayload()
+    {
+        $this->app->make(Dispatcher::class)->dispatch(new MockedBatchableJob($batchId = (string) Str::orderedUuid()));
+
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+            '--queue' => 'on-demand',
+        ])->run();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('processed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MockedBatchableJob::class, $entry->content['name']);
+        $this->assertSame('on-demand', $entry->content['queue']);
+        $this->assertSame($batchId, $entry->content['data']['batchId']);
+    }
+
+    public function testFailedJobsRegisterEntry()
+    {
+        $this->app->make(Dispatcher::class)->dispatch(
+            new MyFailedDatabaseJob('I never watched Star Wars.')
+        );
+
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+        ])->run();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('failed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MyFailedDatabaseJob::class, $entry->content['name']);
+        $this->assertSame('default', $entry->content['queue']);
+        $this->assertSame('I never watched Star Wars.', $entry->content['data']['message']);
+        $this->assertArrayHasKey('exception', $entry->content);
+
+        $this->assertArrayNotHasKey('args', $entry->content['exception']['trace'][0]);
+        $this->assertSame(MyFailedDatabaseJob::class, $entry->content['exception']['trace'][0]['class']);
+        $this->assertSame('handle', $entry->content['exception']['trace'][0]['function']);
+    }
+
+    public function testItHandlesPushedJobs()
+    {
+        $queueExceptions = [];
+        $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$queueExceptions) {
+            $queueExceptions[] = $e;
+        });
+
+        $this->app->make(QueueManager::class)
+            ->connection('database')
+            ->push(MyPushedJobClass::class, ['framework' => 'Laravel']);
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+        ]);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertCount(1, $queueExceptions);
+        $this->assertInstanceOf(PushedJobFailedException::class, $queueExceptions[0]);
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('failed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MyPushedJobClass::class, $entry->content['name']);
+        $this->assertSame('default', $entry->content['queue']);
+        $this->assertSame(['framework' => 'Laravel'], $entry->content['data']);
+    }
+
+    public function testJobCanHandleDeletedSerializedModel()
+    {
+        $user = UserFactory::new()->create();
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new MockedDeleteUserJob($user)
+        );
+
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+        ])->run();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('processed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MockedDeleteUserJob::class, $entry->content['name']);
+        $this->assertSame('default', $entry->content['queue']);
+
+        $this->assertSame(sprintf('%s:%s', get_class($user), $user->getKey()), $entry->content['data']['user']);
+    }
+
+    public function testJobRegistersProcessingEntryWithBatchFamilyHash()
     {
         $batch = m::mock(Batch::class);
         $batch->shouldReceive('toArray')
@@ -46,7 +169,7 @@ class JobWatcherTest extends FeatureTestCase
 
         $this->app->instance(BatchRepository::class, $batchRepository);
 
-        MockedBatchableJob::dispatch('batch-id');
+        MockedSyncBatchableJob::dispatch('batch-id');
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -55,59 +178,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame('processed', $entry->content['status']);
         $this->assertSame('sync', $entry->content['connection']);
         $this->assertSame('default', $entry->content['queue']);
-        $this->assertSame(MockedBatchableJob::class, $entry->content['name']);
-    }
-
-    public function testJobRegistersEntry()
-    {
-        Bus::fake();
-
-        $this->app->make(Dispatcher::class)
-            ->dispatch(
-                new JobProcessed(
-                    'connection',
-                    new FakeJob([
-                        'telescope_uuid' => 'uuid',
-                    ])
-                )
-            );
-
-        $this->loadTelescopeEntries();
-
-        Bus::assertDispatched(ProcessPendingUpdates::class, function ($job) {
-            $entry = $job->pendingUpdates->first();
-            $this->assertSame(EntryType::JOB, $entry->type);
-            $this->assertSame('processed', $entry->changes['status']);
-
-            return true;
-        });
-    }
-
-    public function testFailedJobsRegisterEntry()
-    {
-        Bus::fake();
-
-        $this->app->make(Dispatcher::class)
-            ->dispatch(
-                new JobFailed(
-                    'connection',
-                    new FakeJob([
-                        'telescope_uuid' => 'uuid',
-                    ]),
-                    new Exception($message = 'I never watched Star Wars.')
-                )
-            );
-
-        $this->loadTelescopeEntries();
-
-        Bus::assertDispatched(ProcessPendingUpdates::class, function ($job) use ($message) {
-            $entry = $job->pendingUpdates->first();
-            $this->assertSame(EntryType::JOB, $entry->type);
-            $this->assertSame('failed', $entry->changes['status']);
-            $this->assertSame($message, $entry->changes['exception']['message']);
-
-            return true;
-        });
+        $this->assertSame(MockedSyncBatchableJob::class, $entry->content['name']);
     }
 
     public function testJobRecordsDispatchTimeContextInDataHiddenShape()
@@ -187,6 +258,24 @@ class JobWatcherTest extends FeatureTestCase
 
 class MockedBatchableJob implements ShouldQueue
 {
+    public $connection = 'database';
+
+    public $queue = 'on-demand';
+
+    public $batchId;
+
+    public function __construct($batchId)
+    {
+        $this->batchId = $batchId;
+    }
+
+    public function handle()
+    {
+    }
+}
+
+class MockedSyncBatchableJob implements ShouldQueue
+{
     use Dispatchable;
 
     public $batchId;
@@ -199,6 +288,78 @@ class MockedBatchableJob implements ShouldQueue
     public function handle()
     {
     }
+}
+
+class MockedDeleteUserJob implements ShouldQueue
+{
+    use SerializesModels;
+
+    public $connection = 'database';
+
+    public $deleteWhenMissingModels = true;
+
+    public $user;
+
+    public function __construct(User $user)
+    {
+        $this->user = $user;
+    }
+
+    public function handle()
+    {
+        $this->user->delete();
+    }
+}
+
+class MyDatabaseJob implements ShouldQueue
+{
+    public $connection = 'database';
+
+    public $queue = 'on-demand';
+
+    private $payload;
+
+    public function __construct($payload)
+    {
+        $this->payload = $payload;
+    }
+
+    public function handle()
+    {
+    }
+}
+
+class MyFailedDatabaseJob implements ShouldQueue
+{
+    public $connection = 'database';
+
+    public $tries = 1;
+
+    private $message;
+
+    public function __construct($message)
+    {
+        $this->message = $message;
+    }
+
+    public function handle()
+    {
+        throw new Exception($this->message);
+    }
+}
+
+class MyPushedJobClass
+{
+    public $tries = 1;
+
+    public function fire(Job $job, array $data)
+    {
+        throw new PushedJobFailedException;
+    }
+}
+
+class PushedJobFailedException extends Exception
+{
 }
 
 class MockedSimpleJob implements ShouldQueue
