@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
@@ -23,9 +22,9 @@ class RedisWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
-        if (! static::$eventsEnabled || ! $app->has(Redis::class)) {
+        if (! static::$eventsEnabled || ! $app->bound('redis')) {
             return;
         }
 
@@ -37,7 +36,7 @@ class RedisWatcher extends Watcher
      * Enable Redis events.
      * This function needs to be called before the Redis connection is created.
      */
-    public static function enableRedisEvents(Container $app): void
+    public static function enableRedisEvents(Application $app): void
     {
         $config = $app->make('config');
         $redisConfig = $app->make(RedisConfig::class);
