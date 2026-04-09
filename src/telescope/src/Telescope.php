@@ -8,8 +8,8 @@ use Closure;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
@@ -123,7 +123,7 @@ class Telescope
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
-    public static function start(ContainerContract $app): void
+    public static function start(Application $app): void
     {
         if (! config('telescope.enabled')) {
             return;
@@ -166,10 +166,14 @@ class Telescope
     /**
      * Determine if the application is handling an approved request.
      */
-    public static function handlingApprovedRequest(ContainerContract $app): bool
+    protected static function handlingApprovedRequest(Application $app): bool
     {
-        return static::requestIsToApprovedDomain($request = $app->make(Request::class))
-            && static::requestIsToApprovedUri($request);
+        if ($app->runningInConsole()) {
+            return false;
+        }
+
+        return static::requestIsToApprovedDomain($app['request'])
+            && static::requestIsToApprovedUri($app['request']);
     }
 
     /**
