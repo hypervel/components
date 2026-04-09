@@ -8,8 +8,8 @@ use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -25,7 +25,7 @@ class CacheWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(Container $app): void
+    public function register(Application $app): void
     {
         if (! static::$eventsEnabled) {
             return;
@@ -43,7 +43,7 @@ class CacheWatcher extends Watcher
      * Enable Cache events.
      * This function needs to be called before the Cache is initialized.
      */
-    public static function enableCacheEvents(Container $app): void
+    public static function enableCacheEvents(Application $app): void
     {
         $config = $app->make('config');
         foreach (array_keys($config->get('cache.stores', [])) as $store) {
@@ -147,9 +147,10 @@ class CacheWatcher extends Watcher
      */
     private function shouldIgnore(mixed $event): bool
     {
-        return Str::is([
+        return Str::is(array_merge($this->options['ignore'] ?? [], [
             Worker::RESTART_SIGNAL_CACHE_KEY,
+            'framework/schedule*',
             'telescope:*',
-        ], $event->key);
+        ]), $event->key);
     }
 }
