@@ -395,7 +395,7 @@ class SentryServiceProvider extends ServiceProvider
         /** @var ViewFactory $viewFactory */
         $viewFactory = $this->app->make('view');
 
-        $viewFactory->composer('*', static function (View $view) use ($viewFactory): void {
+        $viewFactory->observeRendering(static function (View $view) use ($viewFactory): void {
             $viewFactory->share(ViewEngineDecorator::SHARED_KEY, $view->name());
         });
 
