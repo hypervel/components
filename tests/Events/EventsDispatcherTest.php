@@ -477,14 +477,15 @@ class EventsDispatcherTest extends TestCase
         $this->assertTrue($d->hasListeners('foo.bar'));
     }
 
-    public function testCatchAllWildcardIsPassiveForHasListeners()
+    public function testCatchAllWildcardIsRoutedThroughObserverPipeline()
     {
         $d = new Dispatcher;
         $d->listen('*', function () {});
 
-        // Catch-all '*' is passive — not counted by hasListeners()
+        // listen('*') is routed through the observer pipeline — fully passive
         $this->assertFalse($d->hasListeners('Foo'));
         $this->assertFalse($d->hasWildcardListeners('Foo'));
+        $this->assertEmpty($d->getListeners('Foo'));
 
         // Adding a real listener makes it true
         $d->listen('Foo', function () {});
@@ -502,6 +503,17 @@ class EventsDispatcherTest extends TestCase
 
         $d->dispatch('Foo');
         $this->assertTrue($received);
+    }
+
+    public function testListenCatchAllClassStringIsSynchronous()
+    {
+        TestQueueableObserver::$invoked = false;
+
+        $d = new Dispatcher;
+        $d->listen('*', TestQueueableObserver::class);
+        $d->dispatch('foo');
+
+        $this->assertTrue(TestQueueableObserver::$invoked);
     }
 
     public function testTargetedWildcardIsNotPassiveForHasListeners()

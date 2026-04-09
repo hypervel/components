@@ -186,7 +186,13 @@ class Dispatcher implements DispatcherContract
         }
 
         foreach ((array) $events as $event) {
-            if (str_contains($event, '*')) {
+            // Catch-all '*' listeners are routed through the observer pipeline
+            // so they cannot defeat hasListeners() guards. A bare '*' is almost
+            // certainly observability tooling and should use observe() directly,
+            // but routing it here ensures correct passive behavior regardless.
+            if ($event === '*') {
+                $this->setupWildcardObserver($event, $listener);
+            } elseif (str_contains($event, '*')) {
                 $this->setupWildcardListen($event, $listener);
             } else {
                 $this->listeners[$event][] = $listener;
@@ -246,14 +252,6 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Determine if a given event has listeners.
-     *
-     * Catch-all wildcard listeners ('*') are excluded from this check as a
-     * safety net — a bare '*' listener is almost certainly observability
-     * tooling and should use observe() instead. They still receive events
-     * during dispatch, but are not counted as "interested" listeners for
-     * the purpose of deciding whether to construct and fire an event.
-     *
-     * Targeted wildcard patterns (e.g. 'App\Events\*') are still counted.
      */
     public function hasListeners(string $eventName): bool
     {
@@ -272,10 +270,6 @@ class Dispatcher implements DispatcherContract
     public function hasWildcardListeners(string $eventName): bool
     {
         foreach ($this->wildcards as $key => $listeners) {
-            if ($key === '*') {
-                continue;
-            }
-
             if (Str::is($key, $eventName)) {
                 return true;
             }
