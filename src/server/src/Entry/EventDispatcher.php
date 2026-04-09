@@ -17,6 +17,10 @@ class EventDispatcher implements Dispatcher
     {
     }
 
+    public function observe(array|string $events, array|Closure|string $observer): void
+    {
+    }
+
     public function hasListeners(string $eventName): bool
     {
         return false;

@@ -233,6 +233,14 @@ class EventFake implements Fake, DispatcherContract
     }
 
     /**
+     * Register a passive event observer with the dispatcher.
+     */
+    public function observe(array|string $events, array|Closure|string $observer): void
+    {
+        $this->dispatcher->observe($events, $observer);
+    }
+
+    /**
      * Determine if a given event has listeners.
      */
     public function hasListeners(string $eventName): bool
