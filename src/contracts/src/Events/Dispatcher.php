@@ -18,6 +18,13 @@ interface Dispatcher
     ): void;
 
     /**
+     * Register a passive event observer.
+     *
+     * Observers receive dispatched events but are not counted by hasListeners().
+     */
+    public function observe(array|string $events, array|Closure|string $observer): void;
+
+    /**
      * Determine if a given event has listeners.
      */
     public function hasListeners(string $eventName): bool;
