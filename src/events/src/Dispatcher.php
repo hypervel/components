@@ -247,12 +247,11 @@ class Dispatcher implements DispatcherContract
     /**
      * Determine if a given event has listeners.
      *
-     * Catch-all wildcard listeners ('*') are treated as passive observers
-     * and excluded from this check. They still receive events during dispatch,
-     * but are not considered "interested" listeners for the purpose of deciding
-     * whether to construct and fire an event. This prevents observability tools
-     * (e.g. Telescope's EventWatcher) from defeating hasListeners() guards
-     * that skip event construction when no real consumer exists.
+     * Catch-all wildcard listeners ('*') are excluded from this check as a
+     * safety net — a bare '*' listener is almost certainly observability
+     * tooling and should use observe() instead. They still receive events
+     * during dispatch, but are not counted as "interested" listeners for
+     * the purpose of deciding whether to construct and fire an event.
      *
      * Targeted wildcard patterns (e.g. 'App\Events\*') are still counted.
      */
