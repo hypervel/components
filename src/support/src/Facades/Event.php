@@ -9,8 +9,8 @@ use Hypervel\Support\Testing\Fakes\EventFake;
 
 /**
  * @method static mixed dispatch(object|string $event, mixed $payload = [], bool $halt = false)
- * @method static void listen(\Closure|\Hypervel\Events\QueuedClosure|array|string $events, \Closure|\Hypervel\Events\QueuedClosure|array|string|null $listener = null)
- * @method static void observe(array|string $events, \Closure|array|string $observer)
+ * @method static void listen(\Closure|\Hypervel\Events\QueuedClosure|array|string $events, array|object|string|null $listener = null)
+ * @method static void observe(array|string $events, array|object|string $observer)
  * @method static mixed until(object|string $event, mixed $payload = [])
  * @method static array getListeners(object|string $eventName)
  * @method static void push(string $event, mixed $payload = [])

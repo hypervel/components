@@ -13,11 +13,11 @@ use Hypervel\Events\QueuedClosure;
  */
 class EventDispatcher implements Dispatcher
 {
-    public function listen(array|Closure|QueuedClosure|string $events, array|Closure|QueuedClosure|string|null $listener = null): void
+    public function listen(array|Closure|QueuedClosure|string $events, array|object|string|null $listener = null): void
     {
     }
 
-    public function observe(array|string $events, array|Closure|string $observer): void
+    public function observe(array|string $events, array|object|string $observer): void
     {
     }
 

@@ -14,7 +14,7 @@ interface Dispatcher
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        array|Closure|QueuedClosure|string|null $listener = null
+        array|object|string|null $listener = null
     ): void;
 
     /**
@@ -22,7 +22,7 @@ interface Dispatcher
      *
      * Observers receive dispatched events but are not counted by hasListeners().
      */
-    public function observe(array|string $events, array|Closure|string $observer): void;
+    public function observe(array|string $events, array|object|string $observer): void;
 
     /**
      * Determine if a given event has listeners.

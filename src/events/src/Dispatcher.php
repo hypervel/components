@@ -163,7 +163,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Register an event listener with the dispatcher.
      */
-    public function listen(array|Closure|QueuedClosure|string $events, array|Closure|QueuedClosure|string|null $listener = null): void
+    public function listen(array|Closure|QueuedClosure|string $events, array|object|string|null $listener = null): void
     {
         if ($events instanceof Closure) {
             (new Collection($this->firstClosureParameterTypes($events)))
@@ -206,7 +206,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Set up a wildcard listener callback.
      */
-    protected function setupWildcardListen(string $event, array|Closure|string $listener): void
+    protected function setupWildcardListen(string $event, array|object|string $listener): void
     {
         $this->wildcards[$event][] = $listener;
 
@@ -225,7 +225,7 @@ class Dispatcher implements DispatcherContract
      * Use this for observability tooling (tracing, metrics, logging) that must
      * not influence whether guarded events fire.
      */
-    public function observe(array|string $events, array|Closure|string $observer): void
+    public function observe(array|string $events, array|object|string $observer): void
     {
         foreach ((array) $events as $event) {
             if (str_contains($event, '*')) {
@@ -242,7 +242,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Set up a wildcard observer callback.
      */
-    protected function setupWildcardObserver(string $event, array|Closure|string $observer): void
+    protected function setupWildcardObserver(string $event, array|object|string $observer): void
     {
         $this->observerWildcards[$event][] = $observer;
 
@@ -599,7 +599,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Register an event listener with the dispatcher.
      */
-    public function makeListener(array|Closure|string $listener, bool $wildcard = false): Closure
+    public function makeListener(array|object|string $listener, bool $wildcard = false): Closure
     {
         if (is_string($listener)) {
             return $this->createClassListener($listener, $wildcard);
@@ -625,7 +625,7 @@ class Dispatcher implements DispatcherContract
      * Observers are always invoked synchronously and always receive the
      * wildcard-style (string $event, array $payload) arguments.
      */
-    protected function makeObserver(array|Closure|string $observer): Closure
+    protected function makeObserver(array|object|string $observer): Closure
     {
         if (is_string($observer)) {
             return function ($event, $payload) use ($observer) {
