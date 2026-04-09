@@ -5,38 +5,29 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
+use Hypervel\View\Factory;
 
 class ViewWatcher extends Watcher
 {
-    use FormatsClosure;
-
     /**
      * Register the watcher.
      */
     public function register(Container $app): void
     {
-        $app->make(Dispatcher::class)
-            ->listen($this->options['events'] ?? 'composing:*', [$this, 'recordAction']);
+        $app->make(Factory::class)
+            ->observeRendering([$this, 'recordRenderedView']);
     }
 
     /**
-     * Record an action.
+     * Record a rendered view.
      */
-    public function recordAction(string $event, array $payload): void
+    public function recordRenderedView(ViewContract $view): void
     {
-        if (! isset($payload[0]) || ! $payload[0] instanceof ViewContract) {
-            return;
-        }
-
-        $view = $payload[0];
-
         if (! Telescope::isRecording()) {
             return;
         }
