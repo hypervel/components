@@ -8,6 +8,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\View;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -175,6 +176,42 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('plain telescope response', $entry->content['response']);
     }
 
+    public function testRequestWatcherRecordsPlainTextPayload()
+    {
+        Route::post('/receive-plain-text', function () {
+            return response()->json(['ok' => 'yeah']);
+        });
+
+        $this->call(
+            'POST',
+            '/receive-plain-text',
+            server: $this->transformHeadersToServerVars(['Content-type' => 'text/plain']),
+            content: 'plain-text-content'
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(EntryType::REQUEST, $entry->type);
+        $this->assertSame('POST', $entry->content['method']);
+        $this->assertSame('plain-text-content', $entry->content['payload']);
+    }
+
+    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists()
+    {
+        View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
+
+        Route::get('/fake-view', function () {
+            return Response::make(
+                View::make('tests::fake-view', ['items' => new FormatForTelescopeClass])
+            );
+        });
+
+        $this->get('/fake-view')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(EntryType::REQUEST, $entry->type);
+        $this->assertEquals(['Telescope', 'Laravel', 'PHP'], $entry->content['response']['data']['items']['properties']);
+    }
+
     public function testRequestWatcherStoresFacadeContextWhenPresent()
     {
         Route::get('/with-context', fn () => 'ok');
@@ -212,5 +249,15 @@ class RequestWatchersTest extends FeatureTestCase
 
         $this->assertArrayHasKey('coroutine_context', $entry->content);
         $this->assertIsArray($entry->content['coroutine_context']);
+    }
+}
+
+class FormatForTelescopeClass
+{
+    public function formatForTelescope(): array
+    {
+        return [
+            'Telescope', 'Laravel', 'PHP',
+        ];
     }
 }
