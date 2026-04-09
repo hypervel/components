@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Telescope\EntryType;
@@ -54,5 +55,23 @@ class RedisWatcherTest extends FeatureTestCase
         $this->assertSame('command foo bar', $entry->content['command']);
         $this->assertSame('connection', $entry->content['connection']);
         $this->assertSame('0.01', $entry->content['time']);
+    }
+
+    public function testDoesNotRegisterWhenRedisUnbound()
+    {
+        $app = m::mock(Application::class);
+
+        $app->makePartial();
+
+        $app->expects('bound')
+            ->with('redis')
+            ->andReturn(false);
+
+        $app->shouldNotReceive('make')
+            ->with('redis');
+
+        $watcher = new RedisWatcher([]);
+
+        $watcher->register($app);
     }
 }
