@@ -74,6 +74,16 @@ class Factory implements FactoryContract
     protected array $normalizedNameCache = [];
 
     /**
+     * The registered pre-render observers.
+     *
+     * These are boot-time registrations (e.g. Telescope ViewWatcher, Sentry view
+     * tracing) that persist for the worker lifetime. They must NOT be cleared by
+     * flushState(), which resets per-render/per-coroutine state (sections, stacks,
+     * components, etc.).
+     */
+    protected array $renderingObservers = [];
+
+    /**
      * Create a new view factory instance.
      */
     public function __construct(
@@ -286,6 +296,28 @@ class Factory implements FactoryContract
         CoroutineContext::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
             return ($value ?? 1) - 1;
         });
+    }
+
+    /**
+     * Register a pre-render observer.
+     *
+     * The observer is called before each view's engine executes, receiving
+     * the View instance. Registration is boot-time only — observers persist
+     * for the worker lifetime on this singleton.
+     */
+    public function observeRendering(callable $observer): void
+    {
+        $this->renderingObservers[] = $observer;
+    }
+
+    /**
+     * Notify pre-render observers that a view is about to render.
+     */
+    public function notifyRendering(ViewContract $view): void
+    {
+        foreach ($this->renderingObservers as $observer) {
+            $observer($view);
+        }
     }
 
     /**
