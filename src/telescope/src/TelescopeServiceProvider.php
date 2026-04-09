@@ -74,8 +74,8 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishes([
-            __DIR__ . '/../database/migrations/2025_02_08_000000_create_telescope_entries_table.php' => database_path('migrations/2025_02_08_000000_create_telescope_entries_table.php'),
+        $this->publishesMigrations([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'telescope-migrations');
 
         $this->publishes([
@@ -123,7 +123,9 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRedisEvents(): void
     {
-        if (! config('telescope.watchers.' . RedisWatcher::class, false)) {
+        $config = config('telescope.watchers.' . RedisWatcher::class, false);
+
+        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
             return;
         }
 
@@ -135,7 +137,9 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerCacheEvents(): void
     {
-        if (! config('telescope.watchers.' . CacheWatcher::class, false)) {
+        $config = config('telescope.watchers.' . CacheWatcher::class, false);
+
+        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
             return;
         }
 
@@ -161,17 +165,25 @@ class TelescopeServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->make(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
 
         $this->app->singleton(
             ClearableRepository::class,
-            fn ($container) => $container->make(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
 
         $this->app->singleton(
             PrunableRepository::class,
-            fn ($container) => $container->make(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
+
+        $this->app->when(DatabaseEntriesRepository::class)
+            ->needs('$connection')
+            ->give(fn () => config('telescope.storage.database.connection'));
+
+        $this->app->when(DatabaseEntriesRepository::class)
+            ->needs('$chunkSize')
+            ->give(fn () => config('telescope.storage.database.chunk'));
     }
 }
