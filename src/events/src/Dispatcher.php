@@ -108,6 +108,34 @@ class Dispatcher implements DispatcherContract
     protected array $hasListenersCache = [];
 
     /**
+     * The registered event observers.
+     *
+     * @var array<string, array<int, array|Closure|string>>
+     */
+    protected array $observers = [];
+
+    /**
+     * The wildcard observers.
+     *
+     * @var array<string, array<int, array|Closure|string>>
+     */
+    protected array $observerWildcards = [];
+
+    /**
+     * The cached wildcard observers.
+     *
+     * @var array<string, array<int, Closure>>
+     */
+    protected array $observerWildcardsCache = [];
+
+    /**
+     * The cached prepared observers.
+     *
+     * @var array<string, array<int, Closure>>
+     */
+    protected array $observersCache = [];
+
+    /**
      * The queue resolver instance.
      *
      * @var callable(): QueueFactory
@@ -179,6 +207,41 @@ class Dispatcher implements DispatcherContract
         $this->wildcardsCache = [];
         $this->listenersCache = [];
         $this->hasListenersCache = [];
+    }
+
+    /**
+     * Register a passive event observer.
+     *
+     * Observers receive dispatched events but are not counted by hasListeners().
+     * They are invoked after all active listeners, do not participate in halt
+     * or propagation-stop semantics, and run synchronously (no queue support).
+     *
+     * Use this for observability tooling (tracing, metrics, logging) that must
+     * not influence whether guarded events fire.
+     */
+    public function observe(array|string $events, array|Closure|string $observer): void
+    {
+        foreach ((array) $events as $event) {
+            if (str_contains($event, '*')) {
+                $this->setupWildcardObserver($event, $observer);
+            } else {
+                $this->observers[$event][] = $observer;
+            }
+        }
+
+        $this->observersCache = [];
+        $this->observerWildcardsCache = [];
+    }
+
+    /**
+     * Set up a wildcard observer callback.
+     */
+    protected function setupWildcardObserver(string $event, array|Closure|string $observer): void
+    {
+        $this->observerWildcards[$event][] = $observer;
+
+        $this->observerWildcardsCache = [];
+        $this->observersCache = [];
     }
 
     /**
@@ -314,14 +377,19 @@ class Dispatcher implements DispatcherContract
         if ($isEventObject
             && $parsedPayload[0] instanceof ShouldDispatchAfterCommit
             && ! is_null($transactions = $this->resolveTransactionManager())) {
-            $transactions->addCallback(
-                fn () => $this->invokeListeners($parsedEvent, $parsedPayload, $halt)
-            );
+            $transactions->addCallback(function () use ($parsedEvent, $parsedPayload, $halt) {
+                $this->invokeListeners($parsedEvent, $parsedPayload, $halt);
+                $this->invokeObservers($parsedEvent, $parsedPayload);
+            });
 
             return null;
         }
 
-        return $this->invokeListeners($parsedEvent, $parsedPayload, $halt);
+        $result = $this->invokeListeners($parsedEvent, $parsedPayload, $halt);
+
+        $this->invokeObservers($parsedEvent, $parsedPayload);
+
+        return $result;
     }
 
     /**
@@ -356,6 +424,19 @@ class Dispatcher implements DispatcherContract
         }
 
         return $halt ? null : $responses;
+    }
+
+    /**
+     * Invoke passive observers for the event.
+     *
+     * Observers do not participate in halt or propagation-stop semantics.
+     * They always run, and their return values are ignored.
+     */
+    protected function invokeObservers(string $event, array $payload): void
+    {
+        foreach ($this->getObservers($event) as $observer) {
+            $observer($event, $payload);
+        }
     }
 
     /**
@@ -472,6 +553,57 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
+     * Get all observers for a given event name.
+     */
+    public function getObservers(string $eventName): array
+    {
+        if (isset($this->observersCache[$eventName])) {
+            return $this->observersCache[$eventName];
+        }
+
+        $observers = array_merge(
+            $this->prepareObservers($eventName),
+            $this->observerWildcardsCache[$eventName] ?? $this->getWildcardObservers($eventName)
+        );
+
+        return $this->observersCache[$eventName] = $observers;
+    }
+
+    /**
+     * Prepare the observers for a given event.
+     *
+     * @return Closure[]
+     */
+    protected function prepareObservers(string $eventName): array
+    {
+        $observers = [];
+
+        foreach ($this->observers[$eventName] ?? [] as $observer) {
+            $observers[] = $this->makeObserver($observer);
+        }
+
+        return $observers;
+    }
+
+    /**
+     * Get the wildcard observers for the event.
+     */
+    protected function getWildcardObservers(string $eventName): array
+    {
+        $wildcards = [];
+
+        foreach ($this->observerWildcards as $key => $observers) {
+            if (Str::is($key, $eventName)) {
+                foreach ($observers as $observer) {
+                    $wildcards[] = $this->makeObserver($observer);
+                }
+            }
+        }
+
+        return $this->observerWildcardsCache[$eventName] = $wildcards;
+    }
+
+    /**
      * Register an event listener with the dispatcher.
      */
     public function makeListener(array|Closure|string $listener, bool $wildcard = false): Closure
@@ -491,6 +623,32 @@ class Dispatcher implements DispatcherContract
 
             return $listener(...array_values($payload));
         };
+    }
+
+    /**
+     * Create a callable for the given observer.
+     *
+     * Unlike makeListener(), this never consults queue or after-commit logic.
+     * Observers are always invoked synchronously and always receive the
+     * wildcard-style (string $event, array $payload) arguments.
+     */
+    protected function makeObserver(array|Closure|string $observer): Closure
+    {
+        if (is_string($observer)) {
+            return function ($event, $payload) use ($observer) {
+                [$class, $method] = $this->parseClassCallable($observer);
+                $this->container->make($class)->{$method}($event, $payload);
+            };
+        }
+
+        if (is_array($observer) && isset($observer[0]) && is_string($observer[0])) {
+            return function ($event, $payload) use ($observer) {
+                [$class, $method] = $observer;
+                $this->container->make($class)->{$method}($event, $payload);
+            };
+        }
+
+        return fn ($event, $payload) => $observer($event, $payload);
     }
 
     /**
@@ -735,9 +893,9 @@ class Dispatcher implements DispatcherContract
     public function forget(string $event): void
     {
         if (str_contains($event, '*')) {
-            unset($this->wildcards[$event]);
+            unset($this->wildcards[$event], $this->observerWildcards[$event]);
         } else {
-            unset($this->listeners[$event]);
+            unset($this->listeners[$event], $this->observers[$event]);
         }
 
         foreach ($this->wildcardsCache as $key => $listeners) {
@@ -746,8 +904,15 @@ class Dispatcher implements DispatcherContract
             }
         }
 
+        foreach ($this->observerWildcardsCache as $key => $observers) {
+            if (Str::is($event, $key)) {
+                unset($this->observerWildcardsCache[$key]);
+            }
+        }
+
         $this->listenersCache = [];
         $this->hasListenersCache = [];
+        $this->observersCache = [];
     }
 
     /**
