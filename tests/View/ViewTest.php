@@ -6,13 +6,16 @@ namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
+use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -60,6 +63,7 @@ class ViewTest extends TestCase
         $view = $this->getView(['foo' => 'bar']);
         $view->getFactory()->shouldReceive('incrementRender')->twice();
         $view->getFactory()->shouldReceive('callComposer')->twice()->with($view);
+        $view->getFactory()->shouldReceive('notifyRendering')->twice()->with($view);
         $view->getFactory()->shouldReceive('getShared')->twice()->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->twice()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->twice();
@@ -151,6 +155,7 @@ class ViewTest extends TestCase
         $view = $this->getView();
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
+        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
@@ -166,6 +171,7 @@ class ViewTest extends TestCase
         $view = $this->getView();
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
+        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
@@ -196,6 +202,80 @@ class ViewTest extends TestCase
         $this->assertSame($view, $view->withErrors(new MessageBag($data), 'login'));
         $foo = $view->errors->getBag('login')->get('foo');
         $this->assertSame('baz', $foo[0]);
+    }
+
+    public function testRenderingObserverIsCalled()
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $observedView = null;
+        $factory->observeRendering(function ($view) use (&$observedView) {
+            $observedView = $view;
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturn(false);
+
+        $view = new View($factory, $engine, 'test', 'path');
+        $view->render();
+
+        $this->assertSame($view, $observedView);
+    }
+
+    public function testRenderingObserversNotClearedByFlushState()
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $observerCalled = false;
+        $factory->observeRendering(function () use (&$observerCalled) {
+            $observerCalled = true;
+        });
+
+        $factory->flushState();
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturn(false);
+
+        $view = new View($factory, $engine, 'test', 'path');
+        $view->render();
+
+        $this->assertTrue($observerCalled);
+    }
+
+    public function testMultipleRenderingObserversAreAllCalled()
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $factory->observeRendering(function () use (&$order) {
+            $order[] = 'first';
+        });
+        $factory->observeRendering(function () use (&$order) {
+            $order[] = 'second';
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturn(false);
+
+        $view = new View($factory, $engine, 'test', 'path');
+        $view->render();
+
+        $this->assertSame(['first', 'second'], $order);
     }
 
     protected function getView($data = [])
