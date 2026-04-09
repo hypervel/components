@@ -50,7 +50,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\Telescope\\": "src/"
+            "Hypervel\\Telescope\\": "src/",
+            "Hypervel\\Telescope\\Database\\Factories\\": "database/factories/"
         }
     },
     "extra": {

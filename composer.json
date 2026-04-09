@@ -78,6 +78,7 @@
             "Hypervel\\Socialite\\": "src/socialite/src/",
             "Hypervel\\Support\\": ["src/collections/src/", "src/conditionable/src/", "src/macroable/src/", "src/reflection/src/", "src/support/src/"],
             "Hypervel\\Telescope\\": "src/telescope/src/",
+            "Hypervel\\Telescope\\Database\\Factories\\": "src/telescope/database/factories/",
             "Hypervel\\Testbench\\": "src/testbench/src/",
             "Hypervel\\Testing\\": "src/testing/src/",
             "Hypervel\\Tinker\\": "src/tinker/src/",

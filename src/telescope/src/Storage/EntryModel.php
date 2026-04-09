@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 
 class EntryModel extends Model
 {
+    use HasFactory;
+
     /**
      * The table associated with the model.
      */
@@ -150,5 +154,13 @@ class EntryModel extends Model
     public function getConnectionName(): ?string
     {
         return config('telescope.storage.database.connection');
+    }
+
+    /**
+     * Create a new factory instance for the model.
+     */
+    protected static function newFactory(): ?EntryModelFactory
+    {
+        return EntryModelFactory::new();
     }
 }
