@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
+use Hypervel\Reverb\Events\ConnectionClosed;
+use Hypervel\Reverb\Events\ConnectionEstablished;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Server;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
@@ -675,5 +678,38 @@ class ServerTest extends ReverbTestCase
         // It should NOT try to terminate/disconnect the connection again —
         // the fd is already gone.
         $this->assertFalse($connection->wasTerminated);
+    }
+
+    public function testConnectionEstablishedEventIsDispatched()
+    {
+        Event::fake();
+
+        $this->server->open($connection = new FakeConnection);
+
+        Event::assertDispatched(ConnectionEstablished::class, function (ConnectionEstablished $event) use ($connection) {
+            return $event->connection === $connection;
+        });
+    }
+
+    public function testConnectionEstablishedEventNotDispatchedOnFailure()
+    {
+        Event::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', ['laravel.com']);
+        $this->server->open(new FakeConnection(origin: 'http://localhost'));
+
+        Event::assertNotDispatched(ConnectionEstablished::class);
+    }
+
+    public function testConnectionClosedEventIsDispatched()
+    {
+        Event::fake();
+
+        $connection = new FakeConnection;
+        $this->server->close($connection);
+
+        Event::assertDispatched(ConnectionClosed::class, function (ConnectionClosed $event) use ($connection) {
+            return $event->connection === $connection;
+        });
     }
 }

@@ -7,6 +7,8 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 use Exception;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\Events\ConnectionClosed;
+use Hypervel\Reverb\Events\ConnectionEstablished;
 use Hypervel\Reverb\Events\MessageReceived;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
@@ -48,6 +50,10 @@ class Server
             $this->handler->handle($connection, 'pusher:connection_established');
 
             Log::info('Connection Established', $connection->id());
+
+            if (app('events')->hasListeners(ConnectionEstablished::class)) {
+                ConnectionEstablished::dispatch($connection);
+            }
         } catch (Exception $e) {
             if ($connection->hasAcquiredConnectionSlot()) {
                 app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
@@ -138,6 +144,10 @@ class Server
         }
 
         Log::info('Connection Closed', $connection->id());
+
+        if (app('events')->hasListeners(ConnectionClosed::class)) {
+            ConnectionClosed::dispatch($connection);
+        }
     }
 
     /**
