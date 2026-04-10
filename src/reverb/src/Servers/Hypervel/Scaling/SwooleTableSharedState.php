@@ -227,7 +227,7 @@ class SwooleTableSharedState implements SharedState
                 $result = $this->table->set($key, ['count' => 0]);
             } catch (ErrorException $e) {
                 throw new RuntimeException(
-                    "Reverb shared state table is full — increase 'reverb.table.rows' in config. "
+                    "Reverb shared state table is full — increase 'reverb.swoole_shared_state.rows' in config. "
                     . "Failed to create row for key [{$key}].",
                     previous: $e,
                 );
@@ -235,7 +235,7 @@ class SwooleTableSharedState implements SharedState
 
             if ($result === false) {
                 throw new RuntimeException(
-                    "Reverb shared state table is full — increase 'reverb.table.rows' in config. "
+                    "Reverb shared state table is full — increase 'reverb.swoole_shared_state.rows' in config. "
                     . "Failed to create row for key [{$key}]."
                 );
             }
@@ -250,7 +250,7 @@ class SwooleTableSharedState implements SharedState
         if ($result === false) {
             throw new RuntimeException(
                 "Reverb shared state table operation failed for key [{$key}]. "
-                . "The table may be full — increase 'reverb.table.rows' in config."
+                . "The table may be full — increase 'reverb.swoole_shared_state.rows' in config."
             );
         }
     }

@@ -382,7 +382,7 @@ class ReverbServiceProvider extends ServiceProvider
 
         if ($usage > 0.8) {
             Log::error(sprintf(
-                'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.table.rows to avoid connection failures.',
+                'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.rows to avoid connection failures.',
                 $usage * 100,
                 $stats['num'],
                 $sharedState->table()->getSize(),

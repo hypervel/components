@@ -79,8 +79,30 @@ return [
                 'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
                 'connection' => env('REVERB_SCALING_CONNECTION', 'reverb'),
             ],
-            'table' => [
-                'rows' => env('REVERB_TABLE_ROWS', 65536),
+            /*
+            |--------------------------------------------------------------
+            | Swoole Shared State
+            |--------------------------------------------------------------
+            |
+            | In single-instance mode (scaling disabled), Reverb uses a
+            | Swoole Table — a fixed-size shared memory hash map — to
+            | track channel subscription counts, presence member counts,
+            | and per-app connection limits across all workers.
+            |
+            | Each active channel and each unique user in a presence
+            | channel consumes one row. A typical busy app with 1,000
+            | channels and 200 presence channels averaging 50 users
+            | each uses ~11,000 rows. The default of 65,536 is
+            | sufficient for most workloads. Reverb logs a warning
+            | at 80% capacity.
+            |
+            | This setting has no effect when scaling is enabled —
+            | Redis is used for shared state instead.
+            |
+            */
+
+            'swoole_shared_state' => [
+                'rows' => env('REVERB_SWOOLE_SHARED_STATE_ROWS', 65536),
             ],
         ],
     ],

@@ -48,7 +48,7 @@ class HypervelServerProvider extends ServerProvider
             // in the main process so they're shared across all workers via
             // copy-on-write. Using instance() instead of singleton() ensures
             // the object is created now, not lazily in a worker.
-            $rows = (int) ($this->config['table']['rows'] ?? 65536);
+            $rows = (int) ($this->config['swoole_shared_state']['rows'] ?? 65536);
             $table = new Table($rows);
             $table->column('count', Table::TYPE_INT);
             $table->create();
