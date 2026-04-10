@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Redis;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -226,7 +226,7 @@ class CacheRedisLockTest extends TestCase
      */
     protected function getLock(int $seconds = 10): array
     {
-        $redis = m::mock(Redis::class);
+        $redis = m::mock(RedisProxy::class);
 
         $lock = new RedisLock($redis, 'foo', $seconds);
 
