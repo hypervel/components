@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Events;
 
 use Hypervel\Redis\RedisConnection;
+use Throwable;
 
-class CommandExecuted
+class CommandFailed
 {
     /**
      * The Redis connection name.
@@ -16,13 +17,14 @@ class CommandExecuted
     /**
      * Create a new event instance.
      *
-     * @param float $time duration in milliseconds
+     * @param null|float $time duration in milliseconds (Hypervel enhancement — Laravel's CommandFailed does not carry timing)
      */
     public function __construct(
         public string $command,
         public array $parameters,
-        public float $time,
+        public Throwable $exception,
         public RedisConnection $connection,
+        public ?float $time = null,
     ) {
         $this->connectionName = $connection->getName();
     }

@@ -38,15 +38,15 @@ class RedisWatcherTest extends FeatureTestCase
 
     public function testRedisWatcherRegistersEntries()
     {
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('getName')->andReturn('connection');
+
         $this->app->make(Dispatcher::class)
             ->dispatch(new CommandExecuted(
                 'command',
                 ['foo', 'bar'],
                 0.0123,
-                m::mock(PhpRedisConnection::class),
-                'connection',
-                'result',
-                null
+                $connection,
             ));
 
         $entry = $this->loadTelescopeEntries()->first();

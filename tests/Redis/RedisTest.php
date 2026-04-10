@@ -11,6 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -310,13 +311,18 @@ class RedisTest extends TestCase
     public function testEventDispatchedOnSuccess(): void
     {
         $mockEventDispatcher = m::mock(Dispatcher::class);
+        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->with(CommandFailed::class)
+            ->andReturn(false);
+        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->with(CommandExecuted::class)
+            ->andReturn(true);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::on(function (CommandExecuted $event) {
                 return $event->command === 'get'
                     && $event->parameters === ['key']
-                    && $event->result === 'value'
-                    && $event->throwable === null;
+                    && $event->connectionName === 'default';
             }));
 
         $mockRedisConnection = $this->createMockRedisConnection('get', 'value', null, $mockEventDispatcher);
@@ -332,13 +338,19 @@ class RedisTest extends TestCase
         $expectedException = new Exception('Redis error');
 
         $mockEventDispatcher = m::mock(Dispatcher::class);
+        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->with(CommandFailed::class)
+            ->andReturn(true);
+        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->with(CommandExecuted::class)
+            ->andReturn(false);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
-            ->with(m::on(function (CommandExecuted $event) use ($expectedException) {
+            ->with(m::on(function (CommandFailed $event) use ($expectedException) {
                 return $event->command === 'get'
                     && $event->parameters === ['key']
-                    && $event->result === null
-                    && $event->throwable === $expectedException;
+                    && $event->exception === $expectedException
+                    && $event->connectionName === 'default';
             }));
 
         $mockRedisConnection = $this->createMockRedisConnection('get', null, $expectedException, $mockEventDispatcher);
@@ -825,6 +837,7 @@ class RedisTest extends TestCase
         $mockRedisConnection->shouldReceive('shouldTransform')->andReturnSelf();
         $mockRedisConnection->shouldReceive('getConnection')->andReturn($mockRedisConnection);
         $mockRedisConnection->shouldReceive('getEventDispatcher')->andReturn($eventDispatcher);
+        $mockRedisConnection->shouldReceive('getName')->andReturn('default');
 
         // Forward the command call to the mock PHP Redis
         $mockRedisConnection->shouldReceive($command)

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis\Events;
 
 use Exception;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -16,111 +17,55 @@ use Mockery as m;
  */
 class CommandExecutedTest extends TestCase
 {
-    public function testConstructor()
+    public function testCommandExecutedConstructor()
     {
-        $command = 'GET';
-        $parameters = ['key1'];
-        $time = 0.1;
         $connection = m::mock(PhpRedisConnection::class);
-        $connectionName = 'default';
-        $result = 'value1';
-        $throwable = null;
+        $connection->shouldReceive('getName')->andReturn('default');
 
-        $event = new CommandExecuted(
-            $command,
-            $parameters,
-            $time,
-            $connection,
-            $connectionName,
-            $result,
-            $throwable
-        );
+        $event = new CommandExecuted('GET', ['key1'], 0.1, $connection);
 
-        $this->assertSame($command, $event->command);
-        $this->assertSame($parameters, $event->parameters);
-        $this->assertSame($time, $event->time);
+        $this->assertSame('GET', $event->command);
+        $this->assertSame(['key1'], $event->parameters);
+        $this->assertSame(0.1, $event->time);
         $this->assertSame($connection, $event->connection);
-        $this->assertSame($connectionName, $event->connectionName);
-        $this->assertSame($result, $event->result);
-        $this->assertSame($throwable, $event->throwable);
+        $this->assertSame('default', $event->connectionName);
     }
 
-    public function testFormatCommandWithSimpleParameters()
+    public function testCommandExecutedConnectionNameIsDerivedFromConnection()
     {
-        $command = 'GET';
-        $parameters = ['key1'];
         $connection = m::mock(PhpRedisConnection::class);
-        $event = new CommandExecuted(
-            $command,
-            $parameters,
-            0.1,
-            $connection,
-            'default',
-            'value1',
-            null
-        );
+        $connection->shouldReceive('getName')->once()->andReturn('cache');
 
-        $this->assertSame('GET key1', $event->getFormatCommand());
+        $event = new CommandExecuted('SET', ['key', 'value'], 0.5, $connection);
+
+        $this->assertSame('cache', $event->connectionName);
     }
 
-    public function testFormatCommandWithArrayParameters()
+    public function testCommandFailedConstructor()
     {
-        $command = 'HMSET';
-        $parameters = ['hash1', ['field1' => 'value1', 'field2' => 'value2']];
         $connection = m::mock(PhpRedisConnection::class);
-        $event = new CommandExecuted(
-            $command,
-            $parameters,
-            0.1,
-            $connection,
-            'default',
-            true,
-            null
-        );
+        $connection->shouldReceive('getName')->andReturn('default');
+        $exception = new Exception('Redis error');
 
-        $this->assertSame('HMSET hash1 field1 value1 field2 value2', $event->getFormatCommand());
+        $event = new CommandFailed('GET', ['key1'], $exception, $connection);
+
+        $this->assertSame('GET', $event->command);
+        $this->assertSame(['key1'], $event->parameters);
+        $this->assertSame($exception, $event->exception);
+        $this->assertSame($connection, $event->connection);
+        $this->assertSame('default', $event->connectionName);
+        $this->assertNull($event->time);
     }
 
-    public function testFormatCommandWithNestedArrayParameters()
+    public function testCommandFailedWithTime()
     {
-        $command = 'COMPLEX';
-        $parameters = [
-            'key1',
-            [
-                'field1' => ['subfield1' => 'value1'],
-                'field2' => 'value2',
-            ],
-        ];
         $connection = m::mock(PhpRedisConnection::class);
-        $event = new CommandExecuted(
-            $command,
-            $parameters,
-            0.1,
-            $connection,
-            'default',
-            true,
-            null
-        );
+        $connection->shouldReceive('getName')->andReturn('default');
+        $exception = new Exception('Redis error');
 
-        $this->assertSame('COMPLEX key1 field1 {"subfield1":"value1"} field2 value2', $event->getFormatCommand());
-    }
+        $event = new CommandFailed('GET', ['key1'], $exception, $connection, 1.5);
 
-    public function testWithThrowable()
-    {
-        $command = 'GET';
-        $parameters = ['key1'];
-        $connection = m::mock(PhpRedisConnection::class);
-        $throwable = new Exception('Test exception');
-        $event = new CommandExecuted(
-            $command,
-            $parameters,
-            0.1,
-            $connection,
-            'default',
-            null,
-            $throwable
-        );
-
-        $this->assertSame($throwable, $event->throwable);
+        $this->assertSame($exception, $event->exception);
+        $this->assertSame(1.5, $event->time);
     }
 }

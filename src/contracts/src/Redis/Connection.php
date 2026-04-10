@@ -9,6 +9,16 @@ use Closure;
 interface Connection
 {
     /**
+     * Register a Redis command listener with the connection.
+     */
+    public function listen(Closure $callback): void;
+
+    /**
+     * Register a Redis command failure listener with the connection.
+     */
+    public function listenForFailures(Closure $callback): void;
+
+    /**
      * Subscribe to a set of given channels for messages.
      */
     public function subscribe(array|string $channels, Closure $callback): void;

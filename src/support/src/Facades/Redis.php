@@ -7,6 +7,8 @@ namespace Hypervel\Support\Facades;
 /**
  * @method static bool isCluster()
  * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string|null $name = null)
+ * @method static void listen(\Closure $callback)
+ * @method static void listenForFailures(\Closure $callback)
  * @method static void subscribe(array|string $channels, \Closure $callback)
  * @method static void psubscribe(array|string $channels, \Closure $callback)
  * @method static mixed command(string $method, array $parameters = [])

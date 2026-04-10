@@ -11,6 +11,7 @@ use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
@@ -118,19 +119,20 @@ class Redis implements FactoryContract, ConnectionContract
             $result = $connection->{$name}(...$arguments);
         } catch (Throwable $e) {
             $exception = $e;
-        } finally {
             $time = round((microtime(true) - $start) * 1000, 2);
-            $connection->getEventDispatcher()?->dispatch(
-                new CommandExecuted(
-                    $name,
-                    $arguments,
-                    $time,
-                    $connection,
-                    $this->poolName,
-                    $result,
-                    $exception,
-                )
-            );
+
+            if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
+                $connection->getEventDispatcher()->dispatch(
+                    new CommandFailed($name, $arguments, $e, $connection, $time)
+                );
+            }
+        } finally {
+            if ($exception === null && $connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
+                $time = round((microtime(true) - $start) * 1000, 2);
+                $connection->getEventDispatcher()->dispatch(
+                    new CommandExecuted($name, $arguments, $time, $connection)
+                );
+            }
 
             if ($hasContextConnection) {
                 // Connection is already in context, don't release
@@ -352,6 +354,30 @@ class Redis implements FactoryContract, ConnectionContract
         return Container::getInstance()
             ->make(RedisFactory::class)
             ->get(enum_value($name) ?? 'default');
+    }
+
+    /**
+     * Register a Redis command listener with the connection.
+     */
+    public function listen(Closure $callback): void
+    {
+        $container = Container::getInstance();
+
+        if ($container->bound('events')) {
+            $container->make('events')->listen(CommandExecuted::class, $callback);
+        }
+    }
+
+    /**
+     * Register a Redis command failure listener with the connection.
+     */
+    public function listenForFailures(Closure $callback): void
+    {
+        $container = Container::getInstance();
+
+        if ($container->bound('events')) {
+            $container->make('events')->listen(CommandFailed::class, $callback);
+        }
     }
 
     /**
