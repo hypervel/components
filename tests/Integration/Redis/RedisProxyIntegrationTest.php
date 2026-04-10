@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Redis;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
@@ -635,9 +634,6 @@ class RedisProxyIntegrationTest extends TestCase
             ],
             'options' => $options,
         ]);
-
-        // RedisFactory snapshots pools at construction, so reset after adding runtime test connections.
-        $this->app->forgetInstance(RedisFactory::class);
 
         return $name;
     }
