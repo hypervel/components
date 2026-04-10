@@ -220,6 +220,23 @@ return [
 
         Watchers\RedisWatcher::class => env('TELESCOPE_REDIS_WATCHER', true),
 
+        // Reverb — enabling message_received or message_sent adds a database write per
+        // WebSocket message and should only be used for targeted debugging, not sustained
+        // production use.
+        Watchers\ReverbWatcher::class => [
+            'enabled' => env('TELESCOPE_REVERB_WATCHER', true),
+            'events' => [
+                'connection_established',
+                'connection_closed',
+                'channel_created',
+                'channel_removed',
+                'connection_pruned',
+                // 'message_received',
+                // 'message_sent',  // Warning: fires per subscriber per broadcast — high volume.
+            ],
+            'message_size_limit' => env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64), // KB
+        ],
+
         Watchers\RequestWatcher::class => [
             'enabled' => env('TELESCOPE_REQUEST_WATCHER', true),
             'size_limit' => env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64),
