@@ -314,7 +314,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Redis|int|false zintercard(array $keys, int $limit = -1)
  * @method static \Redis|array|false zunion(array $keys, array|null $weights = null, array|null $options = null)
  *
- * @see \Hypervel\Redis\Redis
+ * @see \Hypervel\Redis\RedisManager
  */
 class Redis extends Facade
 {
