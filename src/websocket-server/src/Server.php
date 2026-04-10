@@ -7,6 +7,7 @@ namespace Hypervel\WebSocketServer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
@@ -27,6 +28,9 @@ use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
+use Hypervel\WebSocketServer\Events\ConnectionClosed;
+use Hypervel\WebSocketServer\Events\ConnectionOpened;
+use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
 use Swoole\Http\Request;
@@ -43,6 +47,8 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
 
     protected CoreMiddleware $coreMiddleware;
 
+    protected ?EventDispatcherContract $event = null;
+
     protected StdoutLoggerInterface $logger;
 
     protected string $serverName = 'websocket';
@@ -53,6 +59,10 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         protected Container $container,
     ) {
         $this->logger = $container->make(StdoutLoggerInterface::class);
+
+        if ($this->container->bound('events')) {
+            $this->event = $this->container->make('events');
+        }
     }
 
     /**
@@ -166,6 +176,10 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             return;
         }
 
+        if ($this->event?->hasListeners(MessageReceived::class)) {
+            $this->event->dispatch(new MessageReceived($fd, $frame, $this->serverName));
+        }
+
         try {
             $instance->onMessage($server, $frame);
         } catch (Throwable $exception) {
@@ -199,6 +213,10 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             } catch (Throwable $exception) {
                 $this->logger->error((string) $exception);
             }
+        }
+
+        if ($this->event?->hasListeners(ConnectionClosed::class)) {
+            $this->event->dispatch(new ConnectionClosed($fd, $reactorId, $this->serverName));
         }
     }
 
@@ -277,9 +295,17 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     protected function deferOnOpen(Request $request, string $class, WebSocketServer $server, int $fd): void
     {
         $instance = $this->container->make($class);
-        Coroutine::defer(static function () use ($request, $instance, $server) {
+        Coroutine::defer(function () use ($request, $instance, $server, $fd) {
+            if ($this->event?->hasListeners(ConnectionOpened::class)) {
+                $this->event->dispatch(new ConnectionOpened($fd, $request, $this->serverName));
+            }
+
             if ($instance instanceof OnOpenInterface) {
-                $instance->onOpen($server, $request);
+                try {
+                    $instance->onOpen($server, $request);
+                } catch (Throwable $exception) {
+                    $this->logger->error((string) $exception);
+                }
             }
         });
     }
