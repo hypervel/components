@@ -12,7 +12,7 @@ class Context
 {
     public const FD = 'ws.fd';
 
-    protected static array $container = [];
+    protected static array $storage = [];
 
     /**
      * Set a value in the WebSocket context.
@@ -21,7 +21,7 @@ class Context
     {
         $fd = CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
-        data_set(self::$container, $key, $value);
+        data_set(self::$storage, $key, $value);
         return $value;
     }
 
@@ -32,7 +32,7 @@ class Context
     {
         $fd ??= CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
-        return data_get(self::$container, $key, $default);
+        return data_get(self::$storage, $key, $default);
     }
 
     /**
@@ -42,7 +42,7 @@ class Context
     {
         $fd ??= CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
-        return data_get(self::$container, $key) !== null;
+        return data_get(self::$storage, $key) !== null;
     }
 
     /**
@@ -51,7 +51,7 @@ class Context
     public static function forget(string $id): void
     {
         $fd = CoroutineContext::get(Context::FD, 0);
-        unset(self::$container[strval($fd)][$id]);
+        unset(self::$storage[strval($fd)][$id]);
     }
 
     /**
@@ -60,7 +60,7 @@ class Context
     public static function release(?int $fd = null): void
     {
         $fd ??= CoroutineContext::get(Context::FD, 0);
-        unset(self::$container[strval($fd)]);
+        unset(self::$storage[strval($fd)]);
     }
 
     /**
@@ -74,11 +74,11 @@ class Context
     public static function copyFrom(int $fromFd, array $keys = []): void
     {
         $fd = CoroutineContext::get(Context::FD, 0);
-        $from = self::$container[$fromFd];
+        $from = self::$storage[$fromFd];
         $map = $keys ? Arr::only($from, $keys) : $from;
 
         foreach ($map as $key => $value) {
-            self::$container[$fd][$key] = $value;
+            self::$storage[$fd][$key] = $value;
         }
     }
 
@@ -108,18 +108,18 @@ class Context
     }
 
     /**
-     * Get the entire context container.
+     * Get the entire context storage.
      */
-    public static function getContainer(): array
+    public static function getStorage(): array
     {
-        return self::$container;
+        return self::$storage;
     }
 
     /**
-     * Reset the entire context container.
+     * Reset the entire context storage.
      */
     public static function flushState(): void
     {
-        self::$container = [];
+        self::$storage = [];
     }
 }
