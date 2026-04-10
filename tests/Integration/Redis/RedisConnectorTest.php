@@ -27,7 +27,7 @@ class RedisConnectorTest extends TestCase
         parent::defineEnvironment($app);
 
         // Suppress pool log output
-        $app->make('config')->set('app.stdout_log_level', []);
+        $app->make('config')->set('app.stdout_log.level', []);
     }
 
     public function testDefaultConfiguration()

@@ -32,7 +32,7 @@ class PooledConnectionTest extends DatabaseTestCase
         parent::defineEnvironment($app);
 
         // Suppress expected log output from transaction rollback tests
-        $app->make('config')->set('app.stdout_log_level', []);
+        $app->make('config')->set('app.stdout_log.level', []);
 
         $app->make('config')->set('database.connections.pool_test', [
             'driver' => 'sqlite',

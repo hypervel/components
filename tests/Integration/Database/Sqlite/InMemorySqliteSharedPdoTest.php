@@ -40,7 +40,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
         // Suppress expected log output from reconnect tests
         $config = $this->app->make('config');
-        $config->set('app.stdout_log_level', []);
+        $config->set('app.stdout_log.level', []);
     }
 
     protected function configureInMemoryDatabase(): void

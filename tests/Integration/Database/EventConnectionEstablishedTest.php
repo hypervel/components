@@ -21,7 +21,7 @@ class EventConnectionEstablishedTest extends DatabaseTestCase
 
         // Suppress expected reconnection log output
         $config = $app->make('config');
-        $config->set('app.stdout_log_level', []);
+        $config->set('app.stdout_log.level', []);
     }
 
     /**
