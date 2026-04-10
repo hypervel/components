@@ -92,13 +92,15 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        $this->commands([
-            Console\ClearCommand::class,
-            Console\PauseCommand::class,
-            Console\PruneCommand::class,
-            Console\PublishCommand::class,
-            Console\ResumeCommand::class,
-        ]);
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                Console\ClearCommand::class,
+                Console\PauseCommand::class,
+                Console\PruneCommand::class,
+                Console\PublishCommand::class,
+                Console\ResumeCommand::class,
+            ]);
+        }
     }
 
     /**
