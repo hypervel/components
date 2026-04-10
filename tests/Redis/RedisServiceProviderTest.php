@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
-use Hypervel\Redis\Redis;
+use Hypervel\Redis\RedisManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 
@@ -18,24 +18,24 @@ use Hypervel\Testbench\TestCase;
  */
 class RedisServiceProviderTest extends TestCase
 {
-    public function testRedisBindingResolvesToRedisInstance()
+    public function testRedisBindingResolvesToRedisManagerInstance()
     {
         $redis = $this->app->make('redis');
 
-        $this->assertInstanceOf(Redis::class, $redis);
+        $this->assertInstanceOf(RedisManager::class, $redis);
     }
 
-    public function testFactoryContractResolvesToRedisInstance()
+    public function testFactoryContractResolvesToRedisManagerInstance()
     {
         $redis = $this->app->make(FactoryContract::class);
 
-        $this->assertInstanceOf(Redis::class, $redis);
+        $this->assertInstanceOf(RedisManager::class, $redis);
     }
 
-    public function testRedisClassResolvesToSameInstanceAsRedisBinding()
+    public function testRedisManagerClassResolvesToSameInstanceAsRedisBinding()
     {
         $byKey = $this->app->make('redis');
-        $byClass = $this->app->make(Redis::class);
+        $byClass = $this->app->make(RedisManager::class);
 
         $this->assertSame($byKey, $byClass);
     }
@@ -56,33 +56,32 @@ class RedisServiceProviderTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testRedisImplementsFactoryContract()
+    public function testRedisManagerImplementsFactoryContract()
     {
         $redis = $this->app->make('redis');
 
         $this->assertInstanceOf(FactoryContract::class, $redis);
     }
 
-    public function testRedisImplementsConnectionContract()
+    public function testRedisManagerImplementsConnectionContract()
     {
         $redis = $this->app->make('redis');
 
         $this->assertInstanceOf(ConnectionContract::class, $redis);
     }
 
-    public function testRedisProxyExtendsRedisAndInheritsContracts()
+    public function testRedisProxyImplementsConnectionContract()
     {
-        // RedisProxy extends Redis, so it should satisfy both contracts
-        $this->assertTrue(is_subclass_of(RedisProxy::class, Redis::class));
-        $this->assertTrue(is_subclass_of(RedisProxy::class, FactoryContract::class));
         $this->assertTrue(is_subclass_of(RedisProxy::class, ConnectionContract::class));
+        $this->assertFalse(is_subclass_of(RedisProxy::class, RedisManager::class));
     }
 
     public function testRedisConnectionAliasesAreRegistered()
     {
         // Verify the alias table maps the contract to 'redis.connection'
-        // Note: RedisProxy is NOT aliased — it's constructed internally by RedisFactory
-        // with per-pool parameters. Aliasing it would cause a circular dependency.
+        // Note: RedisProxy is NOT aliased — it's constructed internally by
+        // the manager with per-pool parameters. Aliasing it would cause a
+        // circular dependency.
         $this->assertTrue($this->app->isAlias(ConnectionContract::class));
         $this->assertFalse($this->app->isAlias(RedisProxy::class));
     }
