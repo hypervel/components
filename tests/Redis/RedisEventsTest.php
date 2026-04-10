@@ -14,8 +14,8 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
-use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis as PhpRedis;
@@ -261,7 +261,7 @@ class RedisEventsTest extends TestCase
         $this->assertTrue(true);
     }
 
-    private function createRedis(m\MockInterface|RedisConnection $connection): Redis
+    private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('get')->andReturn($connection);
@@ -270,7 +270,7 @@ class RedisEventsTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        return new Redis($poolFactory);
+        return new RedisProxy($poolFactory, 'default');
     }
 
     private function createMockRedisConnection(
