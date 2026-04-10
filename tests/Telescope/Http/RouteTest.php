@@ -66,6 +66,7 @@ class RouteTest extends FeatureTestCase
             'Schedule' => ['/telescope/telescope-api/schedule', EntryType::SCHEDULED_TASK],
             'Redis' => ['/telescope/telescope-api/redis', EntryType::REDIS],
             'Client Requests' => ['/telescope/telescope-api/client-requests', EntryType::CLIENT_REQUEST],
+            'Reverb' => ['/telescope/telescope-api/reverb', EntryType::REVERB],
         ];
     }
 
