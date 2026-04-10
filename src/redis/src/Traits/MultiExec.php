@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Traits;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Redis\Redis as HypervelRedis;
+use Hypervel\Redis\RedisProxy;
 use Redis;
 use RedisCluster;
 
@@ -45,7 +45,7 @@ trait MultiExec
             return $this->__call($command, []);
         }
 
-        if (! $this instanceof HypervelRedis) {
+        if (! $this instanceof RedisProxy) {
             return tap($this->__call($command, []), $callback)->exec();
         }
 
