@@ -5,21 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\RefreshableLock;
-use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use InvalidArgumentException;
 
 class RedisLock extends Lock implements RefreshableLock
 {
     /**
-     * The Redis factory implementation.
+     * The Redis connection proxy.
      */
-    protected Redis $redis;
+    protected RedisProxy $redis;
 
     /**
      * Create a new lock instance.
      */
-    public function __construct(Redis $redis, string $name, int $seconds, ?string $owner = null)
+    public function __construct(RedisProxy $redis, string $name, int $seconds, ?string $owner = null)
     {
         parent::__construct($name, $seconds, $owner);
 
