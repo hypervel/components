@@ -15,13 +15,18 @@ use function sprintf;
 use function str_replace;
 
 /**
- * Default logger for logging server start and requests.
- * PSR-3 logger implementation that logs to STDOUT, using a newline after each
- * message. Priority is ignored.
+ * Low-level PSR-3 logger that writes directly to stdout.
+ *
+ * Used by Swoole server infrastructure (connection pools, server lifecycle,
+ * response emitter) that needs logging before the application log stack is
+ * available. Supports "line" (human-readable colored) and "json" (structured
+ * JSON lines for log aggregators) output formats.
  */
 class StdoutLogger implements StdoutLoggerInterface
 {
     private OutputInterface $output;
+
+    private string $format;
 
     private array $tags = [
         'component',
@@ -30,6 +35,7 @@ class StdoutLogger implements StdoutLoggerInterface
     public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
         $this->output = $output ?? new ConsoleOutput;
+        $this->format = $this->config->get('app.stdout_log.format', 'line');
     }
 
     public function emergency($message, array $context = []): void
@@ -79,7 +85,7 @@ class StdoutLogger implements StdoutLoggerInterface
      */
     public function log($level, $message, array $context = []): void
     {
-        $logLevel = $this->config->get('app.stdout_log_level', []);
+        $logLevel = $this->config->get('app.stdout_log.level', []);
 
         // Check if the log level is allowed
         if (! in_array($level, $logLevel, true)) {
@@ -97,29 +103,57 @@ class StdoutLogger implements StdoutLoggerInterface
         }
 
         $search = array_map(fn ($key) => sprintf('{%s}', $key), array_keys($context));
-        $message = str_replace($search, $context, $this->getMessage((string) $message, $level, $tags));
+        $interpolated = str_replace($search, $context, (string) $message);
 
-        $this->output->writeln($message);
+        if ($this->format === 'json') {
+            $this->output->writeln($this->getJsonMessage($interpolated, $level, $tags, $context));
+            return;
+        }
+
+        $this->output->writeln($this->getLineMessage($interpolated, $level, $tags));
     }
 
     /**
-     * Format the log message with level tag and context tags.
+     * Format a human-readable log line with timestamp, colored level tag and context tags.
      */
-    protected function getMessage(string $message, string $level = LogLevel::INFO, array $tags = []): string
+    protected function getLineMessage(string $message, string $level = LogLevel::INFO, array $tags = []): string
     {
-        $tag = match ($level) {
+        $style = match ($level) {
             LogLevel::EMERGENCY, LogLevel::ALERT, LogLevel::CRITICAL => 'error',
             LogLevel::ERROR => 'fg=red',
             LogLevel::WARNING, LogLevel::NOTICE => 'comment',
             default => 'info',
         };
 
-        $template = sprintf('<%s>[%s]</>', $tag, strtoupper($level));
+        $timestamp = date('Y-m-d H:i:s');
+        $template = sprintf('[%s] <%s>[%s]</>', $timestamp, $style, strtoupper($level));
         $implodedTags = '';
         foreach ($tags as $value) {
             $implodedTags .= (' [' . $value . ']');
         }
 
         return sprintf($template . $implodedTags . ' %s', $message);
+    }
+
+    /**
+     * Format a structured JSON log line for log aggregators.
+     */
+    protected function getJsonMessage(string $message, string $level, array $tags, array $context): string
+    {
+        $entry = [
+            'timestamp' => date('c'),
+            'level' => $level,
+            'message' => $message,
+        ];
+
+        if ($tags !== []) {
+            $entry['tags'] = $tags;
+        }
+
+        if ($context !== []) {
+            $entry['context'] = $context;
+        }
+
+        return json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 }

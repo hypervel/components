@@ -48,22 +48,54 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Log Levels for StdoutLogger
+    | Stdout Log Configuration
     |--------------------------------------------------------------------------
     |
-    | This value only determines the log levels that are written to the stdout logger.
-    | It does not affect the log levels that are written to the other loggers.
+    | These options configure the stdout logger, which is the low-level logger
+    | used by Swoole server infrastructure (connection pools, server lifecycle,
+    | response emitter, etc.). This logger is separate from the application log
+    | stack and writes directly to stdout.
     |
     */
-    'stdout_log_level' => [
-        LogLevel::ALERT,
-        LogLevel::CRITICAL,
-        // LogLevel::DEBUG,
-        LogLevel::EMERGENCY,
-        LogLevel::ERROR,
-        LogLevel::INFO,
-        LogLevel::NOTICE,
-        LogLevel::WARNING,
+
+    'stdout_log' => [
+        /*
+        |--------------------------------------------------------------------------
+        | Stdout Log Levels
+        |--------------------------------------------------------------------------
+        |
+        | This array determines which log levels are written to stdout. Only
+        | messages at these levels will be output. This does not affect the
+        | application log stack configured in config/logging.php.
+        |
+        */
+
+        'level' => [
+            LogLevel::ALERT,
+            LogLevel::CRITICAL,
+            // LogLevel::DEBUG,
+            LogLevel::EMERGENCY,
+            LogLevel::ERROR,
+            LogLevel::INFO,
+            LogLevel::NOTICE,
+            LogLevel::WARNING,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Stdout Log Format
+        |--------------------------------------------------------------------------
+        |
+        | The output format for stdout log messages. The "line" format produces
+        | human-readable colored output suitable for local development. The
+        | "json" format outputs structured JSON lines, which is ideal for
+        | log aggregators like Loki, Datadog, or CloudWatch.
+        |
+        | Supported: "line", "json"
+        |
+        */
+
+        'format' => env('APP_STDOUT_LOG_FORMAT', 'line'),
     ],
 
     /*
