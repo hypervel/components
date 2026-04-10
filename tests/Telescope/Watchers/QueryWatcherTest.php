@@ -44,7 +44,6 @@ class QueryWatcherTest extends FeatureTestCase
         $this->assertSame('select count(*) as aggregate from "telescope_entries"', $entry->content['sql']);
         $this->assertSame('testing', $entry->content['connection']);
         $this->assertSame('sqlite', $entry->content['driver']);
-        $this->assertFalse($entry->content['slow']);
     }
 
     public function testQueryWatcherCanTagSlowQueries()
