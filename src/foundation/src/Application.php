@@ -1327,7 +1327,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'queue.listener' => [\Hypervel\Queue\Listener::class],
             'queue.worker' => [\Hypervel\Queue\Worker::class],
             'redis' => [
-                \Hypervel\Redis\Redis::class,
+                \Hypervel\Redis\RedisManager::class,
                 \Hypervel\Contracts\Redis\Factory::class,
             ],
             'redis.connection' => [
