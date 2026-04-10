@@ -373,9 +373,6 @@ trait InteractsWithRedis
 
         $config->set("database.redis.{$connectionName}", $connectionConfig);
 
-        // RedisFactory snapshots configured pools in __construct, so reset it after adding runtime test pools.
-        $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
-
         return $connectionName;
     }
 }
