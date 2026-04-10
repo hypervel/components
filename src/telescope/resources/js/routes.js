@@ -34,6 +34,8 @@ import views from './screens/views/index.vue';
 import viewsPreview from './screens/views/preview.vue';
 import clientRequests from './screens/client-requests/index.vue';
 import clientRequestsPreview from './screens/client-requests/preview.vue';
+import reverb from './screens/reverb/index.vue';
+import reverbPreview from './screens/reverb/preview.vue';
 
 export default [
     { path: '/', redirect: '/requests' },
@@ -252,5 +254,17 @@ export default [
         path: '/client-requests',
         name: 'client-requests',
         component: clientRequests,
+    },
+
+    {
+        path: '/reverb/:id',
+        name: 'reverb-preview',
+        component: reverbPreview,
+    },
+
+    {
+        path: '/reverb',
+        name: 'reverb',
+        component: reverb,
     },
 ];
