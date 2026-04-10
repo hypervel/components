@@ -438,6 +438,14 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Get the connection name.
+     */
+    public function getName(): string
+    {
+        return $this->pool->getName();
+    }
+
+    /**
      * Get the event dispatcher instance.
      */
     public function getEventDispatcher(): ?Dispatcher

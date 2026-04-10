@@ -48,6 +48,7 @@ class PoolFactory
         if (! isset($this->pools[$name])) {
             $this->pools[$name] = new Pool(
                 $this->container,
+                $name,
                 $config->getCallback(),
                 $config->getOption()
             );

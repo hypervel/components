@@ -107,7 +107,7 @@ class HeartbeatConnectionTest extends TestCase
         Container::setInstance($container);
 
         $container->shouldReceive('make')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container) {
-            return new HeartbeatPoolStub($container, []);
+            return new HeartbeatPoolStub($container, 'test', []);
         });
 
         return $container;

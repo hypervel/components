@@ -32,15 +32,13 @@ class DbPool extends Pool
      */
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
-    public function __construct(
-        Container $container,
-        protected string $name
-    ) {
+    public function __construct(Container $container, string $name)
+    {
         $configService = $container->make('config');
-        $key = sprintf('database.connections.%s', $this->name);
+        $key = sprintf('database.connections.%s', $name);
 
         if (! $configService->has($key)) {
-            throw new InvalidArgumentException(sprintf('Database connection [%s] not configured.', $this->name));
+            throw new InvalidArgumentException(sprintf('Database connection [%s] not configured.', $name));
         }
 
         // Include the connection name in the config
@@ -52,21 +50,13 @@ class DbPool extends Pool
 
         $this->frequency = new Frequency($this);
 
-        parent::__construct($container, $poolOptions);
+        parent::__construct($container, $name, $poolOptions);
 
         // For in-memory SQLite, pre-create a shared PDO so all pool slots
         // see the same database. This must happen after parent::__construct.
         if ($this->isInMemorySqlite()) {
             $this->sharedInMemorySqlitePdo = $this->createSharedInMemorySqlitePdo();
         }
-    }
-
-    /**
-     * Get the pool name.
-     */
-    public function getName(): string
-    {
-        return $this->name;
     }
 
     /**

@@ -30,7 +30,7 @@ class PoolTest extends TestCase
             $logger->shouldReceive('error')->withAnyArgs()->times(4)->andReturn(true);
             return $logger;
         })());
-        $pool = new FooPool($container, []);
+        $pool = new FooPool($container, 'test', []);
 
         $conns = [];
         for ($i = 0; $i < 5; ++$i) {
@@ -55,7 +55,7 @@ class PoolTest extends TestCase
             $logger->shouldReceive('error')->withAnyArgs()->times(3)->andReturn(true);
             return $logger;
         })());
-        $pool = new FooPool($container, []);
+        $pool = new FooPool($container, 'test', []);
 
         $conns = [];
         $checks = [false, false, true, true, true];
@@ -92,7 +92,7 @@ class PoolTest extends TestCase
             $logger->shouldReceive('error')->withAnyArgs()->times(5)->andReturn(true);
             return $logger;
         })());
-        $pool = new FooPool($container, []);
+        $pool = new FooPool($container, 'test', []);
 
         $conns = [];
         for ($i = 0; $i < 5; ++$i) {
@@ -122,10 +122,10 @@ class PoolTest extends TestCase
         });
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
 
-        $pool = new class($container, []) extends Pool {
-            public function __construct(ContainerContract $container, array $config = [])
+        $pool = new class($container, 'test', []) extends Pool {
+            public function __construct(ContainerContract $container, string $name, array $config = [])
             {
-                parent::__construct($container, $config);
+                parent::__construct($container, $name, $config);
 
                 $this->frequency = m::mock(FrequencyInterface::class);
                 $this->frequency->shouldReceive('hit')->andThrow(new RuntimeException('Hit Failed'));

@@ -31,11 +31,20 @@ abstract class Pool implements PoolInterface
 
     public function __construct(
         protected Container $container,
+        protected string $name,
         array $config = []
     ) {
         $this->initOption($config);
 
         $this->channel = new Channel($this->option->getMaxConnections());
+    }
+
+    /**
+     * Get the pool name.
+     */
+    public function getName(): string
+    {
+        return $this->name;
     }
 
     /**

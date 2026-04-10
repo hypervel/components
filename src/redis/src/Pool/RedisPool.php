@@ -20,25 +20,15 @@ class RedisPool extends Pool
     /**
      * Create a new Redis pool instance.
      */
-    public function __construct(
-        Container $container,
-        protected string $name
-    ) {
+    public function __construct(Container $container, string $name)
+    {
         $configService = $container->make(RedisConfig::class);
-        $this->config = $configService->connectionConfig($this->name);
+        $this->config = $configService->connectionConfig($name);
         $poolOptions = Arr::get($this->config, 'pool', []);
 
         $this->frequency = new Frequency($this);
 
-        parent::__construct($container, $poolOptions);
-    }
-
-    /**
-     * Get the pool name.
-     */
-    public function getName(): string
-    {
-        return $this->name;
+        parent::__construct($container, $name, $poolOptions);
     }
 
     /**

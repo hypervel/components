@@ -7,6 +7,11 @@ namespace Hypervel\Contracts\Pool;
 interface PoolInterface
 {
     /**
+     * Get the pool name.
+     */
+    public function getName(): string;
+
+    /**
      * Get a connection from the connection pool.
      */
     public function get(): ConnectionInterface;

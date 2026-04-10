@@ -23,12 +23,13 @@ class Pool extends AbstractPool
      */
     public function __construct(
         Container $container,
+        string $name,
         callable $callback,
         array $option
     ) {
         $this->callback = $callback;
 
-        parent::__construct($container, $option);
+        parent::__construct($container, $name, $option);
     }
 
     protected function createConnection(): ConnectionInterface
