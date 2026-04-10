@@ -60,7 +60,7 @@ class RedisConfig
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
         }
 
-        $connectionConfig = (new ConfigurationUrlParser)->parseConfiguration($connectionConfig);
+        $connectionConfig = $this->parseConnectionConfiguration($connectionConfig);
         $this->validateConnectionConfig($name, $connectionConfig);
 
         $sharedOptions = $redisConfig['options'] ?? [];
@@ -76,6 +76,29 @@ class RedisConfig
         $connectionConfig['options'] = array_replace($sharedOptions, $connectionOptions);
 
         return $connectionConfig;
+    }
+
+    /**
+     * Parse and normalize a Redis connection configuration.
+     *
+     * Handles URL-based configuration and translates the `driver` key
+     * produced by the URL parser into a `scheme` key for transport
+     * protocol selection (tcp/tls). The `driver` key is removed since
+     * Redis connections don't have a driver concept like databases.
+     */
+    private function parseConnectionConfiguration(array $config): array
+    {
+        $parsed = (new ConfigurationUrlParser)->parseConfiguration($config);
+
+        $driver = strtolower((string) ($parsed['driver'] ?? ''));
+
+        if (in_array($driver, ['tcp', 'tls'], true)) {
+            $parsed['scheme'] = $driver;
+        }
+
+        unset($parsed['driver']);
+
+        return $parsed;
     }
 
     /**
