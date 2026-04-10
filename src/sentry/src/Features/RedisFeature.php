@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
@@ -45,6 +46,7 @@ class RedisFeature extends Feature
 
         $dispatcher = $this->container->make('events');
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
+        $dispatcher->listen(CommandFailed::class, [$this, 'handleFailedRedisCommands']);
     }
 
     public function handleRedisCommands(CommandExecuted $event): void
@@ -85,7 +87,7 @@ class RedisFeature extends Feature
             'db.redis.pool.max_idle_time' => $pool->getOption()->getMaxIdleTime(),
             'db.redis.pool.idle' => $pool->getConnectionsInChannel(),
             'db.redis.pool.using' => $pool->getCurrentConnections(),
-            'duration' => $event->time * 1000,
+            'duration' => $event->time,
         ];
 
         $context = SpanContext::make()
@@ -106,6 +108,80 @@ class RedisFeature extends Feature
                 $data = array_merge($data, $commandOrigin);
             }
         }
+        $context->setData($data);
+
+        $parentSpan->startChild($context);
+    }
+
+    /**
+     * Record a failed Redis command as an error span.
+     */
+    public function handleFailedRedisCommands(CommandFailed $event): void
+    {
+        $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+
+        if ($parentSpan === null || ! $parentSpan->getSampled()) {
+            return;
+        }
+
+        $pool = $this->container->make(PoolFactory::class)->getPool($event->connectionName);
+        $redisConfig = $this->container->make(RedisConfig::class);
+        $config = $redisConfig->connectionConfig($event->connectionName);
+
+        $keyForDescription = '';
+
+        if (! empty($event->parameters[0]) && is_string($event->parameters[0]) && ! Str::contains(
+            $event->parameters[0],
+            "\n"
+        )) {
+            $keyForDescription = $this->replaceSessionKey($event->parameters[0]);
+        }
+
+        $redisStatement = rtrim(strtoupper($event->command) . ' ' . $keyForDescription);
+
+        $data = [
+            'coroutine.id' => Coroutine::id(),
+            'db.system' => 'redis',
+            'db.statement' => $redisStatement,
+            'db.redis.connection' => $event->connectionName,
+            'db.redis.database_index' => $config['db'] ?? 0,
+            'db.redis.parameters' => $event->parameters,
+            'db.redis.pool.name' => $event->connectionName,
+            'db.redis.pool.max' => $pool->getOption()->getMaxConnections(),
+            'db.redis.pool.max_idle_time' => $pool->getOption()->getMaxIdleTime(),
+            'db.redis.pool.idle' => $pool->getConnectionsInChannel(),
+            'db.redis.pool.using' => $pool->getCurrentConnections(),
+            'db.redis.error' => $event->exception->getMessage(),
+        ];
+
+        $context = SpanContext::make()
+            ->setOp('db.redis')
+            ->setOrigin('auto.cache.redis')
+            ->setDescription($redisStatement)
+            ->setStatus(\Sentry\Tracing\SpanStatus::internalError());
+
+        if ($event->time !== null) {
+            $context->setStartTimestamp(microtime(true) - $event->time / 1000);
+            $context->setEndTimestamp($context->getStartTimestamp() + $event->time / 1000);
+            $data['duration'] = $event->time;
+        } else {
+            $now = microtime(true);
+            $context->setStartTimestamp($now);
+            $context->setEndTimestamp($now);
+        }
+
+        if ($this->shouldSendDefaultPii()) {
+            $data['db.redis.parameters'] = $this->replaceSessionKeys($event->parameters);
+        }
+
+        if ($this->isTracingFeatureEnabled('redis_origin')) {
+            $commandOrigin = $this->resolveEventOrigin();
+
+            if ($commandOrigin !== null) {
+                $data = array_merge($data, $commandOrigin);
+            }
+        }
+
         $context->setData($data);
 
         $parentSpan->startChild($context);

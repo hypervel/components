@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Exception;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -68,7 +70,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -83,7 +85,7 @@ class RedisIntegrationTest extends SentryTestCase
         $this->assertEquals('redis', $spanData['db.system']);
         $this->assertEquals('GET test-key', $spanData['db.statement']);
         $this->assertEquals('default', $spanData['db.redis.connection']);
-        $this->assertEquals(5.0, $spanData['duration']);
+        $this->assertEquals(0.005, $spanData['duration']);
     }
 
     public function testRedisCommandWithSessionKeyReplacesWithPlaceholder(): void
@@ -95,7 +97,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', [$sessionId], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', [$sessionId], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -112,7 +114,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -128,7 +130,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -144,7 +146,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('SET', ["multi\nline\nkey", 'value'], 0.005, $connection, 'default', 'OK', null);
+        $event = new CommandExecuted('SET', ["multi\nline\nkey", 'value'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -163,7 +165,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('DEL', [123], 0.005, $connection, 'default', 1, null);
+        $event = new CommandExecuted('DEL', [123], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -182,7 +184,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -205,7 +207,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('cache');
-        $event = new CommandExecuted('SET', ['cache-key', 'value'], 0.010, $connection, 'cache', 'OK', null);
+        $event = new CommandExecuted('SET', ['cache-key', 'value'], 0.010, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -215,7 +217,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->assertEquals('cache', $spanData['db.redis.connection']);
         $this->assertEquals(1, $spanData['db.redis.database_index']);
-        $this->assertEquals(10.0, $spanData['duration']);
+        $this->assertEquals(0.010, $spanData['duration']);
     }
 
     public function testRedisFeatureWorksAfterReplacingStaleGlobalHub(): void
@@ -230,7 +232,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection);
 
         $dispatcher->dispatch($event);
 
@@ -239,6 +241,59 @@ class RedisIntegrationTest extends SentryTestCase
 
         $spans = $transaction->getSpanRecorder()->getSpans();
         $this->assertCount(2, $spans);
+    }
+
+    public function testFailedRedisCommandCreatesErrorSpanWithTime(): void
+    {
+        $this->setupMocks();
+
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $exception = new Exception('Connection refused');
+        $event = new CommandFailed('GET', ['test-key'], $exception, $connection, 0.005);
+
+        $dispatcher->dispatch($event);
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
+
+        $redisSpan = $spans[1];
+        $this->assertEquals('db.redis', $redisSpan->getOp());
+        $this->assertEquals('GET test-key', $redisSpan->getDescription());
+        $this->assertEquals(\Sentry\Tracing\SpanStatus::internalError(), $redisSpan->getStatus());
+
+        $spanData = $redisSpan->getData();
+        $this->assertEquals('redis', $spanData['db.system']);
+        $this->assertEquals('Connection refused', $spanData['db.redis.error']);
+        $this->assertEquals('default', $spanData['db.redis.connection']);
+        $this->assertEquals(0, $spanData['db.redis.database_index']);
+        $this->assertEquals('default', $spanData['db.redis.pool.name']);
+        $this->assertEquals(10, $spanData['db.redis.pool.max']);
+        $this->assertEquals(0.005, $spanData['duration']);
+    }
+
+    public function testFailedRedisCommandCreatesErrorSpanWithoutTime(): void
+    {
+        $this->setupMocks();
+
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $exception = new Exception('Connection refused');
+        $event = new CommandFailed('GET', ['test-key'], $exception, $connection);
+
+        $dispatcher->dispatch($event);
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
+
+        $redisSpan = $spans[1];
+        $this->assertEquals('db.redis', $redisSpan->getOp());
+        $this->assertEquals(\Sentry\Tracing\SpanStatus::internalError(), $redisSpan->getStatus());
+        $this->assertArrayNotHasKey('duration', $redisSpan->getData());
     }
 
     private function setupMocks(string $connectionName = 'default', int $database = 0): void
@@ -267,6 +322,9 @@ class RedisIntegrationTest extends SentryTestCase
 
     private function createRedisConnection(string $name): RedisConnection
     {
-        return m::mock(PhpRedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('getName')->andReturn($name);
+
+        return $connection;
     }
 }
