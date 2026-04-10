@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Support\Str;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisException;
@@ -105,7 +106,7 @@ class PhpRedisConnection extends RedisConnection
     protected function createRedis(array $config): Redis
     {
         $parameters = [
-            $config['host'],
+            $this->formatHost($config),
             (int) $config['port'],
             $config['timeout'] ?? 0.0,
             $config['reserved'] ?? null,
@@ -123,6 +124,20 @@ class PhpRedisConnection extends RedisConnection
         }
 
         return $redis;
+    }
+
+    /**
+     * Format the host using the scheme if available.
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function formatHost(array $config): string
+    {
+        if (isset($config['scheme'])) {
+            return Str::start($config['host'], "{$config['scheme']}://");
+        }
+
+        return $config['host'];
     }
 
     /**
@@ -179,13 +194,14 @@ class PhpRedisConnection extends RedisConnection
                 throw new InvalidRedisConnectionException('Connect sentinel redis server failed.');
             }
 
-            $redis = $this->createRedis([
+            $redis = $this->createRedis(array_filter([
+                'scheme' => $this->config['scheme'] ?? null,
                 'host' => $host,
                 'port' => $port,
                 'timeout' => $timeout,
                 'retry_interval' => $retryInterval,
                 'read_timeout' => $readTimeout,
-            ]);
+            ]));
         } catch (Throwable $exception) {
             throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
         }
