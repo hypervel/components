@@ -263,6 +263,14 @@ class IncomingEntry
     }
 
     /**
+     * Determine if the incoming entry is a Reverb entry.
+     */
+    public function isReverb(): bool
+    {
+        return $this->type === EntryType::REVERB;
+    }
+
+    /**
      * Get the family look-up hash for the incoming entry.
      */
     public function familyHash(): ?string

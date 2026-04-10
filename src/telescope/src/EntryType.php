@@ -32,6 +32,8 @@ class EntryType
 
     public const REDIS = 'redis';
 
+    public const REVERB = 'reverb';
+
     public const REQUEST = 'request';
 
     public const SCHEDULED_TASK = 'schedule';

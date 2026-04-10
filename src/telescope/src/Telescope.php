@@ -500,6 +500,14 @@ class Telescope
     }
 
     /**
+     * Record the given entry.
+     */
+    public static function recordReverb(IncomingEntry $entry): void
+    {
+        static::record(EntryType::REVERB, $entry);
+    }
+
+    /**
      * Flush all entries in the queue.
      */
     public static function flushEntries(): static
