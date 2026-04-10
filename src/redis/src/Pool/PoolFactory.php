@@ -29,6 +29,17 @@ class PoolFactory
     }
 
     /**
+     * Flush a specific pool, closing all connections.
+     */
+    public function flushPool(string $name): void
+    {
+        if (isset($this->pools[$name])) {
+            $this->pools[$name]->flushAll();
+            unset($this->pools[$name]);
+        }
+    }
+
+    /**
      * Get or create a pool for the given connection name.
      */
     public function getPool(string $name): RedisPool
