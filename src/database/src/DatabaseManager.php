@@ -51,13 +51,6 @@ class DatabaseManager implements ConnectionResolverInterface
     protected array $dynamicConnectionConfigurations = [];
 
     /**
-     * The custom connection resolvers.
-     *
-     * @var array<string, callable>
-     */
-    protected array $extensions = [];
-
-    /**
      * The callback to be executed to reconnect to a database.
      */
     protected Closure $reconnector;
@@ -153,20 +146,6 @@ class DatabaseManager implements ConnectionResolverInterface
     protected function makeConnection(string $name): Connection
     {
         $config = $this->configuration($name);
-
-        // First we will check by the connection name to see if an extension has been
-        // registered specifically for that connection. If it has we will call the
-        // Closure and pass it the config allowing it to resolve the connection.
-        if (isset($this->extensions[$name])) {
-            return call_user_func($this->extensions[$name], $config, $name);
-        }
-
-        // Next we will check to see if an extension has been registered for a driver
-        // and will call the Closure if so, which allows us to have a more generic
-        // resolver for the drivers themselves which applies to all connections.
-        if (isset($this->extensions[$driver = $config['driver']])) {
-            return call_user_func($this->extensions[$driver], $config, $name);
-        }
 
         return $this->factory->make($config, $name);
     }
@@ -417,10 +396,14 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Register an extension connection resolver.
+     *
+     * Extensions are stored on the ConnectionFactory so they are consulted
+     * by both the pooled path (PooledConnection → factory) and the non-pooled
+     * path (DatabaseManager → factory).
      */
     public function extend(string $name, callable $resolver): void
     {
-        $this->extensions[$name] = $resolver;
+        $this->factory->extend($name, $resolver);
     }
 
     /**
@@ -428,7 +411,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function forgetExtension(string $name): void
     {
-        unset($this->extensions[$name]);
+        $this->factory->forgetExtension($name);
     }
 
     /**

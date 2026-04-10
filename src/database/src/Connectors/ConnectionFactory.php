@@ -19,6 +19,13 @@ use PDOException;
 class ConnectionFactory
 {
     /**
+     * The custom connection resolvers.
+     *
+     * @var array<string, callable>
+     */
+    protected array $extensions = [];
+
+    /**
      * Create a new connection factory instance.
      */
     public function __construct(
@@ -33,11 +40,43 @@ class ConnectionFactory
     {
         $config = $this->parseConfig($config, $name);
 
+        // First we will check by the connection name to see if an extension has been
+        // registered specifically for that connection. If it has we will call the
+        // Closure and pass it the config allowing it to resolve the connection.
+        if ($name !== null && isset($this->extensions[$name])) {
+            return call_user_func($this->extensions[$name], $config, $name);
+        }
+
+        // Next we will check to see if an extension has been registered for a driver
+        // and will call the Closure if so, which allows us to have a more generic
+        // resolver for the drivers themselves which applies to all connections.
+        $driver = $config['driver'] ?? null;
+
+        if ($driver !== null && isset($this->extensions[$driver])) {
+            return call_user_func($this->extensions[$driver], $config, $name);
+        }
+
         if (isset($config['read'])) {
             return $this->createReadWriteConnection($config);
         }
 
         return $this->createSingleConnection($config);
+    }
+
+    /**
+     * Register an extension connection resolver.
+     */
+    public function extend(string $name, callable $resolver): void
+    {
+        $this->extensions[$name] = $resolver;
+    }
+
+    /**
+     * Remove an extension connection resolver.
+     */
+    public function forgetExtension(string $name): void
+    {
+        unset($this->extensions[$name]);
     }
 
     /**

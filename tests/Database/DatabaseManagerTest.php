@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
+use PDO;
 
 /**
  * @internal
@@ -92,5 +94,54 @@ class DatabaseManagerTest extends TestCase
 
         $reconnected = $manager->reconnect();
         $this->assertNotNull($reconnected->getRawPdo());
+    }
+
+    public function testExtendWorksEndToEndThroughNonPooledPath()
+    {
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $manager = $this->db->getDatabaseManager();
+
+        $manager->extend('sqlite', function () use ($custom) {
+            return $custom;
+        });
+
+        // Add a new connection to avoid the already-cached 'default'
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'extended');
+
+        $result = $manager->connection('extended');
+
+        $this->assertSame($custom, $result);
+    }
+
+    public function testForgetExtensionWorksEndToEndThroughNonPooledPath()
+    {
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $manager = $this->db->getDatabaseManager();
+
+        $manager->extend('sqlite', function () use ($custom) {
+            return $custom;
+        });
+
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'forget-test');
+
+        // Extension active — should return custom connection
+        $this->assertSame($custom, $manager->connection('forget-test'));
+
+        // Purge the cached connection so next call resolves fresh
+        $manager->purge('forget-test');
+
+        // Forget the extension
+        $manager->forgetExtension('sqlite');
+
+        // Normal creation resumes
+        $result = $manager->connection('forget-test');
+        $this->assertNotSame($custom, $result);
+        $this->assertInstanceOf(Connection::class, $result);
     }
 }

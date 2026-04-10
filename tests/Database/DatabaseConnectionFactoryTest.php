@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Container\Container;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -181,5 +182,111 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame(2, $this->db->getConnection()->select('PRAGMA synchronous')[0]->synchronous);
 
         $this->assertSame(1, $this->db->getConnection('synchronous_set')->select('PRAGMA synchronous')[0]->synchronous);
+    }
+
+    public function testExtendWithDriverName()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        $factory->extend('sqlite', function (array $config, ?string $name) use ($custom) {
+            return $custom;
+        });
+
+        $result = $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'default');
+
+        $this->assertSame($custom, $result);
+    }
+
+    public function testExtendWithConnectionName()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        $factory->extend('my-connection', function (array $config, ?string $name) use ($custom) {
+            return $custom;
+        });
+
+        $result = $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'my-connection');
+
+        $this->assertSame($custom, $result);
+    }
+
+    public function testDriverExtensionTakesPrecedenceOverBuiltInDrivers()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        $factory->extend('sqlite', function () use ($custom) {
+            return $custom;
+        });
+
+        $result = $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'default');
+
+        // Should use the extension, not the built-in SQLiteConnection creation
+        $this->assertSame($custom, $result);
+    }
+
+    public function testConnectionNameExtensionTakesPrecedenceOverDriverExtension()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $connectionSpecific = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $driverLevel = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        $factory->extend('my-conn', function () use ($connectionSpecific) {
+            return $connectionSpecific;
+        });
+        $factory->extend('sqlite', function () use ($driverLevel) {
+            return $driverLevel;
+        });
+
+        $result = $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'my-conn');
+
+        $this->assertSame($connectionSpecific, $result);
+        $this->assertNotSame($driverLevel, $result);
+    }
+
+    public function testForgetExtensionRemovesExtension()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        $factory->extend('sqlite', function () use ($custom) {
+            return $custom;
+        });
+
+        // Verify extension is active
+        $this->assertSame($custom, $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'default'));
+
+        // Forget it
+        $factory->forgetExtension('sqlite');
+
+        // Normal creation should resume — result is a new SQLiteConnection, not our custom one
+        $result = $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'default');
+        $this->assertNotSame($custom, $result);
+        $this->assertInstanceOf(SQLiteConnection::class, $result);
+    }
+
+    public function testExtensionCallbackReceivesConfigAndName()
+    {
+        $factory = new ConnectionFactory(new Container);
+        $receivedConfig = null;
+        $receivedName = null;
+
+        $factory->extend('sqlite', function (array $config, ?string $name) use (&$receivedConfig, &$receivedName) {
+            $receivedConfig = $config;
+            $receivedName = $name;
+
+            return new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        });
+
+        $factory->make(['driver' => 'sqlite', 'database' => ':memory:'], 'my-conn');
+
+        $this->assertSame('my-conn', $receivedName);
+        $this->assertSame('sqlite', $receivedConfig['driver']);
+        $this->assertSame(':memory:', $receivedConfig['database']);
+        // parseConfig adds prefix and name
+        $this->assertArrayHasKey('prefix', $receivedConfig);
+        $this->assertSame('my-conn', $receivedConfig['name']);
     }
 }

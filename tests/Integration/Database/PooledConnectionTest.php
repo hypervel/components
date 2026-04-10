@@ -7,10 +7,13 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Pool\Events\ReleaseConnection;
+use PDO;
 use ReflectionProperty;
 
 /**
@@ -322,13 +325,65 @@ class PooledConnectionTest extends DatabaseTestCase
         $conn2->release();
     }
 
+    public function testReconnectHonoursFactoryExtensions(): void
+    {
+        // Use a file-based SQLite connection so reconnect() takes the
+        // factory->make() path (not the makeSqliteFromSharedPdo() path
+        // that in-memory SQLite uses).
+        $databasePath = sys_get_temp_dir() . '/hypervel_extension_pool_test.db';
+        touch($databasePath);
+
+        try {
+            $this->app->make('config')->set('database.connections.extension_test', [
+                'driver' => 'sqlite',
+                'database' => $databasePath,
+                'prefix' => '',
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 1,
+                    'connect_timeout' => 10.0,
+                    'wait_timeout' => 3.0,
+                    'heartbeat' => -1,
+                    'max_idle_time' => 60.0,
+                ],
+            ]);
+
+            $custom = new SQLiteConnection(
+                new PDO('sqlite::memory:'),
+                ':memory:',
+                '',
+                ['name' => 'extension_test']
+            );
+
+            /** @var ConnectionFactory $factory */
+            $factory = $this->app->make('db.factory');
+            $factory->extend('sqlite', fn () => $custom);
+
+            $pool = new DbPool($this->app, 'extension_test');
+            $pooledConnection = $this->createPooledConnectionForName($pool, 'extension_test');
+
+            // reconnect() calls factory->make() which should consult the extension
+            $this->assertSame($custom, $pooledConnection->getConnection());
+        } finally {
+            @unlink($databasePath);
+        }
+    }
+
     /**
      * Create a PooledConnection directly (bypassing pool.get() for unit-style tests).
      */
     private function createPooledConnection(DbPool $pool): PooledConnection
     {
-        $config = $this->app->make('config')->get('database.connections.pool_test');
-        $config['name'] = 'pool_test';
+        return $this->createPooledConnectionForName($pool, 'pool_test');
+    }
+
+    /**
+     * Create a PooledConnection for a named connection config.
+     */
+    private function createPooledConnectionForName(DbPool $pool, string $name): PooledConnection
+    {
+        $config = $this->app->make('config')->get("database.connections.{$name}");
+        $config['name'] = $name;
 
         return new PooledConnection($this->app, $pool, $config);
     }
