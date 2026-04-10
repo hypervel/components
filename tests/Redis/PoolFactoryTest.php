@@ -69,6 +69,42 @@ class PoolFactoryTest extends TestCase
         $this->assertSame(0, $pool2->getConnectionsInChannel());
     }
 
+    public function testFlushPoolOnlyFlushesNamedPool()
+    {
+        $container = $this->mockContainerWithPools();
+
+        $factory = new PoolFactory($container);
+
+        $defaultPool = $factory->getPool('default');
+        $cachePool = $factory->getPool('cache');
+
+        // Add connections to both pools
+        $defaultConn1 = $defaultPool->get();
+        $defaultConn2 = $defaultPool->get();
+        $cacheConn = $cachePool->get();
+
+        $defaultPool->release($defaultConn1);
+        $defaultPool->release($defaultConn2);
+        $cachePool->release($cacheConn);
+
+        $this->assertSame(2, $defaultPool->getConnectionsInChannel());
+        $this->assertSame(1, $cachePool->getConnectionsInChannel());
+
+        // Flush only default
+        $factory->flushPool('default');
+
+        // Default pool should be flushed
+        $this->assertSame(0, $defaultPool->getConnectionsInChannel());
+
+        // Cache pool should be untouched
+        $this->assertSame(1, $cachePool->getConnectionsInChannel());
+        $this->assertSame($cachePool, $factory->getPool('cache'));
+
+        // Getting default pool again should return a fresh instance
+        $freshDefaultPool = $factory->getPool('default');
+        $this->assertNotSame($defaultPool, $freshDefaultPool);
+    }
+
     private function mockContainerWithPools(): m\MockInterface|ContainerContract
     {
         $connectionConfig = [
