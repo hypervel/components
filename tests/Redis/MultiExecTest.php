@@ -8,7 +8,8 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
-use Hypervel\Redis\Redis;
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis as PhpRedis;
@@ -23,7 +24,7 @@ class MultiExecTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        CoroutineContext::forget(Redis::CONNECTION_CONTEXT_PREFIX . 'default');
+        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
     }
 
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
@@ -121,7 +122,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the pipeline call
-        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -167,7 +168,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the transaction call
-        CoroutineContext::set(Redis::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -227,7 +228,7 @@ class MultiExecTest extends TestCase
 
         // After pipeline callback completes, connection was released.
         // The connection should no longer be in context.
-        $this->assertNull(CoroutineContext::get(Redis::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     /**
@@ -249,9 +250,9 @@ class MultiExecTest extends TestCase
     }
 
     /**
-     * Create a Redis instance with the given mock connection.
+     * Create a RedisProxy instance with the given mock connection.
      */
-    private function createRedis(m\MockInterface|RedisConnection $connection): Redis
+    private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('get')->andReturn($connection);
@@ -259,6 +260,6 @@ class MultiExecTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        return new Redis($poolFactory);
+        return new RedisProxy($poolFactory, 'default');
     }
 }
