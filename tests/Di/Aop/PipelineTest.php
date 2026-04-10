@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Di\Aop;
 use Hypervel\Container\Container;
 use Hypervel\Di\Aop\Pipeline;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Tests\Di\Stub\Aspect\NoProcessAspect;
+use Hypervel\Tests\Di\Fixtures\Aspect\NoProcessAspect;
 use Hypervel\Tests\TestCase;
 use WeakReference;
 

@@ -2,16 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Di\Stub\Aspect;
+namespace Hypervel\Tests\Di\Fixtures\Aspect;
 
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 
-class NoPriorityAspect extends AbstractAspect
+class TestAspect extends AbstractAspect
 {
     public array $classes = [
-        'App\FooService::handle',
+        'App\SomeClass::someMethod',
+        'App\AnotherClass',
     ];
+
+    public ?int $priority = 10;
 
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {

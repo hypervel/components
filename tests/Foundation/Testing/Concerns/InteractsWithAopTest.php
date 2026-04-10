@@ -11,7 +11,7 @@ use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Di\Stub\ProxyTraitObject;
+use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use LogicException;
 
 /**

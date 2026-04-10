@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Di\Stub\Aspect;
+namespace Hypervel\Tests\Di\Fixtures\Aspect;
 
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 

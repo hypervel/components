@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Di\Stub;
+namespace Hypervel\Tests\Di\Fixtures;
 
 use Hypervel\Di\Aop\ProxyTrait;
 

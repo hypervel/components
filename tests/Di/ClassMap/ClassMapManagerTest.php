@@ -65,7 +65,7 @@ class ClassMapManagerTest extends TestCase
     public function testAddThrowsWhenTraitAlreadyLoaded()
     {
         // Force-load the trait by referencing a class that uses it
-        new \Hypervel\Tests\Di\Stub\ProxyTraitObject;
+        new \Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Cannot override class map');

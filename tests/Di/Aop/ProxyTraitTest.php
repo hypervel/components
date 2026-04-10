@@ -8,10 +8,10 @@ use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\Pipeline;
 use Hypervel\Di\Aop\ProxyTrait;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Di\Stub\Aspect\GetNameAspect;
-use Hypervel\Tests\Di\Stub\Aspect\GetParamsAspect;
-use Hypervel\Tests\Di\Stub\Aspect\IncrAspect;
-use Hypervel\Tests\Di\Stub\ProxyTraitObject;
+use Hypervel\Tests\Di\Fixtures\Aspect\GetNameAspect;
+use Hypervel\Tests\Di\Fixtures\Aspect\GetParamsAspect;
+use Hypervel\Tests\Di\Fixtures\Aspect\IncrAspect;
+use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 
 /**
  * @internal

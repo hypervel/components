@@ -8,8 +8,8 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Tests\Di\Stub\Aspect\NoPriorityAspect;
-use Hypervel\Tests\Di\Stub\Aspect\TestAspect;
+use Hypervel\Tests\Di\Fixtures\Aspect\NoPriorityAspect;
+use Hypervel\Tests\Di\Fixtures\Aspect\TestAspect;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

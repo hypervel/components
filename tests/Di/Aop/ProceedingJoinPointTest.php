@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Di\Aop;
 
 use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Tests\Di\Stub\ProxyTraitObject;
+use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use Hypervel\Tests\TestCase;
 
 /**
