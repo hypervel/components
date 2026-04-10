@@ -37,7 +37,7 @@
             "Hypervel\\Engine\\": "src/"
         },
         "files": [
-            "src/Functions.php"
+            "src/functions.php"
         ]
     },
     "suggest": {

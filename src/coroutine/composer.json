@@ -28,7 +28,7 @@
             "Hypervel\\Coroutine\\": "src/"
         },
         "files": [
-            "src/Functions.php"
+            "src/functions.php"
         ]
     },
     "require": {

@@ -44,7 +44,7 @@
             "Hypervel\\Bus\\": "src/"
         },
         "files": [
-            "src/Functions.php"
+            "src/functions.php"
         ]
     },
     "extra": {
