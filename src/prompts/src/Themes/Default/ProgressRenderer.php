@@ -29,7 +29,7 @@ class ProgressRenderer extends Renderer
                 ->box(
                     $this->dim($this->truncate($progress->label, $progress->terminal()->cols() - 6)),
                     $this->dim($filled),
-                    info: $progress->progress . '/' . $progress->total,
+                    info: $this->fractionCompleted($progress),
                 ),
 
             'error' => (string) $this
@@ -37,7 +37,7 @@ class ProgressRenderer extends Renderer
                     $this->truncate($progress->label, $progress->terminal()->cols() - 6),
                     $this->dim($filled),
                     color: 'red',
-                    info: $progress->progress . '/' . $progress->total,
+                    info: $this->fractionCompleted($progress),
                 ),
 
             'cancel' => (string) $this
@@ -45,7 +45,7 @@ class ProgressRenderer extends Renderer
                     $this->truncate($progress->label, $progress->terminal()->cols() - 6),
                     $this->dim($filled),
                     color: 'red',
-                    info: $progress->progress . '/' . $progress->total,
+                    info: $this->fractionCompleted($progress),
                 )
                 ->error($progress->cancelMessage),
 
@@ -53,7 +53,7 @@ class ProgressRenderer extends Renderer
                 ->box(
                     $this->cyan($this->truncate($progress->label, $progress->terminal()->cols() - 6)),
                     $this->dim($filled),
-                    info: $progress->progress . '/' . $progress->total,
+                    info: $this->fractionCompleted($progress),
                 )
                 ->when(
                     $progress->hint,
@@ -61,5 +61,15 @@ class ProgressRenderer extends Renderer
                     fn () => $this->newLine() // Space for errors
                 )
         };
+    }
+
+    /**
+     * Get the formatted fraction completed.
+     *
+     * @param Progress<int|iterable<mixed>> $progress
+     */
+    protected function fractionCompleted(Progress $progress): string
+    {
+        return number_format($progress->progress) . ' / ' . number_format($progress->total);
     }
 }
