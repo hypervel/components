@@ -8,7 +8,7 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextareaPrompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\textarea;
 
@@ -95,7 +95,16 @@ class TextareaPromptTest extends TestCase
         $this->assertSame('Jess', $result);
     }
 
-    public function testMultiLineNavigation(): void
+    public function testMovesToBeginningAndEndOfLine(): void
+    {
+        Prompt::fake(['e', 's', Key::HOME[0], 'J', Key::END[0], 's', Key::CTRL_D]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame('Jess', $result);
+    }
+
+    public function testMovesUpAndDownLines(): void
     {
         Prompt::fake([
             'e',
@@ -117,7 +126,46 @@ class TextareaPromptTest extends TestCase
         $this->assertSame("Jess\nJoe", $result);
     }
 
-    public function testHandlesMultiByteStrings(): void
+    public function testMovesToStartOfLineIfUpPressedTwiceOnFirstLine(): void
+    {
+        Prompt::fake([
+            'e', 's', 's', Key::ENTER, 'J', 'o', 'e',
+            Key::UP_ARROW, Key::UP_ARROW, 'J', Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame("Jess\nJoe", $result);
+    }
+
+    public function testMovesToEndOfLineIfDownPressedTwiceOnLastLine(): void
+    {
+        Prompt::fake([
+            'J', 'e', 's', 's', Key::ENTER, 'J', 'o',
+            Key::UP_ARROW, Key::UP_ARROW, Key::DOWN_ARROW,
+            Key::DOWN_ARROW, 'e', Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame("Jess\nJoe", $result);
+    }
+
+    public function testCanMoveBackToLastLineWhenEmpty(): void
+    {
+        Prompt::fake([
+            'J', 'e', 's', 's', Key::ENTER,
+            Key::UP, Key::DOWN,
+            'J', 'o', 'e',
+            Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame("Jess\nJoe", $result);
+    }
+
+    public function testCorrectlyHandlesMultiByteStringsForDownArrow(): void
     {
         Prompt::fake([
             'ａ',
@@ -189,5 +237,69 @@ class TextareaPromptTest extends TestCase
         Prompt::interactive(false);
         $result = textarea('What is your name?', default: 'Taylor');
         $this->assertSame('Taylor', $result);
+    }
+
+    public function testCorrectlyHandlesAscendingLineLengths(): void
+    {
+        Prompt::fake([
+            'a', Key::ENTER,
+            'b', 'c', Key::ENTER,
+            'd', 'e', 'f',
+            Key::UP,
+            Key::UP,
+            Key::DOWN,
+            'g',
+            Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame("a\nbgc\ndef", $result);
+    }
+
+    public function testCorrectlyHandlesDescendingLineLengths(): void
+    {
+        Prompt::fake([
+            'a', 'b', 'c', Key::ENTER,
+            'd', 'e', Key::ENTER,
+            'f',
+            Key::UP,
+            Key::UP,
+            Key::RIGHT,
+            Key::RIGHT,
+            Key::DOWN,
+            'g',
+            Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame("abc\ndeg\nf", $result);
+    }
+
+    public function testCorrectlyHandlesMultiByteStringsForUpArrow(): void
+    {
+        Prompt::fake([
+            'ａ', 'ｂ', Key::ENTER,
+            'ｃ', 'ｄ', 'ｅ', 'ｆ', Key::ENTER,
+            'ｇ', 'ｈ', 'ｉ', 'j', 'k', 'l', 'm', 'n', 'n', 'o', 'p', 'q', 'r', 's', Key::ENTER,
+            't', 'u', 'v', 'w', 'x', 'y', 'z',
+            Key::UP,
+            Key::UP,
+            Key::UP,
+            Key::UP,
+            Key::RIGHT,
+            Key::DOWN,
+            Key::UP,
+            'y', 'o',
+            Key::CTRL_D,
+        ]);
+
+        $result = textarea(label: 'What is your name?');
+
+        $this->assertSame(
+            "ａyoｂ\nｃｄｅｆ\nｇｈｉjklmnnopqrs\ntuvwxyz",
+            $result
+        );
     }
 }
