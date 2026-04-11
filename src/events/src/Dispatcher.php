@@ -471,7 +471,7 @@ class Dispatcher implements DispatcherContract
      */
     protected function broadcastEvent(ShouldBroadcast $event): void
     {
-        $this->container->make(BroadcastFactory::class)->queue($event); // @phpstan-ignore method.notFound (queue() is on concrete BroadcastManager, not the Factory contract — matches Laravel)
+        $this->container->make(BroadcastFactory::class)->queue($event);
     }
 
     /**
