@@ -166,15 +166,16 @@ class CoroutineSafetyTest extends TestCase
         $this->assertContains(false, $results);
     }
 
-    public function testFallbackWhenCanBeDisabledWithinTheSameCoroutineContext()
+    public function testFallbackWhenIsAdditiveWithinCoroutineContext()
     {
         TextPrompt::fallbackUsing(fn () => 'result');
 
         Prompt::fallbackWhen(true);
         $this->assertTrue(TextPrompt::shouldFallback());
 
+        // Once enabled, fallbackWhen(false) should NOT disable it (additive behavior)
         Prompt::fallbackWhen(false);
-        $this->assertFalse(TextPrompt::shouldFallback());
+        $this->assertTrue(TextPrompt::shouldFallback());
     }
 
     public function testChildCoroutineDoesNotLeakToParent()
