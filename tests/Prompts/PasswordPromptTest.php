@@ -8,7 +8,7 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\PasswordPrompt;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\password;
 

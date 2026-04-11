@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\clear;
 

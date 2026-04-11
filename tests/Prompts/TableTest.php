@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\table;
 

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\pause;
 
