@@ -23,7 +23,7 @@ class RedisJobRepository implements JobRepository
     public array $keys = [
         'id', 'connection', 'queue', 'name', 'status', 'payload',
         'exception', 'context', 'failed_at', 'completed_at', 'retried_by',
-        'reserved_at',
+        'reserved_at', 'delay',
     ];
 
     /**
@@ -309,7 +309,7 @@ class RedisJobRepository implements JobRepository
     /**
      * Mark the job as released / pending.
      */
-    public function released(string $connection, string $queue, JobPayload $payload): void
+    public function released(string $connection, string $queue, JobPayload $payload, int $delay = 0): void
     {
         $this->connection()->hmset(
             $payload->id(),
@@ -317,6 +317,7 @@ class RedisJobRepository implements JobRepository
                 'status' => 'pending',
                 'payload' => $payload->value,
                 'updated_at' => str_replace(',', '.', (string) microtime(true)),
+                'delay' => $delay,
             ]
         );
     }
@@ -362,6 +363,7 @@ class RedisJobRepository implements JobRepository
                         'status' => 'pending',
                         'payload' => $payload->value,
                         'updated_at' => str_replace(',', '.', (string) microtime(true)),
+                        'delay' => 0,
                     ]
                 );
             }

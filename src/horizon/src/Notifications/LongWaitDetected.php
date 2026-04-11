@@ -52,7 +52,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     {
         return (new MailMessage)
             ->error()
-            ->subject(config('app.name') . ': Long Queue Wait Detected')
+            ->subject(config('horizon.name') . ': Long Queue Wait Detected')
             ->greeting('Oh no! Something needs your attention.')
             ->line(sprintf(
                 'The "%s" queue on the "%s" connection has a wait time of %s seconds.',
@@ -67,14 +67,13 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
      */
     public function toSlack(mixed $notifiable): ChannelIdSlackMessage|SlackMessage
     {
-        $fromName = 'Laravel Horizon';
+        $fromName = 'Hypervel Horizon';
         $title = 'Long Wait Detected';
         $text = 'Oh no! Something needs your attention.';
-        $imageUrl = 'https://laravel.com/assets/img/horizon-48px.png';
 
         $content = sprintf(
             '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
-            config('app.name'),
+            config('horizon.name'),
             $this->longWaitQueue,
             $this->longWaitConnection,
             $this->seconds
@@ -86,7 +85,6 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
         ) {
             return (new ChannelIdSlackMessage)
                 ->username($fromName)
-                ->image($imageUrl)
                 ->text($text)
                 ->headerBlock($title)
                 ->sectionBlock(function (SectionBlock $block) use ($content): void { // @phpstan-ignore-line
@@ -97,7 +95,6 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
         return (new SlackMessage) // @phpstan-ignore-line
             ->from($fromName)
             ->to(Horizon::$slackChannel)
-            ->image($imageUrl)
             ->error()
             ->content($text)
             ->attachment(function ($attachment) use ($title, $content) {

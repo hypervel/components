@@ -75,10 +75,12 @@ class JobPayload implements ArrayAccess
      */
     public function prepare(mixed $job): static
     {
+        $tags = $this->determineTags($job);
+
         return $this->set([
             'type' => $this->determineType($job),
-            'tags' => $this->determineTags($job),
-            'silenced' => $this->shouldBeSilenced($job),
+            'tags' => $tags,
+            'silenced' => $this->shouldBeSilenced($job, $tags),
             'pushedAt' => str_replace(',', '.', (string) microtime(true)),
         ]);
     }
@@ -111,7 +113,7 @@ class JobPayload implements ArrayAccess
     /**
      * Determine if the underlying job class should be silenced.
      */
-    protected function shouldBeSilenced(mixed $job): bool
+    protected function shouldBeSilenced(mixed $job, array $tags): bool
     {
         if (! $job) {
             return false;
@@ -122,7 +124,8 @@ class JobPayload implements ArrayAccess
         $jobClass = is_string($underlyingJob) ? $underlyingJob : get_class($underlyingJob);
 
         return in_array($jobClass, config('horizon.silenced', []))
-            || is_a($jobClass, Silenced::class, true);
+            || is_a($jobClass, Silenced::class, true)
+            || count(array_intersect($tags, config('horizon.silenced_tags', []))) > 0;
     }
 
     /**
