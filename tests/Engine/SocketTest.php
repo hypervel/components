@@ -13,6 +13,8 @@ use Hypervel\Tests\TestCase;
 use Swoole\Coroutine\Server;
 use Throwable;
 
+use function Hypervel\Coroutine\go;
+
 /**
  * @internal
  * @coversNothing

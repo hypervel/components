@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Engine;
 use Hypervel\Engine\Signal;
 use Hypervel\Tests\TestCase;
 
+use function Hypervel\Coroutine\go;
+
 /**
  * @internal
  * @coversNothing
