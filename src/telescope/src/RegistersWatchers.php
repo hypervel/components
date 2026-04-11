@@ -6,8 +6,6 @@ namespace Hypervel\Telescope;
 
 use Hypervel\Contracts\Foundation\Application;
 
-use function Hypervel\Config\config;
-
 trait RegistersWatchers
 {
     /**

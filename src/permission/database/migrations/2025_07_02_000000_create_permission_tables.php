@@ -6,8 +6,6 @@ use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
-use function Hypervel\Config\config;
-
 return new class extends Migration {
     /**
      * Get the migration connection name.

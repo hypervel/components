@@ -9,8 +9,6 @@ use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 
-use function Hypervel\Config\config;
-
 class SanctumServiceProvider extends ServiceProvider
 {
     /**

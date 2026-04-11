@@ -26,8 +26,6 @@ use RuntimeException;
 use Throwable;
 
 use function event;
-use function Hypervel\Cache\cache;
-use function Hypervel\Config\config;
 
 class Telescope
 {

@@ -12,8 +12,6 @@ use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
-use function Hypervel\Config\config;
-
 class ProcessPendingUpdates implements ShouldQueue
 {
     use Dispatchable;

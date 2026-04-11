@@ -11,7 +11,6 @@ use Hypervel\Support\Collection;
 use Laravel\SerializableClosure\SerializableClosure;
 use UnitEnum;
 
-use function Hypervel\Bus\dispatch;
 use function Hypervel\Support\enum_value;
 
 class QueuedClosure

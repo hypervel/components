@@ -398,7 +398,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testDoubleUnderscoreHelperReturnsNullWhenKeyIsNull()
     {
-        $this->assertNull(\Hypervel\Translation\__(null));
+        $this->assertNull(__(null));
     }
 
     protected function getLoader()
