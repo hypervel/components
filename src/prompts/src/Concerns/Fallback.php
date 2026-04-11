@@ -39,9 +39,10 @@ trait Fallback
     public static function fallbackWhen(bool $condition): void
     {
         if (Coroutine::inCoroutine()) {
-            CoroutineContext::set(self::SHOULD_FALLBACK_CONTEXT_KEY, $condition);
+            $current = CoroutineContext::get(self::SHOULD_FALLBACK_CONTEXT_KEY) ?? static::$shouldFallback;
+            CoroutineContext::set(self::SHOULD_FALLBACK_CONTEXT_KEY, $condition || $current);
         } else {
-            static::$shouldFallback = $condition;
+            static::$shouldFallback = $condition || static::$shouldFallback;
         }
     }
 
