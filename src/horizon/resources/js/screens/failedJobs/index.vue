@@ -45,6 +45,12 @@
                     this.loadJobs();
                     this.refreshJobsPeriodically();
                 }, 500);
+            },
+
+            '$root.autoLoadsNewEntries'(autoLoadsNewEntries) {
+                if (autoLoadsNewEntries && this.hasNewEntries) {
+                    this.hasNewEntries = false;
+                }
             }
         },
 
@@ -63,6 +69,7 @@
                 this.$http.get(Horizon.basePath + '/api/jobs/failed?' + tagQuery + 'starting_at=' + starting)
                     .then(response => {
                         if (!this.$root.autoLoadsNewEntries && refreshing && !response.data.jobs.length) {
+                            this.ready = true;
                             return;
                         }
 
@@ -164,7 +171,7 @@
              */
             previous() {
                 this.loadJobs(
-                    (this.page - 2) * this.perPage
+                    (this.page - 2) * this.perPage - 1
                 );
 
                 this.page -= 1;
@@ -178,7 +185,7 @@
              */
             next() {
                 this.loadJobs(
-                    this.page * this.perPage
+                    this.page * this.perPage - 1
                 );
 
                 this.page += 1;
@@ -232,7 +239,7 @@
                 </thead>
 
                 <tbody>
-                <tr v-if="hasNewEntries" key="newEntries" class="dontanimate">
+                <tr v-if="hasNewEntries && !this.$root.autoLoadsNewEntries" key="newEntries" class="dontanimate">
                     <td colspan="100" class="text-center card-bg-secondary py-2">
                         <small><a href="#" v-on:click.prevent="loadNewEntries" v-if="!loadingNewEntries">Load New Entries</a></small>
 
