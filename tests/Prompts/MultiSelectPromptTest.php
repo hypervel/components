@@ -8,7 +8,7 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\MultiSelectPrompt;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\multiselect;
 
@@ -271,5 +271,68 @@ class MultiSelectPromptTest extends TestCase
             'Green',
             'Blue',
         ], required: true);
+    }
+
+    public function testSupportsSelectingAllOptions()
+    {
+        Prompt::fake([Key::CTRL_A, Key::ENTER]);
+
+        $result = multiselect(
+            label: 'What are your favorite colors?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ]
+        );
+
+        $this->assertSame(['red', 'green', 'blue'], $result);
+
+        Prompt::fake([Key::CTRL_A, Key::CTRL_A, Key::ENTER]);
+
+        $result = multiselect(
+            label: 'What are your favorite colors?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ]
+        );
+
+        $this->assertSame([], $result);
+    }
+
+    public function testSelectsAllOptionsWhenDefaultIsProvided()
+    {
+        Prompt::fake([Key::CTRL_A, Key::ENTER]);
+
+        $result = multiselect(
+            label: 'What are your favorite colors?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ],
+            default: ['red']
+        );
+
+        $this->assertSame(['red', 'green', 'blue'], $result);
+    }
+
+    public function testDeselectsAllWhenAllOptionsAreAlreadyDefault()
+    {
+        Prompt::fake([Key::CTRL_A, Key::ENTER]);
+
+        $result = multiselect(
+            label: 'What are your favorite colors?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ],
+            default: ['red', 'green', 'blue']
+        );
+
+        $this->assertSame([], $result);
     }
 }
