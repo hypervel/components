@@ -10,6 +10,8 @@ use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Cache\InvalidArgumentException;
 use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
@@ -28,7 +30,9 @@ use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
+use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
@@ -258,7 +262,23 @@ if (! function_exists('cache')) {
      */
     function cache($key = null, $default = null)
     {
-        return \Hypervel\Cache\cache($key, $default);
+        $manager = Container::getInstance()->make('cache');
+
+        if (is_null($key)) {
+            return $manager;
+        }
+
+        if (is_string($key)) {
+            return $manager->get($key, $default);
+        }
+
+        if (! is_array($key)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
+            throw new InvalidArgumentException(
+                'When setting a value in the cache, you must pass an array of key / value pairs.'
+            );
+        }
+
+        return $manager->put(key($key), reset($key), $default);
     }
 }
 
@@ -273,7 +293,17 @@ if (! function_exists('config')) {
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
-        return \Hypervel\Config\config($key, $default);
+        $config = Container::getInstance()->make('config');
+
+        if (is_null($key)) {
+            return $config;
+        }
+
+        if (is_array($key)) {
+            return $config->set($key);
+        }
+
+        return $config->get($key, $default);
     }
 }
 
@@ -293,6 +323,26 @@ if (! function_exists('config_path')) {
     }
 }
 
+if (! function_exists('context')) {
+    /**
+     * Get / set the specified context value.
+     *
+     * @param null|array|string $key
+     * @param mixed $default
+     * @return ($key is string ? mixed : ContextRepository)
+     */
+    function context($key = null, $default = null)
+    {
+        $context = app(ContextRepository::class);
+
+        return match (true) {
+            is_null($key) => $context,
+            is_array($key) => $context->add($key),
+            default => $context->get($key, $default),
+        };
+    }
+}
+
 if (! function_exists('cookie')) {
     /**
      * Create a new cookie instance.
@@ -301,6 +351,7 @@ if (! function_exists('cookie')) {
      */
     function cookie(?string $name = null, ?string $value = null, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): CookieJar|Cookie
     {
+        /** @var CookieJar $cookieManager */
         $cookieManager = app(CookieFactory::class);
 
         if (is_null($name)) {
@@ -317,7 +368,7 @@ if (! function_exists('csrf_field')) {
      */
     function csrf_field(): HtmlString
     {
-        return \Hypervel\Session\csrf_field();
+        return new HtmlString('<input type="hidden" name="_token" value="' . csrf_token() . '" autocomplete="off">');
     }
 }
 
@@ -329,7 +380,13 @@ if (! function_exists('csrf_token')) {
      */
     function csrf_token(): ?string
     {
-        return \Hypervel\Session\csrf_token();
+        $session = app('session');
+
+        if (! isset($session)) {
+            throw new RuntimeException('Application session store not set.');
+        }
+
+        return $session->token();
     }
 }
 
@@ -369,7 +426,9 @@ if (! function_exists('dispatch')) {
      */
     function dispatch($job): PendingClosureDispatch|PendingDispatch
     {
-        return \Hypervel\Bus\dispatch($job);
+        return $job instanceof Closure
+            ? new PendingClosureDispatch(CallQueuedClosure::create($job))
+            : new PendingDispatch($job);
     }
 }
 
@@ -381,7 +440,9 @@ if (! function_exists('dispatch_sync')) {
      */
     function dispatch_sync(mixed $job, mixed $handler = null): mixed
     {
-        return \Hypervel\Bus\dispatch_sync($job, $handler);
+        return Container::getInstance()
+            ->make(BusDispatcherContract::class)
+            ->dispatchSync($job, $handler);
     }
 }
 
@@ -463,7 +524,7 @@ if (! function_exists('logger')) {
     /**
      * Log a debug message to the logs.
      *
-     * @return null|LogManager
+     * @return ($message is null ? LoggerInterface : null)
      */
     function logger(Arrayable|Jsonable|\Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
     {
@@ -680,7 +741,7 @@ if (! function_exists('resolve')) {
     /**
      * Resolve a service from the container.
      *
-     * @template T
+     * @template TClass of object
      *
      * @param class-string<TClass>|string $name
      *
@@ -730,8 +791,6 @@ if (! function_exists('route')) {
     /**
      * Generate the URL to a named route.
      *
-     * @param mixed $parameters
-     *
      * @throws InvalidArgumentException
      */
     function route(BackedEnum|string $name, array $parameters = [], bool $absolute = true): string
@@ -770,7 +829,17 @@ if (! function_exists('session')) {
      */
     function session(array|string|null $key = null, mixed $default = null): mixed
     {
-        return \Hypervel\Session\session($key, $default);
+        $session = app('session');
+
+        if (is_null($key)) {
+            return $session;
+        }
+
+        if (is_array($key)) {
+            return $session->put($key);
+        }
+
+        return $session->get($key, $default);
     }
 }
 
@@ -828,7 +897,14 @@ if (! function_exists('trans')) {
      */
     function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
     {
-        return \Hypervel\Translation\trans($key, $replace, $locale);
+        if (is_null($key)) {
+            return Container::getInstance()
+                ->make('translator');
+        }
+
+        return Container::getInstance()
+            ->make('translator')
+            ->get($key, $replace, $locale);
     }
 }
 
@@ -836,9 +912,11 @@ if (! function_exists('trans_choice')) {
     /**
      * Translates the given message based on a count.
      */
-    function trans_choice(string $key, array|Countable|float|int $number, array $replace = [], ?string $locale = null): string
+    function trans_choice(string $key, Countable|array|float|int $number, array $replace = [], ?string $locale = null): string
     {
-        return \Hypervel\Translation\trans_choice($key, $number, $replace, $locale);
+        return Container::getInstance()
+            ->make('translator')
+            ->choice($key, $number, $replace, $locale);
     }
 }
 
@@ -846,9 +924,13 @@ if (! function_exists('__')) {
     /**
      * Translate the given message.
      */
-    function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
+    function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|null
     {
-        return \Hypervel\Translation\trans($key, $replace, $locale);
+        if (is_null($key)) {
+            return $key;
+        }
+
+        return trans($key, $replace, $locale);
     }
 }
 
@@ -885,10 +967,10 @@ if (! function_exists('url')) {
 if (! function_exists('validator')) {
     /**
      * Create a new Validator instance.
-     * @return ValidatorContract
-     * @throws TypeError
+     *
+     * @return ($data is null ? ValidatorFactoryContract : ValidatorContract)
      */
-    function validator(array $data = [], array $rules = [], array $messages = [], array $customAttributes = [])
+    function validator(?array $data = null, array $rules = [], array $messages = [], array $attributes = []): ValidatorContract|ValidatorFactoryContract
     {
         $factory = app(ValidatorFactoryContract::class);
 
@@ -896,7 +978,7 @@ if (! function_exists('validator')) {
             return $factory;
         }
 
-        return $factory->make($data, $rules, $messages, $customAttributes);
+        return $factory->make($data ?? [], $rules, $messages, $attributes);
     }
 }
 
@@ -913,20 +995,6 @@ if (! function_exists('view')) {
         }
 
         return $factory->make($view, $data, $mergeData);
-    }
-}
-
-if (! function_exists('go')) {
-    function go(callable $callable): bool|int
-    {
-        return \Hypervel\Coroutine\go($callable);
-    }
-}
-
-if (! function_exists('co')) {
-    function co(callable $callable): bool|int
-    {
-        return \Hypervel\Coroutine\co($callable);
     }
 }
 

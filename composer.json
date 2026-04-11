@@ -93,9 +93,6 @@
             "Hypervel\\WebSocketServer\\": "src/websocket-server/src/"
         },
         "files": [
-            "src/bus/src/functions.php",
-            "src/cache/src/functions.php",
-            "src/config/src/functions.php",
             "src/coordinator/src/functions.php",
             "src/coroutine/src/functions.php",
             "src/engine/src/functions.php",
@@ -105,13 +102,11 @@
             "src/log/src/functions.php",
             "src/prompts/src/helpers.php",
             "src/reflection/src/helpers.php",
-            "src/session/src/functions.php",
             "src/collections/src/functions.php",
             "src/collections/src/helpers.php",
             "src/support/src/functions.php",
             "src/support/src/helpers.php",
-            "src/testbench/src/functions.php",
-            "src/translation/src/functions.php"
+            "src/testbench/src/functions.php"
         ]
     },
     "autoload-dev": {

@@ -42,10 +42,7 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\Bus\\": "src/"
-        },
-        "files": [
-            "src/functions.php"
-        ]
+        }
     },
     "extra": {
         "hypervel": {
