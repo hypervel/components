@@ -9,12 +9,14 @@ use GuzzleHttp\Psr7\Response;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\OpenIdTestProviderStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
+use ReflectionMethod;
 
 /**
  * @internal
@@ -111,5 +113,68 @@ class OpenIdProviderTest extends TestCase
         $this->assertSame('refresh_token', $user->refreshToken);
         $this->assertSame(3600, $user->expiresIn);
         $this->assertSame($user->id, $provider->user()->id);
+    }
+
+    public function testSetConfigOverridesAudienceValidationPass()
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')
+            ->andReturn($session = m::mock(SessionContract::class));
+        $session->allows('has')->with('nonce')->andReturns(true);
+        $session->allows('get')->with('nonce')->andReturns('test-nonce');
+
+        $provider = new OpenIdTestProviderStub(
+            $request,
+            'original_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->http = m::mock(Client::class);
+        $provider->http->allows('get')->with('http://base.url/.well-known/openid-configuration')
+            ->andReturns(new Response(
+                body: json_encode(['issuer' => 'http://base.url'])
+            ));
+
+        $provider->setConfig(['client_id' => 'tenant_id']);
+
+        $method = new ReflectionMethod($provider, 'validateOIDCPayload');
+
+        // Should pass — aud matches overridden client_id
+        $method->invoke($provider, [
+            'nonce' => 'test-nonce',
+            'aud' => 'tenant_id',
+            'iss' => 'http://base.url',
+        ]);
+
+        $this->assertTrue(true);
+    }
+
+    public function testSetConfigOverridesAudienceValidationFail()
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')
+            ->andReturn($session = m::mock(SessionContract::class));
+        $session->allows('has')->with('nonce')->andReturns(true);
+        $session->allows('get')->with('nonce')->andReturns('test-nonce');
+
+        $provider = new OpenIdTestProviderStub(
+            $request,
+            'original_id',
+            'client_secret',
+            'redirect'
+        );
+
+        $provider->setConfig(['client_id' => 'tenant_id']);
+
+        $method = new ReflectionMethod($provider, 'validateOIDCPayload');
+
+        // Should fail — aud matches the original constructor client_id, not the override
+        $this->expectException(InvalidAudienceException::class);
+
+        $method->invoke($provider, [
+            'nonce' => 'test-nonce',
+            'aud' => 'original_id',
+            'iss' => 'http://base.url',
+        ]);
     }
 }
