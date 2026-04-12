@@ -9,7 +9,7 @@ use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
-use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
+use Hypervel\Socialite\Two\InvalidStateException;
 use Hypervel\Socialite\Two\Token;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Support\Str;
@@ -217,7 +217,7 @@ class OAuthTwoTest extends TestCase
             'redirect_uri'
         );
         $provider->http = m::mock(Client::class);
-        $provider->http->expects('post')->with('https://graph.facebook.com/v3.3/oauth/access_token', [
+        $provider->http->expects('post')->with('https://graph.facebook.com/v23.0/oauth/access_token', [
             'form_params' => ['grant_type' => 'authorization_code', 'client_id' => 'client_id', 'client_secret' => 'client_secret', 'code' => 'code', 'redirect_uri' => 'redirect_uri'],
         ])->andReturns($response = m::mock(ResponseInterface::class));
         $stream = m::mock(StreamInterface::class);
