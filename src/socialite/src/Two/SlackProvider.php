@@ -42,7 +42,7 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
      */
     protected function setScopeKey(string $scopeKey): static
     {
-        $this->setContext($scopeKey, $scopeKey);
+        $this->setContext('scopeKey', $scopeKey);
 
         return $this;
     }
