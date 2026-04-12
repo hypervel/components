@@ -6,8 +6,8 @@ namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
-use Hypervel\Support\Str;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -35,14 +35,21 @@ class FswatchDriver extends AbstractDriver
             throw new RuntimeException('fswatch failed.');
         }
 
+        $basePath = base_path();
+        $watchPaths = $this->option->getWatchPaths();
+
         while (! $channel->isClosing()) {
             $ret = fread($pipes[1], 8192);
             if (is_string($ret) && $ret !== '') {
-                Coroutine::create(function () use ($ret, $channel) {
+                Coroutine::create(function () use ($ret, $channel, $basePath, $watchPaths) {
                     $files = array_filter(explode("\n", $ret));
                     foreach ($files as $file) {
-                        if (Str::endsWith($file, $this->option->getExt())) {
-                            $channel->push($file);
+                        $relativePath = substr($file, strlen($basePath) + 1);
+                        foreach ($watchPaths as $watchPath) {
+                            if ($watchPath->matches($relativePath)) {
+                                $channel->push($file);
+                                break;
+                            }
                         }
                     }
                 });
@@ -58,9 +65,10 @@ class FswatchDriver extends AbstractDriver
         parent::stop();
 
         if (is_resource($this->process)) {
-            $running = proc_get_status($this->process)['running'];
-            // Kill the child process to exit.
-            $running && proc_terminate($this->process, SIGKILL);
+            if (proc_get_status($this->process)['running']) {
+                proc_terminate($this->process, SIGKILL);
+            }
+            proc_close($this->process);
         }
     }
 
@@ -69,8 +77,10 @@ class FswatchDriver extends AbstractDriver
      */
     protected function getCmd(): string
     {
-        $dir = $this->option->getWatchDir();
-        $file = $this->option->getWatchFile();
+        $paths = array_map(
+            fn (WatchPath $p) => base_path($p->path),
+            $this->option->getWatchPaths(),
+        );
 
         $cmd = 'fswatch ';
         if (! $this->isDarwin()) {
@@ -79,6 +89,6 @@ class FswatchDriver extends AbstractDriver
             $cmd .= ' --event Created --event Updated --event Removed --event Renamed ';
         }
 
-        return $cmd . implode(' ', $dir) . ' ' . implode(' ', $file);
+        return $cmd . implode(' ', $paths);
     }
 }
