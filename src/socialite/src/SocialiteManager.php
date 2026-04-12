@@ -41,7 +41,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $provider = parent::driver($driver);
 
-        if ($provider instanceof Two\AbstractProvider || $provider instanceof One\AbstractProvider) {
+        if ($provider instanceof Two\AbstractProvider) {
             $provider->setRequest($this->container->make('request'));
         }
 
@@ -210,7 +210,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
             $config['client_secret'],
             $this->formatRedirectUrl($config),
             Arr::get($config, 'guzzle', [])
-        ))->scopes($config['scopes'] ?? []);
+        ))->withConfig($config);
     }
 
     /**
