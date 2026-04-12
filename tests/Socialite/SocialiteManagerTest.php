@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
+use Hypervel\Config\Repository;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
@@ -256,5 +257,39 @@ class SocialiteManagerTest extends TestCase
 
         $provider = $factory->driver('generic');
         $this->assertSame($secondRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
+    }
+
+    public function testSetContainerRefreshesConfig()
+    {
+        $factory = $this->app->make(SocialiteManager::class);
+
+        $originalConfig = (new ReflectionProperty($factory, 'config'))->getValue($factory);
+
+        // Create a new config repository with different values
+        $newConfig = new Repository([
+            'services' => [
+                'github' => [
+                    'client_id' => 'new-client-id',
+                    'client_secret' => 'new-client-secret',
+                    'redirect' => 'https://new.example.com/callback',
+                ],
+            ],
+        ]);
+
+        // Bind the new config and call setContainer
+        $this->app->instance('config', $newConfig);
+        $factory->setContainer($this->app);
+
+        $refreshedConfig = (new ReflectionProperty($factory, 'config'))->getValue($factory);
+
+        $this->assertNotSame($originalConfig, $refreshedConfig);
+        $this->assertSame($newConfig, $refreshedConfig);
+
+        // Verify the manager uses the new config for driver creation
+        $factory->forgetDrivers();
+        $provider = $factory->driver('github');
+        $provider->stateless();
+
+        $this->assertStringContainsString('client_id=new-client-id', $provider->redirect()->getTargetUrl());
     }
 }
