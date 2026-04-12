@@ -24,10 +24,8 @@ class HorizonServiceProvider extends ServiceProvider
         $this->registerEvents();
         $this->registerRoutes();
         $this->registerResources();
-        if ($this->app->runningInConsole()) {
-            $this->registerPublishing();
-            $this->registerCommands();
-        }
+        $this->offerPublishing();
+        $this->registerCommands();
     }
 
     /**
@@ -59,10 +57,14 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::middleware(config('horizon.middleware', ['web']))
-            ->prefix(config('horizon.path'))
-            ->namespace('Hypervel\Horizon\Http\Controllers')
-            ->group(__DIR__ . '/../routes/web.php');
+        Route::group([
+            'domain' => config('horizon.domain', null),
+            'prefix' => config('horizon.path'),
+            'namespace' => 'Hypervel\Horizon\Http\Controllers',
+            'middleware' => config('horizon.middleware', ['web']),
+        ], function () {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
+        });
     }
 
     /**
@@ -76,15 +78,17 @@ class HorizonServiceProvider extends ServiceProvider
     /**
      * Setup the resource publishing groups for Horizon.
      */
-    protected function registerPublishing(): void
+    protected function offerPublishing(): void
     {
-        $this->publishes([
-            __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
-        ], 'horizon-config');
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__ . '/../stubs/HorizonServiceProvider.stub' => app_path('Providers/HorizonServiceProvider.php'),
+            ], 'horizon-provider');
 
-        $this->publishes([
-            __DIR__ . '/../stubs/HorizonServiceProvider.stub' => app_path('Providers/HorizonServiceProvider.php'),
-        ], 'horizon-provider');
+            $this->publishes([
+                __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
+            ], 'horizon-config');
+        }
     }
 
     /**
@@ -102,6 +106,7 @@ class HorizonServiceProvider extends ServiceProvider
                 Console\HorizonCommand::class,
                 Console\InstallCommand::class,
                 Console\ListCommand::class,
+                Console\ListenCommand::class,
                 Console\PauseCommand::class,
                 Console\PauseSupervisorCommand::class,
                 Console\PurgeCommand::class,
