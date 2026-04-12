@@ -37,7 +37,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
                 RequestOptions::HEADERS => [
                     'Accept' => 'application/json',
                     'Authorization' => 'Bearer ' . $token,
-                    'Client-ID' => $this->clientId,
+                    'Client-ID' => $this->getClientId(),
                 ],
             ]
         );
