@@ -8,9 +8,8 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 
 class ScanFileDriverStub extends ScanFileDriver
 {
-    protected function getWatchMD5(&$files): array
+    protected function getWatchMD5(): array
     {
-        $files[] = '.env';
         return ['.env' => md5(strval(microtime()))];
     }
 }

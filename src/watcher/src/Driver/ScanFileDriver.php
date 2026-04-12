@@ -7,7 +7,6 @@ namespace Hypervel\Watcher\Driver;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Support\Str;
 use Hypervel\Watcher\Option;
 use Symfony\Component\Finder\SplFileInfo;
 
@@ -30,24 +29,37 @@ class ScanFileDriver extends AbstractDriver
     {
         $seconds = $this->option->getScanIntervalSeconds();
         $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
-            $files = [];
-            $currentMD5 = $this->getWatchMD5($files);
+            $currentMD5 = $this->getWatchMD5();
             if ($this->lastMD5 && $this->lastMD5 !== $currentMD5) {
-                $changeFilesMD5 = array_diff(array_values($this->lastMD5), array_values($currentMD5));
-                $addFiles = array_diff(array_keys($currentMD5), array_keys($this->lastMD5));
-                foreach ($addFiles as $file) {
-                    $channel->push($file);
+                // Added files (in current but not in last).
+                $addedFiles = array_diff_key($currentMD5, $this->lastMD5);
+                foreach ($addedFiles as $pathName => $md5) {
+                    $channel->push($pathName);
                 }
-                $deleteFiles = array_diff(array_keys($this->lastMD5), array_keys($currentMD5));
-                $deleteCount = count($deleteFiles);
 
-                $watchingLog = sprintf('%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.', self::class, count($currentMD5), count($changeFilesMD5), count($addFiles), $deleteCount);
-                $this->logger->debug($watchingLog);
+                // Deleted files (in last but not in current).
+                $deletedFiles = array_diff_key($this->lastMD5, $currentMD5);
 
-                if ($deleteCount === 0) {
-                    $changeFilesIdx = array_keys($changeFilesMD5);
-                    foreach ($changeFilesIdx as $idx) {
-                        isset($files[$idx]) && $channel->push($files[$idx]);
+                // Modified files (same path, different hash).
+                $modifiedFiles = [];
+                foreach ($currentMD5 as $pathName => $md5) {
+                    if (isset($this->lastMD5[$pathName]) && $this->lastMD5[$pathName] !== $md5) {
+                        $modifiedFiles[] = $pathName;
+                    }
+                }
+
+                $this->logger->debug(sprintf(
+                    '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
+                    self::class,
+                    count($currentMD5),
+                    count($modifiedFiles),
+                    count($addedFiles),
+                    count($deletedFiles),
+                ));
+
+                if (count($deletedFiles) === 0) {
+                    foreach ($modifiedFiles as $pathName) {
+                        $channel->push($pathName);
                     }
                 } else {
                     $this->logger->warning('Delete files must be restarted manually to take effect.');
@@ -60,37 +72,33 @@ class ScanFileDriver extends AbstractDriver
     /**
      * Compute MD5 checksums for all watched files.
      */
-    protected function getWatchMD5(array &$files): array
+    protected function getWatchMD5(): array
     {
         $filesMD5 = [];
-        $filesObj = [];
-        $dir = $this->option->getWatchDir();
-        $ext = $this->option->getExt();
-        // Scan all watch dirs.
-        foreach ($dir as $d) {
-            $filesObj = array_merge($filesObj, $this->filesystem->allFiles(base_path($d)));
-        }
-        /** @var SplFileInfo $obj */
-        foreach ($filesObj as $obj) {
-            $pathName = $obj->getPathName();
-            if (Str::endsWith($pathName, $ext)) {
-                $files[] = $pathName;
-                $contents = file_get_contents($pathName);
-                $filesMD5[$pathName] = md5($contents);
+        $basePath = base_path();
+
+        // Scan watched directories.
+        foreach ($this->option->getDirectoryPaths() as $watchPath) {
+            $allFiles = $this->filesystem->allFiles(base_path($watchPath->path));
+            /** @var SplFileInfo $obj */
+            foreach ($allFiles as $obj) {
+                $pathName = $obj->getPathName();
+                $relativePath = substr($pathName, strlen($basePath) + 1);
+                if (! $watchPath->matches($relativePath)) {
+                    continue;
+                }
+                $filesMD5[$pathName] = md5(file_get_contents($pathName));
             }
         }
-        // Scan all watch files.
-        $file = $this->option->getWatchFile();
-        $filesObj = $this->filesystem->files(base_path(), true);
-        /** @var SplFileInfo $obj */
-        foreach ($filesObj as $obj) {
-            $pathName = $obj->getPathName();
-            if (Str::endsWith($pathName, $file)) {
-                $files[] = $pathName;
-                $contents = file_get_contents($pathName);
-                $filesMD5[$pathName] = md5($contents);
+
+        // Check individual watched files.
+        foreach ($this->option->getFilePaths() as $watchPath) {
+            $pathName = base_path($watchPath->path);
+            if (file_exists($pathName)) {
+                $filesMD5[$pathName] = md5(file_get_contents($pathName));
             }
         }
+
         return $filesMD5;
     }
 }
