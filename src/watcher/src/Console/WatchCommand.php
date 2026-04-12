@@ -9,6 +9,7 @@ use Hypervel\Console\Concerns\NullDisableEventDispatcher;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\ServerRestartStrategy;
 use Hypervel\Watcher\Watcher;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -23,8 +24,7 @@ class WatchCommand extends Command
     {
         parent::__construct('watch');
         $this->setDescription('Watch for file changes and automatically restart the server.');
-        $this->addOption('file', 'F', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Additional files to watch', []);
-        $this->addOption('dir', 'D', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Additional directories to watch', []);
+        $this->addOption('path', 'P', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Additional paths to watch', []);
         $this->addOption('no-restart', 'N', InputOption::VALUE_NONE, 'Detect changes without restarting the server');
     }
 
@@ -39,18 +39,27 @@ class WatchCommand extends Command
             );
         }
 
-        $options = $this->container->make('config')->get('watcher', []);
+        $config = $this->container->make('config')->get('watcher', []);
 
-        $option = $this->container->make(Option::class, [
-            'options' => $options,
-            'dir' => $this->input->getOption('dir'),
-            'file' => $this->input->getOption('file'),
-            'restart' => ! $this->input->getOption('no-restart'),
-        ]);
+        $option = Option::fromConfig(
+            config: $config,
+            basePath: base_path(),
+            extraPaths: $this->input->getOption('path'),
+        );
+
+        $driver = $this->container->make($option->getDriver(), ['option' => $option]);
+
+        $strategy = null;
+        if (! $this->input->getOption('no-restart')) {
+            $strategy = $this->container->make(ServerRestartStrategy::class, [
+                'output' => $this->output,
+            ]);
+        }
 
         $watcher = $this->container->make(Watcher::class, [
-            'option' => $option,
+            'driver' => $driver,
             'output' => $this->output,
+            'strategy' => $strategy,
         ]);
 
         $watcher->run();
