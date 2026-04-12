@@ -40,7 +40,9 @@
         "hypervel/notifications": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/redis": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "hypervel/watcher": "^0.4",
+        "symfony/process": "^8.0"
     },
     "autoload": {
         "psr-4": {
