@@ -8,41 +8,104 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 
 class Option
 {
-    protected string $driver = ScanFileDriver::class;
-
-    protected string $bin = PHP_BINARY;
-
-    protected string $command = 'artisan serve';
+    /**
+     * @param WatchPath[] $watchPaths
+     */
+    public function __construct(
+        protected string $driver = ScanFileDriver::class,
+        protected array $watchPaths = [],
+        protected int $scanInterval = 2000,
+    ) {
+    }
 
     /**
-     * @var string[]
+     * Create an Option from a watcher config array.
+     *
+     * @param string $basePath Absolute base path for directory detection (typically base_path())
+     * @param string[] $extraPaths Additional watch paths from CLI flags
      */
-    protected array $watchDir = ['app', 'config'];
-
-    /**
-     * @var string[]
-     */
-    protected array $watchFile = ['.env'];
-
-    /**
-     * @var string[]
-     */
-    protected array $ext = ['.php', '.env'];
-
-    protected int $scanInterval = 2000;
-
-    public function __construct(array $options = [], array $dir = [], array $file = [], protected bool $restart = true)
+    public static function fromConfig(array $config, string $basePath, array $extraPaths = []): static
     {
-        isset($options['driver']) && $this->driver = $options['driver'];
-        isset($options['bin']) && $this->bin = $options['bin'];
-        isset($options['command']) && $this->command = $options['command'];
-        isset($options['watch']['dir']) && $this->watchDir = (array) $options['watch']['dir'];
-        isset($options['watch']['file']) && $this->watchFile = (array) $options['watch']['file'];
-        isset($options['watch']['scan_interval']) && $this->scanInterval = (int) $options['watch']['scan_interval'];
-        isset($options['ext']) && $this->ext = (array) $options['ext'];
+        $rawPaths = array_unique(array_merge($config['watch'] ?? [], $extraPaths));
 
-        $this->watchDir = array_unique(array_merge($this->watchDir, $dir));
-        $this->watchFile = array_unique(array_merge($this->watchFile, $file));
+        $watchPaths = array_map(
+            fn (string $entry) => self::parseEntry($entry, $basePath),
+            array_values($rawPaths),
+        );
+
+        return new static(
+            driver: $config['driver'] ?? ScanFileDriver::class,
+            watchPaths: $watchPaths,
+            scanInterval: (int) ($config['scan_interval'] ?? 2000),
+        );
+    }
+
+    /**
+     * Parse a single watch config entry into a WatchPath.
+     */
+    protected static function parseEntry(string $entry, string $basePath): WatchPath
+    {
+        if (preg_match('/[*?{\[]/', $entry)) {
+            return self::parseGlob($entry);
+        }
+
+        if (is_dir($basePath . '/' . $entry)) {
+            return new WatchPath($entry, WatchPathType::Directory);
+        }
+
+        return new WatchPath($entry, WatchPathType::File);
+    }
+
+    /**
+     * Parse a glob pattern into a WatchPath with base directory and pattern.
+     */
+    protected static function parseGlob(string $glob): WatchPath
+    {
+        preg_match('/[*?{\[]/', $glob, $matches, PREG_OFFSET_CAPTURE);
+        $wildcardPos = $matches[0][1];
+        $baseDir = rtrim(substr($glob, 0, $wildcardPos), '/');
+
+        return new WatchPath(
+            path: $baseDir ?: '.',
+            type: WatchPathType::Directory,
+            pattern: $glob,
+        );
+    }
+
+    /**
+     * Get all watch paths.
+     *
+     * @return WatchPath[]
+     */
+    public function getWatchPaths(): array
+    {
+        return $this->watchPaths;
+    }
+
+    /**
+     * Get watch paths that are directories.
+     *
+     * @return WatchPath[]
+     */
+    public function getDirectoryPaths(): array
+    {
+        return array_values(array_filter(
+            $this->watchPaths,
+            fn (WatchPath $p) => $p->type === WatchPathType::Directory,
+        ));
+    }
+
+    /**
+     * Get watch paths that are individual files.
+     *
+     * @return WatchPath[]
+     */
+    public function getFilePaths(): array
+    {
+        return array_values(array_filter(
+            $this->watchPaths,
+            fn (WatchPath $p) => $p->type === WatchPathType::File,
+        ));
     }
 
     /**
@@ -51,57 +114,6 @@ class Option
     public function getDriver(): string
     {
         return $this->driver;
-    }
-
-    /**
-     * Get the PHP binary path, quoted if it contains spaces.
-     */
-    public function getBin(): string
-    {
-        if (str_contains($this->bin, ' ')) {
-            // If the binary path contains spaces, we need to wrap it in quotes.
-            return '"' . $this->bin . '"';
-        }
-
-        return $this->bin;
-    }
-
-    /**
-     * Get the server start command.
-     */
-    public function getCommand(): string
-    {
-        return $this->command;
-    }
-
-    /**
-     * Get the directories to watch.
-     *
-     * @return string[]
-     */
-    public function getWatchDir(): array
-    {
-        return $this->watchDir;
-    }
-
-    /**
-     * Get the individual files to watch.
-     *
-     * @return string[]
-     */
-    public function getWatchFile(): array
-    {
-        return $this->watchFile;
-    }
-
-    /**
-     * Get the file extensions to watch.
-     *
-     * @return string[]
-     */
-    public function getExt(): array
-    {
-        return $this->ext;
     }
 
     /**
@@ -118,13 +130,5 @@ class Option
     public function getScanIntervalSeconds(): float
     {
         return $this->getScanInterval() / 1000;
-    }
-
-    /**
-     * Determine if the server should be restarted on file changes.
-     */
-    public function isRestart(): bool
-    {
-        return $this->restart;
     }
 }
