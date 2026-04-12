@@ -846,8 +846,7 @@ class PrecognitionTest extends RoutingTestCase
             fail();
         })->middleware(PrecognitionInvokingController::class);
 
-        $response = $this->postJson('test-route', [
-        ], [
+        $response = $this->postJson('test-route', [], [
             'Precognition' => 'true',
             'Precognition-Validate-Only' => 'escaped\.dot',
         ]);
@@ -875,8 +874,7 @@ class PrecognitionTest extends RoutingTestCase
             fail();
         })->middleware(PrecognitionInvokingController::class);
 
-        $response = $this->postJson('test-route', [
-        ], [
+        $response = $this->postJson('test-route', [], [
             'Precognition' => 'true',
             'Precognition-Validate-Only' => 'escaped\.dot',
         ]);
@@ -899,8 +897,7 @@ class PrecognitionTest extends RoutingTestCase
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
 
-        $response = $this->postJson('test-route', [
-        ], [
+        $response = $this->postJson('test-route', [], [
             'Precognition' => 'true',
             'Precognition-Validate-Only' => 'escaped\.dot',
         ]);
@@ -923,8 +920,7 @@ class PrecognitionTest extends RoutingTestCase
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
 
-        $response = $this->postJson('test-route', [
-        ], [
+        $response = $this->postJson('test-route', [], [
             'Precognition' => 'true',
             'Precognition-Validate-Only' => 'escaped\.dot',
         ]);

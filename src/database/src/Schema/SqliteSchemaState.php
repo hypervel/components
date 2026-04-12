@@ -18,8 +18,7 @@ class SqliteSchemaState extends SchemaState
     {
         $process = $this->makeProcess($this->baseCommand() . ' ".schema --indent"')
             ->setTimeout(null)
-            ->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
-            ]));
+            ->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
 
         $migrations = preg_replace('/CREATE TABLE sqlite_.+?\);[\r\n]+/is', '', $process->getOutput());
 
@@ -37,8 +36,7 @@ class SqliteSchemaState extends SchemaState
     {
         $process = $this->makeProcess(
             $this->baseCommand() . ' ".dump \'' . $this->getMigrationTable() . '\'"'
-        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
-        ]));
+        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
 
         $migrations = (new Collection(preg_split("/\r\n|\n|\r/", $process->getOutput())))
             ->filter(fn ($line) => preg_match('/^\s*(--|INSERT\s)/iu', $line) === 1 && strlen($line) > 0)

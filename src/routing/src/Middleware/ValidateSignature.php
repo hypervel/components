@@ -17,8 +17,7 @@ class ValidateSignature
      *
      * @var array<int, string>
      */
-    protected array $ignore = [
-    ];
+    protected array $ignore = [];
 
     /**
      * The globally ignored parameters.
