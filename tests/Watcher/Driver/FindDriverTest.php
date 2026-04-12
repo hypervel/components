@@ -6,10 +6,11 @@ namespace Hypervel\Tests\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
-use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
 use Hypervel\Tests\Watcher\Fixtures\FindDriverStub;
 use Hypervel\Watcher\Driver\FindDriver;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\WatchPath;
+use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
 
 /**
@@ -20,8 +21,15 @@ class FindDriverTest extends TestCase
 {
     public function testWatch()
     {
-        $container = ContainerStub::getContainer(FindDriver::class);
-        $option = new Option($container->make('config')->get('watcher'), [], []);
+        $option = new Option(
+            driver: FindDriver::class,
+            watchPaths: [
+                new WatchPath('/tmp', WatchPathType::Directory),
+                new WatchPath('.env', WatchPathType::File),
+            ],
+            scanInterval: 1,
+        );
+
         $channel = new Channel(10);
 
         try {

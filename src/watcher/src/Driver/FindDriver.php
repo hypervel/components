@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
-use Hypervel\Support\Str;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
 
 class FindDriver extends AbstractDriver
@@ -68,7 +68,7 @@ class FindDriver extends AbstractDriver
     /**
      * Find changed files in the given targets using the `find` command.
      */
-    protected function find(array $fileModifyTimes, array $targets, string $minutes, array $ext = []): array
+    protected function find(array $fileModifyTimes, array $targets, string $minutes): array
     {
         $changedFiles = [];
         $dest = implode(' ', $targets);
@@ -81,9 +81,6 @@ class FindDriver extends AbstractDriver
                 $pathName = $line;
                 $modifyTime = filemtime($pathName);
                 if ($modifyTime <= $this->startTime) {
-                    continue;
-                }
-                if (! empty($ext) && ! Str::endsWith($pathName, $ext)) {
                     continue;
                 }
 
@@ -111,16 +108,40 @@ class FindDriver extends AbstractDriver
      */
     protected function scan(array $fileModifyTimes, string $minutes): array
     {
-        $ext = $this->option->getExt();
+        $changedFiles = [];
+        $basePath = base_path();
+        $directoryPaths = $this->option->getDirectoryPaths();
 
-        $dirs = array_map(fn ($dir) => base_path($dir), $this->option->getWatchDir());
+        // Scan all directories in a single find call.
+        $dirs = array_map(
+            fn (WatchPath $p) => base_path($p->path),
+            $directoryPaths,
+        );
 
-        [$fileModifyTimes, $changedFilesInDirs] = $this->find($fileModifyTimes, $dirs, $minutes, $ext);
+        if ($dirs !== []) {
+            [$fileModifyTimes, $found] = $this->find($fileModifyTimes, $dirs, $minutes);
+            foreach ($found as $file) {
+                $relativePath = substr($file, strlen($basePath) + 1);
+                foreach ($directoryPaths as $watchPath) {
+                    if ($watchPath->matches($relativePath)) {
+                        $changedFiles[] = $file;
+                        break;
+                    }
+                }
+            }
+        }
 
-        $files = array_map(fn ($file) => base_path($file), $this->option->getWatchFile());
+        // Check individual watched files.
+        $files = array_map(
+            fn (WatchPath $p) => base_path($p->path),
+            $this->option->getFilePaths(),
+        );
 
-        [$fileModifyTimes, $changedFiles] = $this->find($fileModifyTimes, $files, $minutes);
+        if ($files !== []) {
+            [$fileModifyTimes, $changed] = $this->find($fileModifyTimes, $files, $minutes);
+            $changedFiles = array_merge($changedFiles, $changed);
+        }
 
-        return [$fileModifyTimes, array_merge($changedFilesInDirs, $changedFiles)];
+        return [$fileModifyTimes, $changedFiles];
     }
 }
