@@ -9,7 +9,6 @@ use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\AbstractProvider as BaseProvider;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
-use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 

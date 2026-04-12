@@ -12,7 +12,6 @@ use Hypervel\Socialite\Two\Exceptions\ConfigurationFetchingException;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
 use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
-use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Socialite\Two\Exceptions\InvalidUserInfoUrlException;
 use Hypervel\Support\Str;
 use Throwable;
