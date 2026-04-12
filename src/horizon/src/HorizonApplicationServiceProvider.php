@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\ServiceProvider;
 
@@ -25,8 +24,8 @@ class HorizonApplicationServiceProvider extends ServiceProvider
     {
         $this->gate();
 
-        Horizon::auth(function (Request $request) {
-            return Gate::check('viewHorizon', $request);
+        Horizon::auth(function ($request) {
+            return Gate::check('viewHorizon', [$request->user()]) || app()->environment('local');
         });
     }
 
@@ -37,8 +36,8 @@ class HorizonApplicationServiceProvider extends ServiceProvider
      */
     protected function gate(): void
     {
-        Gate::define('viewHorizon', function ($request) {
-            return app()->environment('local');
+        Gate::define('viewHorizon', function ($user) {
+            return in_array($user->email, []);
         });
     }
 
