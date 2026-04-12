@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
-use Hypervel\Support\Str;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
 
 class FindNewerDriver extends AbstractDriver
@@ -40,27 +40,28 @@ class FindNewerDriver extends AbstractDriver
                 return;
             }
             $this->scanning = true;
-            $changedFiles = $this->scan();
-            ++$this->count;
-            // Update reference file mtimes after detecting changes.
-            if ($changedFiles) {
-                $this->exec('echo 1 > ' . $this->getToModifyFile());
-                $this->exec('echo 1 > ' . $this->getToScanFile());
-            }
+            try {
+                $changedFiles = $this->scan();
+                ++$this->count;
+                // Update reference file mtimes after detecting changes.
+                if ($changedFiles) {
+                    $this->exec('echo 1 > ' . $this->getToModifyFile());
+                    $this->exec('echo 1 > ' . $this->getToScanFile());
+                }
 
-            foreach ($changedFiles as $file) {
-                $channel->push($file);
+                foreach ($changedFiles as $file) {
+                    $channel->push($file);
+                }
+            } finally {
                 $this->scanning = false;
-                return;
             }
-            $this->scanning = false;
         });
     }
 
     /**
      * Find files newer than the reference file in the given targets.
      */
-    protected function find(array $targets, array $ext = []): array
+    protected function find(array $targets): array
     {
         $changedFiles = [];
 
@@ -82,9 +83,6 @@ class FindNewerDriver extends AbstractDriver
                     continue;
                 }
 
-                if (! empty($ext) && ! Str::endsWith($pathName, $ext)) {
-                    continue;
-                }
                 $changedFiles[] = $pathName;
             }
         }
@@ -97,15 +95,40 @@ class FindNewerDriver extends AbstractDriver
      */
     protected function scan(): array
     {
-        $ext = $this->option->getExt();
-        $dirs = array_map(fn ($dir) => base_path($dir), $this->option->getWatchDir());
-        $files = array_map(fn ($file) => base_path($file), $this->option->getWatchFile());
+        $changedFiles = [];
+        $basePath = base_path();
+        $directoryPaths = $this->option->getDirectoryPaths();
 
-        if ($files) {
-            $dirs[] = implode(' ', $files);
+        // Scan all directories in a single parallelised find call.
+        $dirs = array_map(
+            fn (WatchPath $p) => base_path($p->path),
+            $directoryPaths,
+        );
+
+        if ($dirs !== []) {
+            $found = $this->find($dirs);
+            foreach ($found as $file) {
+                $relativePath = substr($file, strlen($basePath) + 1);
+                foreach ($directoryPaths as $watchPath) {
+                    if ($watchPath->matches($relativePath)) {
+                        $changedFiles[] = $file;
+                        break;
+                    }
+                }
+            }
         }
 
-        return $this->find($dirs, $ext);
+        // Check individual watched files.
+        $files = array_map(
+            fn (WatchPath $p) => base_path($p->path),
+            $this->option->getFilePaths(),
+        );
+
+        if ($files !== []) {
+            $changedFiles = array_merge($changedFiles, $this->find($files));
+        }
+
+        return $changedFiles;
     }
 
     /**
