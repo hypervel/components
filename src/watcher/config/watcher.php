@@ -23,6 +23,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scan Interval
+    |--------------------------------------------------------------------------
+    |
+    | How often the watcher polls for file changes, in milliseconds. This
+    | applies to all polling-based drivers (ScanFile, Find, FindNewer).
+    | The FswatchDriver uses OS-level events and ignores this setting.
+    |
+    */
+
+    'scan_interval' => 2000,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Watch Paths
+    |--------------------------------------------------------------------------
+    |
+    | Paths and glob patterns to monitor for changes. Each entry can be
+    | a directory name (watches all files recursively), a glob pattern
+    | (watches matching files only), or a specific file path. See the
+    | Symfony Finder Glob documentation for supported pattern syntax.
+    |
+    */
+
+    'watch' => [
+        'app/**/*.php',
+        'config/**/*.php',
+        '.env',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | PHP Binary Path
     |--------------------------------------------------------------------------
     |
@@ -42,31 +73,4 @@ return [
     */
 
     'command' => 'artisan serve',
-
-    /*
-    |--------------------------------------------------------------------------
-    | Watch Paths
-    |--------------------------------------------------------------------------
-    |
-    | Directories and individual files to monitor for changes. Directories
-    | are scanned recursively. Individual files are checked directly.
-    |
-    */
-
-    'watch' => [
-        'dir' => ['app', 'config'],
-        'file' => ['.env'],
-        'scan_interval' => 2000,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | File Extensions
-    |--------------------------------------------------------------------------
-    |
-    | Only files matching these extensions will trigger a reload.
-    |
-    */
-
-    'ext' => ['.php', '.env'],
 ];
