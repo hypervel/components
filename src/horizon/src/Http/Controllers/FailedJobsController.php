@@ -9,7 +9,7 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 
-class FailedJobsController
+class FailedJobsController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -18,6 +18,7 @@ class FailedJobsController
         public JobRepository $jobs,
         public TagRepository $tags
     ) {
+        parent::__construct();
     }
 
     /**

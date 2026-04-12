@@ -11,7 +11,7 @@ use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\DB;
 
-class BatchesController
+class BatchesController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -21,6 +21,7 @@ class BatchesController
     public function __construct(
         public BatchRepository $batches
     ) {
+        parent::__construct();
     }
 
     /**

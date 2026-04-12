@@ -7,7 +7,7 @@ namespace Hypervel\Horizon\Http\Controllers;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Http\Request;
 
-class CompletedJobsController
+class CompletedJobsController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -17,6 +17,7 @@ class CompletedJobsController
     public function __construct(
         public JobRepository $jobs
     ) {
+        parent::__construct();
     }
 
     /**
