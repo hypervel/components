@@ -21,6 +21,7 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeListener;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeListenerSilenced;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeListenerWithDynamicTags;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeListenerWithProperties;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeListenerWithTypedProperties;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeModel;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SilencedMailable;
@@ -116,6 +117,17 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':42'], $JobPayload->decoded['tags']);
     }
 
+    public function testTagsAreCorrectlyDeterminedForListenersWithPropertyTypes()
+    {
+        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+
+        $job = new CallQueuedListener(FakeListenerWithTypedProperties::class, 'handle', [new FakeEventWithModel(21)]);
+
+        $JobPayload->prepare($job);
+
+        $this->assertEquals([FakeModel::class . ':21'], $JobPayload->decoded['tags']);
+    }
+
     public function testListenerAndEventTagsCanMergeAutoTagEvents()
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
@@ -175,6 +187,15 @@ class RedisPayloadTest extends IntegrationTestCase
         $mailableMock = m::mock(SilencedMailable::class);
         config(['horizon.silenced' => [get_class($mailableMock)]]);
         $JobPayload->prepare(new SendQueuedMailable($mailableMock));
+        $this->assertTrue($JobPayload->isSilenced());
+    }
+
+    public function testItDeterminesIfJobIsSilencedCorrectlyByTags()
+    {
+        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+
+        config(['horizon.silenced_tags' => ['first', 'noisy']]);
+        $JobPayload->prepare(new FakeJobWithTagsMethod);
         $this->assertTrue($JobPayload->isSilenced());
     }
 }

@@ -15,6 +15,7 @@ use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\PhpBinary;
 use Hypervel\Horizon\Supervisor;
+use Hypervel\Horizon\SupervisorCommands\Scale;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Horizon\WorkerCommandString;
@@ -420,6 +421,33 @@ class SupervisorTest extends IntegrationTestCase
         $this->assertSame(1, $command->processCount);
         $this->assertEquals($supervisor, $command->supervisor);
         $this->assertEquals(['foo' => 'bar'], $command->options);
+    }
+
+    public function testSupervisorShouldStartPausedWorkersWhenPausedAndScaling()
+    {
+        $options = $this->supervisorOptions();
+        $options->sleep = 0;
+        $this->supervisor = $supervisor = new Supervisor($options);
+
+        $supervisor->scale(1);
+        usleep(100 * 1000);
+
+        app(HorizonCommandQueue::class)->push(
+            $supervisor->name,
+            Scale::class,
+            ['scale' => 2]
+        );
+        $supervisor->pause();
+        usleep(250 * 1000);
+
+        $supervisor->loop();
+
+        $this->assertSame(2, $supervisor->totalProcessCount());
+
+        Queue::push(new Jobs\BasicJob);
+        usleep(500 * 1000);
+
+        $this->assertSame(1, $this->recentJobs());
     }
 
     public function testAutoScalerIsCalledOnLoopWhenAutoScaling()
