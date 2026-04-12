@@ -29,6 +29,11 @@ class Horizon
     public static ?string $slackChannel = null;
 
     /**
+     * The SMS notifications phone number.
+     */
+    public static ?string $smsNumber = null;
+
+    /**
      * The email address for notifications.
      */
     public static ?string $email = null;
@@ -150,6 +155,16 @@ class Horizon
     {
         static::$slackWebhookUrl = $url;
         static::$slackChannel = $channel;
+
+        return new static;
+    }
+
+    /**
+     * Specify the phone number to which SMS notifications should be routed.
+     */
+    public static function routeSmsNotificationsTo(string $number): static
+    {
+        static::$smsNumber = $number;
 
         return new static;
     }
