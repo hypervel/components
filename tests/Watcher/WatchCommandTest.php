@@ -8,7 +8,10 @@ use Hypervel\Config\Repository;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Watcher\Console\WatchCommand;
+use Hypervel\Watcher\Driver\DriverInterface;
+use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\ServerRestartStrategy;
 use Hypervel\Watcher\Watcher;
 use Mockery as m;
 use RuntimeException;
@@ -43,33 +46,29 @@ class WatchCommandTest extends TestCase
 
     public function testWatchCommandRunsWatcherWhenRunningInConsoleIsFalse()
     {
-        $config = new Repository([
+        $this->app->instance('config', new Repository([
             'watcher' => [
-                'driver' => 'scan',
-                'watch' => [
-                    'scan_interval' => 1000,
-                ],
+                'driver' => ScanFileDriver::class,
+                'scan_interval' => 1000,
+                'watch' => ['app/**/*.php', '.env'],
             ],
-        ]);
+        ]));
 
         $watcher = m::mock(Watcher::class);
         $watcher->shouldReceive('run')->once();
 
-        $this->app->instance('config', $config);
-        $this->app->bind(Option::class, function ($app, array $parameters) use ($config) {
-            if ($parameters['options']['driver'] !== 'scan'
-                || $parameters['dir'] !== []
-                || $parameters['file'] !== []
-                || $parameters['restart'] !== true) {
-                throw new RuntimeException('Unexpected watch command option parameters.');
-            }
+        $this->app->bind(ScanFileDriver::class, function ($app, array $parameters) {
+            $this->assertInstanceOf(Option::class, $parameters['option']);
 
-            return new Option($config->get('watcher'), [], []);
+            return m::mock(DriverInterface::class);
+        });
+        $this->app->bind(ServerRestartStrategy::class, function () {
+            return m::mock(ServerRestartStrategy::class);
         });
         $this->app->bind(Watcher::class, function ($app, array $parameters) use ($watcher) {
-            if (! isset($parameters['option'], $parameters['output'])) {
-                throw new RuntimeException('Watcher command did not pass the expected watcher parameters.');
-            }
+            $this->assertInstanceOf(DriverInterface::class, $parameters['driver']);
+            $this->assertInstanceOf(ServerRestartStrategy::class, $parameters['strategy']);
+            $this->assertNotNull($parameters['output']);
 
             return $watcher;
         });
@@ -82,5 +81,88 @@ class WatchCommandTest extends TestCase
         $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
+    }
+
+    public function testWatchCommandWithNoRestartPassesNullStrategy()
+    {
+        $this->app->instance('config', new Repository([
+            'watcher' => [
+                'driver' => ScanFileDriver::class,
+                'scan_interval' => 1000,
+                'watch' => ['app/**/*.php'],
+            ],
+        ]));
+
+        $watcher = m::mock(Watcher::class);
+        $watcher->shouldReceive('run')->once();
+
+        $this->app->bind(ScanFileDriver::class, function () {
+            return m::mock(DriverInterface::class);
+        });
+        $this->app->bind(Watcher::class, function ($app, array $parameters) use ($watcher) {
+            $this->assertNull($parameters['strategy']);
+
+            return $watcher;
+        });
+
+        $command = new WatchCommand($this->app);
+        $command->setHypervel($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $result = $command->run(new ArrayInput(['--no-restart' => true]), new NullOutput);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function testWatchCommandWithExtraPaths()
+    {
+        $this->app->instance('config', new Repository([
+            'watcher' => [
+                'driver' => ScanFileDriver::class,
+                'scan_interval' => 1000,
+                'watch' => ['app/**/*.php'],
+            ],
+        ]));
+
+        $watcher = m::mock(Watcher::class);
+        $watcher->shouldReceive('run')->once();
+
+        $capturedOption = null;
+        $this->app->bind(ScanFileDriver::class, function ($app, array $parameters) use (&$capturedOption) {
+            $capturedOption = $parameters['option'];
+
+            return m::mock(DriverInterface::class);
+        });
+        $this->app->bind(ServerRestartStrategy::class, function () {
+            return m::mock(ServerRestartStrategy::class);
+        });
+        $this->app->bind(Watcher::class, function () use ($watcher) {
+            return $watcher;
+        });
+
+        $command = new WatchCommand($this->app);
+        $command->setHypervel($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $result = $command->run(
+            new ArrayInput(['--path' => ['.env', 'composer.json']]),
+            new NullOutput,
+        );
+
+        $this->assertSame(0, $result);
+        $this->assertInstanceOf(Option::class, $capturedOption);
+
+        $paths = $capturedOption->getWatchPaths();
+        $pathStrings = array_map(fn ($p) => $p->path, $paths);
+        $this->assertContains('.env', $pathStrings);
+        $this->assertContains('composer.json', $pathStrings);
+
+        // .env and composer.json should be File type (they're not directories)
+        $filePaths = $capturedOption->getFilePaths();
+        $filePathStrings = array_map(fn ($p) => $p->path, $filePaths);
+        $this->assertContains('.env', $filePathStrings);
+        $this->assertContains('composer.json', $filePathStrings);
     }
 }
