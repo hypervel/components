@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -28,12 +29,10 @@ class InstallCommand extends Command
     {
         $this->components->info('Installing Horizon resources.');
 
-        $this->components->task(
-            'Service Provider and Configuration',
-            fn () => $this->callSilent('vendor:publish', [
-                'package' => 'Hypervel\Horizon\HorizonServiceProvider',
-            ]) == 0
-        );
+        collect([
+            'Service Provider' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-provider']) == 0,
+            'Configuration' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-config']) == 0,
+        ])->each(fn ($task, $description) => $this->components->task($description, $task));
 
         $this->registerHorizonServiceProvider();
 
@@ -45,24 +44,26 @@ class InstallCommand extends Command
      */
     protected function registerHorizonServiceProvider(): void
     {
-        $namespace = Str::replaceLast('\\', '', app()->getNamespace());
+        $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
 
-        $appConfig = file_get_contents(config_path('app.php'));
+        if (file_exists($this->hypervel->bootstrapPath('providers.php'))) {
+            ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider");
+        } else {
+            $appConfig = file_get_contents(config_path('app.php'));
 
-        if (Str::contains($appConfig, $namespace . '\Providers\HorizonServiceProvider::class')) {
-            return;
+            if (Str::contains($appConfig, $namespace . '\Providers\HorizonServiceProvider::class')) {
+                return;
+            }
+
+            file_put_contents(config_path('app.php'), str_replace(
+                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL,
+                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL . "        {$namespace}\\Providers\\HorizonServiceProvider::class," . PHP_EOL,
+                $appConfig
+            ));
         }
 
-        $lastProvider = last(config('app.providers'));
-
-        file_put_contents(config_path('app.php'), preg_replace(
-            '/' . preg_quote($lastProvider, '/') . '::class,?\n/',
-            "{$lastProvider}::class,\n        {$namespace}\\Providers\\HorizonServiceProvider::class,\n",
-            $appConfig
-        ));
-
         file_put_contents(app_path('Providers/HorizonServiceProvider.php'), str_replace(
-            'namespace App\Providers;',
+            'namespace App\\Providers;',
             "namespace {$namespace}\\Providers;",
             file_get_contents(app_path('Providers/HorizonServiceProvider.php'))
         ));
