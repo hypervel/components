@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\Two\GithubProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
+use ReflectionProperty;
 use Swoole\Coroutine\Channel;
 
 /**
@@ -184,11 +187,11 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->make(SocialiteManager::class);
 
-        $factory->extend('github_a', fn () => $factory->buildProvider(
+        $factory->extend('github_a', fn () => $factory->buildOAuth2Provider(
             GithubProvider::class,
             $this->app->make('config')->get('services.github_a')
         ));
-        $factory->extend('github_b', fn () => $factory->buildProvider(
+        $factory->extend('github_b', fn () => $factory->buildOAuth2Provider(
             GithubProvider::class,
             $this->app->make('config')->get('services.github_b')
         ));
@@ -231,5 +234,27 @@ class SocialiteManagerTest extends TestCase
 
         // Config scopes merged with class default should survive into a fresh coroutine
         $this->assertSame(['user:email', 'read:user'], $childScopes);
+    }
+
+    public function testGenericProviderGetsRequestRefreshed()
+    {
+        $firstRequest = Request::create('/first');
+        $secondRequest = Request::create('/second');
+
+        $this->app->instance('request', $firstRequest);
+
+        $factory = $this->app->make(SocialiteManager::class);
+
+        $factory->extend('generic', fn () => new GenericTestProviderStub(
+            $this->app->make('request')
+        ));
+
+        $provider = $factory->driver('generic');
+        $this->assertSame($firstRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
+
+        $this->app->instance('request', $secondRequest);
+
+        $provider = $factory->driver('generic');
+        $this->assertSame($secondRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
     }
 }
