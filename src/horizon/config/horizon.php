@@ -29,6 +29,8 @@ return [
     |
     */
 
+    'domain' => env('HORIZON_DOMAIN'),
+
     /*
     |--------------------------------------------------------------------------
     | Horizon Path
@@ -225,5 +227,31 @@ return [
                 'maxProcesses' => 3,
             ],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | File Watcher Configuration
+    |--------------------------------------------------------------------------
+    |
+    | The following list of directories and files will be watched when using
+    | the `horizon:listen` command. If this value is not set, Horizon will
+    | fall back to your application's watcher config (config/watcher.php).
+    | This allows you to maintain a single watch list for both the server
+    | and Horizon, or override it specifically for Horizon.
+    |
+    */
+
+    'watch' => [
+        'app',
+        'bootstrap',
+        'config/**/*.php',
+        'database/**/*.php',
+        'public/**/*.php',
+        'resources/**/*.php',
+        'routes',
+        'composer.lock',
+        'composer.json',
+        '.env',
     ],
 ];
