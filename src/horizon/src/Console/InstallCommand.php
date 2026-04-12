@@ -63,7 +63,7 @@ class InstallCommand extends Command
         }
 
         file_put_contents(app_path('Providers/HorizonServiceProvider.php'), str_replace(
-            'namespace App\\Providers;',
+            'namespace App\Providers;',
             "namespace {$namespace}\\Providers;",
             file_get_contents(app_path('Providers/HorizonServiceProvider.php'))
         ));
