@@ -260,7 +260,7 @@ abstract class OpenIdProvider extends AbstractProvider
             throw new InvalidNonceException;
         }
 
-        if (! isset($data['aud']) || $data['aud'] !== $this->clientId) {
+        if (! isset($data['aud']) || $data['aud'] !== $this->getClientId()) {
             throw new InvalidAudienceException;
         }
 
