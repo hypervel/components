@@ -36,11 +36,6 @@ class ChannelListCommand extends Command
     {
         $channels = $broadcaster->getChannels();
 
-        if (! $this->hypervel->providerIsLoaded('App\Providers\BroadcastServiceProvider')
-            && file_exists($this->hypervel->path('Providers/BroadcastServiceProvider.php'))) {
-            $this->components->warn('The [App\Providers\BroadcastServiceProvider] has not been loaded. Your private channels may not be loaded.');
-        }
-
         if (! $channels->count()) {
             $this->components->error("Your application doesn't have any private broadcasting channels.");
 
