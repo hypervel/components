@@ -18,6 +18,8 @@ use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Grammar;
 use Hypervel\Foundation\Console\AboutCommand;
+use Hypervel\Foundation\Console\ApiInstallCommand;
+use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Foundation\Console\CastMakeCommand;
 use Hypervel\Foundation\Console\ChannelListCommand;
 use Hypervel\Foundation\Console\ChannelMakeCommand;
@@ -154,6 +156,8 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->commands([
             AboutCommand::class,
+            ApiInstallCommand::class,
+            BroadcastingInstallCommand::class,
             CastMakeCommand::class,
             ChannelListCommand::class,
             ChannelMakeCommand::class,
