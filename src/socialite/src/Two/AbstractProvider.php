@@ -4,25 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\AbstractProvider as BaseProvider;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
-use Hypervel\Socialite\HasProviderContext;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 
-abstract class AbstractProvider implements ProviderContract
+abstract class AbstractProvider extends BaseProvider implements ProviderContract
 {
-    use HasProviderContext;
-
-    /**
-     * The custom parameters to be sent with the request.
-     */
-    protected array $parameters = [];
-
     /**
      * The scopes being requested.
      */
@@ -41,23 +33,9 @@ abstract class AbstractProvider implements ProviderContract
     protected int $encodingType = PHP_QUERY_RFC1738;
 
     /**
-     * Indicates if the session state should be utilized.
-     */
-    protected bool $stateless = false;
-
-    /**
      * Indicates if PKCE should be used.
      */
     protected bool $usesPKCE = false;
-
-    /**
-     * The provider's baseline configuration.
-     *
-     * Seeded once at registration/build time via withConfig(). Persists for the
-     * worker lifetime as the fallback for getConfig() when no per-request
-     * override exists in coroutine context.
-     */
-    protected array $additionalConfig = [];
 
     /**
      * Create a new provider instance.
@@ -69,26 +47,13 @@ abstract class AbstractProvider implements ProviderContract
      * @param array $guzzle the custom Guzzle configuration options
      */
     public function __construct(
-        protected Request $request,
+        Request $request,
         protected string $clientId,
         protected string $clientSecret,
         protected string $redirectUrl,
-        protected array $guzzle = []
+        array $guzzle = []
     ) {
-    }
-
-    /**
-     * Set the baseline provider configuration.
-     *
-     * Called once at registration time (e.g. from buildProvider or an extend callback).
-     * Writes to the instance property so config survives across coroutines.
-     * For per-request overrides, use setConfig() instead.
-     */
-    public function withConfig(array $config): static
-    {
-        $this->additionalConfig = $config;
-
-        return $this;
+        parent::__construct($request, $guzzle);
     }
 
     /**
@@ -393,83 +358,6 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Get a value from the provider configuration.
-     *
-     * Reads per-request context first, falls back to baseline instance property.
-     * Used by third-party providers for custom config keys (e.g. Auth0's base_url).
-     */
-    protected function getConfig(?string $key = null, mixed $default = null): mixed
-    {
-        $config = $this->getContext('additionalConfig', $this->additionalConfig);
-
-        return $key ? Arr::get($config, $key, $default) : $config;
-    }
-
-    /**
-     * Get a instance of the Guzzle HTTP client.
-     */
-    protected function getHttpClient(): Client
-    {
-        return $this->getOrSetContext('httpClient', function () {
-            return new Client($this->guzzle);
-        });
-    }
-
-    /**
-     * Set the Guzzle HTTP client instance.
-     */
-    public function setHttpClient(Client $client): static
-    {
-        $this->setContext('httpClient', $client);
-
-        return $this;
-    }
-
-    /**
-     * Set the request instance.
-     */
-    public function setRequest(Request $request): static
-    {
-        $this->request = $request;
-
-        return $this;
-    }
-
-    /**
-     * Determine if the provider is operating with state.
-     */
-    protected function usesState(): bool
-    {
-        return ! $this->isStateless();
-    }
-
-    /**
-     * Determine if the provider is operating as stateless.
-     */
-    protected function isStateless(): bool
-    {
-        return $this->getContext('stateless', $this->stateless);
-    }
-
-    /**
-     * Indicates that the provider should operate as stateless.
-     */
-    public function stateless(): static
-    {
-        $this->setContext('stateless', true);
-
-        return $this;
-    }
-
-    /**
-     * Get the string used for session state.
-     */
-    protected function getState(): string
-    {
-        return Str::random(40);
-    }
-
-    /**
      * Determine if the provider uses PKCE.
      */
     protected function usesPKCE(): bool
@@ -478,7 +366,7 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Enables PKCE for the provider.
+     * Enable PKCE for the provider.
      */
     public function enablePKCE(): static
     {
@@ -488,7 +376,7 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Generates a random string of the right length for the PKCE code verifier.
+     * Generate a random string of the right length for the PKCE code verifier.
      */
     protected function getCodeVerifier(): string
     {
@@ -496,7 +384,7 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Generates the PKCE code challenge based on the PKCE code verifier in the session.
+     * Generate the PKCE code challenge based on the PKCE code verifier in the session.
      */
     protected function getCodeChallenge(): string
     {
@@ -506,7 +394,7 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Returns the hash method used to calculate the PKCE code challenge.
+     * Return the hash method used to calculate the PKCE code challenge.
      */
     protected function getCodeChallengeMethod(): string
     {
@@ -514,28 +402,10 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
-     * Set the custom parameters of the request.
-     */
-    public function with(array $parameters): static
-    {
-        $this->setContext('parameters', $parameters);
-
-        return $this;
-    }
-
-    /**
-     * Get the custom parameters of the request.
-     */
-    protected function getParameters(): array
-    {
-        return $this->getContext('parameters', $this->parameters);
-    }
-
-    /**
      * Override provider configuration for the current request.
      *
-     * Writes to coroutine context for Swoole safety. Merges with the current
-     * effective config so partial overrides preserve baseline keys.
+     * Extends the base setConfig to also handle OAuth2-specific credential
+     * keys (client_id, client_secret, redirect) in coroutine context.
      */
     public function setConfig(array $config): static
     {
@@ -551,8 +421,6 @@ abstract class AbstractProvider implements ProviderContract
             $this->setContext('redirectUrl', $config['redirect']);
         }
 
-        $this->setContext('additionalConfig', array_replace($this->getConfig(), $config));
-
-        return $this;
+        return parent::setConfig($config);
     }
 }
