@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\LinkedInProvider;
 use Hypervel\Socialite\Two\User;
@@ -74,10 +73,7 @@ class LinkedInProviderTest extends TestCase
             'redirect'
         );
         $provider->stateless();
-        CoroutineContext::set(
-            '__socialite.providers.' . LinkedInProvider::class . '.httpClient',
-            $guzzle
-        );
+        $provider->setHttpClient($guzzle);
 
         $user = $provider->user();
 
