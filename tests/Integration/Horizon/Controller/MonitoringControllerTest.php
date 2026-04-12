@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Horizon\Controllers;
+namespace Hypervel\Tests\Integration\Horizon\Controller;
 
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
@@ -83,7 +83,7 @@ class MonitoringControllerTest extends ControllerTestCase
         }
 
         $response = $this->actingAs(new Fakes\User)
-            ->get('/horizon/api/monitoring/tag?tag=tagstarting_at=1000');
+            ->get('/horizon/api/monitoring/tag?starting_at=1000');
 
         $this->assertCount(0, $response->json('jobs'));
     }

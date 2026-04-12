@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Horizon\Controllers\Fakes;
+namespace Hypervel\Tests\Integration\Horizon\Controller\Fakes;
 
 use Hypervel\Foundation\Auth\User as BaseUser;
 

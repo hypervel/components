@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Horizon\Controllers;
+namespace Hypervel\Tests\Integration\Horizon\Controller;
 
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
