@@ -1,7 +1,7 @@
 {
     "name": "hypervel/socialite",
     "type": "library",
-    "description": "Hypervel wrapper around OAuth 1 & OAuth 2 libraries.",
+    "description": "Hypervel wrapper around OAuth 2 libraries.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -33,7 +33,6 @@
         "ext-json": "*",
         "firebase/php-jwt": "^7.0",
         "guzzlehttp/guzzle": "^7.8.2",
-        "league/oauth1-client": "^1.11",
         "phpseclib/phpseclib": "^3.0",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
