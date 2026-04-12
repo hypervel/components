@@ -104,7 +104,6 @@ class AutoScaler
 
                 return [$queue => $numberOfProcesses *= $supervisor->options->maxProcesses];
             }
-
             if ($timeToClearAll == 0
                 && $supervisor->options->autoScaling()
             ) {
