@@ -9,15 +9,6 @@ use Hypervel\Context\CoroutineContext;
 trait HasProviderContext
 {
     /**
-     * Monotonic counter for generating unique context namespaces.
-     *
-     * Each class using this trait gets its own counter (PHP trait static
-     * property semantics). Combined with the class name in the namespace,
-     * this guarantees globally unique context keys per provider instance.
-     */
-    protected static int $nextContextInstanceId = 0;
-
-    /**
      * The unique context namespace for this provider instance.
      *
      * Lazily initialized on first access. Persists for the instance's lifetime,
@@ -43,7 +34,7 @@ trait HasProviderContext
     protected function getContextKey(string $key): string
     {
         $namespace = $this->contextNamespace
-            ??= '__socialite.providers.' . static::class . '.' . (++static::$nextContextInstanceId);
+            ??= '__socialite.providers.' . spl_object_id($this);
 
         return $namespace . '.' . $key;
     }
