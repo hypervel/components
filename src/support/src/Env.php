@@ -261,7 +261,8 @@ class Env
         $prefix = explode('_', $key)[0] . '_';
         $lastPrefixIndex = -1;
 
-        $shouldQuote = preg_match('/^[a-zA-z0-9]+$/', $value) === 0;
+        $stringValue = (string) $value;
+        $shouldQuote = preg_match('/^[a-zA-z0-9]+$/', $stringValue) === 0;
 
         $lineToAddVariations = [
             $key . '=' . (is_string($value) ? self::prepareQuotedValue($value) : $value),
