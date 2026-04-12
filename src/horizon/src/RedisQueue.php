@@ -10,6 +10,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
+use Hypervel\Horizon\Events\JobPending;
 use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
@@ -58,6 +59,8 @@ class RedisQueue extends BaseQueue
     {
         $payload = (new JobPayload($payload))->prepare($this->getLastPushed());
 
+        $this->event($this->getQueue($queue), new JobPending($payload->value));
+
         parent::pushRaw($payload->value, $queue, $options);
 
         $this->event($this->getQueue($queue), new JobPushed($payload->value));
@@ -92,6 +95,8 @@ class RedisQueue extends BaseQueue
             $queue,
             $delay,
             function ($payload, $queue, $delay) {
+                $this->event($this->getQueue($queue), new JobPending($payload));
+
                 return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
                     $this->event($this->getQueue($queue), new JobPushed($payload));
                 });
