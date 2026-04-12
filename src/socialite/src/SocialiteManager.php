@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\FacebookProvider;
@@ -243,6 +244,17 @@ class SocialiteManager extends Manager implements Contracts\Factory
     public function forgetDrivers(): static
     {
         $this->drivers = [];
+
+        return $this;
+    }
+
+    /**
+     * Set the container instance used by the manager.
+     */
+    public function setContainer(Container $container): static
+    {
+        $this->container = $container;
+        $this->config = $container->make('config');
 
         return $this;
     }
