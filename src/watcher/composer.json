@@ -1,7 +1,7 @@
 {
     "name": "hypervel/watcher",
     "type": "library",
-    "description": "Hot reload watcher for Hypervel development.",
+    "description": "File watcher with pluggable drivers and restart strategies for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
