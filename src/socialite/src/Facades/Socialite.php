@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Facades;
 
+use Closure;
 use Hypervel\Socialite\Contracts\Factory;
+use Hypervel\Socialite\Contracts\User as UserContract;
+use Hypervel\Socialite\Testing\SocialiteFake;
 use Hypervel\Support\Facades\Facade;
 
 /**
@@ -42,5 +45,23 @@ class Socialite extends Facade
     protected static function getFacadeAccessor(): string
     {
         return Factory::class;
+    }
+
+    /**
+     * Register a fake Socialite instance.
+     */
+    public static function fake(string $driver, UserContract|Closure|null $user = null): SocialiteFake
+    {
+        $root = static::getFacadeRoot();
+
+        if ($root instanceof SocialiteFake) {
+            $fake = $root;
+        } else {
+            $fake = new SocialiteFake($root);
+
+            static::swap($fake);
+        }
+
+        return $fake->fake($driver, $user);
     }
 }
