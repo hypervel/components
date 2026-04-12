@@ -41,7 +41,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $provider = parent::driver($driver);
 
-        if ($provider instanceof Two\AbstractProvider) {
+        if ($provider instanceof AbstractProvider) {
             $provider->setRequest($this->container->make('request'));
         }
 
@@ -55,7 +55,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.github');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GithubProvider::class,
             $config
         );
@@ -68,7 +68,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.facebook');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             FacebookProvider::class,
             $config
         );
@@ -81,7 +81,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.google');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GoogleProvider::class,
             $config
         );
@@ -94,7 +94,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.linkedin');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             LinkedInProvider::class,
             $config
         );
@@ -107,7 +107,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.linkedin-openid');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             LinkedInOpenIdProvider::class,
             $config
         );
@@ -120,7 +120,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.bitbucket');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             BitbucketProvider::class,
             $config
         );
@@ -133,7 +133,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.gitlab');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GitlabProvider::class,
             $config
         )->setHost($config['host'] ?? null); // phpstan-ignore-line
@@ -146,7 +146,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.x') ?? $this->config->get('services.x-oauth-2');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             XProvider::class,
             $config
         );
@@ -159,7 +159,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.twitch');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             TwitchProvider::class,
             $config
         );
@@ -172,7 +172,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.slack');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             SlackProvider::class,
             $config
         );
@@ -185,7 +185,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.slack-openid');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             SlackOpenIdProvider::class,
             $config
         );
@@ -194,7 +194,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     /**
      * Build an OAuth 2 provider instance.
      */
-    public function buildProvider(string $provider, ?array $config): mixed
+    public function buildOAuth2Provider(string $provider, ?array $config): mixed
     {
         $requiredKeys = ['client_id', 'client_secret', 'redirect'];
 
