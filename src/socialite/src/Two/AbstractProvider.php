@@ -51,6 +51,15 @@ abstract class AbstractProvider implements ProviderContract
     protected bool $usesPKCE = false;
 
     /**
+     * The provider's baseline configuration.
+     *
+     * Seeded once at registration/build time via withConfig(). Persists for the
+     * worker lifetime as the fallback for getConfig() when no per-request
+     * override exists in coroutine context.
+     */
+    protected array $additionalConfig = [];
+
+    /**
      * Create a new provider instance.
      *
      * @param Request $request the HTTP request instance
@@ -66,6 +75,20 @@ abstract class AbstractProvider implements ProviderContract
         protected string $redirectUrl,
         protected array $guzzle = []
     ) {
+    }
+
+    /**
+     * Set the baseline provider configuration.
+     *
+     * Called once at registration time (e.g. from buildProvider or an extend callback).
+     * Writes to the instance property so config survives across coroutines.
+     * For per-request overrides, use setConfig() instead.
+     */
+    public function withConfig(array $config): static
+    {
+        $this->additionalConfig = $config;
+
+        return $this;
     }
 
     /**
@@ -120,7 +143,7 @@ abstract class AbstractProvider implements ProviderContract
     protected function getCodeFields(?string $state = null): array
     {
         $fields = [
-            'client_id' => $this->clientId,
+            'client_id' => $this->getClientId(),
             'redirect_uri' => $this->getRedirectUrl(),
             'scope' => $this->formatScopes($this->getScopes(), $this->scopeSeparator),
             'response_type' => 'code',
@@ -217,7 +240,7 @@ abstract class AbstractProvider implements ProviderContract
 
         $state = $this->request->session()->pull('state');
 
-        return empty($state) || $this->request->input('state') !== $state;
+        return empty($state) || ! hash_equals($state, (string) $this->request->input('state'));
     }
 
     /**
@@ -248,8 +271,8 @@ abstract class AbstractProvider implements ProviderContract
     {
         $fields = [
             'grant_type' => 'authorization_code',
-            'client_id' => $this->clientId,
-            'client_secret' => $this->clientSecret,
+            'client_id' => $this->getClientId(),
+            'client_secret' => $this->getClientSecret(),
             'code' => $code,
             'redirect_uri' => $this->getRedirectUrl(),
         ];
@@ -286,8 +309,8 @@ abstract class AbstractProvider implements ProviderContract
             RequestOptions::FORM_PARAMS => [
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $refreshToken,
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
+                'client_id' => $this->getClientId(),
+                'client_secret' => $this->getClientSecret(),
             ],
         ])->getBody(), true);
     }
@@ -330,7 +353,9 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function getScopes(): array
     {
-        return $this->getContext('scopes', $this->scopes);
+        return $this->getContext('scopes', array_values(array_unique(
+            array_merge($this->scopes, $this->getConfig('scopes', []))
+        )));
     }
 
     /**
@@ -352,6 +377,35 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
+     * Get the client ID.
+     */
+    protected function getClientId(): string
+    {
+        return $this->getContext('clientId', $this->clientId);
+    }
+
+    /**
+     * Get the client secret.
+     */
+    protected function getClientSecret(): string
+    {
+        return $this->getContext('clientSecret', $this->clientSecret);
+    }
+
+    /**
+     * Get a value from the provider configuration.
+     *
+     * Reads per-request context first, falls back to baseline instance property.
+     * Used by third-party providers for custom config keys (e.g. Auth0's base_url).
+     */
+    protected function getConfig(?string $key = null, mixed $default = null): mixed
+    {
+        $config = $this->getContext('additionalConfig', $this->additionalConfig);
+
+        return $key ? Arr::get($config, $key, $default) : $config;
+    }
+
+    /**
      * Get a instance of the Guzzle HTTP client.
      */
     protected function getHttpClient(): Client
@@ -359,6 +413,16 @@ abstract class AbstractProvider implements ProviderContract
         return $this->getOrSetContext('httpClient', function () {
             return new Client($this->guzzle);
         });
+    }
+
+    /**
+     * Set the Guzzle HTTP client instance.
+     */
+    public function setHttpClient(Client $client): static
+    {
+        $this->setContext('httpClient', $client);
+
+        return $this;
     }
 
     /**
@@ -465,5 +529,30 @@ abstract class AbstractProvider implements ProviderContract
     protected function getParameters(): array
     {
         return $this->getContext('parameters', $this->parameters);
+    }
+
+    /**
+     * Override provider configuration for the current request.
+     *
+     * Writes to coroutine context for Swoole safety. Merges with the current
+     * effective config so partial overrides preserve baseline keys.
+     */
+    public function setConfig(array $config): static
+    {
+        if (isset($config['client_id'])) {
+            $this->setContext('clientId', $config['client_id']);
+        }
+
+        if (isset($config['client_secret'])) {
+            $this->setContext('clientSecret', $config['client_secret']);
+        }
+
+        if (isset($config['redirect'])) {
+            $this->setContext('redirectUrl', $config['redirect']);
+        }
+
+        $this->setContext('additionalConfig', array_replace($this->getConfig(), $config));
+
+        return $this;
     }
 }
