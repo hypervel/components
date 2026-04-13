@@ -43,13 +43,13 @@ class EntryQueryOptions
      */
     public static function fromRequest(Request $request): static
     {
-        return (new static())
+        return (new static)
             ->batchId($request->batch_id) // @phpstan-ignore-line
             ->uuids($request->uuids) // @phpstan-ignore-line
             ->beforeSequence($request->before) // @phpstan-ignore-line
             ->tag($request->tag) // @phpstan-ignore-line
             ->familyHash($request->family_hash) // @phpstan-ignore-line
-            ->limit($request->take ?? 50);
+            ->limit((int) ($request->take ?? 50));
     }
 
     /**
@@ -57,7 +57,7 @@ class EntryQueryOptions
      */
     public static function forBatchId(?string $batchId): static
     {
-        return (new static())->batchId($batchId);
+        return (new static)->batchId($batchId);
     }
 
     /**

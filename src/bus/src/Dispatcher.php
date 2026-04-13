@@ -5,20 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\QueueingDispatcher;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Pipeline\Pipeline;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
 {
+    use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
+
     /**
      * The pipeline instance for the bus.
      */
@@ -35,14 +42,16 @@ class Dispatcher implements QueueingDispatcher
     protected array $handlers = [];
 
     /**
+     * Indicate if dispatching after response is disabled.
+     */
+    protected bool $allowsDispatchingAfterResponses = true;
+
+    /**
      * Create a new command dispatcher instance.
-     *
-     * @param ContainerInterface $container the container implementation
-     * @param null|Closure $queueResolver the queue resolver callback
      */
     public function __construct(
-        protected ContainerInterface $container,
-        protected ?Closure $queueResolver = null
+        protected Container $container,
+        protected ?Closure $queueResolver = null,
     ) {
         $this->pipeline = new Pipeline($container);
     }
@@ -81,10 +90,7 @@ class Dispatcher implements QueueingDispatcher
     {
         $uses = class_uses_recursive($command);
 
-        if (in_array(InteractsWithQueue::class, $uses)
-            && in_array(Queueable::class, $uses)
-            && ! $command->job
-        ) {
+        if (isset($uses[InteractsWithQueue::class], $uses[Queueable::class]) && ! $command->job) {
             $command->setJob(new SyncJob($this->container, json_encode([]), 'sync', 'sync'));
         }
 
@@ -94,13 +100,10 @@ class Dispatcher implements QueueingDispatcher
 
                 return $handler->{$method}($command);
             };
-        } elseif (! method_exists($this->container, 'call')) {
-            throw new RuntimeException('The container must implement the `call` method.');
         } else {
             $callback = function ($command) {
                 $method = method_exists($command, 'handle') ? 'handle' : '__invoke';
 
-                /* @phpstan-ignore-next-line */
                 return $this->container->call([$command, $method]);
             };
         }
@@ -116,15 +119,11 @@ class Dispatcher implements QueueingDispatcher
      */
     public function findBatch(string $batchId): ?Batch
     {
-        return $this->container
-            ->get(BatchRepository::class)
-            ->find($batchId);
+        return $this->container->make(BatchRepository::class)->find($batchId);
     }
 
     /**
      * Create a new batch of queueable jobs.
-     *
-     * @param array|Collection|mixed $jobs
      */
     public function batch(mixed $jobs): PendingBatch
     {
@@ -134,7 +133,7 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Create a new chain of queueable jobs.
      */
-    public function chain(array|Collection $jobs): PendingChain
+    public function chain(mixed $jobs = null): PendingChain
     {
         $jobs = Collection::wrap($jobs);
         $jobs = ChainedBatch::prepareNestedBatches($jobs);
@@ -158,7 +157,7 @@ class Dispatcher implements QueueingDispatcher
     public function getCommandHandler(mixed $command): mixed
     {
         if ($this->hasCommandHandler($command)) {
-            return $this->container->get($this->handlers[get_class($command)]);
+            return $this->container->make($this->handlers[get_class($command)]);
         }
 
         return false;
@@ -179,7 +178,9 @@ class Dispatcher implements QueueingDispatcher
      */
     public function dispatchToQueue(mixed $command): mixed
     {
-        $connection = $command->connection ?? null;
+        $connection = $this->getAttributeValue($command, Connection::class, 'connection')
+            ?? $this->resolveConnectionFromQueueRoute($command)
+            ?? null;
 
         $queue = call_user_func($this->queueResolver, $connection);
 
@@ -199,19 +200,15 @@ class Dispatcher implements QueueingDispatcher
      */
     protected function pushCommandToQueue(Queue $queue, mixed $command): mixed
     {
-        if (isset($command->queue, $command->delay)) {
-            return $queue->laterOn($command->queue, $command->delay, $command);
-        }
-
-        if (isset($command->queue)) {
-            return $queue->pushOn($command->queue, $command);
-        }
+        $queueName = $this->getAttributeValue($command, QueueAttribute::class, 'queue')
+            ?? $this->resolveQueueFromQueueRoute($command)
+            ?? null;
 
         if (isset($command->delay)) {
-            return $queue->later($command->delay, $command);
+            return $queue->later($command->delay, $command, queue: $queueName);
         }
 
-        return $queue->push($command);
+        return $queue->push($command, queue: $queueName);
     }
 
     /**
@@ -219,6 +216,12 @@ class Dispatcher implements QueueingDispatcher
      */
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
+        if (! $this->allowsDispatchingAfterResponses) {
+            $this->dispatchSync($command);
+
+            return;
+        }
+
         Coroutine::defer(fn () => $this->dispatchSync($command, $handler));
     }
 
@@ -238,6 +241,26 @@ class Dispatcher implements QueueingDispatcher
     public function map(array $map): static
     {
         $this->handlers = array_merge($this->handlers, $map);
+
+        return $this;
+    }
+
+    /**
+     * Allow dispatching after responses.
+     */
+    public function withDispatchingAfterResponses(): static
+    {
+        $this->allowsDispatchingAfterResponses = true;
+
+        return $this;
+    }
+
+    /**
+     * Disable dispatching after responses.
+     */
+    public function withoutDispatchingAfterResponses(): static
+    {
+        $this->allowsDispatchingAfterResponses = false;
 
         return $this;
     }

@@ -6,26 +6,26 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\AuthManager;
-use Hypervel\Broadcasting\Contracts\Broadcaster as BroadcasterContract;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Http\Request;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
-use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 abstract class Broadcaster implements BroadcasterContract
 {
     /**
      * The container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The callback to resolve the authenticated user information.
@@ -43,11 +43,16 @@ abstract class Broadcaster implements BroadcasterContract
     protected static array $channelOptions = [];
 
     /**
+     * The binding registrar instance.
+     */
+    protected ?BindingRegistrar $bindingRegistrar = null;
+
+    /**
      * Resolve the authenticated user payload for the incoming connection request.
      *
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication.
      */
-    public function resolveAuthenticatedUser(RequestInterface $request): ?array
+    public function resolveAuthenticatedUser(Request $request): ?array
     {
         if ($this->authenticatedUserCallback) {
             return $this->authenticatedUserCallback->__invoke($request);
@@ -74,7 +79,7 @@ abstract class Broadcaster implements BroadcasterContract
         if ($channel instanceof HasBroadcastChannel) {
             $channel = $channel->broadcastChannelRoute();
         } elseif (class_exists($channel) && is_a($channel, HasBroadcastChannel::class, true)) {
-            $channel = (new $channel())->broadcastChannelRoute();
+            $channel = (new $channel)->broadcastChannelRoute();
         }
 
         static::$channels[$channel] = $callback;
@@ -89,7 +94,7 @@ abstract class Broadcaster implements BroadcasterContract
      *
      * @throws AccessDeniedHttpException
      */
-    protected function verifyUserCanAccessChannel(RequestInterface $request, string $channel): mixed
+    protected function verifyUserCanAccessChannel(Request $request, string $channel): mixed
     {
         foreach (static::$channels as $pattern => $callback) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {
@@ -100,17 +105,17 @@ abstract class Broadcaster implements BroadcasterContract
 
             $handler = $this->normalizeChannelHandlerToCallable($callback);
 
-            $result = $handler($this->retrieveUser($channel), ...$parameters);
+            $result = $handler($this->retrieveUser($request, $channel), ...$parameters);
 
             if ($result === false) {
-                throw new AccessDeniedHttpException();
+                throw new AccessDeniedHttpException;
             }
             if ($result) {
                 return $this->validAuthenticationResponse($request, $result);
             }
         }
 
-        throw new AccessDeniedHttpException();
+        throw new AccessDeniedHttpException;
     }
 
     /**
@@ -174,11 +179,27 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function resolveBinding(string $key, string $value, array $callbackParameters): mixed
     {
-        return $this->resolveImplicitBindingIfPossible(
+        $newValue = $this->resolveExplicitBindingIfPossible($key, $value);
+
+        return $newValue === $value ? $this->resolveImplicitBindingIfPossible(
             $key,
             $value,
             $callbackParameters
-        );
+        ) : $newValue;
+    }
+
+    /**
+     * Resolve an explicit parameter binding if applicable.
+     */
+    protected function resolveExplicitBindingIfPossible(string $key, mixed $value): mixed
+    {
+        $binder = $this->binder();
+
+        if ($binder && $binder->getBindingCallback($key)) {
+            return call_user_func($binder->getBindingCallback($key), $value);
+        }
+
+        return $value;
     }
 
     /**
@@ -195,8 +216,8 @@ abstract class Broadcaster implements BroadcasterContract
 
             $className = Reflector::getParameterClassName($parameter);
 
-            if (is_null($model = (new $className())->resolveRouteBinding($value))) {
-                throw new AccessDeniedHttpException();
+            if (is_null($model = (new $className)->resolveRouteBinding($value))) {
+                throw new AccessDeniedHttpException;
             }
 
             return $model;
@@ -225,6 +246,20 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
+     * Get the model binding registrar instance.
+     */
+    protected function binder(): ?BindingRegistrar
+    {
+        if (! $this->bindingRegistrar) {
+            $this->bindingRegistrar = $this->container->bound(BindingRegistrar::class)
+                ? $this->container->make(BindingRegistrar::class)
+                : null;
+        }
+
+        return $this->bindingRegistrar;
+    }
+
+    /**
      * Normalize the given callback into a callable.
      *
      * @param mixed $callback
@@ -233,27 +268,25 @@ abstract class Broadcaster implements BroadcasterContract
     protected function normalizeChannelHandlerToCallable($callback)
     {
         return is_callable($callback) ? $callback : function (...$args) use ($callback) {
-            return $this->container->get($callback)->join(...$args);
+            return $this->container->make($callback)->join(...$args);
         };
     }
 
     /**
      * Retrieve the authenticated user using the configured guard (if any).
      */
-    protected function retrieveUser(string $channel): mixed
+    protected function retrieveUser(Request $request, string $channel): mixed
     {
         $options = $this->retrieveChannelOptions($channel);
+
         $guards = $options['guards'] ?? null;
 
-        $auth = $this->container->get(AuthManager::class);
-
         if (is_null($guards)) {
-            return $auth->user();
+            return $request->user();
         }
 
         foreach (Arr::wrap($guards) as $guard) {
-            $user = $auth->guard($guard)->user();
-            if ($user) {
+            if ($user = $request->user($guard)) {
                 return $user;
             }
         }
@@ -282,6 +315,8 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function channelNameMatchesPattern(string $channel, string $pattern): bool
     {
+        $pattern = str_replace('.', '\.', $pattern);
+
         return (bool) preg_match('/^' . preg_replace('/\{(.*?)\}/', '([^\.]+)', $pattern) . '$/', $channel);
     }
 

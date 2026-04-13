@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
@@ -18,6 +18,8 @@ use LogicException;
 class ScopedNodeTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected bool $migrateRefresh = true;
 
     protected function migrateFreshUsing(): array
     {
@@ -37,6 +39,11 @@ class ScopedNodeTest extends TestCase
 
         DB::table('menu_items')
             ->insert($this->getMockMenuItems());
+
+        // Reset Postgres sequence after inserting with explicit IDs
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement("SELECT setval('menu_items_id_seq', (SELECT MAX(id) FROM menu_items))");
+        }
     }
 
     protected function getMockMenuItems(): array

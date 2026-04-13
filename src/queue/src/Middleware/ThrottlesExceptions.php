@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Hypervel\Cache\RateLimiter;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Throwable;
 
 class ThrottlesExceptions
@@ -40,7 +40,23 @@ class ThrottlesExceptions
     protected $whenCallback;
 
     /**
+     * The callbacks that determine if the job should be deleted.
+     *
+     * @var callable[]
+     */
+    protected array $deleteWhenCallbacks = [];
+
+    /**
+     * The callbacks that determine if the job should be failed.
+     *
+     * @var callable[]
+     */
+    protected array $failWhenCallbacks = [];
+
+    /**
      * The prefix of the rate limiter key.
+     *
+     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
     protected string $prefix = 'laravel_throttles_exceptions:';
 
@@ -66,8 +82,8 @@ class ThrottlesExceptions
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $this->limiter = ApplicationContext::getContainer()
-            ->get(RateLimiter::class);
+        $this->limiter = Container::getInstance()
+            ->make(RateLimiter::class);
 
         if ($this->limiter->tooManyAttempts($jobKey = $this->getKey($job), $this->maxAttempts)) {
             return $job->release($this->getTimeUntilNextRetry($jobKey));
@@ -78,12 +94,20 @@ class ThrottlesExceptions
 
             $this->limiter->clear($jobKey);
         } catch (Throwable $throwable) {
-            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable)) {
+            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable, $this->limiter)) {
                 throw $throwable;
             }
 
-            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable)) {
+            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable, $this->limiter)) {
                 report($throwable);
+            }
+
+            if ($this->shouldDelete($throwable)) {
+                return $job->delete();
+            }
+
+            if ($this->shouldFail($throwable)) {
+                return $job->fail($throwable);
             }
 
             $this->limiter->hit($jobKey, $this->decaySeconds);
@@ -102,6 +126,58 @@ class ThrottlesExceptions
         $this->whenCallback = $callback;
 
         return $this;
+    }
+
+    /**
+     * Add a callback that should determine if the job should be deleted.
+     */
+    public function deleteWhen(callable|string $callback): static
+    {
+        $this->deleteWhenCallbacks[] = is_string($callback)
+            ? fn (Throwable $e) => $e instanceof $callback
+            : $callback;
+
+        return $this;
+    }
+
+    /**
+     * Add a callback that should determine if the job should be failed.
+     */
+    public function failWhen(callable|string $callback): static
+    {
+        $this->failWhenCallbacks[] = is_string($callback)
+            ? fn (Throwable $e) => $e instanceof $callback
+            : $callback;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the job should be deleted for the given exception.
+     */
+    protected function shouldDelete(Throwable $throwable): bool
+    {
+        foreach ($this->deleteWhenCallbacks as $callback) {
+            if (call_user_func($callback, $throwable)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the job should be failed for the given exception.
+     */
+    protected function shouldFail(Throwable $throwable): bool
+    {
+        foreach ($this->failWhenCallbacks as $callback) {
+            if (call_user_func($callback, $throwable)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -132,11 +208,16 @@ class ThrottlesExceptions
         if ($this->key) {
             return $this->prefix . $this->key;
         }
+
         if ($this->byJob) {
             return $this->prefix . $job->job->uuid();
         }
 
-        return $this->prefix . md5(get_class($job));
+        $jobName = method_exists($job, 'displayName')
+            ? $job->displayName()
+            : get_class($job);
+
+        return $this->prefix . hash('xxh128', $jobName);
     }
 
     /**

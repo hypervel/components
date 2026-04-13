@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
-use Hyperf\Contract\Arrayable;
-use Hypervel\Notifications\Contracts\Slack\BlockContract;
-use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
+use Hypervel\Notifications\Slack\Contracts\ElementContract;
 use InvalidArgumentException;
 use LogicException;
 

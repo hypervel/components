@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use TypeError;
@@ -38,13 +38,12 @@ class InteractsWithBroadcastingTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 
     public function testBroadcastViaAcceptsStringBackedEnum(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionStringEnum::Pusher);
 
@@ -53,7 +52,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastViaAcceptsUnitEnum(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionUnitEnum::redis);
 
@@ -62,7 +61,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastViaWithIntBackedEnumStoresIntValue(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
@@ -72,7 +71,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastViaAcceptsNull(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $event->broadcastVia(null);
 
@@ -81,7 +80,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastViaAcceptsString(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $event->broadcastVia('custom-connection');
 
@@ -90,7 +89,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastViaIsChainable(): void
     {
-        $event = new TestBroadcastingEvent();
+        $event = new TestBroadcastingEvent;
 
         $result = $event->broadcastVia('pusher');
 
@@ -99,7 +98,7 @@ class InteractsWithBroadcastingTest extends TestCase
 
     public function testBroadcastWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
     {
-        $event = new TestBroadcastableEvent();
+        $event = new TestBroadcastableEvent;
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);

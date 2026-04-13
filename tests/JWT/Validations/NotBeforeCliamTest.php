@@ -35,7 +35,7 @@ class NotBeforeCliamTest extends TestCase
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Not Before (nbf) timestamp cannot be in the future');
 
-        $validation = new NotBeforeCliam();
+        $validation = new NotBeforeCliam;
 
         $validation->validate(['nbf' => Carbon::now()->timestamp + 3600]);
     }

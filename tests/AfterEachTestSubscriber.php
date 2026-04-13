@@ -1,0 +1,173 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests;
+
+use Mockery;
+use PHPUnit\Event\Test\Finished;
+use PHPUnit\Event\Test\FinishedSubscriber;
+
+/**
+ * Global cleanup after every test method.
+ *
+ * Runs after tearDown() completes, for ALL tests regardless of base class.
+ * Centralizes static state resets so individual tests don't need to remember
+ * them, and prevents state leaks even when a test forgets to clean up.
+ */
+final class AfterEachTestSubscriber implements FinishedSubscriber
+{
+    public function notify(Finished $event): void
+    {
+        if (class_exists(Mockery::class)) {
+            Mockery::close();
+        }
+
+        \Carbon\Carbon::resetMacros();
+        \Carbon\Carbon::resetToStringFormat();
+        \Carbon\Carbon::serializeUsing(null);
+        \Carbon\Carbon::setTestNow();
+        \Carbon\CarbonImmutable::setTestNow();
+        \Hypervel\ApiClient\PendingRequest::flushCache();
+        \Hypervel\Auth\Access\Gate::flushState();
+        \Hypervel\Auth\AuthenticationException::flushState();
+        \Hypervel\Auth\Middleware\Authenticate::flushState();
+        \Hypervel\Auth\Middleware\RedirectIfAuthenticated::flushState();
+        \Hypervel\Auth\Notifications\ResetPassword::flushState();
+        \Hypervel\Auth\Notifications\VerifyEmail::flushState();
+        \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushChannels();
+        \Hypervel\Bus\PendingBatch::flushState();
+        \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
+        \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
+        \Hypervel\Cache\Repository::flushState();
+        \Hypervel\Console\Application::forgetBootstrappers();
+        \Hypervel\Console\Commands\ScheduleListCommand::flushState();
+        \Hypervel\Console\Scheduling\Event::flushState();
+        \Hypervel\Container\BoundMethod::flushMethodRecipeCache();
+        \Hypervel\Container\Container::setInstance(null);
+        \Hypervel\Context\CoroutineContext::flush();
+        \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
+        \Hypervel\Coroutine\Coroutine::flushAfterCreated();
+        \Hypervel\Database\Console\DumpCommand::flushState();
+        \Hypervel\Database\Console\Migrations\FreshCommand::flushState();
+        \Hypervel\Database\Console\Migrations\RefreshCommand::flushState();
+        \Hypervel\Database\Console\Migrations\ResetCommand::flushState();
+        \Hypervel\Database\Console\Migrations\RollbackCommand::flushState();
+        \Hypervel\Database\Console\Seeds\SeedCommand::flushState();
+        \Hypervel\Database\Console\WipeCommand::flushState();
+        \Hypervel\Database\DatabaseManager::purgeConnections();
+        \Hypervel\Database\DatabaseTransactionsManager::flushState();
+        \Hypervel\Database\Eloquent\Builder::flushState();
+        \Hypervel\Database\Eloquent\Factories\Factory::flushState();
+        \Hypervel\Database\Eloquent\Model::clearBootedModels();
+        \Hypervel\Database\Eloquent\Model::flushCasterCache();
+        \Hypervel\Database\Eloquent\Model::preventAccessingMissingAttributes(false);
+        \Hypervel\Database\Eloquent\Model::preventLazyLoading(false);
+        \Hypervel\Database\Eloquent\Model::preventSilentlyDiscardingAttributes(false);
+        \Hypervel\Database\Eloquent\Model::unsetConnectionResolver();
+        \Hypervel\Database\Eloquent\Model::unsetEventDispatcher();
+        \Hypervel\Database\Eloquent\Relations\Relation::flushState();
+        \Hypervel\Database\Grammar::flushState();
+        \Hypervel\Database\Schema\Blueprint::flushState();
+        \Hypervel\Database\Schema\Builder::flushState();
+        \Hypervel\Di\Aop\AspectCollector::flushState();
+        \Hypervel\Di\Aop\AspectManager::flushState();
+        \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
+        \Hypervel\Di\ClassMap\ClassMapManager::flushState();
+        \Hypervel\Di\ReflectionManager::flushState();
+        \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();
+        \Hypervel\Foundation\Console\AboutCommand::flushState();
+        \Hypervel\Foundation\Console\ChannelListCommand::flushState();
+        \Hypervel\Foundation\Console\CliDumper::flushState();
+        \Hypervel\Foundation\Console\RouteListCommand::flushState();
+        \Hypervel\Foundation\Events\DiscoverEvents::flushState();
+        \Hypervel\Foundation\Http\FormRequest::flushState();
+        \Hypervel\Foundation\Http\HtmlDumper::flushState();
+        \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::flushState();
+        \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
+        \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::flushState();
+        \Hypervel\Foundation\Http\Middleware\TrimStrings::flushState();
+        \Hypervel\Foundation\Listeners\ReloadDotenvAndConfig::flushState();
+        \Hypervel\Foundation\PackageManifest::flushState();
+        \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
+        \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
+        \Hypervel\Foundation\Testing\DatabaseConnectionResolver::flushCachedConnections();
+        \Hypervel\Foundation\Vite::flush();
+        \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
+        \Hypervel\Horizon\SupervisorCommandString::flushState();
+        \Hypervel\Horizon\WorkerCommandString::flushState();
+        \Hypervel\Http\Client\Request::flushState();
+        \Hypervel\Http\Client\ResponseSequence::flushState();
+        \Hypervel\Http\Middleware\HandleCors::flushState();
+        \Hypervel\Http\Middleware\TrustHosts::flushState();
+        \Hypervel\Http\Middleware\TrustProxies::flushState();
+        \Hypervel\Http\Resources\Json\JsonResource::flushState();
+        \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
+        \Hypervel\Log\Context\Repository::flushState();
+        \Hypervel\Mail\Attachment::flushState();
+        \Hypervel\Mail\Mailer::flushState();
+        \Hypervel\Mail\Markdown::flushState();
+        \Hypervel\Pagination\AbstractCursorPaginator::flushState();
+        \Hypervel\Pagination\AbstractPaginator::flushState();
+        \Hypervel\Pipeline\Pipeline::flushState();
+        \Hypervel\Prompts\Prompt::flushState();
+        \Hypervel\Queue\Console\WorkCommand::flushState();
+        \Hypervel\Queue\Queue::flushState();
+        \Hypervel\Reverb\Loggers\Log::flushState();
+        \Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::flushState();
+        \Hypervel\Routing\CallableDispatcher::flushState();
+        \Hypervel\Routing\CompiledRouteCollection::flushCache();
+        \Hypervel\Routing\ControllerDispatcher::flushState();
+        \Hypervel\Routing\ImplicitRouteBinding::flushCache();
+        \Hypervel\Routing\Middleware\ValidateSignature::flushState();
+        \Hypervel\Routing\ResourceRegistrar::flushState();
+        \Hypervel\Routing\Route::flushState();
+        \Hypervel\Routing\RouteSignatureParameters::flushCache();
+        \Hypervel\Routing\SortedMiddleware::flushCache();
+        \Hypervel\Routing\UrlGenerator::flushRequestState();
+        \Hypervel\Sanctum\Sanctum::flushState();
+        \Hypervel\Scout\Builder::flushState();
+        \Hypervel\Scout\Scout::flushState();
+        \Hypervel\Server\ServerManager::flushState();
+        \Hypervel\ServerProcess\ProcessCollector::flushState();
+        \Hypervel\ServerProcess\ProcessManager::flushState();
+        \Hypervel\Session\Middleware\AuthenticateSession::flushState();
+        \Hypervel\Session\Store::flushState();
+        \Hypervel\Support\Arr::flushState();
+        \Hypervel\Support\BinaryCodec::flushState();
+        \Hypervel\Support\Collection::flushState();
+        \Hypervel\Support\Composer::flushState();
+        \Hypervel\Support\DateFactory::useDefault();
+        \Hypervel\Support\DotenvManager::flushState();
+        \Hypervel\Support\EncodedHtmlString::flushState();
+        \Hypervel\Support\Env::flushState();
+        \Hypervel\Support\Facades\Facade::clearResolvedInstances();
+        \Hypervel\Support\Fluent::flushState();
+        \Hypervel\Support\Lottery::determineResultNormally();
+        \Hypervel\Support\Number::flushState();
+        \Hypervel\Support\Once::flushState();
+        \Hypervel\Support\ServiceProvider::flushState();
+        \Hypervel\Support\Sleep::flushState();
+        \Hypervel\Support\Str::flushState();
+        \Hypervel\Support\StrCache::flushState();
+        \Hypervel\Support\Uri::flushState();
+        \Hypervel\Telescope\Telescope::flushState();
+        \Hypervel\Testbench\Bootstrapper::flushState();
+        \Hypervel\Testbench\Foundation\Config::flush();
+        \Hypervel\Testbench\Foundation\Console\TerminatingConsole::flush();
+        \Hypervel\Testbench\Workbench\Workbench::flush();
+        \Hypervel\Testing\Fluent\AssertableJson::flushState();
+        \Hypervel\Testing\TestResponse::flushState();
+        \Hypervel\Validation\Rule::flushState();
+        \Hypervel\Validation\Rules\Date::flushState();
+        \Hypervel\Validation\Rules\Email::flushState();
+        \Hypervel\Validation\Rules\File::flushState();
+        \Hypervel\Validation\Validator::flushState();
+        \Hypervel\View\Component::flushCache();
+        \Hypervel\View\Component::forgetComponentsResolver();
+        \Hypervel\View\Component::forgetFactory();
+        \Hypervel\View\Engines\CompilerEngine::forgetCompiledOrNotExpired();
+        \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
+        \Hypervel\WebSocketServer\Context::flushState();
+    }
+}

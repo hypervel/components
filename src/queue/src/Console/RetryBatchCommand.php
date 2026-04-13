@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Console\Isolatable;
+use Symfony\Component\Console\Attribute\AsCommand;
 
-class RetryBatchCommand extends Command
+#[AsCommand(name: 'queue:retry-batch')]
+class RetryBatchCommand extends Command implements Isolatable
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command signature.
      */
@@ -26,36 +26,45 @@ class RetryBatchCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(): void
     {
         $batchesFound = count($ids = $this->getBatchJobIds()) > 0;
 
         if ($batchesFound) {
-            $this->info('Pushing failed batch jobs back onto the queue.');
+            $this->components->info('Pushing failed batch jobs back onto the queue.');
         }
 
         foreach ($ids as $batchId) {
-            $batch = $this->app->get(BatchRepository::class)->find($batchId);
+            $batch = $this->hypervel->make(BatchRepository::class)->find($batchId);
 
             if (! $batch) {
-                $this->error("Unable to find a batch with ID [{$batchId}].");
-
-                return 1;
+                $this->components->error("Unable to find a batch with ID [{$batchId}].");
+                continue;
             }
             if (empty($batch->failedJobIds)) {
-                $this->error('The given batch does not contain any failed jobs.');
-
-                return 1;
+                $this->components->error('The given batch does not contain any failed jobs.');
+                continue;
             }
 
-            $this->info("Pushing failed queue jobs of the batch [{$batchId}] back onto the queue.");
+            $this->components->info("Pushing failed queue jobs of the batch [{$batchId}] back onto the queue.");
 
             foreach ($batch->failedJobIds as $failedJobId) {
-                $this->call('queue:retry', ['id' => $failedJobId]);
+                $this->components->task(
+                    $failedJobId,
+                    fn () => $this->callSilent('queue:retry', ['id' => $failedJobId]) === 0
+                );
             }
-        }
 
-        return 0;
+            $this->newLine();
+        }
+    }
+
+    /**
+     * Get the custom mutex name for an isolated command.
+     */
+    public function isolatableId(): string
+    {
+        return implode(',', (array) $this->argument('id'));
     }
 
     /**

@@ -6,8 +6,8 @@ namespace Hypervel\Tests\ApiClient;
 
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\ApiResource;
-use Hypervel\HttpClient\Request;
-use Hypervel\HttpClient\Response;
+use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 
@@ -25,7 +25,7 @@ class ApiClientTest extends TestCase
             'test-endpoint' => Http::response('{"success": true}'),
         ]);
 
-        $client = new ApiClient();
+        $client = new ApiClient;
         $response = $client->post('test-endpoint', ['foo' => 'bar']);
 
         $this->assertInstanceOf(ApiResource::class, $response);
@@ -49,7 +49,7 @@ class ApiClientTest extends TestCase
             'test-endpoint' => Http::response('{"success": true}'),
         ]);
 
-        $client = new ApiClient();
+        $client = new ApiClient;
         $response = $client
             ->withToken('test-token')
             ->asForm()

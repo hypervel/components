@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Session\EncryptedStore;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -46,15 +46,12 @@ class EncryptedSessionStoreTest extends TestCase
 
     public function getSession(): EncryptedStore
     {
-        $store = new EncryptedStore(
+        return new EncryptedStore(
             $this->getSessionName(),
             m::mock(SessionHandlerInterface::class),
-            m::mock(Encrypter::class)
+            m::mock(Encrypter::class),
+            $this->getSessionId()
         );
-
-        $store->setId($this->getSessionId());
-
-        return $store;
     }
 
     protected function getSessionId(): string

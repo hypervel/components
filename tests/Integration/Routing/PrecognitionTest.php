@@ -1,0 +1,1597 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Routing\PrecognitionTest;
+
+use Closure;
+use Exception;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Validation\ValidatesRequests;
+use Hypervel\Http\Request;
+use Hypervel\Routing\CallableDispatcher;
+use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
+use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
+use Hypervel\Routing\ControllerDispatcher;
+use Hypervel\Session\Middleware\StartSession;
+use Hypervel\Support\Facades\Gate;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Tests\Integration\Routing\RoutingTestCase;
+
+function fail()
+{
+    throw new Exception('This code should not be reached.');
+}
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class PrecognitionTest extends RoutingTestCase
+{
+    public function testItDoesntInvokeControllerMethodByDefault()
+    {
+        Route::get('test-route', [PrecognitionTestController::class, 'methodThatFails'])
+            ->middleware(HandlePrecognitiveRequests::class);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition-Success', 'true');
+        $this->assertTrue($this->app['ClassWasInstantiated']);
+    }
+
+    public function testItDoesntInvokeCallableControllerByDefault()
+    {
+        $resolved = false;
+        Route::get('test-route', fn (ClassThatBindsOnInstantiation $foo) => fail())
+            ->middleware(HandlePrecognitiveRequests::class);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition-Success', 'true');
+        $this->assertTrue($this->app['ClassWasInstantiated']);
+    }
+
+    public function testItCanCheckPrecognitiveStateOnTheRequest()
+    {
+        // Capture request state inside the handler since request() is coroutine-scoped
+        // and the test runs in a different coroutine than the HTTP handler.
+        $state = [];
+
+        Route::get('test-route', function () use (&$state) {
+            $state['precognitive'] = request()->attributes->get('precognitive');
+            $state['isPrecognitive'] = request()->isPrecognitive();
+
+            return 'ok';
+        })->middleware(PrecognitionInvokingController::class);
+
+        $this->get('test-route');
+        $this->assertNull($state['precognitive']);
+        $this->assertFalse($state['isPrecognitive']);
+
+        $state = [];
+
+        $this->get('test-route', ['Precognition' => 'true']);
+        $this->assertTrue($state['precognitive']);
+        $this->assertTrue($state['isPrecognitive']);
+    }
+
+    public function testItReturnsTheEmptyResponseWhenNotBailing()
+    {
+        Route::get('test-route', function () {
+            precognitive(function () {
+            });
+
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition-Success', 'true');
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+    }
+
+    public function testItCanBailDuringPrecognitionRequest()
+    {
+        Route::get('test-route', function () {
+            precognitive(function ($bail) {
+                $bail(response()->json(['expected' => 'response']));
+                fail();
+            });
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertOk();
+        $response->assertJson(['expected' => 'response']);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanExcludeValidationRulesWhenPrecognitiveWithFormRequest()
+    {
+        Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'required_integer' => [
+                'The required integer field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testItRunsExcludedRulesWhenNotPrecognitiveForFormRequest()
+    {
+        Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'required_integer' => [
+                'The required integer field must be an integer.',
+            ],
+            'required_integer_when_not_precognitive' => [
+                'The required integer when not precognitive field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyInputToValidate()
+    {
+        Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'optional_integer_1' => 'foo',
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyNoInputsToValidate()
+    {
+        Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'foo',
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => '',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItAppliesHeadersWhenExceptionThrownInPrecognition()
+    {
+        Route::get('test-route', function () {
+            precognitive(function () {
+                throw new ModelNotFoundException;
+            });
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertNotFound();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItAppliesHeadersWhenFlowControlExceptionIsThrown()
+    {
+        // Check with Authorize middleware first...
+        Gate::define('alwaysDeny', fn () => false);
+        Route::get('test-route-before', fn () => fail())
+            ->middleware(['can:alwaysDeny', HandlePrecognitiveRequests::class]);
+
+        $response = $this->get('test-route-before', ['Precognition' => 'true']);
+
+        $response->assertForbidden();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+
+        // Check with Authorize middleware last...
+        Route::get('test-route-after', fn () => fail())
+            ->middleware([HandlePrecognitiveRequests::class, 'can:alwaysDeny']);
+
+        $response = $this->get('test-route-after', ['Precognition' => 'true']);
+
+        $response->assertForbidden();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanReturnValuesFromPrecognitionClosure()
+    {
+        Route::get('test-route', function () {
+            [$first, $second, $third] = precognitive(function () {
+                return ['expected', 'values', 'passed'];
+            });
+
+            return [
+                'first' => $first,
+                'second' => $second,
+                'third' => $third,
+            ];
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route');
+
+        $response->assertOk();
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertExactJson([
+            'first' => 'expected',
+            'second' => 'values',
+            'third' => 'passed',
+        ]);
+    }
+
+    public function testItCanBailWithResponseDuringNormalRequest()
+    {
+        Route::get('test-route', function () {
+            precognitive(function ($bail) {
+                $bail(response()->json(['expected' => 'response']));
+
+                fail();
+            });
+
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route');
+
+        $response->assertOk();
+        $response->assertJson(['expected' => 'response']);
+        $response->assertHeaderMissing('Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testArbitraryBailResponseIsParsedToResponse()
+    {
+        Route::get('test-route', function () {
+            precognitive(function ($bail) {
+                $bail(['expected' => 'response']);
+
+                fail();
+            });
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route');
+        $response->assertJson(['expected' => 'response']);
+        $response->assertHeaderMissing('Precognition');
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+        $response->assertJson(['expected' => 'response']);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidate()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithBag()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidateWithBag'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidate()
+    {
+        Route::post('test-route', function (Request $request) {
+            precognitive(function () use ($request) {
+                $request->validate([
+                    'required_integer' => 'required|integer',
+                    ...! $request->isPrecognitive() ? ['required_integer_when_not_precognitive' => 'required|integer'] : [],
+                    'optional_integer_1' => 'integer',
+                    'optional_integer_2' => 'integer',
+                ]);
+
+                fail();
+            });
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidateWithBag()
+    {
+        Route::post('test-route', function (Request $request) {
+            precognitive(function () use ($request) {
+                $request->validateWithBag('custom-bag', [
+                    'required_integer' => 'required|integer',
+                    ! $request->isPrecognitive() ? ['required_integer_when_not_precognitive' => 'required|integer'] : [],
+                    'optional_integer_1' => 'integer',
+                    'optional_integer_2' => 'integer',
+                ]);
+
+                fail();
+            });
+
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithPassingArrayOfRules()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidateWith'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            // 'required_integer' => 'foo',
+            'required_integer_when_not_precognitive' => 'foo',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1,optional_integer_2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'optional_integer_1' => [
+                'The optional integer 1 field must be an integer.',
+            ],
+            'optional_integer_2' => [
+                'The optional integer 2 field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testItCanValidateArrayWithWildcard()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereArrayRulesAreValidateViaControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'raw_array' => [123, 'someString'],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'raw_array.*',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'raw_array.0' => [
+                'The raw_array.0 field must be a string.',
+            ],
+        ]);
+    }
+
+    public function testItCanValidateNestedArrayWithWildcard()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereArrayRulesAreValidateViaControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'nested_array' => [
+                ['name' => 123],
+                ['name' => 'someString'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'nested_array.*.name',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'nested_array.0.name' => [
+                'The nested_array.0.name field must be a string.',
+            ],
+        ]);
+    }
+
+    public function testItCanValidateNestedObjectFieldsWithWildcard()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereProfileIsValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'profile' => ['username' => 123, 'email' => 'invalid'],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'profile.*',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            'profile.username' => ['The profile.username field must be a string.'],
+            'profile.email' => ['The profile.email field must be a valid email address.'],
+        ]);
+    }
+
+    public function testItDoesNotMatchWildcardAgainstOtherRootKeys()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWithMultipleRootKeys'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'user' => ['name' => 123],
+            'email' => 'not-an-email',
+            'name' => 123,
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'user.*',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonMissing(['errors' => ['email' => []]]);
+        $response->assertJsonMissing(['errors' => ['name' => []]]);
+        $response->assertJsonPath('errors', [
+            'user.name' => ['The user.name field must be a string.'],
+        ]);
+    }
+
+    public function testItDoesNotMatchWildcardAcrossSegments()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'users' => [
+                ['name' => 123, 'email' => 'invalid'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'users.*',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItCanValidateAllNestedFieldsWithDoubleWildcard()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'users' => [
+                ['name' => 123, 'email' => 'invalid'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'users,users.*.*',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonPath('errors', [
+            'users.0.name' => ['The users.0.name field must be a string.'],
+            'users.0.email' => ['The users.0.email field must be a valid email address.'],
+        ]);
+    }
+
+    public function testItCanValidateSpecificIndexWithoutWildcard()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'users' => [
+                ['name' => 123, 'email' => 'invalid'],
+                ['name' => 456, 'email' => 'also-invalid'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'users.1.email',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonMissing(['errors' => ['users.0.email' => []]]);
+        $response->assertJsonPath('errors', [
+            'users.1.email' => ['The users.1.email field must be a valid email address.'],
+        ]);
+    }
+
+    public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders()
+    {
+        Route::get('test-route', function () {
+            precognitive(function ($bail) {
+                $bail(response('expected')->header('Vary', 'Foo'));
+                fail();
+            });
+            fail();
+        })->middleware([PrecognitionInvokingController::class]);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+
+        $response->assertHeader('Vary', 'Foo, Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testSpacesAreImportantInValidationFilterLogicForJsonRequests()
+    {
+        Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            ' input with spaces ' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => ' input with spaces ',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertHeaderMissing('Precognition-Success');
+        $response->assertJsonPath('errors', [
+            ' input with spaces ' => [
+                'The input with spaces field must be an integer.',
+            ],
+        ]);
+    }
+
+    public function testVaryHeaderIsAppliedToNonPrecognitionResponses()
+    {
+        Route::get('test-route', fn () => 'ok')
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->get('test-route');
+
+        $response->assertOk();
+        $this->assertSame('ok', $response->content());
+        $response->assertHeader('Vary', 'Precognition');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndFormRequest()
+    {
+        Route::post('test-route', function (PrecognitionTestRequest $request, ClassThatBindsOnInstantiation $foo) {
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+        $this->app->instance('ClassWasInstantiated', false);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $this->assertFalse($this->app['ClassWasInstantiated']);
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingFormRequest()
+    {
+        Route::post('test-route', function (NestedPrecognitionTestRequest $request) {
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'nested' => [
+                ['namsse' => 'sdsd'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'nested,nested.0.name',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The nested.0.name field is required.',
+            'errors' => [
+                'nested' => [
+                    [
+                        'name' => [
+                            'The nested.0.name field is required.',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingRequestValidate()
+    {
+        Route::post('test-route', function (Request $request) {
+            $request->validate([
+                'nested' => ['required', 'array', 'min:1'],
+                'nested.*.name' => ['required', 'string'],
+            ]);
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'nested' => [
+                ['namsse' => 'sdsd'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'nested,nested.0.name',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The nested.0.name field is required.',
+            'errors' => [
+                'nested' => [
+                    [
+                        'name' => [
+                            'The nested.0.name field is required.',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidate()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereNestedRulesAreValidatedViaControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'nested' => [
+                ['namsse' => 'sdsd'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'nested,nested.0.name',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The nested.0.name field is required.',
+            'errors' => [
+                'nested' => [
+                    [
+                        'name' => [
+                            'The nested.0.name field is required.',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidateWith()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereNestedRulesAreValidatedViaControllerValidateWith'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'nested' => [
+                ['namsse' => 'sdsd'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'nested,nested.0.name',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The nested.0.name field is required.',
+            'errors' => [
+                'nested' => [
+                    [
+                        'name' => [
+                            'The nested.0.name field is required.',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanPassValidationForEscapedDotsAfterFilteringWithPrecognition()
+    {
+        Route::post('test-route', function (PrecognitionRequestWithEscapedDots $request) {
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'escaped.dot' => 'value',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'escaped\.dot',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItCanFilterRulesWithEscapedDotsUsingFormRequest()
+    {
+        Route::post('test-route', function (PrecognitionRequestWithEscapedDots $request) {
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'escaped\.dot',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The escaped.dot field is required.',
+            'errors' => [
+                'escaped.dot' => [
+                    'The escaped.dot field is required.',
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingRequestValidate()
+    {
+        Route::post('test-route', function (Request $request) {
+            $request->validate([
+                'escaped\.dot' => 'required',
+            ]);
+
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'escaped\.dot',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The escaped.dot field is required.',
+            'errors' => [
+                'escaped.dot' => [
+                    'The escaped.dot field is required.',
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidate()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'escaped\.dot',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The escaped.dot field is required.',
+            'errors' => [
+                'escaped.dot' => [
+                    'The escaped.dot field is required.',
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidateWith()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidateWith'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'escaped\.dot',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertExactJson([
+            'message' => 'The escaped.dot field is required.',
+            'errors' => [
+                'escaped.dot' => [
+                    'The escaped.dot field is required.',
+                ],
+            ],
+        ]);
+        $response->assertHeader('Precognition', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndFormRequest()
+    {
+        Route::post('test-route', function (PrecognitionTestRequest $request, ClassThatBindsOnInstantiation $foo) {
+            precognitive(function ($bail) {
+                $bail(response('expected response'));
+                fail();
+            });
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+        $this->app->instance('ClassWasInstantiated', false);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $this->assertTrue($this->app['ClassWasInstantiated']);
+        $response->assertOk();
+        $this->assertSame('expected response', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidate()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidate()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidate'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Post-validation code was executed.', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithBag()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithBag'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithBag()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithBag'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Post-validation code was executed.', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWith()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWith'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithXXXX()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWith'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Post-validation code was executed.', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithPassingValidator()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithPassingValidator'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithPassingValidator()
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithPassingValidator'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Post-validation code was executed.', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndRequestValidate()
+    {
+        Route::post('test-route', function (Request $request) {
+            precognitive(function ($bail) use ($request) {
+                $request->validate([
+                    'required_integer' => 'required|integer',
+                    'optional_integer_1' => 'integer',
+                    'optional_integer_2' => 'integer',
+                ]);
+
+                $bail(response('Post-validation code was executed.'));
+
+                fail();
+            });
+
+            fail();
+        })
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'optional_integer_1' => 1,
+            'optional_integer_2' => 'foo',
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'optional_integer_1',
+        ]);
+
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeader('Precognition-Success', 'true');
+    }
+
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndRequestValidate()
+    {
+        Route::post('test-route', function (Request $request) {
+            precognitive(function ($bail) use ($request) {
+                $request->validate([
+                    'required_integer' => 'required|integer',
+                    'optional_integer_1' => 'integer',
+                    'optional_integer_2' => 'integer',
+                ]);
+
+                $bail(response('Post-validation code was executed.'));
+
+                fail();
+            });
+
+            fail();
+        })->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->post('test-route', [
+            'required_integer' => 1,
+        ], [
+            'Precognition' => 'true',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('Post-validation code was executed.', $response->content());
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItDoesNotSetLastUrl()
+    {
+        // Force the session manager to use the array driver and flush any cached driver
+        // so the config change takes effect.
+        $this->app['config']->set('session.driver', 'array');
+        $this->app->make('session')->forgetDrivers();
+
+        // Capture previousUrl inside route handlers since session() is coroutine-scoped.
+        $previousUrls = [];
+
+        Route::get('expected-route-1', function () use (&$previousUrls) {
+            $previousUrls['after_route_1'] = session()->previousUrl();
+
+            return 'ok';
+        })->middleware(StartSession::class);
+
+        Route::get('expected-route-2', function () use (&$previousUrls) {
+            $previousUrls['after_route_2'] = session()->previousUrl();
+
+            return 'ok';
+        })->middleware(StartSession::class);
+
+        // No capture in the precognition route — the handler is short-circuited
+        // by the dispatcher and never executes.
+        Route::get('precognition-route', fn () => 'ok')
+            ->middleware([StartSession::class, HandlePrecognitiveRequests::class]);
+
+        // The test framework doesn't auto-forward response cookies between requests,
+        // so we extract the session cookie and carry it manually.
+        $response = $this->get('expected-route-1');
+        $response->assertOk();
+
+        $sessionCookie = $response->getCookie(config('session.cookie'), decrypt: false);
+        $this->withUnencryptedCookie($sessionCookie->getName(), $sessionCookie->getValue());
+
+        $response = $this->get('precognition-route', ['Precognition' => 'true']);
+        $response->assertNoContent();
+
+        $response = $this->get('expected-route-2');
+        $response->assertOk();
+
+        // After route 1: no previous URL yet
+        $this->assertNull($previousUrls['after_route_1']);
+        // After route 2: previous URL should still be route 1 (precognition didn't update it)
+        $this->assertSame('http://localhost/expected-route-1', $previousUrls['after_route_2']);
+    }
+
+    public function testItAppendsVaryHeaderToSymfonyResponse()
+    {
+        Route::get('test-route', function () {
+            return response()->streamDownload(function () {
+                echo 'foo';
+            }, null, ['Expected' => 'Header']);
+        })->middleware(HandlePrecognitiveRequests::class);
+
+        $response = $this->get('test-route');
+        $response->assertOk();
+        $response->assertHeader('Expected', 'Header');
+        $response->assertHeaderMissing('Precognition-Success');
+    }
+
+    public function testItAppendsPrecognitionHeaderToSymfonyResponse()
+    {
+        Route::get('test-route', function () {
+        })->middleware([
+            HandlePrecognitiveRequests::class,
+            MiddlewareReturningSymfonyResponse::class,
+        ]);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+        $response->assertOk();
+        $response->assertHeader('Expected', 'Header');
+        $response->assertHeader('Precognition', 'true');
+    }
+
+    public function testItCanNoContentWhileAlsoNotBeingPrecognitive()
+    {
+        Route::get('test-route', function () {
+        })->middleware([HandlePrecognitiveRequests::class, MiddlewareThatReturnsNoContent::class]);
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+        $response->assertNoContent();
+        $response->assertHeader('Precognition', 'true');
+        $response->assertHeaderMissing('Precognition-Success', 'true');
+    }
+
+    public function testDispatcherBindingsAreUnchangedAfterPrecognitiveRequest()
+    {
+        Route::get('test-route', fn () => 'ok')
+            ->middleware(HandlePrecognitiveRequests::class);
+
+        $callableBinding = $this->app->getBindings()[CallableDispatcherContract::class] ?? null;
+        $controllerBinding = $this->app->getBindings()[ControllerDispatcherContract::class] ?? null;
+
+        $response = $this->get('test-route', ['Precognition' => 'true']);
+        $response->assertNoContent();
+
+        // Hypervel uses request attributes instead of container rebinding,
+        // so dispatchers are always the original types.
+        $this->assertInstanceOf(CallableDispatcher::class, $this->app->make(CallableDispatcherContract::class));
+        $this->assertInstanceOf(ControllerDispatcher::class, $this->app->make(ControllerDispatcherContract::class));
+
+        // Bindings remain completely unchanged — no rebinding occurs.
+        $this->assertSame(
+            $callableBinding,
+            $this->app->getBindings()[CallableDispatcherContract::class] ?? null
+        );
+        $this->assertSame(
+            $controllerBinding,
+            $this->app->getBindings()[ControllerDispatcherContract::class] ?? null
+        );
+    }
+}
+
+class PrecognitionTestController
+{
+    use ValidatesRequests;
+
+    public function methodWhereEscapedDotRuleIsValidatedViaControllerValidate(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'escaped\.dot' => 'required',
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereEscapedDotRuleIsValidatedViaControllerValidateWith()
+    {
+        precognitive(function () {
+            $this->validateWith([
+                'escaped\.dot' => 'required',
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereNestedRulesAreValidatedViaControllerValidate(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'nested' => ['required', 'array', 'min:1'],
+                'nested.*.name' => ['required', 'string'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereArrayRulesAreValidateViaControllerValidate(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'nested_array' => ['required', 'array', 'min:1'],
+                'nested_array.*.name' => ['required', 'string'],
+                'raw_array' => ['required', 'array', 'min:1'],
+                'raw_array.*' => ['required', 'string'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereUsersAreValidated(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'users' => ['required', 'array'],
+                'users.*.name' => ['required', 'string'],
+                'users.*.email' => ['required', 'email'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWithMultipleRootKeys(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'user' => ['required', 'array'],
+                'user.name' => ['required', 'string'],
+                'email' => ['required', 'email'],
+                'name' => ['required', 'string'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereProfileIsValidated(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'profile' => ['required', 'array'],
+                'profile.username' => ['required', 'string'],
+                'profile.email' => ['required', 'email'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereNestedRulesAreValidatedViaControllerValidateWith(Request $request)
+    {
+        precognitive(function () {
+            $this->validateWith([
+                'nested' => ['required', 'array', 'min:1'],
+                'nested.*.name' => ['required', 'string'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionValidatesViaControllerValidate(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'required_integer' => 'required|integer',
+                ...! $request->isPrecognitive() ? ['required_integer_when_not_precognitive' => 'required|integer'] : [],
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionValidatesViaControllerValidateWithBag(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validateWithBag('custom-bag', $request, [
+                'required_integer' => 'required|integer',
+                ...! $request->isPrecognitive() ? ['required_integer_when_not_precognitive' => 'required|integer'] : [],
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionValidatesViaControllerValidateWith(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validateWith([
+                'required_integer' => 'required|integer',
+                ...! $request->isPrecognitive() ? ['required_integer_when_not_precognitive' => 'required|integer'] : [],
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionReturnsResponseWithControllerValidate(Request $request)
+    {
+        precognitive(function ($bail) use ($request) {
+            $this->validate($request, [
+                'required_integer' => 'required|integer',
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            $bail(response('Post-validation code was executed.'));
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionReturnsResponseWithControllerValidateWithBag(Request $request)
+    {
+        precognitive(function ($bail) use ($request) {
+            $this->validateWithBag('custom-bag', $request, [
+                'required_integer' => 'required|integer',
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            $bail(response('Post-validation code was executed.'));
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionReturnsResponseWithControllerValidateWith(Request $request)
+    {
+        precognitive(function ($bail) {
+            $this->validateWith([
+                'required_integer' => 'required|integer',
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]);
+
+            $bail(response('Post-validation code was executed.'));
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWherePredictionReturnsResponseWithControllerValidateWithPassingValidator(Request $request)
+    {
+        precognitive(function ($bail) use ($request) {
+            $this->validateWith(Validator::make($request->all(), [
+                'required_integer' => 'required|integer',
+                'optional_integer_1' => 'integer',
+                'optional_integer_2' => 'integer',
+            ]));
+
+            $bail(response('Post-validation code was executed.'));
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodThatFails(ClassThatBindsOnInstantiation $foo)
+    {
+        fail();
+    }
+}
+
+class PrecognitionTestRequest extends FormRequest
+{
+    public function rules()
+    {
+        $rules = [
+            'required_integer' => 'required|integer',
+            'optional_integer_1' => 'integer',
+            'optional_integer_2' => 'integer',
+            ' input with spaces ' => 'integer',
+        ];
+
+        if (! $this->isPrecognitive()) {
+            $rules['required_integer_when_not_precognitive'] = 'required|integer';
+        }
+
+        return $rules;
+    }
+}
+
+class NestedPrecognitionTestRequest extends FormRequest
+{
+    public function rules()
+    {
+        return [
+            'nested' => ['required', 'array', 'min:1'],
+            'nested.*.name' => ['required', 'string'],
+        ];
+    }
+}
+
+class PrecognitionRequestWithEscapedDots extends FormRequest
+{
+    public function rules()
+    {
+        return [
+            'escaped\.dot' => ['required'],
+        ];
+    }
+}
+
+class ClassThatBindsOnInstantiation
+{
+    public function __construct()
+    {
+        app()->instance('ClassWasInstantiated', true);
+    }
+}
+
+class PrecognitionInvokingController extends HandlePrecognitiveRequests
+{
+    protected function prepareForPrecognition($request): void
+    {
+        parent::prepareForPrecognition($request);
+
+        // Remove the dispatch attribute so dispatchers run normally,
+        // while keeping 'precognitive' so isPrecognitive() still returns true.
+        $request->attributes->remove('precognitive_dispatch');
+    }
+}
+
+class MiddlewareReturningSymfonyResponse
+{
+    public function handle(Request $request, Closure $next)
+    {
+        return response()->streamDownload(function () {
+        }, null, ['Expected' => 'Header']);
+    }
+}
+
+class MiddlewareThatReturnsNoContent
+{
+    public function handle(Request $request, Closure $next)
+    {
+        return response()->noContent();
+    }
+}

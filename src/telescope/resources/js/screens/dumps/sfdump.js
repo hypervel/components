@@ -153,7 +153,11 @@ export default function (doc) {
                 '^(' + (root.getAttribute('data-indent-pad') || '  ').replace(rxEsc, '\\$1') + ')+',
                 'm'
             ),
-            options = { maxDepth: 1, maxStringLength: 160, fileLinkFormat: false },
+            options = {
+                maxDepth: 1,
+                maxStringLength: 160,
+                fileLinkFormat: false,
+            },
             elt = root.getElementsByTagName('A'),
             len = elt.length,
             i = 0,

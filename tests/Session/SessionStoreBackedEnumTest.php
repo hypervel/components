@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hyperf\Context\Context;
 use Hypervel\Session\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -38,15 +37,6 @@ enum SessionUnitKey
  */
 class SessionStoreBackedEnumTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Context::destroy('_session.store.started');
-        Context::destroy('_session.store.id');
-        Context::destroy('_session.store.attributes');
-
-        parent::tearDown();
-    }
-
     // =========================================================================
     // get() tests
     // =========================================================================
@@ -842,14 +832,11 @@ class SessionStoreBackedEnumTest extends TestCase
 
     protected function getSession(string $serialization = 'php'): Store
     {
-        $store = new Store(
+        return new Store(
             'test-session',
             m::mock(SessionHandlerInterface::class),
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             $serialization
         );
-
-        $store->setId('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-
-        return $store;
     }
 }

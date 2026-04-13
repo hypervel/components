@@ -2,18 +2,30 @@ providers:
   - Workbench\App\Providers\WorkbenchServiceProvider
 
 env:
-  - APP_NAME="Hypervel Testbench"
+  APP_NAME: "Testbench"
+
+migrations:
+  - workbench/database/migrations
 
 workbench:
+  health: true
   discovers:
-    web: false
-    api: false
-    commands: false
+    config: true
+    factories: true
+    web: true
+    api: true
+    commands: true
+    views: true
+  sync:
+    - from: storage
+      to: workbench/storage
+      reverse: true
 
 purge:
   files:
+    # Do not purge composer.json — needed by PackageManifest::packagesToIgnore().
     - .env
-    - composer.lock
   directories:
-    - runtime
-    - public/vendor
+    - public/build
+    - public/vendor/*
+    - storage/framework/aop

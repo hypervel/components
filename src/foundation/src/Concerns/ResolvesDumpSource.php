@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Concerns;
 
+use Hypervel\Support\Str;
 use Throwable;
 
 trait ResolvesDumpSource
@@ -14,22 +15,29 @@ trait ResolvesDumpSource
      * @var array<string, string>
      */
     protected array $editorHrefs = [
+        'antigravity' => 'antigravity://file/{file}:{line}',
         'atom' => 'atom://core/open/file?filename={file}&line={line}',
         'cursor' => 'cursor://file/{file}:{line}',
         'emacs' => 'emacs://open?url=file://{file}&line={line}',
+        'fleet' => 'fleet://open?file={file}&line={line}',
         'idea' => 'idea://open?file={file}&line={line}',
+        'kiro' => 'kiro://file/{file}:{line}',
         'macvim' => 'mvim://open/?url=file://{file}&line={line}',
+        'neovim' => 'nvim://open?url=file://{file}&line={line}',
         'netbeans' => 'netbeans://open/?f={file}:{line}',
         'nova' => 'nova://core/open/file?filename={file}&line={line}',
         'phpstorm' => 'phpstorm://open?file={file}&line={line}',
         'sublime' => 'subl://open?url=file://{file}&line={line}',
         'textmate' => 'txmt://open?url=file://{file}&line={line}',
+        'trae' => 'trae://file/{file}:{line}',
         'vscode' => 'vscode://file/{file}:{line}',
         'vscode-insiders' => 'vscode-insiders://file/{file}:{line}',
         'vscode-insiders-remote' => 'vscode-insiders://vscode-remote/{file}:{line}',
         'vscode-remote' => 'vscode://vscode-remote/{file}:{line}',
         'vscodium' => 'vscodium://file/{file}:{line}',
+        'windsurf' => 'windsurf://file/{file}:{line}',
         'xdebug' => 'xdebug://{file}@{line}',
+        'zed' => 'zed://file/{file}:{line}',
     ];
 
     /**
@@ -39,6 +47,7 @@ trait ResolvesDumpSource
      */
     protected static array $adjustableTraces = [
         'symfony/var-dumper/Resources/functions/dump.php' => 1,
+        'collections/src/Traits/EnumeratesValues.php' => 4,
     ];
 
     /**
@@ -140,10 +149,8 @@ trait ResolvesDumpSource
 
     /**
      * Resolve the source href, if possible.
-     *
-     * @return null|string|void
      */
-    protected function resolveSourceHref(string $file, ?int $line)
+    protected function resolveSourceHref(string $file, ?int $line): ?string
     {
         try {
             $editor = config('app.editor');
@@ -152,7 +159,7 @@ trait ResolvesDumpSource
         }
 
         if (! isset($editor)) {
-            return;
+            return null;
         }
 
         $href = is_array($editor) && isset($editor['href'])
@@ -160,7 +167,7 @@ trait ResolvesDumpSource
             : ($this->editorHrefs[$editor['name'] ?? $editor] ?? sprintf('%s://open?file={file}&line={line}', $editor['name'] ?? $editor));
 
         if ($basePath = $editor['base_path'] ?? false) {
-            $file = str_replace($this->basePath, $basePath, $file);
+            $file = Str::replaceStart($this->basePath, $basePath, $file);
         }
 
         return str_replace(
@@ -186,5 +193,13 @@ trait ResolvesDumpSource
     public static function dontIncludeSource(): void
     {
         static::$dumpSourceResolver = false;
+    }
+
+    /**
+     * Flush the static state of the trait.
+     */
+    public static function flushState(): void
+    {
+        static::$dumpSourceResolver = null;
     }
 }

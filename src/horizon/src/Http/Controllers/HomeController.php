@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Http\Controllers;
 
-class HomeController
+use Hypervel\Support\Facades\App;
+
+class HomeController extends Controller
 {
     /**
      * Single page application catch-all route.
@@ -12,7 +14,7 @@ class HomeController
     public function index()
     {
         return view('horizon::layout', [
-            'isDownForMaintenance' => false,
+            'isDownForMaintenance' => App::isDownForMaintenance(),
         ]);
     }
 }

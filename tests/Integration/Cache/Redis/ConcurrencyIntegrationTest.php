@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hyperf\Coroutine\Parallel;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Coroutine\Parallel;
 use Hypervel\Support\Facades\Cache;
 
 /**

@@ -28,7 +28,7 @@ final class CacheStoreCheck implements EnvironmentCheckInterface
 
     public function run(): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $isRedisDriver = $this->driver === 'redis';
 

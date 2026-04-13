@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
@@ -33,10 +33,10 @@ class ValidationAnyOfRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(
+        $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
-                new ArrayLoader(),
+                new ArrayLoader,
                 'en'
             )
         );
@@ -53,39 +53,39 @@ class ValidationAnyOfRuleTest extends TestCase
         $idRule = ['id' => $rule];
         $requiredIdRule = ['id' => ['required', $rule]];
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => 'taylor@laravel.com',
         ], $idRule);
 
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [], $idRule);
+        $validator = new Validator($this->app->make('translator'), [], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [], $requiredIdRule);
+        $validator = new Validator($this->app->make('translator'), [], $requiredIdRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '3c8ff5cb-4bc1-457b-a477-1833c477b254',
         ], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => null,
         ], $idRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '',
         ], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '',
         ], $requiredIdRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => 'abc',
         ], $idRule);
         $this->assertFalse($validator->passes());
@@ -100,38 +100,38 @@ class ValidationAnyOfRuleTest extends TestCase
         $idRule = ['id' => $rule];
         $requiredIdRule = ['id' => ['required', $rule]];
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => 'test@example.com',
         ], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [], $idRule);
+        $validator = new Validator($this->app->make('translator'), [], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [], $requiredIdRule);
+        $validator = new Validator($this->app->make('translator'), [], $requiredIdRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '3c8ff5cb-4bc1-457b-a477-1833c477b254',
         ], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => null,
         ], $idRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '',
         ], $idRule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => '',
         ], $requiredIdRule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'id' => 'abc',
         ], $idRule);
         $this->assertFalse($validator->passes());
@@ -139,7 +139,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
     public function testTaggedUnionObjects()
     {
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => TaggedUnionDiscriminatorType::EMAIL->value,
                 'email' => 'taylor@laravel.com',
@@ -147,7 +147,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => TaggedUnionDiscriminatorType::EMAIL->value,
                 'email' => 'invalid-email',
@@ -155,7 +155,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => TaggedUnionDiscriminatorType::URL->value,
                 'url' => 'http://laravel.com',
@@ -163,7 +163,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => TaggedUnionDiscriminatorType::URL->value,
                 'url' => 'not-a-url',
@@ -171,7 +171,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => TaggedUnionDiscriminatorType::EMAIL->value,
                 'url' => 'url-should-not-be-present-with-email-discriminator',
@@ -179,7 +179,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'data' => [
                 'type' => 'doesnt-exist',
                 'email' => 'taylor@laravel.com',
@@ -190,7 +190,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
     public function testNestedValidation()
     {
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'user' => [
                 'identifier' => 1,
                 'properties' => [
@@ -203,7 +203,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $validator->setRules($this->dotNotationNestedRules);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'user' => [
                 'identifier' => 'taylor@laravel.com',
                 'properties' => [
@@ -217,7 +217,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $validator->setRules($this->dotNotationNestedRules);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'user' => [
                 'identifier' => 'taylor@laravel.com',
                 'properties' => [
@@ -230,7 +230,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $validator->setRules($this->dotNotationNestedRules);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'user' => [
                 'properties' => [
                     'name' => 'Taylor',
@@ -252,7 +252,7 @@ class ValidationAnyOfRuleTest extends TestCase
             ])],
         ];
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['age' => 12],
                 ['age' => 'foobar'],
@@ -260,7 +260,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], $rule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['age' => 'foobarbazqux'],
                 ['month' => 12],
@@ -268,7 +268,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], $rule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['age' => 12],
                 ['age' => 'foobarbazqux'],
@@ -286,28 +286,28 @@ class ValidationAnyOfRuleTest extends TestCase
             ])],
         ];
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['age' => ['year' => 12]],
             ],
         ], $rule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['birth' => ['month' => 12]],
             ],
         ], $rule);
         $this->assertFalse($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['birth' => ['year' => 12]],
             ],
         ], $rule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['birth' => 'foobarbazqux'],
                 ['birth' => [
@@ -317,7 +317,7 @@ class ValidationAnyOfRuleTest extends TestCase
         ], $rule);
         $this->assertTrue($validator->passes());
 
-        $validator = new Validator($this->app->get(TranslatorContract::class), [
+        $validator = new Validator($this->app->make('translator'), [
             'persons' => [
                 ['birth' => 'foobar'],
                 ['birth' => [
@@ -326,6 +326,32 @@ class ValidationAnyOfRuleTest extends TestCase
             ],
         ], $rule);
         $this->assertFalse($validator->passes());
+    }
+
+    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    {
+        $v = new Validator(
+            $this->app->make('translator'),
+            [
+                'string' => 123,
+                'string_fqcn' => 456,
+            ],
+            [
+                'string' => Rule::anyOf(['string']),
+                'string_fqcn' => Rule::anyOf(['string']),
+            ],
+            [
+                'string.any_of' => 'Please choose a valid string (dot notation)',
+                'string_fqcn.Hypervel\Validation\Rules\AnyOf' => 'Please choose a valid string (fqcn)',
+            ]
+        );
+
+        $this->assertTrue($v->fails());
+
+        $this->assertSame([
+            'Please choose a valid string (dot notation)',
+            'Please choose a valid string (fqcn)',
+        ], $v->messages()->all());
     }
 
     protected function setUpRuleSets()

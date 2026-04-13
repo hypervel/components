@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Auth\Fixtures;
+
+use Hypervel\Contracts\Auth\Authenticatable;
+
+class AccessGateTestPolicyWithNonGuestBefore
+{
+    public function before(Authenticatable $user)
+    {
+        $_SERVER['__hypervel.testBefore'] = true;
+    }
+
+    public function edit(?Authenticatable $user, AccessGateTestDummy $dummy)
+    {
+        return true;
+    }
+
+    public function update($user, AccessGateTestDummy $dummy)
+    {
+        return true;
+    }
+}

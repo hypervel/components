@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
 /**
  * Tests for the GetTaggedKeys operation (union tags).

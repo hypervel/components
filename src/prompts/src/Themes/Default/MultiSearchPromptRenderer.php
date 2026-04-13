@@ -155,7 +155,7 @@ class MultiSearchPromptRenderer extends Renderer implements Scrolling
      */
     protected function getInfoText(MultiSearchPrompt $prompt): string
     {
-        $info = count($prompt->value()) . ' selected';
+        $selected = count($prompt->value()) . ' selected';
 
         $hiddenCount = count($prompt->value()) - count(array_filter(
             $prompt->matches(),
@@ -164,10 +164,12 @@ class MultiSearchPromptRenderer extends Renderer implements Scrolling
         ));
 
         if ($hiddenCount > 0) {
-            $info .= " ({$hiddenCount} hidden)";
+            $selected .= " ({$hiddenCount} hidden)";
         }
 
-        return $info;
+        $parts = array_filter([$prompt->infoText(), $selected]);
+
+        return implode(' · ', $parts);
     }
 
     /**

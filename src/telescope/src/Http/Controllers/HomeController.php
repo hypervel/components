@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Http\Controllers;
 
-use Hypervel\Telescope\Telescope;
-use Hypervel\View\Contracts\View;
+use Hypervel\Contracts\View\View;
 
 class HomeController
 {
@@ -14,9 +13,6 @@ class HomeController
      */
     public function index(): View
     {
-        return view('telescope::layout', [
-            'cssFile' => Telescope::$useDarkTheme ? 'app-dark.css' : 'app.css',
-            'telescopeScriptVariables' => Telescope::scriptVariables(),
-        ]);
+        return view('telescope::layout');
     }
 }

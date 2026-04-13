@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\InteractsWithData;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
 
 enum InteractsWithDataTestStringEnum: string
@@ -36,21 +35,11 @@ enum InteractsWithDataTestUnitEnum
  */
 class InteractsWithDataTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        ApplicationContext::setContainer($this->getApplication());
-        Date::clearResolvedInstances();
-    }
-
-    protected function tearDown(): void
-    {
-        Date::clearResolvedInstances();
-
-        parent::tearDown();
+        Container::setInstance(new Application);
     }
 
     public function testDateReturnsNullWhenKeyIsNotFilled(): void

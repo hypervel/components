@@ -10,7 +10,8 @@ class JobPopping
      * Create a new event instance.
      */
     public function __construct(
-        public string $connectionName
+        public string $connectionName,
+        public ?string $queue = null,
     ) {
     }
 }

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Testbench\ConfigProviderRegister;
-use ReflectionException;
 use ReflectionMethod;
 use ReflectionProperty;
 use Sentry\Breadcrumb;
@@ -41,18 +40,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        $app->get(ConfigInterface::class)
-            ->set('cache', [
-                'default' => env('CACHE_DRIVER', 'array'),
-                'stores' => [
-                    'array' => [
-                        'driver' => 'array',
-                    ],
-                ],
-                'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
-            ]);
-
-        tap($app->get(ConfigInterface::class), function (ConfigInterface $config) {
+        tap($app['config'], function (Repository $config) {
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
@@ -65,6 +53,10 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 return null;
             });
 
+            if ($config->get('sentry_test.override_dsn') !== true) {
+                $config->set('sentry.dsn', 'https://publickey@sentry.dev/123');
+            }
+
             foreach ($this->defaultSetupConfig as $key => $value) {
                 $config->set($key, $value);
             }
@@ -73,24 +65,52 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 $config->set($key, $value);
             }
         });
+
+        $app->extend(ExceptionHandler::class, function (ExceptionHandler $handler) {
+            return new TestCaseExceptionHandler($handler);
+        });
     }
 
-    protected function setUp(): void
+    protected function envWithoutDsnSet(ApplicationContract $app): void
     {
-        ConfigProviderRegister::add(SentryServiceProvider::class);
-        parent::setUp();
+        $app['config']->set('sentry.dsn', null);
+        $app['config']->set('sentry_test.override_dsn', true);
     }
 
-    protected function refreshApplication(): void
+    protected function envSamplingAllTransactions(ApplicationContract $app): void
     {
-        parent::refreshApplication();
-        $this->defineEnvironment($this->app);
-        $this->app->register(SentryServiceProvider::class, true);
+        $app['config']->set('sentry.traces_sample_rate', 1.0);
+    }
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            SentryServiceProvider::class,
+        ];
+    }
+
+    protected function getPackageAliases(ApplicationContract $app): array
+    {
+        return [
+            'Sentry' => \Hypervel\Sentry\Facade::class,
+        ];
+    }
+
+    protected function resetApplicationWithConfig(array $config): void
+    {
+        $this->setupConfig = $config;
+
+        $this->refreshApplication();
+    }
+
+    protected function dispatchHypervelEvent(object $event, array $payload = []): void
+    {
+        $this->app->make('events')->dispatch($event, $payload);
     }
 
     protected function getSentryHubFromContainer(): HubInterface
     {
-        return $this->app->get(HubInterface::class);
+        return $this->app->make('sentry');
     }
 
     protected function getSentryClientFromContainer(): ClientInterface
@@ -103,28 +123,22 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         $hub = $this->getSentryHubFromContainer();
 
         $method = new ReflectionMethod($hub, 'getScope');
-        $method->setAccessible(true);
 
         return $method->invoke($hub);
     }
 
     /**
      * @return array<array-key, Breadcrumb>
-     * @throws ReflectionException
      */
     protected function getCurrentSentryBreadcrumbs(): array
     {
         $scope = $this->getCurrentSentryScope();
 
         $property = new ReflectionProperty($scope, 'breadcrumbs');
-        $property->setAccessible(true);
 
         return $property->getValue($scope);
     }
 
-    /**
-     * @throws ReflectionException
-     */
     protected function getLastSentryBreadcrumb(): ?Breadcrumb
     {
         $breadcrumbs = $this->getCurrentSentryBreadcrumbs();
@@ -160,29 +174,6 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return self::$lastSentryEvents;
     }
 
-    protected function resetApplicationWithConfig(array $config): void
-    {
-        $this->setupConfig = $config;
-
-        $this->refreshApplication();
-    }
-
-    protected function startTransaction(): Transaction
-    {
-        $hub = $this->getSentryHubFromContainer();
-
-        $context = new TransactionContext();
-        $context->setName('test-transaction');
-        $context->setOp('test');
-
-        $transaction = $hub->startTransaction($context);
-        $transaction->setSampled(true);
-
-        $this->getCurrentSentryScope()->setSpan($transaction);
-
-        return $transaction;
-    }
-
     protected function assertSentryEventCount(int $count): void
     {
         $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
@@ -202,6 +193,22 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
             return $event[0]->getType() === EventType::transaction();
         }));
+    }
+
+    protected function startTransaction(): Transaction
+    {
+        $hub = $this->getSentryHubFromContainer();
+
+        $transaction = $hub->startTransaction(new TransactionContext);
+        $transaction->setSampled(true);
+
+        if ($transaction->getSpanRecorder() === null) {
+            $transaction->initSpanRecorder();
+        }
+
+        $this->getCurrentSentryScope()->setSpan($transaction);
+
+        return $transaction;
     }
 
     protected function setupGlobalEventProcessor(): void

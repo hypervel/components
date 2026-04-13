@@ -4,32 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use BadMethodCallException;
 use Generator;
-use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Pool\Connection as BaseConnection;
+use Hypervel\Pool\Exceptions\ConnectionException;
+use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisException;
 use Throwable;
 
 /**
- * Redis connection class with Laravel-style method transformations.
+ * Abstract base class for pooled Redis connections with Laravel-style method transformations.
  *
  * @method mixed get(string $key) Get the value of a key
  * @method bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method array mget(array $keys) Get the values of multiple keys
  * @method int setnx(string $key, string $value) Set key if not exists
+ * @method int setNx(string $key, string $value) Set key if not exists
  * @method array hmget(string $key, mixed ...$fields) Get hash field values
  * @method bool hmset(string $key, mixed ...$dictionary) Set hash field values
  * @method int hsetnx(string $hash, string $key, string $value) Set hash field if not exists
+ * @method mixed hget(string $key, string $member) Get hash field value
+ * @method false|int hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method false|int lrem(string $key, int $count, mixed $value) Remove list elements
+ * @method false|int llen(string $key) Get list length
  * @method null|array blpop(mixed ...$arguments) Blocking left pop from list
  * @method null|array brpop(mixed ...$arguments) Blocking right pop from list
  * @method mixed spop(string $key, int $count = 1) Remove and return random set member
+ * @method false|int sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method int zadd(string $key, mixed ...$dictionary) Add members to sorted set
+ * @method false|int zcard(string $key) Get sorted set cardinality
+ * @method false|int zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
  * @method array zrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range
  * @method array zrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range (reverse)
  * @method int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
@@ -38,6 +53,7 @@ use Throwable;
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
+ * @method mixed pipeline(callable|null $callback = null) Execute commands in a pipeline
  * @method array smembers(string $key) Get all set members
  * @method false|int hdel(string $key, string ...$fields) Delete hash fields
  * @method false|int zrem(string $key, string ...$members) Remove sorted set members
@@ -305,40 +321,254 @@ use Throwable;
  * @method false|int|Redis zintercard(array $keys, int $limit = -1)
  * @method array|false|Redis zunion(array $keys, array|null $weights = null, array|null $options = null)
  */
-class RedisConnection extends HyperfRedisConnection
+abstract class RedisConnection extends BaseConnection
 {
+    protected Redis|RedisCluster|null $connection = null;
+
+    protected ?Dispatcher $eventDispatcher = null;
+
+    protected array $config = [
+        'timeout' => 0.0,
+        'reserved' => null,
+        'retry_interval' => 0,
+        'read_timeout' => 0.0,
+        'cluster' => [
+            'enable' => false,
+            'name' => null,
+            'seeds' => [],
+            'read_timeout' => 0.0,
+            'persistent' => false,
+            'context' => [],
+        ],
+        'sentinel' => [
+            'enable' => false,
+            'master_name' => '',
+            'nodes' => [],
+            'persistent' => '',
+            'read_timeout' => 0,
+        ],
+        'options' => [],
+        'context' => [],
+        'event' => [
+            'enable' => false,
+        ],
+    ];
+
+    /**
+     * Current redis database.
+     */
+    protected ?int $database = null;
+
     /**
      * Determine if the connection calls should be transformed to Laravel style.
      */
     protected bool $shouldTransform = false;
 
+    /**
+     * Create a new Redis connection instance.
+     *
+     * @param array<string, mixed> $config
+     */
+    public function __construct(Container $container, PoolInterface $pool, array $config)
+    {
+        parent::__construct($container, $pool);
+        $this->config = array_replace_recursive($this->config, $config);
+    }
+
     public function __call($name, $arguments)
     {
         try {
-            if (in_array($name, ['subscribe', 'psubscribe'])) {
-                return $this->callSubscribe($name, $arguments);
-            }
+            return $this->executeCommand($name, $arguments);
+        } catch (RedisException $exception) {
+            return $this->retry($name, $arguments, $exception);
+        }
+    }
 
-            if ($this->shouldTransform) {
-                $method = 'call' . ucfirst($name);
-                if (method_exists($this, $method)) {
-                    return $this->{$method}(...$arguments);
-                }
+    /**
+     * Execute a Redis command, applying transforms when enabled.
+     *
+     * @param array<int, mixed> $arguments
+     */
+    private function executeCommand(string $name, array $arguments): mixed
+    {
+        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
+            return $this->callSubscribe($name, $arguments);
+        }
+
+        if (! $this->shouldTransform) {
+            return $this->connection->{$name}(...$arguments);
+        }
+
+        // In MULTI/PIPELINE mode, only reshape arguments for phpredis —
+        // skip return-value normalization to preserve queueing semantics.
+        if ($this->isQueueingMode()) {
+            $prepareMethod = 'prepare' . ucfirst($name);
+
+            if (method_exists($this, $prepareMethod)) {
+                [$method, $args] = $this->{$prepareMethod}(...$arguments);
+                return $this->connection->{$method}(...$args);
             }
 
             return $this->connection->{$name}(...$arguments);
-        } catch (Throwable $exception) {
-            $result = $this->retry($name, $arguments, $exception);
         }
 
-        return $result;
+        $callMethod = 'call' . ucfirst($name);
+
+        if (method_exists($this, $callMethod)) {
+            return $this->{$callMethod}(...$arguments);
+        }
+
+        return $this->connection->{$name}(...$arguments);
     }
 
+    /**
+     * Get the active connection.
+     */
+    public function getActiveConnection(): static
+    {
+        if ($this->check()) {
+            return $this;
+        }
+
+        if (! $this->reconnect()) {
+            throw new ConnectionException('Connection reconnect failed.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Get the connection name.
+     */
+    public function getName(): string
+    {
+        return $this->pool->getName();
+    }
+
+    /**
+     * Get the event dispatcher instance.
+     */
+    public function getEventDispatcher(): ?Dispatcher
+    {
+        return $this->eventDispatcher;
+    }
+
+    /**
+     * Reconnect to Redis.
+     */
+    abstract public function reconnect(): bool;
+
+    /**
+     * Set configured options on a Redis or RedisCluster client.
+     */
+    protected function setOptions(Redis|RedisCluster $redis): void
+    {
+        $options = $this->config['options'] ?? [];
+
+        foreach ($options as $name => $value) {
+            if (is_string($name)) {
+                $name = match (strtolower($name)) {
+                    'serializer' => Redis::OPT_SERIALIZER,
+                    'prefix' => Redis::OPT_PREFIX,
+                    'read_timeout' => Redis::OPT_READ_TIMEOUT,
+                    'scan' => Redis::OPT_SCAN,
+                    'failover' => defined(Redis::class . '::OPT_SLAVE_FAILOVER') ? Redis::OPT_SLAVE_FAILOVER : 5,
+                    'keepalive' => Redis::OPT_TCP_KEEPALIVE,
+                    'compression' => Redis::OPT_COMPRESSION,
+                    'reply_literal' => Redis::OPT_REPLY_LITERAL,
+                    'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
+                    default => throw new InvalidRedisOptionException(sprintf('The redis option key `%s` is invalid.', $name)),
+                };
+            }
+
+            $redis->setOption($name, $value);
+        }
+    }
+
+    /**
+     * Close the current connection.
+     */
+    public function close(): bool
+    {
+        $this->connection = null;
+
+        return true;
+    }
+
+    /**
+     * Release the connection back to pool.
+     */
     public function release(): void
     {
         $this->shouldTransform = false;
 
-        parent::release();
+        try {
+            $defaultDb = (int) ($this->config['database'] ?? 0);
+            if ($this->database !== null && $this->database !== $defaultDb) {
+                $this->select($defaultDb);
+                $this->database = null;
+            }
+
+            parent::release();
+        } catch (Throwable $exception) {
+            $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+        }
+    }
+
+    /**
+     * Set current redis database.
+     */
+    public function setDatabase(?int $database): void
+    {
+        $this->database = $database;
+    }
+
+    /**
+     * Retry a redis command after reconnecting.
+     *
+     * @param array<int, mixed> $arguments
+     */
+    protected function retry(string $name, array $arguments, RedisException $exception): mixed
+    {
+        $this->log('Redis::__call failed, because ' . $exception->getMessage());
+
+        try {
+            $this->reconnect();
+
+            return $this->executeCommand($name, $arguments);
+        } catch (Throwable $exception) {
+            $this->lastUseTime = 0.0;
+            throw $exception;
+        }
+    }
+
+    /**
+     * Determine if the underlying Redis client is in pipeline/multi mode.
+     *
+     * Returns false by default. PhpRedisConnection overrides to check
+     * the actual mode on the \Redis client.
+     */
+    protected function isQueueingMode(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine if the connection is to a Redis Cluster.
+     */
+    public function isCluster(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Log a redis connection message.
+     */
+    protected function log(string $message, string $level = LogLevel::WARNING): void
+    {
+        if ($this->container->has(StdoutLoggerInterface::class)) {
+            $this->container->make(StdoutLoggerInterface::class)->log($level, $message);
+        }
     }
 
     /**
@@ -380,15 +610,28 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Prepare arguments for the set command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareSet(mixed ...$arguments): array
+    {
+        [$key, $value] = $arguments;
+        $expireResolution = $arguments[2] ?? null;
+        $expireTTL = $arguments[3] ?? null;
+        $flag = $arguments[4] ?? null;
+
+        return ['set', [$key, $value, is_string($expireResolution) ? [$flag, $expireResolution => $expireTTL] : $expireResolution]];
+    }
+
+    /**
      * Set the string value in the argument as the value of the key.
      */
     protected function callSet(string $key, mixed $value, ?string $expireResolution = null, ?int $expireTTL = null, ?string $flag = null): bool
     {
-        return $this->connection->set(
-            $key,
-            $value,
-            $expireResolution ? [$flag, $expireResolution => $expireTTL] : null,
-        );
+        [$method, $args] = $this->prepareSet($key, $value, $expireResolution, $expireTTL, $flag);
+
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -400,17 +643,48 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Prepare arguments for the hmget command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareHmget(mixed ...$arguments): array
+    {
+        $key = array_shift($arguments);
+        $dictionary = count($arguments) === 1 ? $arguments[0] : $arguments;
+
+        return ['hMGet', [$key, $dictionary]];
+    }
+
+    /**
      * Get the value of the given hash fields.
      */
     protected function callHmget(string $key, mixed ...$dictionary): array
     {
-        if (count($dictionary) === 1) {
-            $dictionary = $dictionary[0];
-        }
+        [$method, $args] = $this->prepareHmget($key, ...$dictionary);
 
         return array_values(
-            $this->connection->hMGet($key, $dictionary)
+            $this->connection->{$method}(...$args)
         );
+    }
+
+    /**
+     * Prepare arguments for the hmset command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareHmset(mixed ...$arguments): array
+    {
+        $key = array_shift($arguments);
+
+        if (count($arguments) === 1) {
+            $dictionary = $arguments[0];
+        } else {
+            $input = new Collection($arguments);
+
+            $dictionary = $input->nth(2)->combine($input->nth(2, 1))->toArray();
+        }
+
+        return ['hMSet', [$key, $dictionary]];
     }
 
     /**
@@ -418,15 +692,9 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callHmset(string $key, mixed ...$dictionary): bool
     {
-        if (count($dictionary) === 1) {
-            $dictionary = $dictionary[0];
-        } else {
-            $input = new Collection($dictionary);
+        [$method, $args] = $this->prepareHmset($key, ...$dictionary);
 
-            $dictionary = $input->nth(2)->combine($input->nth(2, 1))->toArray();
-        }
-
-        return $this->connection->hMSet($key, $dictionary);
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -438,11 +706,25 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Prepare arguments for the lrem command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareLrem(mixed ...$arguments): array
+    {
+        [$key, $count, $value] = $arguments;
+
+        return ['lRem', [$key, $value, $count]];
+    }
+
+    /**
      * Removes the first count occurrences of the value element from the list.
      */
     protected function callLrem(string $key, int $count, mixed $value): false|int
     {
-        return $this->connection->lRem($key, $value, $count);
+        [$method, $args] = $this->prepareLrem($key, $count, $value);
+
+        return $this->connection->{$method}(...$args);
     }
 
     /**
@@ -466,20 +748,30 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
-     * Removes and returns a random element from the set value at key.
+     * Removes and returns random elements from the set value at key.
      *
-     * @return false|mixed
+     * When called without count, returns a single element (string|false).
+     * When called with count, returns an array of elements.
      */
-    protected function callSpop(string $key, ?int $count = 1): mixed
+    protected function callSpop(string $key, ?int $count = null): mixed
     {
-        return $this->connection->sPop($key, $count);
+        if ($count !== null) {
+            return $this->connection->sPop($key, $count);
+        }
+
+        return $this->connection->sPop($key);
     }
 
     /**
-     * Add one or more members to a sorted set or update its score if it already exists.
+     * Prepare arguments for the zadd command.
+     *
+     * @return array{string, array<int, mixed>}
      */
-    protected function callZadd(string $key, mixed ...$dictionary): int
+    protected function prepareZadd(mixed ...$arguments): array
     {
+        $key = array_shift($arguments);
+        $dictionary = $arguments;
+
         if (is_array(end($dictionary))) {
             foreach (array_pop($dictionary) as $member => $score) {
                 $dictionary[] = $score;
@@ -497,11 +789,37 @@ class RedisConnection extends HyperfRedisConnection
             }
         }
 
-        return $this->connection->zAdd(
-            $key,
-            $options,
-            ...array_values($dictionary)
-        );
+        return ['zAdd', [$key, $options, ...array_values($dictionary)]];
+    }
+
+    /**
+     * Add one or more members to a sorted set or update its score if it already exists.
+     */
+    protected function callZadd(string $key, mixed ...$dictionary): int
+    {
+        [$method, $args] = $this->prepareZadd($key, ...$dictionary);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zrangebyscore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZrangebyscore(mixed ...$arguments): array
+    {
+        [$key, $min, $max] = $arguments;
+        $options = $arguments[3] ?? [];
+
+        if (isset($options['limit']) && ! array_is_list($options['limit'])) {
+            $options['limit'] = [
+                $options['limit']['offset'],
+                $options['limit']['count'],
+            ];
+        }
+
+        return ['zRangeByScore', [$key, $min, $max, $options]];
     }
 
     /**
@@ -509,6 +827,21 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callZrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
     {
+        [$method, $args] = $this->prepareZrangebyscore($key, $min, $max, $options);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zrevrangebyscore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZrevrangebyscore(mixed ...$arguments): array
+    {
+        [$key, $min, $max] = $arguments;
+        $options = $arguments[3] ?? [];
+
         if (isset($options['limit']) && ! array_is_list($options['limit'])) {
             $options['limit'] = [
                 $options['limit']['offset'],
@@ -516,7 +849,7 @@ class RedisConnection extends HyperfRedisConnection
             ];
         }
 
-        return $this->connection->zRangeByScore($key, $min, $max, $options);
+        return ['zRevRangeByScore', [$key, $min, $max, $options]];
     }
 
     /**
@@ -524,14 +857,22 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callZrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
     {
-        if (isset($options['limit']) && ! array_is_list($options['limit'])) {
-            $options['limit'] = [
-                $options['limit']['offset'],
-                $options['limit']['count'],
-            ];
-        }
+        [$method, $args] = $this->prepareZrevrangebyscore($key, $min, $max, $options);
 
-        return $this->connection->zRevRangeByScore($key, $min, $max, $options);
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zinterstore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZinterstore(mixed ...$arguments): array
+    {
+        [$output, $keys] = $arguments;
+        $options = $arguments[2] ?? [];
+
+        return ['zinterstore', [$output, $keys, $options['weights'] ?? null, $options['aggregate'] ?? 'sum']];
     }
 
     /**
@@ -539,12 +880,22 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callZinterstore(string $output, array $keys, array $options = []): int
     {
-        return $this->connection->zinterstore(
-            $output,
-            $keys,
-            $options['weights'] ?? null,
-            $options['aggregate'] ?? 'sum',
-        );
+        [$method, $args] = $this->prepareZinterstore($output, $keys, $options);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zunionstore command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareZunionstore(mixed ...$arguments): array
+    {
+        [$output, $keys] = $arguments;
+        $options = $arguments[2] ?? [];
+
+        return ['zunionstore', [$output, $keys, $options['weights'] ?? null, $options['aggregate'] ?? 'sum']];
     }
 
     /**
@@ -552,12 +903,9 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callZunionstore(string $output, array $keys, array $options = []): int
     {
-        return $this->connection->zunionstore(
-            $output,
-            $keys,
-            $options['weights'] ?? null,
-            $options['aggregate'] ?? 'sum',
-        );
+        [$method, $args] = $this->prepareZunionstore($output, $keys, $options);
+
+        return $this->connection->{$method}(...$args);
     }
 
     protected function getScanOptions(array $arguments): array
@@ -579,7 +927,7 @@ class RedisConnection extends HyperfRedisConnection
     public function scan(&$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::scan($cursor, ...$arguments);
+            return $this->__call('scan', array_merge([&$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -607,7 +955,7 @@ class RedisConnection extends HyperfRedisConnection
     public function zscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::zScan($key, $cursor, ...$arguments);
+            return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -636,7 +984,7 @@ class RedisConnection extends HyperfRedisConnection
     public function hscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::hScan($key, $cursor, ...$arguments);
+            return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -665,7 +1013,7 @@ class RedisConnection extends HyperfRedisConnection
     public function sscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::sScan($key, $cursor, ...$arguments);
+            return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -685,11 +1033,44 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Prepare arguments for the eval command.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareEval(mixed ...$arguments): array
+    {
+        $script = $arguments[0];
+        $numberOfKeys = $arguments[1];
+        $args = array_slice($arguments, 2);
+
+        return ['eval', [$script, $args, $numberOfKeys]];
+    }
+
+    /**
      * Evaluate a script and return its result.
      */
     protected function callEval(string $script, int $numberOfKeys, mixed ...$arguments): mixed
     {
-        return $this->connection->eval($script, $arguments, $numberOfKeys);
+        [$method, $args] = $this->prepareEval($script, $numberOfKeys, ...$arguments);
+
+        return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the evalsha command.
+     *
+     * Falls back to eval in MULTI/PIPELINE mode because script('load')
+     * cannot execute synchronously while the connection is queueing.
+     *
+     * @return array{string, array<int, mixed>}
+     */
+    protected function prepareEvalsha(mixed ...$arguments): array
+    {
+        $script = $arguments[0];
+        $numkeys = $arguments[1];
+        $args = array_slice($arguments, 2);
+
+        return ['eval', [$script, $args, $numkeys]];
     }
 
     /**
@@ -705,15 +1086,13 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
-     * Flush the selected Redis database.
+     * Prepare arguments for the executeRaw command.
+     *
+     * @return array{string, array<int, mixed>}
      */
-    protected function callFlushdb(mixed ...$arguments): mixed
+    protected function prepareExecuteRaw(mixed ...$arguments): array
     {
-        if (strtoupper((string) ($arguments[0] ?? null)) === 'ASYNC') {
-            return $this->connection->flushdb(true);
-        }
-
-        return $this->connection->flushdb();
+        return ['rawCommand', $arguments[0]];
     }
 
     /**
@@ -721,43 +1100,29 @@ class RedisConnection extends HyperfRedisConnection
      */
     protected function callExecuteRaw(array $parameters): mixed
     {
-        return $this->connection->rawCommand(...$parameters);
+        [$method, $args] = $this->prepareExecuteRaw($parameters);
+
+        return $this->connection->{$method}(...$args);
     }
 
-    protected function callSubscribe(string $name, array $arguments): mixed
+    /**
+     * Reject subscribe/psubscribe on raw pooled connections.
+     *
+     * Pub/sub requires a dedicated, long-lived connection that is incompatible
+     * with connection pooling. Use the coroutine-native subscriber instead:
+     *
+     *     Redis::subscribe($channels, $callback);
+     *     Redis::psubscribe($channels, $callback);
+     *     $subscriber = Redis::subscriber();
+     *
+     * @throws BadMethodCallException
+     */
+    protected function callSubscribe(string $name, array $arguments): never
     {
-        $timeout = $this->connection->getOption(Redis::OPT_READ_TIMEOUT);
-
-        // Set the read timeout to -1 to avoid connection timeout.
-        $this->connection->setOption(Redis::OPT_READ_TIMEOUT, -1);
-
-        try {
-            return $this->connection->{$name}(
-                ...$this->getSubscribeArguments($name, $arguments)
-            );
-        } finally {
-            // Restore the read timeout to the original value before
-            // returning to the connection pool.
-            $this->connection->setOption(Redis::OPT_READ_TIMEOUT, $timeout);
-        }
-    }
-
-    protected function getSubscribeArguments(string $name, array $arguments): array
-    {
-        $channels = Arr::wrap($arguments[0]);
-        $callback = $arguments[1];
-
-        if ($name === 'subscribe') {
-            return [
-                $channels,
-                fn ($redis, $channel, $message) => $callback($message, $channel),
-            ];
-        }
-
-        return [
-            $channels,
-            $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
-        ];
+        throw new BadMethodCallException(
+            "Cannot call {$name}() on a pooled RedisConnection. "
+            . 'Use Redis::subscribe(), Redis::psubscribe(), or Redis::subscriber() instead.'
+        );
     }
 
     /**
@@ -776,6 +1141,42 @@ class RedisConnection extends HyperfRedisConnection
     {
         return defined('Redis::OPT_COMPRESSION')
             && $this->connection->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE;
+    }
+
+    /**
+     * Execute the given callback without serialization or compression.
+     *
+     * Temporarily disables phpredis serialization and compression on the raw
+     * connection for operations that require raw integer values (e.g., rate
+     * limiter counters), then restores the original settings.
+     */
+    public function withoutSerializationOrCompression(callable $callback): mixed
+    {
+        $oldSerializer = null;
+
+        if ($this->serialized()) {
+            $oldSerializer = $this->connection->getOption(Redis::OPT_SERIALIZER);
+            $this->connection->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
+        }
+
+        $oldCompressor = null;
+
+        if ($this->compressed()) {
+            $oldCompressor = $this->connection->getOption(Redis::OPT_COMPRESSION);
+            $this->connection->setOption(Redis::OPT_COMPRESSION, Redis::COMPRESSION_NONE);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($oldSerializer !== null) {
+                $this->connection->setOption(Redis::OPT_SERIALIZER, $oldSerializer);
+            }
+
+            if ($oldCompressor !== null) {
+                $this->connection->setOption(Redis::OPT_COMPRESSION, $oldCompressor);
+            }
+        }
     }
 
     /**
@@ -806,14 +1207,6 @@ class RedisConnection extends HyperfRedisConnection
     public function client(): mixed
     {
         return $this->connection;
-    }
-
-    /**
-     * Determine if the connection is to a Redis Cluster.
-     */
-    public function isCluster(): bool
-    {
-        return $this->connection instanceof RedisCluster;
     }
 
     /**

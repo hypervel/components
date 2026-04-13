@@ -21,7 +21,7 @@ final class SequentialOperationsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Rapid writes to same key
         $rapidTag = $context->prefixed('rapid');

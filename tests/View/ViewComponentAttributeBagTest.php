@@ -62,14 +62,14 @@ class ViewComponentAttributeBagTest extends TestCase
         $this->assertSame('test-string="ok" test-true="test-true" test-0="0" test-0-string="0" test-empty-string=""', (string) $bag);
         $this->assertSame('test-string="ok" test-true="test-true" test-0="0" test-0-string="0" test-empty-string=""', (string) $bag->merge());
 
-        $bag = (new ComponentAttributeBag())
+        $bag = (new ComponentAttributeBag)
             ->merge([
                 'test-escaped' => '<tag attr="attr">',
             ]);
 
         $this->assertSame('test-escaped="&lt;tag attr=&quot;attr&quot;&gt;"', (string) $bag);
 
-        $bag = (new ComponentAttributeBag())
+        $bag = (new ComponentAttributeBag)
             ->merge([
                 'test-string' => 'ok',
                 'test-null' => null,
@@ -82,7 +82,7 @@ class ViewComponentAttributeBagTest extends TestCase
 
         $this->assertSame('test-string="ok" test-true="test-true" test-0="0" test-0-string="0" test-empty-string=""', (string) $bag);
 
-        $bag = (new ComponentAttributeBag())
+        $bag = (new ComponentAttributeBag)
             ->merge([
                 'test-extract-1' => 'extracted-1',
                 'test-extract-2' => 'extracted-2',
@@ -95,7 +95,7 @@ class ViewComponentAttributeBagTest extends TestCase
             'test-discard-2' => 'defaultValue',
         ]));
 
-        $bag = (new ComponentAttributeBag())
+        $bag = (new ComponentAttributeBag)
             ->merge([
                 'test-extract-1' => 'extracted-1',
                 'test-extract-2' => 'extracted-2',

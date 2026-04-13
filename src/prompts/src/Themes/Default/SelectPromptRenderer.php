@@ -46,6 +46,7 @@ class SelectPromptRenderer extends Renderer implements Scrolling
                 ->box(
                     $this->cyan($this->truncate($prompt->label, $prompt->terminal()->cols() - 6)),
                     $this->renderOptions($prompt),
+                    info: $prompt->infoText(),
                 )
                 ->when(
                     $prompt->hint,

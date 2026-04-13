@@ -5,8 +5,6 @@ declare(strict_types=1);
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Watchers;
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -128,10 +126,10 @@ return [
     ],
 
     'ignore_paths' => [
+        '.well-known*',
     ],
 
-    'ignore_commands' => [
-    ],
+    'ignore_commands' => [],
 
     /*
     |--------------------------------------------------------------------------
@@ -150,9 +148,22 @@ return [
         Watchers\CacheWatcher::class => [
             'enabled' => env('TELESCOPE_CACHE_WATCHER', true),
             'hidden' => [],
+            'ignore' => [],
         ],
 
-        Watchers\ClientRequestWatcher::class => env('TELESCOPE_GUZZLE_HTTP_CLIENT_ASPECT', true),
+        Watchers\ClientRequestWatcher::class => [
+            'enabled' => env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
+            'ignore_hosts' => [],
+            'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
+            'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
+
+            // When false (default), oversized payloads are replaced with "Purged By Telescope"
+            // without reading or processing the body — the most performant option. When true,
+            // the full body is read, sensitive fields are masked, and the result is truncated
+            // to the size limit with a "(truncated...)" suffix, giving partial visibility at
+            // the cost of additional memory and CPU for large payloads.
+            'truncate_oversized' => env('TELESCOPE_HTTP_CLIENT_TRUNCATE_OVERSIZED', false),
+        ],
 
         Watchers\CommandWatcher::class => [
             'enabled' => env('TELESCOPE_COMMAND_WATCHER', true),
@@ -164,6 +175,10 @@ return [
             'always' => env('TELESCOPE_DUMP_WATCHER_ALWAYS', false),
         ],
 
+        // Hypervel skips firing most events when no listeners are registered,
+        // as a performance optimization. EventWatcher uses a catch-all wildcard
+        // listener and is treated as a passive observer, so it will not cause
+        // listener-guarded events to be fired just for Telescope.
         Watchers\EventWatcher::class => [
             'enabled' => env('TELESCOPE_EVENT_WATCHER', true),
             'ignore' => [],
@@ -178,12 +193,6 @@ return [
             'ignore_paths' => [],
         ],
 
-        Watchers\HttpClientWatcher::class => [
-            'enabled' => env('TELESCOPE_HTTP_CLIENT_WATCHER', true),
-            'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
-            'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
-        ],
-
         Watchers\JobWatcher::class => env('TELESCOPE_JOB_WATCHER', true),
 
         Watchers\LogWatcher::class => [
@@ -195,6 +204,7 @@ return [
 
         Watchers\ModelWatcher::class => [
             'enabled' => env('TELESCOPE_MODEL_WATCHER', true),
+            'events' => ['eloquent.*'],
             'hydrations' => true,
         ],
 
@@ -208,6 +218,23 @@ return [
         ],
 
         Watchers\RedisWatcher::class => env('TELESCOPE_REDIS_WATCHER', true),
+
+        // Reverb — enabling message_received or message_sent adds a database write per
+        // WebSocket message and should only be used for targeted debugging, not sustained
+        // production use.
+        Watchers\ReverbWatcher::class => [
+            'enabled' => env('TELESCOPE_REVERB_WATCHER', true),
+            'events' => [
+                'connection_established',
+                'connection_closed',
+                'channel_created',
+                'channel_removed',
+                'connection_pruned',
+                // 'message_received',
+                // 'message_sent',  // Warning: fires per subscriber per broadcast — high volume.
+            ],
+            'message_size_limit' => env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64), // KB
+        ],
 
         Watchers\RequestWatcher::class => [
             'enabled' => env('TELESCOPE_REQUEST_WATCHER', true),

@@ -21,7 +21,7 @@ final class TaggedRememberCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $tag = $context->prefixed('remember');
         $rememberKey = $context->prefixed('tag:remember');

@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
-use Hypervel\View\Contracts\Factory;
 use Hypervel\View\DynamicComponent;
 use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
@@ -22,7 +22,7 @@ class ComponentTagCompiler
     /**
      * The "bind:" attributes that have been compiled for the current component.
      */
-    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = 'bound_attributes';
+    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = '__view.bound_attributes';
 
     /**
      * The Blade compiler instance.
@@ -42,7 +42,7 @@ class ComponentTagCompiler
         protected array $namespaces = [],
         ?BladeCompiler $blade = null
     ) {
-        $this->blade = $blade ?: new BladeCompiler(new Filesystem(), sys_get_temp_dir());
+        $this->blade = $blade ?: new BladeCompiler(new Filesystem, sys_get_temp_dir());
     }
 
     /**
@@ -133,7 +133,7 @@ class ComponentTagCompiler
      */
     protected function clearBoundAttributes(): void
     {
-        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        CoroutineContext::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -142,9 +142,9 @@ class ComponentTagCompiler
      */
     protected function setBoundAttribute($attribute): void
     {
-        $boundAttributes = Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        $boundAttributes = CoroutineContext::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
         $boundAttributes[$attribute] = true;
-        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, $boundAttributes);
+        CoroutineContext::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, $boundAttributes);
     }
 
     /**
@@ -152,7 +152,7 @@ class ComponentTagCompiler
      */
     protected function getBoundAttributes(): array
     {
-        return Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        return CoroutineContext::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -236,7 +236,7 @@ class ComponentTagCompiler
         // can be accessed within the component and we can render out the view.
         if (! class_exists($class)) {
             $view = Str::startsWith($component, 'mail::')
-                ? "\$__env->getContainer()->get(Hypervel\\View\\Factory::class)->make('{$component}')"
+                ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
                 : "'{$class}'";
 
             $parameters = [
@@ -263,7 +263,7 @@ class ComponentTagCompiler
      */
     public function componentClass(string $component): string
     {
-        $viewFactory = Container::getInstance()->get(Factory::class);
+        $viewFactory = Container::getInstance()->make(Factory::class);
 
         if (isset($this->aliases[$component])) {
             if (class_exists($alias = $this->aliases[$component])) {
@@ -410,7 +410,7 @@ class ComponentTagCompiler
         }
 
         return $this->namespace = Container::getInstance()
-            ->get(Application::class)
+            ->make(Application::class)
             ->getNamespace();
     }
 

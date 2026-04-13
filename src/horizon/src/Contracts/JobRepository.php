@@ -99,7 +99,7 @@ interface JobRepository
     /**
      * Mark the job as released / pending.
      */
-    public function released(string $connection, string $queue, JobPayload $payload): void;
+    public function released(string $connection, string $queue, JobPayload $payload, int $delay = 0): void;
 
     /**
      * Mark the job as completed and monitored.

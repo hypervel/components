@@ -23,7 +23,7 @@ final class MultipleTagsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $tags = [
             $context->prefixed('posts'),

@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\JWT\Contracts\ValidationContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Manager;
-use Psr\Container\ContainerInterface;
+use Hypervel\Support\Str;
 use RuntimeException;
 
 class JWTManager extends Manager implements ManagerContract
@@ -28,10 +28,10 @@ class JWTManager extends Manager implements ManagerContract
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
         parent::__construct($container);
-        $this->blacklist = $container->get(BlacklistContract::class);
+        $this->blacklist = $container->make(BlacklistContract::class);
         $this->blacklistEnabled = $this->config->get('jwt.blacklist_enabled', false);
     }
 

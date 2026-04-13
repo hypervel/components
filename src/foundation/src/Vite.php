@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Exception;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
@@ -21,17 +21,17 @@ class Vite implements Htmlable
     /**
      * The Content Security Policy nonce context key.
      */
-    protected const NONCE_CONTEXT_KEY = 'hypervel.vite.nonce';
+    protected const NONCE_CONTEXT_KEY = '__foundation.vite.nonce';
 
     /**
      * The entry points context key.
      */
-    protected const ENTRY_POINTS_CONTEXT_KEY = 'hypervel.vite.entry_points';
+    protected const ENTRY_POINTS_CONTEXT_KEY = '__foundation.vite.entry_points';
 
     /**
      * The preloaded assets context key.
      */
-    protected const PRELOADED_ASSETS_CONTEXT_KEY = 'hypervel.vite.preloaded_assets';
+    protected const PRELOADED_ASSETS_CONTEXT_KEY = '__foundation.vite.preloaded_assets';
 
     /**
      * The key to check for integrity hashes within the manifest.
@@ -98,12 +98,12 @@ class Vite implements Htmlable
      */
     public function preloadedAssets(): array
     {
-        return Context::get(static::PRELOADED_ASSETS_CONTEXT_KEY, []);
+        return CoroutineContext::get(static::PRELOADED_ASSETS_CONTEXT_KEY, []);
     }
 
     protected function setPreloadedAssets(array $preloadedAssets): void
     {
-        Context::set($this::PRELOADED_ASSETS_CONTEXT_KEY, $preloadedAssets);
+        CoroutineContext::set($this::PRELOADED_ASSETS_CONTEXT_KEY, $preloadedAssets);
     }
 
     /**
@@ -111,7 +111,7 @@ class Vite implements Htmlable
      */
     public function cspNonce(): ?string
     {
-        return Context::get(static::NONCE_CONTEXT_KEY);
+        return CoroutineContext::get(static::NONCE_CONTEXT_KEY);
     }
 
     /**
@@ -120,7 +120,7 @@ class Vite implements Htmlable
     public function useCspNonce(?string $nonce = null): string
     {
         $nonce = $nonce ?? Str::random(40);
-        Context::set(static::NONCE_CONTEXT_KEY, $nonce);
+        CoroutineContext::set(static::NONCE_CONTEXT_KEY, $nonce);
 
         return $nonce;
     }
@@ -140,7 +140,7 @@ class Vite implements Htmlable
      */
     public function withEntryPoints(array $entryPoints): static
     {
-        Context::set(static::ENTRY_POINTS_CONTEXT_KEY, $entryPoints);
+        CoroutineContext::set(static::ENTRY_POINTS_CONTEXT_KEY, $entryPoints);
 
         return $this;
     }
@@ -150,7 +150,7 @@ class Vite implements Htmlable
      */
     public function mergeEntryPoints(array $entryPoints): static
     {
-        $currentEntryPoints = Context::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
+        $currentEntryPoints = CoroutineContext::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
 
         return $this->withEntryPoints(array_unique([
             ...$currentEntryPoints,
@@ -319,8 +319,8 @@ class Vite implements Htmlable
 
         $manifest = $this->manifest($buildDirectory);
 
-        $tags = new Collection();
-        $preloads = new Collection();
+        $tags = new Collection;
+        $preloads = new Collection;
 
         foreach ($entrypoints as $entrypoint) {
             $chunk = $this->chunk($manifest, $entrypoint);
@@ -529,7 +529,9 @@ class Vite implements Htmlable
             && ! array_key_exists($this->integrityKey, $chunk ?? [])
             && $this->scriptTagAttributesResolvers === []
             && $this->styleTagAttributesResolvers === []) {
-            return $this->makeTag($url);
+            return $this->isCssPath($url)
+                ? $this->makeStylesheetTagWithAttributes($url, [])
+                : $this->makeScriptTagWithAttributes($url, []);
         }
 
         if ($this->isCssPath($url)) {
@@ -628,40 +630,6 @@ class Vite implements Htmlable
         }
 
         return $attributes;
-    }
-
-    /**
-     * Generate an appropriate tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeTag(string $url): string
-    {
-        if ($this->isCssPath($url)) {
-            return $this->makeStylesheetTag($url);
-        }
-
-        return $this->makeScriptTag($url);
-    }
-
-    /**
-     * Generate a script tag for the given URL.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeScriptTag(string $url): string
-    {
-        return $this->makeScriptTagWithAttributes($url, []);
-    }
-
-    /**
-     * Generate a stylesheet tag for the given URL in HMR mode.
-     *
-     * @deprecated will be removed in a future Laravel version
-     */
-    protected function makeStylesheetTag(string $url): string
-    {
-        return $this->makeStylesheetTagWithAttributes($url, []);
     }
 
     /**
@@ -778,7 +746,7 @@ class Vite implements Htmlable
 
         $chunk = $this->chunk($this->manifest($buildDirectory), $asset);
 
-        $path = public_path($buildDirectory . '/' . $chunk['file']);
+        $path = $this->publicPath($buildDirectory . '/' . $chunk['file']);
 
         if (! is_file($path) || ! file_exists($path)) {
             throw new ViteException("Unable to locate file from Vite manifest: {$path}.");
@@ -793,6 +761,14 @@ class Vite implements Htmlable
     protected function assetPath(string $path, ?bool $secure = null): string
     {
         return ($this->assetPathResolver ?? asset(...))($path, $secure);
+    }
+
+    /**
+     * Generate a public path for an asset.
+     */
+    protected function publicPath(string $path): string
+    {
+        return public_path($path);
     }
 
     /**
@@ -820,7 +796,7 @@ class Vite implements Htmlable
      */
     protected function manifestPath(string $buildDirectory): string
     {
-        return public_path($buildDirectory . '/' . $this->manifestFilename);
+        return $this->publicPath($buildDirectory . '/' . $this->manifestFilename);
     }
 
     /**
@@ -880,8 +856,21 @@ class Vite implements Htmlable
      */
     public function toHtml(): string
     {
-        $entryPoints = Context::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
+        $entryPoints = CoroutineContext::get(static::ENTRY_POINTS_CONTEXT_KEY, []);
 
         return $this->__invoke($entryPoints)->toHtml();
+    }
+
+    /**
+     * Flush all Vite state.
+     */
+    public static function flush(): void
+    {
+        CoroutineContext::forget(static::NONCE_CONTEXT_KEY);
+        CoroutineContext::forget(static::ENTRY_POINTS_CONTEXT_KEY);
+        CoroutineContext::forget(static::PRELOADED_ASSETS_CONTEXT_KEY);
+
+        static::$manifests = [];
+        static::flushMacros();
     }
 }

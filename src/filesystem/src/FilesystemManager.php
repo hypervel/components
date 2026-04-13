@@ -7,13 +7,13 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Filesystem\Contracts\Cloud;
-use Hypervel\Filesystem\Contracts\Factory as FactoryContract;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Filesystem\Cloud;
+use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
 use League\Flysystem\AwsS3V3\PortableVisibilityConverter as AwsS3PortableVisibilityConverter;
@@ -30,13 +30,12 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
-use Psr\Container\ContainerInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Filesystem\Filesystem
+ * @mixin \Hypervel\Contracts\Filesystem\Filesystem
  * @mixin \Hypervel\Filesystem\FilesystemAdapter
  */
 class FilesystemManager implements FactoryContract
@@ -67,14 +66,14 @@ class FilesystemManager implements FactoryContract
      * Create a new filesystem manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
     /**
      * Get a filesystem instance.
      */
-    public function drive(UnitEnum|string|null $name = null): Filesystem
+    public function drive(UnitEnum|string|null $name = null): mixed
     {
         return $this->disk($name);
     }
@@ -82,9 +81,10 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): Filesystem
+    public function disk(UnitEnum|string|null $name = null): mixed
     {
-        $name = enum_value($name) ?: $this->getDefaultDriver();
+        $name = enum_value($name);
+        $name = $name === null ? $this->getDefaultDriver() : (string) $name;
 
         return $this->disks[$name] = $this->get($name);
     }
@@ -103,7 +103,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): Filesystem
+    public function build(array|string $config): mixed
     {
         return $this->resolve('ondemand', is_array($config) ? $config : [
             'driver' => 'local',
@@ -114,7 +114,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): Filesystem
+    protected function get(string $name): mixed
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -124,7 +124,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): Filesystem
+    protected function resolve(string $name, ?array $config = null): mixed
     {
         $config ??= $this->getConfig($name);
 
@@ -166,7 +166,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): Filesystem
+    protected function callCustomCreator(array $config): mixed
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
@@ -216,7 +216,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config));
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
     }
 
     /**
@@ -236,7 +236,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new SftpAdapter($provider, $root, $visibility);
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
     }
 
     /**
@@ -275,10 +275,10 @@ class FilesystemManager implements FactoryContract
 
         if (! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
-        }
 
-        if (! empty($config['token'])) {
-            $config['credentials']['token'] = $config['token'];
+            if (! empty($config['token'])) {
+                $config['credentials']['token'] = $config['token'];
+            }
         }
 
         return Arr::except($config, ['token']);
@@ -304,7 +304,7 @@ class FilesystemManager implements FactoryContract
         $adapter = new GcsAdapter(
             $client->bucket(Arr::get($gcsConfig, 'bucket')),
             Arr::get($gcsConfig, 'root'),
-            Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass() : null,
+            Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass : null,
             $defaultVisibility
         );
 
@@ -316,6 +316,9 @@ class FilesystemManager implements FactoryContract
         );
     }
 
+    /**
+     * Format the given GCS configuration with the default options.
+     */
     protected function formatGcsConfig(array $config): array
     {
         // Google's SDK expects camelCase keys, but we can use snake_case in the config.
@@ -330,6 +333,9 @@ class FilesystemManager implements FactoryContract
         return $config;
     }
 
+    /**
+     * Create a Google Cloud Storage client instance.
+     */
     protected function createGcsClient(array $config): GcsClient
     {
         $options = [];
@@ -355,6 +361,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create a scoped driver.
+     *
+     * @throws InvalidArgumentException
      */
     public function createScopedDriver(array $config): Filesystem
     {
@@ -368,10 +376,23 @@ class FilesystemManager implements FactoryContract
         return $this->build(tap(
             is_string($config['disk']) ? $this->getConfig($config['disk']) : $config['disk'],
             function (&$parent) use ($config) {
-                $parent['prefix'] = $config['prefix'];
+                if (empty($parent['prefix'])) {
+                    $parent['prefix'] = $config['prefix'];
+                } else {
+                    $separator = $parent['directory_separator'] ?? DIRECTORY_SEPARATOR;
+
+                    $parentPrefix = rtrim($parent['prefix'], $separator);
+                    $scopedPrefix = ltrim($config['prefix'], $separator);
+
+                    $parent['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
+                }
 
                 if (isset($config['visibility'])) {
                     $parent['visibility'] = $config['visibility'];
+                }
+
+                if (isset($config['throw'])) {
+                    $parent['throw'] = $config['throw'];
                 }
             }
         ));
@@ -382,7 +403,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function createFlysystem(FlysystemAdapter $adapter, array $config): FilesystemOperator
     {
-        if (($config['read-only'] ?? false) === true) {
+        if ($config['read-only'] ?? false) {
             /* @phpstan-ignore-next-line */
             $adapter = new ReadOnlyFilesystemAdapter($adapter);
         }
@@ -390,6 +411,10 @@ class FilesystemManager implements FactoryContract
         if (! empty($config['prefix'])) {
             /* @phpstan-ignore-next-line */
             $adapter = new PathPrefixedAdapter($adapter, $config['prefix']);
+        }
+
+        if (str_contains($config['endpoint'] ?? '', 'r2.cloudflarestorage.com')) {
+            $config['retain_visibility'] = false;
         }
 
         return new Flysystem($adapter, Arr::only($config, [
@@ -404,8 +429,6 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Set the given disk instance.
-     *
-     * @return $this
      */
     public function set(string $name, mixed $disk): static
     {
@@ -419,8 +442,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->get(ConfigInterface::class)
-            ->get("filesystems.disks.{$name}", []);
+        return $this->app['config']["filesystems.disks.{$name}"] ?: [];
     }
 
     /**
@@ -428,8 +450,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
-            ->get('filesystems.default');
+        return $this->app['config']['filesystems.default'];
     }
 
     /**
@@ -437,14 +458,11 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
-            ->get('filesystems.cloud', 's3');
+        return $this->app['config']['filesystems.cloud'] ?? 's3';
     }
 
     /**
      * Unset the given disk instances.
-     *
-     * @return $this
      */
     public function forgetDisk(array|string $disk): static
     {
@@ -467,8 +485,6 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
-     *
-     * @return $this
      */
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
@@ -476,7 +492,7 @@ class FilesystemManager implements FactoryContract
             $this->addPoolable($driver);
         }
 
-        $this->customCreators[$driver] = $callback;
+        $this->customCreators[$driver] = $callback->bindTo($this, $this);
 
         return $this;
     }
@@ -484,7 +500,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

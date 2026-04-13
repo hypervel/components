@@ -9,7 +9,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Generator;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
@@ -17,6 +16,7 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -146,7 +146,7 @@ class AnyTaggedCache extends TaggedCache
         $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
 
         if ($result) {
-            $this->event(new KeyWritten(null, $key, $value, $seconds));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
         return $result;
@@ -171,7 +171,7 @@ class AnyTaggedCache extends TaggedCache
 
         if ($result) {
             foreach ($values as $key => $value) {
-                $this->event(new KeyWritten(null, $key, $value, $seconds));
+                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, $value, $seconds));
             }
         }
 
@@ -209,7 +209,7 @@ class AnyTaggedCache extends TaggedCache
         $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
 
         if ($result) {
-            $this->event(new KeyWritten(null, $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
         return $result;
@@ -236,11 +236,11 @@ class AnyTaggedCache extends TaggedCache
      */
     public function flush(): bool
     {
-        $this->event(new CacheFlushing(null));
+        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing(null));
 
         $this->tags->flush();
 
-        $this->event(new CacheFlushed(null));
+        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed(null));
 
         return true;
     }
@@ -289,10 +289,10 @@ class AnyTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
         } else {
-            $this->event(new CacheMissed(null, $key));
-            $this->event(new KeyWritten(null, $key, $value, $seconds));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
         return $value;
@@ -318,10 +318,10 @@ class AnyTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
         } else {
-            $this->event(new CacheMissed(null, $key));
-            $this->event(new KeyWritten(null, $key, $value));
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
         return $value;
@@ -354,7 +354,7 @@ class AnyTaggedCache extends TaggedCache
         $result = true;
 
         foreach ($values as $key => $value) {
-            if (! $this->forever($key, $value)) {
+            if (! $this->forever((string) $key, $value)) {
                 $result = false;
             }
         }

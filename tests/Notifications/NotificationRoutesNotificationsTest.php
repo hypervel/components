@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Notifications\Dispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
-use Hypervel\Notifications\Contracts\Dispatcher;
 use Hypervel\Notifications\RoutesNotifications;
 use InvalidArgumentException;
 use Mockery as m;
@@ -21,18 +19,13 @@ use stdClass;
  */
 class NotificationRoutesNotificationsTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testNotificationCanBeDispatched()
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
-        $container->set(Dispatcher::class, $factory);
-        $notifiable = new RoutesNotificationsTestInstance();
-        $instance = new stdClass();
+        $container->instance(Dispatcher::class, $factory);
+        $notifiable = new RoutesNotificationsTestInstance;
+        $instance = new stdClass;
         $factory->shouldReceive('send')->with($notifiable, $instance);
 
         $notifiable->notify($instance);
@@ -42,9 +35,9 @@ class NotificationRoutesNotificationsTest extends TestCase
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
-        $container->set(Dispatcher::class, $factory);
-        $notifiable = new RoutesNotificationsTestInstance();
-        $instance = new stdClass();
+        $container->instance(Dispatcher::class, $factory);
+        $notifiable = new RoutesNotificationsTestInstance;
+        $instance = new stdClass;
         $factory->shouldReceive('sendNow')->with($notifiable, $instance, null);
 
         $notifiable->notifyNow($instance);
@@ -52,7 +45,7 @@ class NotificationRoutesNotificationsTest extends TestCase
 
     public function testNotificationOptionRouting()
     {
-        $instance = new RoutesNotificationsTestInstance();
+        $instance = new RoutesNotificationsTestInstance;
         $this->assertSame('bar', $instance->routeNotificationFor('foo'));
         $this->assertSame('taylor@laravel.com', $instance->routeNotificationFor('mail'));
     }
@@ -63,16 +56,14 @@ class NotificationRoutesNotificationsTest extends TestCase
             new InvalidArgumentException('The database channel does not support on-demand notifications.')
         );
 
-        (new AnonymousNotifiable())->route('database', 'foo');
+        (new AnonymousNotifiable)->route('database', 'foo');
     }
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container;
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

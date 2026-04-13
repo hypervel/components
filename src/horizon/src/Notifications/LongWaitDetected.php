@@ -50,9 +50,9 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
      */
     public function toMail(mixed $notifiable): MailMessage
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->error()
-            ->subject(config('app.name') . ': Long Queue Wait Detected')
+            ->subject(config('horizon.name') . ': Long Queue Wait Detected')
             ->greeting('Oh no! Something needs your attention.')
             ->line(sprintf(
                 'The "%s" queue on the "%s" connection has a wait time of %s seconds.',
@@ -67,14 +67,13 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
      */
     public function toSlack(mixed $notifiable): ChannelIdSlackMessage|SlackMessage
     {
-        $fromName = 'Laravel Horizon';
+        $fromName = 'Hypervel Horizon';
         $title = 'Long Wait Detected';
         $text = 'Oh no! Something needs your attention.';
-        $imageUrl = 'https://laravel.com/assets/img/horizon-48px.png';
 
         $content = sprintf(
             '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
-            config('app.name'),
+            config('horizon.name'),
             $this->longWaitQueue,
             $this->longWaitConnection,
             $this->seconds
@@ -84,9 +83,8 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
             && class_exists('\Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock')
             && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))
         ) {
-            return (new ChannelIdSlackMessage())
+            return (new ChannelIdSlackMessage)
                 ->username($fromName)
-                ->image($imageUrl)
                 ->text($text)
                 ->headerBlock($title)
                 ->sectionBlock(function (SectionBlock $block) use ($content): void { // @phpstan-ignore-line
@@ -94,10 +92,9 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
                 });
         }
 
-        return (new SlackMessage()) // @phpstan-ignore-line
+        return (new SlackMessage) // @phpstan-ignore-line
             ->from($fromName)
             ->to(Horizon::$slackChannel)
-            ->image($imageUrl)
             ->error()
             ->content($text)
             ->attachment(function ($attachment) use ($title, $content) {

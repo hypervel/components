@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Exception;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\HttpFoundation\Response;
 
 class ValidationException extends Exception
 {
@@ -26,12 +26,12 @@ class ValidationException extends Exception
      * Create a new exception instance.
      *
      * @param ValidatorContract $validator the validator instance
-     * @param null|ResponseInterface $response the recommended response to send to the client
+     * @param null|Response $response the recommended response to send to the client
      * @param string $errorBag the name of the error bag
      */
     public function __construct(
         public ValidatorContract $validator,
-        public ?ResponseInterface $response = null,
+        public ?Response $response = null,
         public string $errorBag = 'default'
     ) {
         parent::__construct(static::summarize($validator));
@@ -58,7 +58,7 @@ class ValidationException extends Exception
     {
         $messages = $validator->errors()->all();
 
-        if (! count($messages) || ! is_string($messages[0])) {
+        if (! count($messages)) {
             return $validator->getTranslator()->get('The given data was invalid.');
         }
 
@@ -114,7 +114,7 @@ class ValidationException extends Exception
     /**
      * Get the underlying response instance.
      */
-    public function getResponse(): ?ResponseInterface
+    public function getResponse(): ?Response
     {
         return $this->response;
     }

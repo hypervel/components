@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\form;
@@ -14,7 +14,6 @@ use function Hypervel\Prompts\outro;
 use function Hypervel\Prompts\text;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -80,7 +79,7 @@ class FormTest extends TestCase
         ], $responses);
     }
 
-    public function passesAllAvailableResponsesToEachStep()
+    public function testPassesAllAvailableResponsesToEachStep()
     {
         Prompt::fake([
             'L',
@@ -98,10 +97,10 @@ class FormTest extends TestCase
             ->add(fn ($responses) => confirm("Are you sure your name is {$responses[0]} and your language is {$responses[1]}?"))
             ->submit();
 
-        $this->assertStringContainsString('Are you sure your name is Luke and your language is PHP?', Prompt::output());
+        Prompt::assertOutputContains('Are you sure your name is Luke and your language is PHP?');
     }
 
-    public function canKeyAResponseByAGivenString()
+    public function testCanKeyAResponseByAGivenString()
     {
         Prompt::fake([
             'L',
@@ -119,10 +118,10 @@ class FormTest extends TestCase
             ->add(fn ($responses) => confirm("Are you sure your name is {$responses['name']} and your language is {$responses['language']}?"))
             ->submit();
 
-        $this->assertStringContainsString('Are you sure your name is Luke and your language is PHP?', Prompt::output());
+        Prompt::assertOutputContains('Are you sure your name is Luke and your language is PHP?');
     }
 
-    public function doesNotAllowRevertingNormalPrompts()
+    public function testDoesNotAllowRevertingNormalPrompts()
     {
         Prompt::fake([
             'L',
@@ -142,7 +141,7 @@ class FormTest extends TestCase
 
         $confirm = confirm('Are you sure?');
 
-        $this->assertStringContainsString('This cannot be reverted.', Prompt::output());
+        Prompt::assertOutputContains('This cannot be reverted.');
         $this->assertTrue($confirm);
     }
 

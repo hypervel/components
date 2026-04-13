@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 /**
@@ -23,9 +19,7 @@ use RuntimeException;
  */
 class PoolManagerTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
-    protected ContainerInterface $container;
+    protected ContainerContract $container;
 
     protected PoolManager $manager;
 
@@ -33,11 +27,10 @@ class PoolManagerTest extends TestCase
     {
         parent::setUp();
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(PoolManager::class)
-            ->andReturn($this->manager = new PoolManager($container));
-        ApplicationContext::setContainer($container);
+        $container = new Container;
+        $this->manager = new PoolManager($container);
+        $container->instance(PoolManager::class, $this->manager);
+        Container::setInstance($container);
 
         $this->container = $container;
     }
@@ -46,7 +39,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $pool = $this->manager->create($name, $callback);
 
@@ -59,7 +52,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'duplicate-test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->manager->create($name, $callback);
 
@@ -73,7 +66,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->assertFalse($this->manager->has($name));
 
@@ -86,7 +79,7 @@ class PoolManagerTest extends TestCase
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $this->manager->create($name, $callback);
         $this->assertTrue($this->manager->has($name));
@@ -100,8 +93,8 @@ class PoolManagerTest extends TestCase
     public function testFlush()
     {
         $this->manager = new PoolManager($this->container);
-        $this->manager->create('pool1', fn () => new Bar());
-        $this->manager->create('pool2', fn () => new Bar());
+        $this->manager->create('pool1', fn () => new Bar);
+        $this->manager->create('pool2', fn () => new Bar);
 
         $this->assertCount(2, $this->manager->pools());
 
@@ -113,7 +106,7 @@ class PoolManagerTest extends TestCase
     public function testGetPool()
     {
         $name = 'test-pool';
-        $callback = fn () => new Bar();
+        $callback = fn () => new Bar;
 
         $pool = $this->manager->create($name, $callback);
 
@@ -126,7 +119,7 @@ class PoolManagerTest extends TestCase
 
         $bar = new BarPoolProxy(
             BarPoolProxy::class . ':bar',
-            fn () => new Bar()
+            fn () => new Bar
         );
 
         $this->assertTrue($bar->handle());
@@ -140,13 +133,10 @@ class PoolManagerTest extends TestCase
 
     protected function mockContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                PoolFactory::class => fn () => $this->manager,
-            ])
-        );
+        $container = new Container;
+        $container->instance(PoolFactory::class, $this->manager);
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         return $container;
     }

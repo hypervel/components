@@ -6,7 +6,6 @@ namespace Hypervel\Horizon\Listeners;
 
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Events\MasterSupervisorOutOfMemory;
-use Hypervel\Support\Environment;
 
 class MonitorMasterSupervisorMemory
 {
@@ -16,7 +15,7 @@ class MonitorMasterSupervisorMemory
     public function handle(MasterSupervisorLooped $event): void
     {
         // When we run all tests, the memory usage may exceed the limit. So we skip this check in testing environment.
-        if (app(Environment::class)->isTesting()) {
+        if (app()->runningUnitTests()) {
             return;
         }
 

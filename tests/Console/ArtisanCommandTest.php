@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console;
 
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Console\Fixtures\FakeCommandWithPromptValidation;
 use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Mockery\Exception\InvalidOrderException;
@@ -308,6 +310,22 @@ class ArtisanCommandTest extends TestCase
                 }
             })
             ->assertExitCode(0);
+    }
+
+    /**
+     * PromptValidationException is intentional control flow for prompt validation failures.
+     * It should produce a FAILURE exit code and show the validation message, not render
+     * as an unhandled exception error.
+     */
+    public function testPromptValidationExceptionProducesFailureWithoutErrorOutput(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(new FakeCommandWithPromptValidation);
+
+        $this->artisan('fake-prompt-validation-test')
+            ->expectsQuestion('What is your name?', '')
+            ->expectsOutputToContain('Required!')
+            ->doesntExpectOutputToContain('PromptValidationException')
+            ->assertFailed();
     }
 
     protected function registerSurveyCommand(): void

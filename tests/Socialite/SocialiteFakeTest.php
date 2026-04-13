@@ -1,0 +1,157 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Socialite;
+
+use Hypervel\Socialite\Contracts\Factory;
+use Hypervel\Socialite\Facades\Socialite;
+use Hypervel\Socialite\SocialiteServiceProvider;
+use Hypervel\Socialite\Testing\FakeProvider;
+use Hypervel\Socialite\Testing\SocialiteFake;
+use Hypervel\Socialite\Two\GoogleProvider;
+use Hypervel\Socialite\Two\User as OAuth2User;
+use Hypervel\Testbench\TestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class SocialiteFakeTest extends TestCase
+{
+    protected function getPackageProviders($app): array
+    {
+        return [SocialiteServiceProvider::class];
+    }
+
+    public function testItCanFakeADriverWithAUser()
+    {
+        $user = (new OAuth2User)->map([
+            'id' => '123',
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+        ]);
+
+        Socialite::fake('github', $user);
+
+        $this->assertInstanceOf(SocialiteFake::class, $this->app->make(Factory::class));
+        $this->assertInstanceOf(FakeProvider::class, Socialite::driver('github'));
+
+        $retrievedUser = Socialite::driver('github')->user();
+
+        $this->assertSame('123', $retrievedUser->getId());
+        $this->assertSame('Test User', $retrievedUser->getName());
+        $this->assertSame('test@example.com', $retrievedUser->getEmail());
+    }
+
+    public function testItCanFakeADriverWithAClosure()
+    {
+        Socialite::fake('github', function () {
+            return (new OAuth2User)->map([
+                'id' => '456',
+                'name' => 'Closure User',
+                'email' => 'closure@example.com',
+            ]);
+        });
+
+        $user = Socialite::driver('github')->user();
+
+        $this->assertSame('456', $user->getId());
+        $this->assertSame('Closure User', $user->getName());
+    }
+
+    public function testItCanFakeMultipleDrivers()
+    {
+        Socialite::fake('github', (new OAuth2User)->map(['id' => 'github-123']));
+        Socialite::fake('google', (new OAuth2User)->map(['id' => 'google-456']));
+
+        $this->assertSame('github-123', Socialite::driver('github')->user()->getId());
+        $this->assertSame('google-456', Socialite::driver('google')->user()->getId());
+    }
+
+    public function testItReturnsFakeRedirectResponse()
+    {
+        Socialite::fake('github', (new OAuth2User)->map(['id' => '123']));
+
+        $response = Socialite::driver('github')->redirect();
+
+        $this->assertSame('https://socialite.fake/github/authorize', $response->getTargetUrl());
+    }
+
+    public function testItForwardsCallsToTheRealProviderMethods()
+    {
+        $this->app->make('config')->set('services.github', [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'redirect' => 'http://localhost/callback',
+        ]);
+
+        Socialite::fake('github', (new OAuth2User)->map(['id' => '123']));
+
+        $provider = Socialite::driver('github');
+
+        // Verify that methods are forwarded to the real provider
+        $provider->stateless();
+        $provider->scopes(['user', 'repo']);
+        $provider->setScopes(['user:email']);
+        $provider->redirectUrl('http://example.com/callback');
+        $provider->with(['custom' => 'param']);
+        $provider->enablePKCE();
+
+        // Verify that the fake user is returned despite calling other methods
+        $user = $provider->user();
+
+        $this->assertSame('123', $user->getId());
+    }
+
+    public function testItPreservesDecoratorPatternWhenChainingMethods()
+    {
+        $this->app->make('config')->set('services.github', [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'redirect' => 'http://localhost/callback',
+        ]);
+
+        Socialite::fake('github', (new OAuth2User)->map(['id' => '123']));
+
+        $provider = Socialite::driver('github');
+        $this->assertInstanceOf(FakeProvider::class, $provider);
+
+        $chainedProvider = $provider->stateless()
+            ->scopes(['user', 'repo'])
+            ->setScopes(['user:email'])
+            ->redirectUrl('http://example.com/callback')
+            ->with(['custom' => 'param'])
+            ->enablePKCE();
+
+        $this->assertInstanceOf(FakeProvider::class, $chainedProvider, 'FakeProvider should be returned, not the real provider');
+        $this->assertSame($provider, $chainedProvider);
+
+        $user = $chainedProvider->user();
+        $this->assertSame('123', $user->getId());
+    }
+
+    public function testItReturnsRealDriverWhenNotFaked()
+    {
+        $this->app->make('config')->set('services.github', [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'redirect' => 'http://localhost/callback',
+        ]);
+
+        $this->app->make('config')->set('services.google', [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'redirect' => 'http://localhost/callback',
+        ]);
+
+        // Fake only github
+        Socialite::fake('github', (new OAuth2User)->map(['id' => '123']));
+
+        // Github should return the fake provider
+        $this->assertInstanceOf(FakeProvider::class, Socialite::driver('github'));
+
+        // Google should return the real provider since it wasn't faked
+        $this->assertInstanceOf(GoogleProvider::class, Socialite::driver('google'));
+    }
+}

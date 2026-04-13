@@ -8,12 +8,11 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SuggestPrompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\suggest;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -171,5 +170,92 @@ class SuggestPromptTest extends TestCase
         Prompt::assertOutputContains('Minimum 2 chars!');
 
         Prompt::validateUsing(fn () => null);
+    }
+
+    public function testSupportsHomeKeyWhileNavigatingOptions()
+    {
+        Prompt::fake([Key::DOWN, Key::DOWN, Key::HOME[0], Key::ENTER]);
+
+        $result = suggest('What is your favorite color?', [
+            'Red',
+            'Blue',
+            'Green',
+        ]);
+
+        $this->assertSame('Red', $result);
+    }
+
+    public function testSupportsEndKeyWhileNavigatingOptions()
+    {
+        Prompt::fake([Key::DOWN, Key::END[0], Key::ENTER]);
+
+        $result = suggest('What is your favorite color?', [
+            'Red',
+            'Blue',
+            'Green',
+        ]);
+
+        $this->assertSame('Green', $result);
+    }
+
+    public function testAcceptsCallbackReturningCollection()
+    {
+        Prompt::fake(['b', Key::TAB, Key::ENTER]);
+
+        $result = suggest(
+            label: 'What is your favorite color?',
+            options: fn ($value) => collect([
+                'Red',
+                'Green',
+                'Blue',
+            ])->filter(
+                fn ($name) => str_contains(
+                    strtoupper($name),
+                    strtoupper($value)
+                )
+            )
+        );
+
+        $this->assertSame('Blue', $result);
+    }
+
+    public function testSupportsEmacsStyleKeyBinding()
+    {
+        Prompt::fake(['b', Key::CTRL_N, Key::CTRL_N, Key::CTRL_N, Key::CTRL_P, Key::ENTER]);
+
+        $result = suggest('What is your favorite color?', [
+            'Red',
+            'Blue',
+            'Black',
+            'Blurple',
+        ]);
+
+        $this->assertSame('Black', $result);
+    }
+
+    public function testReturnsEmptyStringWhenNonInteractive()
+    {
+        Prompt::interactive(false);
+
+        $result = suggest('What is your favorite color?', [
+            'Red',
+            'Green',
+            'Blue',
+        ]);
+
+        $this->assertSame('', $result);
+    }
+
+    public function testReturnsDefaultValueWhenNonInteractive()
+    {
+        Prompt::interactive(false);
+
+        $result = suggest('What is your favorite color?', [
+            'Red',
+            'Green',
+            'Blue',
+        ], default: 'Yellow');
+
+        $this->assertSame('Yellow', $result);
     }
 }

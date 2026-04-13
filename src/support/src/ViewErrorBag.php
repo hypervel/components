@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Countable;
-use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
+use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Stringable;
 
 /**
@@ -31,7 +31,7 @@ class ViewErrorBag implements Countable, Stringable
      */
     public function getBag(string $key)
     {
-        return Arr::get($this->bags, $key) ?: new MessageBag();
+        return Arr::get($this->bags, $key) ?: new MessageBag;
     }
 
     /**

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
@@ -31,7 +31,7 @@ final class ExpirationCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         $tag = $context->prefixed('expire-' . Str::random(8));
         $key = $context->prefixed('expire:' . Str::random(8));

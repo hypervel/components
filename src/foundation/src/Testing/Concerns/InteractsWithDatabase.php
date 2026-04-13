@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Database\Events\QueryExecuted;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\SoftDeletes;
-use Hypervel\Foundation\Testing\Constraints\CountInDatabase;
-use Hypervel\Foundation\Testing\Constraints\HasInDatabase;
-use Hypervel\Foundation\Testing\Constraints\NotSoftDeletedInDatabase;
-use Hypervel\Foundation\Testing\Constraints\SoftDeletedInDatabase;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testing\Constraints\CountInDatabase;
+use Hypervel\Testing\Constraints\HasInDatabase;
+use Hypervel\Testing\Constraints\NotSoftDeletedInDatabase;
+use Hypervel\Testing\Constraints\SoftDeletedInDatabase;
 use PHPUnit\Framework\Constraint\LogicalNot as ReverseConstraint;
 
 trait InteractsWithDatabase
@@ -21,12 +20,28 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition exists in the database.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param array<string, mixed> $data
      * @param null|string $connection
      * @return $this
      */
-    protected function assertDatabaseHas($table, array $data, $connection = null)
+    protected function assertDatabaseHas($table, array $data = [], $connection = null)
     {
+        if (is_iterable($table)) {
+            foreach ($table as $item) {
+                $this->assertDatabaseHas($item, $data, $connection);
+            }
+
+            return $this;
+        }
+
+        if ($table instanceof Model) {
+            $data = [
+                $table->getKeyName() => $table->getKey(),
+                ...$data,
+            ];
+        }
+
         $this->assertThat(
             $this->getTable($table),
             new HasInDatabase($this->getConnection($connection, $table), $data)
@@ -38,12 +53,28 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition does not exist in the database.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param array<string, mixed> $data
      * @param null|string $connection
      * @return $this
      */
-    protected function assertDatabaseMissing($table, array $data, $connection = null)
+    protected function assertDatabaseMissing($table, array $data = [], $connection = null)
     {
+        if (is_iterable($table)) {
+            foreach ($table as $item) {
+                $this->assertDatabaseMissing($item, $data, $connection);
+            }
+
+            return $this;
+        }
+
+        if ($table instanceof Model) {
+            $data = [
+                $table->getKeyName() => $table->getKey(),
+                ...$data,
+            ];
+        }
+
         $constraint = new ReverseConstraint(
             new HasInDatabase($this->getConnection($connection, $table), $data)
         );
@@ -56,7 +87,7 @@ trait InteractsWithDatabase
     /**
      * Assert the count of table entries.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -73,7 +104,7 @@ trait InteractsWithDatabase
     /**
      * Assert that the given table has no entries.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param \Hypervel\Database\Eloquent\Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -90,13 +121,22 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has been "soft deleted".
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
      * @return $this
      */
     protected function assertSoftDeleted($table, array $data = [], $connection = null, $deletedAtColumn = 'deleted_at')
     {
+        if (is_iterable($table)) {
+            foreach ($table as $item) {
+                $this->assertSoftDeleted($item, $data, $connection);
+            }
+
+            return $this;
+        }
+
         if ($this->isSoftDeletableModel($table)) {
             return $this->assertSoftDeleted(
                 $table->getTable(),
@@ -121,13 +161,22 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has not been "soft deleted".
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
      * @return $this
      */
     protected function assertNotSoftDeleted($table, array $data = [], $connection = null, $deletedAtColumn = 'deleted_at')
     {
+        if (is_iterable($table)) {
+            foreach ($table as $item) {
+                $this->assertNotSoftDeleted($item, $data, $connection);
+            }
+
+            return $this;
+        }
+
         if ($this->isSoftDeletableModel($table)) {
             return $this->assertNotSoftDeleted(
                 $table->getTable(),
@@ -152,31 +201,23 @@ trait InteractsWithDatabase
     /**
      * Assert the given model exists in the database.
      *
-     * @param \Hyperf\Database\Model\Model $model
+     * @param \Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model> $model
      * @return $this
      */
     protected function assertModelExists($model)
     {
-        return $this->assertDatabaseHas(
-            $model->getTable(),
-            [$model->getKeyName() => $model->getKey()],
-            $model->getConnectionName()
-        );
+        return $this->assertDatabaseHas($model);
     }
 
     /**
      * Assert the given model does not exist in the database.
      *
-     * @param \Hyperf\Database\Model\Model $model
+     * @param \Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model> $model
      * @return $this
      */
     protected function assertModelMissing($model)
     {
-        return $this->assertDatabaseMissing(
-            $model->getTable(),
-            [$model->getKeyName() => $model->getKey()],
-            $model->getConnectionName()
-        );
+        return $this->assertDatabaseMissing($model);
     }
 
     /**
@@ -199,8 +240,8 @@ trait InteractsWithDatabase
 
             $this->beforeApplicationDestroyed(function () use (&$actual, $expected, $connectionInstance) {
                 $this->assertSame(
-                    $actual,
                     $expected,
+                    $actual,
                     "Expected {$expected} database queries on the [{$connectionInstance->getName()}] connection. {$actual} occurred."
                 );
             });
@@ -217,15 +258,14 @@ trait InteractsWithDatabase
      */
     protected function isSoftDeletableModel($model)
     {
-        return $model instanceof Model
-            && in_array(SoftDeletes::class, class_uses_recursive($model));
+        return $model instanceof Model && $model::isSoftDeletable();
     }
 
     /**
      * Cast a JSON string to a database compatible type.
      *
      * @param array|object|string $value
-     * @return \Hyperf\Database\Query\Expression
+     * @return \Hypervel\Database\Query\Expression
      */
     public function castAsJson($value)
     {
@@ -246,33 +286,45 @@ trait InteractsWithDatabase
      * Get the database connection.
      *
      * @param null|string $connection
-     * @param null|string $table
-     * @return \Hyperf\DbConnection\Connection
+     * @param null|class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
+     * @return \Hypervel\Database\Connection
      */
     protected function getConnection($connection = null, $table = null)
     {
-        return DB::connection($connection);
+        $database = $this->app->make('db');
+
+        $connection = $connection ?: $this->getTableConnection($table) ?: $database->getDefaultConnection();
+
+        return $database->connection($connection);
     }
 
     /**
      * Get the table name from the given model or string.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
      * @return string
      */
     protected function getTable($table)
     {
+        if ($table instanceof Model) {
+            return $table->getTable();
+        }
+
         return $this->newModelFor($table)?->getTable() ?: $table;
     }
 
     /**
      * Get the table connection specified in the given model.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
      * @return null|string
      */
     protected function getTableConnection($table)
     {
+        if ($table instanceof Model) {
+            return $table->getConnectionName();
+        }
+
         return $this->newModelFor($table)?->getConnectionName();
     }
 
@@ -291,21 +343,20 @@ trait InteractsWithDatabase
     /**
      * Get the model entity from the given model or string.
      *
-     * @param \Hyperf\Database\Model\Model|string $table
-     * @return null|\Hyperf\Database\Model\Model
+     * @param \Hypervel\Database\Eloquent\Model|string $table
+     * @return null|\Hypervel\Database\Eloquent\Model
      */
     protected function newModelFor($table)
     {
-        return is_subclass_of($table, Model::class) ? (new $table()) : null;
+        return is_subclass_of($table, Model::class) ? (new $table) : null;
     }
 
     /**
      * Seed a given database connection.
      *
-     * @param array|string $class
-     * @return $this
+     * @param array<int, class-string>|class-string $class
      */
-    public function seed($class = 'Database\Seeders\DatabaseSeeder')
+    public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static
     {
         foreach (Arr::wrap($class) as $class) {
             $this->artisan('db:seed', ['--class' => $class, '--no-interaction' => true]);

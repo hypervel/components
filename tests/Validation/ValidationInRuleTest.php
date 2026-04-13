@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Tests\Validation\fixtures\Values;
+use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
@@ -54,7 +54,7 @@ class ValidationInRuleTest extends TestCase
 
         $this->assertSame('in:"1","2","3","4"', (string) $rule);
 
-        $rule = Rule::in(new Values());
+        $rule = Rule::in(new Values);
 
         $this->assertSame('in:"1","2","3","4"', (string) $rule);
 
@@ -81,7 +81,7 @@ class ValidationInRuleTest extends TestCase
 
     public function testInRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => Rule::in('foo', 'bar')]);
         $this->assertTrue($v->passes());

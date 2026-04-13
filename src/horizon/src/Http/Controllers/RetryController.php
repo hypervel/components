@@ -6,7 +6,7 @@ namespace Hypervel\Horizon\Http\Controllers;
 
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 
-class RetryController
+class RetryController extends Controller
 {
     /**
      * Retry a failed job.

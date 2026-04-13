@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolProxy;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 
 /**
  * @internal
@@ -24,7 +23,7 @@ class PoolProxyTest extends TestCase
         $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('get')
             ->once()
-            ->andReturn($object = new Foo());
+            ->andReturn($object = new Foo);
         $pool->shouldReceive('release')
             ->once();
 
@@ -34,13 +33,9 @@ class PoolProxyTest extends TestCase
             ->once()
             ->andReturn($pool);
 
-        $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(PoolFactory::class)
-            ->once()
-            ->andReturn($poolFactory);
-
-        ApplicationContext::setContainer($container);
+        $container = new Container;
+        $container->instance(PoolFactory::class, $poolFactory);
+        Container::setInstance($container);
 
         $proxy = new PoolProxy(
             'foo',

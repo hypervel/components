@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Limiters;
 
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Sleep;
 
 class DurationLimiter
 {
@@ -22,15 +23,13 @@ class DurationLimiter
     /**
      * Create a new duration limiter instance.
      *
-     * @param RedisFactory $redis the Redis factory implementation
-     * @param string $connection the Redis connection name
+     * @param RedisProxy $redis the Redis connection instance
      * @param string $name the unique name of the lock
      * @param int $maxLocks the allowed number of concurrent tasks
      * @param int $decay the number of seconds a slot should be maintained
      */
     public function __construct(
-        protected RedisFactory $redis,
-        protected string $connection,
+        protected RedisProxy $redis,
         protected string $name,
         protected int $maxLocks,
         protected int $decay
@@ -48,10 +47,10 @@ class DurationLimiter
 
         while (! $this->acquire()) {
             if (time() - $timeout >= $starting) {
-                throw new LimiterTimeoutException();
+                throw new LimiterTimeoutException;
             }
 
-            usleep($sleep * 1000);
+            Sleep::usleep($sleep * 1000);
         }
 
         if (is_callable($callback)) {
@@ -66,21 +65,19 @@ class DurationLimiter
      */
     public function acquire(): bool
     {
-        $results = $this->getConnection()->eval(
+        $results = $this->redis->eval(
             $this->luaScript(),
-            [
-                $this->name,
-                microtime(true),
-                time(),
-                $this->decay,
-                $this->maxLocks,
-            ],
-            1
+            1,
+            $this->name,
+            microtime(true),
+            time(),
+            $this->decay,
+            $this->maxLocks,
         );
 
-        $this->decaysAt = $results[1];
+        $this->decaysAt = (int) $results[1];
 
-        $this->remaining = max(0, $results[2]);
+        $this->remaining = max(0, (int) $results[2]);
 
         return (bool) $results[0];
     }
@@ -90,17 +87,18 @@ class DurationLimiter
      */
     public function tooManyAttempts(): bool
     {
-        [$this->decaysAt, $this->remaining] = $this->getConnection()->eval(
+        $results = $this->redis->eval(
             $this->tooManyAttemptsLuaScript(),
-            [
-                $this->name,
-                microtime(true),
-                time(),
-                $this->decay,
-                $this->maxLocks,
-            ],
-            1
+            1,
+            $this->name,
+            microtime(true),
+            time(),
+            $this->decay,
+            $this->maxLocks,
         );
+
+        $this->decaysAt = (int) $results[0];
+        $this->remaining = (int) $results[1];
 
         return $this->remaining <= 0;
     }
@@ -110,12 +108,7 @@ class DurationLimiter
      */
     public function clear(): void
     {
-        $this->getConnection()->del($this->name);
-    }
-
-    public function getConnection(): RedisProxy
-    {
-        return $this->redis->get($this->connection);
+        $this->redis->del($this->name);
     }
 
     /**

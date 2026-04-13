@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\ServiceProvider;
 
@@ -25,7 +25,7 @@ class TelescopeApplicationServiceProvider extends ServiceProvider
     {
         $this->gate();
 
-        Telescope::auth(function (RequestContract $request) {
+        Telescope::auth(function (Request $request) {
             return $this->app->environment('local')
                 || Gate::check('viewTelescope', [$request->user()]);
         });
@@ -39,8 +39,7 @@ class TelescopeApplicationServiceProvider extends ServiceProvider
     protected function gate(): void
     {
         Gate::define('viewTelescope', function ($user) {
-            return in_array($user->email, [
-            ]);
+            return in_array($user->email, []);
         });
     }
 

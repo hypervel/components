@@ -42,7 +42,7 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testFailsWhenEngineDoesNotSupportDeleteAllIndexes(): void
     {
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
 
         $manager = m::mock(EngineManager::class);
         $manager->shouldReceive('engine')

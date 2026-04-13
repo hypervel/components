@@ -4,25 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Middleware;
 
+use Closure;
 use Hypervel\Http\Exceptions\PostTooLargeException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class ValidatePostSize implements MiddlewareInterface
+class ValidatePostSize
 {
-    protected ?int $postMaxSize = null;
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * Handle an incoming request.
+     *
+     * @throws \Hypervel\Http\Exceptions\PostTooLargeException
+     */
+    public function handle(Request $request, Closure $next): Response
     {
         $max = $this->getPostMaxSize();
 
-        if ($max > 0 && (int) $request->getHeaderLine('CONTENT_LENGTH') > $max) {
+        if ($max > 0 && $request->server('CONTENT_LENGTH') > $max) {
             throw new PostTooLargeException('The POST data is too large.');
         }
 
-        return $handler->handle($request);
+        return $next($request);
     }
 
     /**
@@ -30,19 +32,15 @@ class ValidatePostSize implements MiddlewareInterface
      */
     protected function getPostMaxSize(): int
     {
-        if (! is_null($this->postMaxSize)) {
-            return $this->postMaxSize;
-        }
-
         if (is_numeric($postMaxSize = ini_get('post_max_size'))) {
-            return (int) $this->postMaxSize;
+            return (int) $postMaxSize;
         }
 
         $metric = strtoupper(substr($postMaxSize, -1));
 
         $postMaxSize = (int) $postMaxSize;
 
-        return $this->postMaxSize = match ($metric) {
+        return match ($metric) {
             'K' => $postMaxSize * 1024,
             'M' => $postMaxSize * 1048576,
             'G' => $postMaxSize * 1073741824,

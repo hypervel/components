@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
 use Swoole\Table;
 
 /**
@@ -251,6 +251,39 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertFalse($table->get('foo'));
     }
 
+    public function testTouchUpdatesTtlOnExistingItem()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store = $this->createStore($this->createSwooleTable());
+        $store->put('foo', 'bar', 30);
+
+        $store->touch('foo', 60);
+
+        Carbon::setTestNow($now->addSeconds(45));
+
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testTouchReturnsFalseForNonExistentItem()
+    {
+        $store = $this->createStore($this->createSwooleTable());
+
+        $this->assertFalse($store->touch('nonexistent', 60));
+    }
+
+    public function testTouchReturnsFalseForExpiredItem()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store = $this->createStore($this->createSwooleTable());
+        $store->put('foo', 'bar', 10);
+
+        Carbon::setTestNow($now->addSeconds(15));
+
+        $this->assertFalse($store->touch('foo', 60));
+    }
+
     private function createStore(Table $table)
     {
         return new SwooleStore($table, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
@@ -258,7 +291,7 @@ class CacheSwooleStoreTest extends TestCase
 
     private function createSwooleTable()
     {
-        return (new SwooleTableManager(m::mock(ContainerInterface::class)))->createTable(128, 10240, 0.2);
+        return (new SwooleTableManager(m::mock(Container::class)))->createTable(128, 10240, 0.2);
     }
 
     private function getCurrentTimestamp()

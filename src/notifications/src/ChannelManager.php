@@ -5,23 +5,36 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
-use Hypervel\Notifications\Contracts\Dispatcher as DispatcherContract;
-use Hypervel\Notifications\Contracts\Factory as FactoryContract;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Manager;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {
     use HasPoolProxy;
+    use Macroable;
+    use ResolvesQueueRoutes;
+
+    /**
+     * Context key for the per-request default channel override.
+     */
+    protected const DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
+
+    /**
+     * Context key for the per-request default locale override.
+     */
+    protected const DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
 
     /**
      * The default channel used to deliver messages.
@@ -55,8 +68,8 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     {
         (new NotificationSender(
             $this,
-            $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcherInterface::class),
+            $this->container->make(BusDispatcherContract::class),
+            $this->container->make(EventDispatcher::class),
             $this->getLocale()
         ))->send($notifiables, $notification);
     }
@@ -68,8 +81,8 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     {
         (new NotificationSender(
             $this,
-            $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcherInterface::class),
+            $this->container->make(BusDispatcherContract::class),
+            $this->container->make(EventDispatcher::class),
             $this->getLocale()
         ))->sendNow($notifiables, $notification, $channels);
     }
@@ -87,7 +100,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createDatabaseDriver(): DatabaseChannel
     {
-        return $this->container->get(DatabaseChannel::class);
+        return $this->container->make(DatabaseChannel::class);
     }
 
     /**
@@ -95,7 +108,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createBroadcastDriver(): BroadcastChannel
     {
-        return $this->container->get(BroadcastChannel::class);
+        return $this->container->make(BroadcastChannel::class);
     }
 
     /**
@@ -103,7 +116,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createMailDriver(): MailChannel
     {
-        return $this->container->get(MailChannel::class);
+        return $this->container->make(MailChannel::class);
     }
 
     /**
@@ -111,7 +124,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createSlackDriver(): SlackNotificationRouterChannel
     {
-        return $this->container->get(SlackNotificationRouterChannel::class);
+        return $this->container->make(SlackNotificationRouterChannel::class);
     }
 
     /**
@@ -121,38 +134,26 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     protected function createDriver(string $driver): mixed
     {
-        $poolConfig = $this->getPoolConfig($driver);
         $hasPool = in_array($driver, $this->poolables);
-        if (isset($this->customCreators[$driver])) {
+        $poolConfig = $this->getPoolConfig($driver);
+
+        try {
             if ($hasPool) {
                 return $this->createPoolProxy(
                     $driver,
-                    fn () => $this->callCustomCreator($driver),
+                    fn () => parent::createDriver($driver),
                     $poolConfig
                 );
             }
-            return $this->callCustomCreator($driver);
-        }
 
-        $method = 'create' . Str::studly($driver) . 'Driver';
-
-        if (! method_exists($this, $method)) {
+            return parent::createDriver($driver);
+        } catch (InvalidArgumentException $e) {
             if (class_exists($driver)) {
-                return $this->container->get($driver);
+                return $this->container->make($driver);
             }
 
-            throw new InvalidArgumentException("Driver [{$driver}] is not supported.");
+            throw $e;
         }
-
-        if ($hasPool) {
-            return $this->createPoolProxy(
-                $driver,
-                fn () => $this->{$method}(),
-                $poolConfig
-            );
-        }
-
-        return $this->{$method}();
     }
 
     /**
@@ -194,7 +195,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getDefaultDriver(): string
     {
-        return Context::get('__notifications.defaultChannel', $this->defaultChannel);
+        return CoroutineContext::get(self::DEFAULT_CHANNEL_CONTEXT_KEY, $this->defaultChannel);
     }
 
     /**
@@ -210,7 +211,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function deliverVia(string $channel): void
     {
-        Context::set('__notifications.defaultChannel', $channel);
+        CoroutineContext::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
     }
 
     /**
@@ -218,7 +219,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function locale(string $locale): static
     {
-        Context::set('__notifications.defaultLocale', $locale);
+        CoroutineContext::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
 
         return $this;
     }
@@ -228,6 +229,6 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getLocale(): ?string
     {
-        return Context::get('__notifications.defaultLocale', $this->locale);
+        return CoroutineContext::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
     }
 }

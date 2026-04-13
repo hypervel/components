@@ -6,9 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Two\SlackOpenIdProvider;
 use Hypervel\Socialite\Two\User;
@@ -23,13 +21,6 @@ use Psr\Http\Message\StreamInterface;
  */
 class SlackOpenIdProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
-    }
-
     public function testResponse()
     {
         $user = $this->fromResponse([
@@ -88,7 +79,7 @@ class SlackOpenIdProviderTest extends TestCase
 
     protected function fromResponse(array $response): UserContract
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->allows('input')->with('code')->andReturns('fake-code');
 
         $stream = m::mock(StreamInterface::class);
@@ -113,16 +104,12 @@ class SlackOpenIdProviderTest extends TestCase
 
         $provider = new SlackOpenIdProvider(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect'
         );
         $provider->stateless();
-        Context::set(
-            'socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
-            $guzzle
-        );
+        $provider->setHttpClient($guzzle);
 
         return $provider->user();
     }

@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Command\Command;
-use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
+use Hypervel\Console\Command;
+use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class CommandWatcher extends Watcher
 {
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, [$this, 'recordCommand']);
     }
 
@@ -27,7 +27,7 @@ class CommandWatcher extends Watcher
      */
     public function recordCommand(AfterExecuteCommand $event): void
     {
-        $command = $event->getCommand();
+        $command = $event->command;
         if (! Telescope::isRecording() || $this->shouldIgnore($command)) {
             return;
         }

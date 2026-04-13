@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Operations;
 
 use Generator;
+use Hypervel\Redis\PhpRedis;
+use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -99,7 +101,7 @@ final class SafeScan
         }
 
         // Route to cluster or standard implementation
-        if ($this->connection->isCluster()) {
+        if ($this->connection instanceof PhpRedisClusterConnection) {
             yield from $this->scanCluster($scanPattern, $count, $prefixLen);
         } else {
             yield from $this->scanStandard($scanPattern, $count, $prefixLen);
@@ -111,8 +113,7 @@ final class SafeScan
      */
     private function scanStandard(string $scanPattern, int $count, int $prefixLen): Generator
     {
-        // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
-        $iterator = $this->getInitialCursor();
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // SCAN returns keys as they exist in Redis (with full prefix)
@@ -147,12 +148,12 @@ final class SafeScan
     private function scanCluster(string $scanPattern, int $count, int $prefixLen): Generator
     {
         // Get all master nodes in the cluster
-        // @phpstan-ignore method.notFound (RedisCluster-specific method, available when isCluster() is true)
-        $masters = $this->connection->_masters();
+        // @phpstan-ignore method.notFound (only called when $this->connection instanceof PhpRedisClusterConnection)
+        $masters = $this->connection->masters();
 
         foreach ($masters as $master) {
             // Each master node needs its own cursor
-            $iterator = $this->getInitialCursor();
+            $iterator = PhpRedis::initialScanCursor();
 
             do {
                 // RedisCluster::scan() signature: scan(&$iter, $node, $pattern, $count)
@@ -173,18 +174,5 @@ final class SafeScan
                 }
             } while ($iterator > 0);
         }
-    }
-
-    /**
-     * Get the initial cursor value based on phpredis version.
-     *
-     * phpredis 6.1.0+ uses null as initial cursor, older versions use 0.
-     */
-    private function getInitialCursor(): ?int
-    {
-        return match (true) {
-            version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,
-            default => 0,
-        };
     }
 }

@@ -79,6 +79,9 @@ return (new Config())
         'phpdoc_to_comment' => [
             'ignored_tags' => ['var'],
         ],
+        'php_unit_method_casing' => [
+            'case' => 'camel_case',
+        ],
         'php_unit_strict' => false,
         'phpdoc_separation' => false,
         'single_quote' => true,
@@ -87,6 +90,10 @@ return (new Config())
         'fully_qualified_strict_types' => false,
         // Since PHP 8.3, default null values can be declared as nullable.
         'nullable_type_declaration_for_default_null_value' => true,
+        'new_with_parentheses' => [
+            'named_class' => false,
+            'anonymous_class' => false,
+        ],
         'single_line_empty_body' => false,
         'ordered_types' => [
             'null_adjustment' => 'always_last',
@@ -97,8 +104,11 @@ return (new Config())
         PhpCsFixer\Finder::create()
             ->exclude('bin')
             ->exclude('overrides')
+            ->exclude('src/testbench/workbench/bootstrap/cache')
+            ->exclude('src/testbench/workbench/runtime')
+            ->exclude('src/testbench/workbench/storage')
             ->exclude('vendor')
-            ->notPath('tests/Foundation/fixtures/fake-compiled-view.php')
+            ->notPath('tests/Foundation/Fixtures/fake-compiled-view.php')
             ->in(__DIR__)
     )
     ->setUsingCache(false);

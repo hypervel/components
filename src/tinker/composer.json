@@ -1,0 +1,59 @@
+{
+    "name": "hypervel/tinker",
+    "type": "library",
+    "description": "Powerful REPL for the Hypervel framework.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "tinker",
+        "repl",
+        "psysh",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Tinker\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/support": "^0.4",
+        "psy/psysh": "^0.12.22",
+        "symfony/var-dumper": "^8.0"
+    },
+    "suggest": {
+        "hypervel/database": "Required for Eloquent model casting in Tinker (^0.4)."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Tinker\\TinkerServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

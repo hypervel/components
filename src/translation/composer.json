@@ -5,7 +5,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "translation",
         "swoole",
         "hypervel"
@@ -14,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -23,26 +26,30 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\Translation\\": "src/"
-        },
-        "files": [
-            "src/Functions.php"
-        ]
+        }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/contract": "~3.1.0",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/support": "^0.3"
+        "php": "^8.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Translation\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Translation\\TranslationServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

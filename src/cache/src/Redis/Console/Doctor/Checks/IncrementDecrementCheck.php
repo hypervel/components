@@ -22,7 +22,7 @@ final class IncrementDecrementCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Increment without tags
         $context->cache->put($context->prefixed('incr:counter1'), 0, 60);

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Http\Controllers;
 
-use Hyperf\Collection\Collection;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;

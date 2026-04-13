@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory as FactoryContract;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 class PoolManager implements FactoryContract
@@ -22,7 +22,7 @@ class PoolManager implements FactoryContract
      * Create a new pool manager with the given configuration.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 

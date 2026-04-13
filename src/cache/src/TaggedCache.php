@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -67,11 +68,11 @@ class TaggedCache extends Repository
      */
     public function flush(): bool
     {
-        $this->event(new CacheFlushing($this->getName()));
+        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
         $this->tags->reset();
 
-        $this->event(new CacheFlushed($this->getName()));
+        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
 
         return true;
     }
@@ -100,8 +101,16 @@ class TaggedCache extends Repository
     /**
      * Fire an event for this cache instance.
      */
-    protected function event(object $event): void
+    protected function event(string $eventClass, Closure $event): void
     {
-        parent::event($event->setTags($this->tags->getNames()));
+        parent::event($eventClass, function () use ($event): object {
+            $resolvedEvent = $event();
+
+            if (method_exists($resolvedEvent, 'setTags')) {
+                $resolvedEvent->setTags($this->tags->getNames());
+            }
+
+            return $resolvedEvent;
+        });
     }
 }

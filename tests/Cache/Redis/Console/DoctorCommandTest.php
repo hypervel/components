@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Cache\Repository;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -44,10 +45,11 @@ class DoctorCommandTest extends TestCase
             ->with('file')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
-        $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput());
+        $command = new DoctorCommand;
+        $command->setHypervel($this->app);
+        $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput);
 
         $this->assertSame(1, $result);
     }
@@ -55,7 +57,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -69,13 +71,13 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -93,12 +95,13 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         // The command will fail at environment checks (Redis version check for 'any' mode)
         // but this tests that store detection works
-        $command = new DoctorCommand();
-        $output = new BufferedOutput();
+        $command = new DoctorCommand;
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
         $command->run(new ArrayInput([]), $output);
 
         // Verify it detected the redis store (case-insensitive check)
@@ -117,7 +120,7 @@ class DoctorCommandTest extends TestCase
             return;
         }
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('file');
@@ -125,13 +128,13 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -150,10 +153,25 @@ class DoctorCommandTest extends TestCase
             ->with('custom-redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
-        $output = new BufferedOutput();
+        // Skip functional checks — this test only verifies store routing
+        $command = new class extends DoctorCommand {
+            protected function getFunctionalChecks(): array
+            {
+                return [];
+            }
+
+            protected function cleanup(DoctorContext $context, bool $silent = false): void
+            {
+            }
+
+            protected function runCleanupVerification(DoctorContext $context): void
+            {
+            }
+        };
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
         $command->run(new ArrayInput(['--store' => 'custom-redis']), $output);
 
         // Verify the custom store was used
@@ -163,7 +181,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysTagMode(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('redis');
@@ -171,13 +189,13 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
@@ -195,10 +213,25 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
-        $output = new BufferedOutput();
+        // Skip functional checks — this test only verifies tag mode display
+        $command = new class extends DoctorCommand {
+            protected function getFunctionalChecks(): array
+            {
+                return [];
+            }
+
+            protected function cleanup(DoctorContext $context, bool $silent = false): void
+            {
+            }
+
+            protected function runCleanupVerification(DoctorContext $context): void
+            {
+            }
+        };
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
         $command->run(new ArrayInput(['--store' => 'redis']), $output);
 
         // Verify tag mode is displayed
@@ -209,7 +242,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorFailsWhenNoRedisStoreDetected(): void
     {
         // Set up config with NO redis stores
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -220,10 +253,11 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
-        $command = new DoctorCommand();
-        $output = new BufferedOutput();
+        $command = new DoctorCommand;
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
         $result = $command->run(new ArrayInput([]), $output);
 
         $this->assertSame(1, $result);
@@ -233,7 +267,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysSystemInformation(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -246,12 +280,12 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->instance('config', $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $connection = m::mock(RedisConnection::class);
+                $connection = m::mock(PhpRedisConnection::class);
                 $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.2.4']);
                 return $callback($connection);
             });
@@ -269,10 +303,11 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
-        $command = new DoctorCommand();
-        $output = new BufferedOutput();
+        $command = new DoctorCommand;
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
         $command->run(new ArrayInput([]), $output);
 
         $outputText = $output->fetch();

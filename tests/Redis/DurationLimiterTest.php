@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiter;
-use Hypervel\Redis\Limiters\LimiterTimeoutException;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -29,13 +28,35 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([1, time() + 60, 4]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $result = $limiter->acquire();
 
         $this->assertTrue($result);
         $this->assertSame(4, $limiter->remaining);
+    }
+
+    public function testAcquireUsesTransformedEvalSignature(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+                $this->assertNotSame('', $script);
+                $this->assertSame(1, $numberOfKeys);
+                $this->assertSame('test-key', $name);
+                $this->assertGreaterThan(0.0, $microtime);
+                $this->assertGreaterThan(0, $timestamp);
+                $this->assertSame(60, $decay);
+                $this->assertSame(5, $maxLocks);
+
+                return true;
+            })
+            ->andReturn([1, time() + 60, 4]);
+
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
+
+        $this->assertTrue($limiter->acquire());
     }
 
     public function testAcquireFailsWhenAtLimit(): void
@@ -46,8 +67,7 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([0, time() + 30, 0]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $result = $limiter->acquire();
 
@@ -63,8 +83,7 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([0, time() + 60, -2]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $limiter->acquire();
 
@@ -78,8 +97,7 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([time() + 60, 0]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $result = $limiter->tooManyAttempts();
 
@@ -94,13 +112,36 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([time() + 60, 3]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $result = $limiter->tooManyAttempts();
 
         $this->assertFalse($result);
         $this->assertSame(3, $limiter->remaining);
+    }
+
+    public function testTooManyAttemptsUsesTransformedEvalSignature(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+                $this->assertNotSame('', $script);
+                $this->assertSame(1, $numberOfKeys);
+                $this->assertSame('test-key', $name);
+                $this->assertGreaterThan(0.0, $microtime);
+                $this->assertGreaterThan(0, $timestamp);
+                $this->assertSame(60, $decay);
+                $this->assertSame(5, $maxLocks);
+
+                return true;
+            })
+            ->andReturn([time() + 60, 2]);
+
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
+
+        $this->assertFalse($limiter->tooManyAttempts());
+        $this->assertSame(2, $limiter->remaining);
     }
 
     public function testClearDeletesKey(): void
@@ -111,8 +152,7 @@ class DurationLimiterTest extends TestCase
             ->with('test-key')
             ->andReturn(1);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $limiter->clear();
 
@@ -126,8 +166,7 @@ class DurationLimiterTest extends TestCase
             ->once()
             ->andReturn([1, time() + 60, 4]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $callbackExecuted = false;
         $result = $limiter->block(5, function () use (&$callbackExecuted) {
@@ -146,8 +185,7 @@ class DurationLimiterTest extends TestCase
         $redis->shouldReceive('eval')
             ->andReturn([0, time() + 60, 0]);
 
-        $factory = $this->createFactory($redis);
-        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
         $this->expectException(LimiterTimeoutException::class);
 
@@ -155,23 +193,8 @@ class DurationLimiterTest extends TestCase
         $limiter->block(0, null, 1); // 1ms sleep between retries
     }
 
-    public function testUsesSpecifiedConnectionName(): void
-    {
-        $cacheRedis = $this->mockRedis();
-        $cacheRedis->shouldReceive('eval')
-            ->once()
-            ->andReturn([1, time() + 60, 4]);
-
-        $factory = m::mock(RedisFactory::class);
-        // Expect 'cache' connection, not 'default'
-        $factory->shouldReceive('get')->with('cache')->andReturn($cacheRedis);
-
-        $limiter = new DurationLimiter($factory, 'cache', 'test-key', 5, 60);
-
-        $limiter->acquire();
-
-        // Mockery verifies get('cache') was called
-    }
+    // REMOVED: testUsesSpecifiedConnectionName - Connection is now resolved before creating the limiter,
+    // so DurationLimiter no longer has a connection name parameter.
 
     /**
      * Create a mock RedisProxy.
@@ -179,16 +202,5 @@ class DurationLimiterTest extends TestCase
     private function mockRedis(): m\MockInterface|RedisProxy
     {
         return m::mock(RedisProxy::class);
-    }
-
-    /**
-     * Create a RedisFactory that returns the given RedisProxy.
-     */
-    private function createFactory(m\MockInterface|RedisProxy $redis): RedisFactory
-    {
-        $factory = m::mock(RedisFactory::class);
-        $factory->shouldReceive('get')->with('default')->andReturn($redis);
-
-        return $factory;
     }
 }

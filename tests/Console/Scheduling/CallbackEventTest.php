@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\CallbackEvent;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -38,14 +38,14 @@ class CallbackEventTest extends TestCase
 
     public function testConstructorAcceptsCallableArray(): void
     {
-        $event = new CallbackEvent($this->mutex, [new CallbackEventTestCallable(), 'handle']);
+        $event = new CallbackEvent($this->mutex, [new CallbackEventTestCallable, 'handle']);
 
         $this->assertInstanceOf(CallbackEvent::class, $event);
     }
 
     public function testConstructorAcceptsInvokableObject(): void
     {
-        $event = new CallbackEvent($this->mutex, new CallbackEventTestInvokable());
+        $event = new CallbackEvent($this->mutex, new CallbackEventTestInvokable);
 
         $this->assertInstanceOf(CallbackEvent::class, $event);
     }
@@ -70,7 +70,7 @@ class CallbackEventTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid scheduled callback event. Must be a string or callable.');
 
-        new CallbackEvent($this->mutex, new CallbackEventTestNonInvokable());
+        new CallbackEvent($this->mutex, new CallbackEventTestNonInvokable);
     }
 
     public function testRunInBackgroundThrowsException(): void
@@ -199,7 +199,7 @@ class CallbackEventTest extends TestCase
 
     public function testExecuteWithInvokableObject(): void
     {
-        $invokable = new CallbackEventTestInvokable();
+        $invokable = new CallbackEventTestInvokable;
         $event = new CallbackEvent($this->mutex, $invokable);
 
         $result = $event->run($this->app);

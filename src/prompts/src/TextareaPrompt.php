@@ -6,12 +6,15 @@ namespace Hypervel\Prompts;
 
 use Closure;
 use Hypervel\Prompts\Support\Utils;
+use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 
 class TextareaPrompt extends Prompt
 {
     use Concerns\Scrolling;
-    use Concerns\Truncation;
     use Concerns\TypedValue;
+    use InteractsWithStrings;
+
+    protected int $minWidth = 0;
 
     /**
      * The width of the textarea.

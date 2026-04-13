@@ -4,28 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Middleware;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\HttpServer\Router\Dispatched;
+use Closure;
 use Hypervel\Auth\Access\AuthorizationException;
-use Hypervel\Auth\Contracts\Gate;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class Authorize implements MiddlewareInterface
+class Authorize
 {
     /**
      * Create a new middleware instance.
-     *
-     * @param Gate $gate the gate instance
      */
-    public function __construct(protected Gate $gate)
-    {
+    public function __construct(
+        protected Gate $gate,
+    ) {
     }
 
     /**
@@ -39,48 +36,42 @@ class Authorize implements MiddlewareInterface
     /**
      * Handle an incoming request.
      *
+     * @throws AuthenticationException
      * @throws AuthorizationException
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler, ?string $ability = null, string ...$models): ResponseInterface
+    public function handle(Request $request, Closure $next, string $ability, Model|string ...$models): Response
     {
-        if (! is_null($ability)) {
-            $this->gate->authorize($ability, $this->getGateArguments($request, $models));
-        }
+        $this->gate->authorize($ability, $this->getGateArguments($request, $models));
 
-        return $handler->handle($request);
+        return $next($request);
     }
 
     /**
      * Get the arguments parameter for the gate.
      */
-    protected function getGateArguments(ServerRequestInterface $request, array $models): array
+    protected function getGateArguments(Request $request, array $models): array
     {
-        return Collection::make($models)->map(function ($model) use ($request) {
-            return $model instanceof Model ? $model : $this->getModel($request, $model);
-        })->all();
+        return array_map(
+            fn ($model) => $model instanceof Model ? $model : $this->getModel($request, $model),
+            $models
+        );
     }
 
     /**
      * Get the model to authorize.
      */
-    protected function getModel(ServerRequestInterface $request, string $model): Model|string|null
+    protected function getModel(Request $request, string $model): mixed
     {
         if ($this->isClassName($model)) {
             return trim($model);
         }
 
-        /** @var Dispatched */
-        $dispatched = $request->getAttribute(Dispatched::class);
-
-        if (! $dispatched->isFound()) {
-            return null;
-        }
-
-        return $dispatched->params[$model] ?? null;
+        return $request->route($model, null)
+            ?? ((preg_match("/^['\"](.*)['\"]$/", trim($model), $matches)) ? $matches[1] : null);
     }
 
     /**
-     * Checks if the given string looks like a fully qualified class name.
+     * Check if the given string looks like a fully qualified class name.
      */
     protected function isClassName(string $value): bool
     {

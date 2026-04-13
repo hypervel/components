@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Config\Repository;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use stdClass;
@@ -21,8 +20,6 @@ use Symfony\Component\VarDumper\Cloner\VarCloner;
  */
 class HtmlDumperTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected $config;
 
     protected $container;
@@ -33,9 +30,8 @@ class HtmlDumperTest extends TestCase
 
         $this->config = $this->getConfig();
 
-        $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
-        ]);
+        $this->container = new Application;
+        $this->container->singleton('config', fn () => $this->config);
 
         HtmlDumper::resolveDumpSourceUsing(function () {
             return [
@@ -101,7 +97,7 @@ class HtmlDumperTest extends TestCase
 
     public function testObject()
     {
-        $user = new stdClass();
+        $user = new stdClass;
         $user->name = 'Guus';
 
         $output = $this->dump($user);
@@ -165,7 +161,7 @@ class HtmlDumperTest extends TestCase
 
     public function testGetOriginalViewCompiledFile()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
         $dumper = new HtmlDumper(
@@ -181,7 +177,7 @@ class HtmlDumperTest extends TestCase
 
     public function testWhenGetOriginalViewCompiledFileFails()
     {
-        $compiled = __DIR__ . '/../fixtures/fake-compiled-view-without-source-map.php';
+        $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
         $dumper = new HtmlDumper(
@@ -226,7 +222,7 @@ class HtmlDumperTest extends TestCase
         ))->call($dumper);
         $this->assertNull($href);
 
-        ApplicationContext::setContainer($this->container);
+        Container::setInstance($this->container);
         $resolveSourceHref = fn () => (fn () => $this->resolveSourceHref(
             '/my-work-directory/app/my-file',
             10,
@@ -298,15 +294,10 @@ class HtmlDumperTest extends TestCase
 
         $dumper->setOutput($outputFile);
 
-        $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper->dumpWithSource($cloner->cloneVar($value));
 
         return tap(file_get_contents($outputFile), fn () => @unlink($outputFile));
-    }
-
-    protected function tearDown(): void
-    {
-        HtmlDumper::resolveDumpSourceUsing(null);
     }
 }

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Events;
 
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
+use Throwable;
 
 class JobAttempted
 {
@@ -14,7 +15,7 @@ class JobAttempted
     public function __construct(
         public string $connectionName,
         public Job $job,
-        public bool $exceptionOccurred = false
+        public ?Throwable $exception = null,
     ) {
     }
 
@@ -23,6 +24,6 @@ class JobAttempted
      */
     public function successful(): bool
     {
-        return ! $this->job->hasFailed() && ! $this->exceptionOccurred;
+        return ! $this->job->hasFailed() && is_null($this->exception);
     }
 }

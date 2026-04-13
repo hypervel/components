@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use DateTimeInterface;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
 class IncomingEntry
@@ -140,8 +140,8 @@ class IncomingEntry
     public function hasMonitoredTag(): bool
     {
         if (! empty($this->tags)) {
-            return ApplicationContext::getContainer()
-                ->get(EntriesRepository::class)
+            return Container::getInstance()
+                ->make(EntriesRepository::class)
                 ->isMonitoring($this->tags);
         }
 
@@ -260,6 +260,14 @@ class IncomingEntry
     public function isClientRequest(): bool
     {
         return $this->type === EntryType::CLIENT_REQUEST;
+    }
+
+    /**
+     * Determine if the incoming entry is a Reverb entry.
+     */
+    public function isReverb(): bool
+    {
+        return $this->type === EntryType::REVERB;
     }
 
     /**

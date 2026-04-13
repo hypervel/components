@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Ably\AblyRest;
-use Hyperf\HttpServer\Request;
-use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Http\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * @internal
@@ -23,13 +23,14 @@ class AblyBroadcasterTest extends TestCase
 
     protected AblyRest $ably;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
+        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
         $this->broadcaster = m::mock(AblyBroadcaster::class, [$this->container, $this->ably])->makePartial();
     }
@@ -37,8 +38,6 @@ class AblyBroadcasterTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -123,16 +122,13 @@ class AblyBroadcasterTest extends TestCase
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
 
         $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
         $user->shouldReceive('getAuthIdentifier')->andReturn(42);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn($user);
-
-        $this->container->shouldReceive('get')
-            ->with(AuthManager::class)
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn($user);
 
         return $request;
     }
@@ -142,12 +138,7 @@ class AblyBroadcasterTest extends TestCase
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn(null);
-
-        $this->container->shouldReceive('get')
-            ->with(AuthManager::class)
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn(null);
 
         return $request;
     }

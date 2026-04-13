@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Database\Events\QueryExecuted;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
 use PDO;
 use PDOException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class QueryWatcher extends Watcher
 {
@@ -20,9 +19,9 @@ class QueryWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(QueryExecuted::class, [$this, 'recordQuery']);
     }
 
@@ -40,6 +39,7 @@ class QueryWatcher extends Watcher
         if ($caller = $this->getCallerFromStackTrace()) {
             Telescope::recordQuery(IncomingEntry::make([
                 'connection' => $event->connectionName,
+                'driver' => $event->connection->getDriverName(),
                 'bindings' => [],
                 'sql' => $this->replaceBindings($event),
                 'time' => number_format($time, 2, '.', ''),

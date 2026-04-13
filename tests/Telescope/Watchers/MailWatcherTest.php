@@ -4,31 +4,59 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\SentMessage;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Mail;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\MailWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('mail.driver', 'array')]
+#[WithConfig('telescope.watchers', [
+    MailWatcher::class => true,
+])]
 class MailWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
+    public function testMailWatcherRegistersEntry()
     {
-        parent::setUp();
+        Mail::raw('Telescope is amazing!', function ($message) {
+            $message->from('from@hypervel.org')
+                ->to('to@hypervel.org')
+                ->cc(['cc1@hypervel.org', 'cc2@hypervel.org'])
+                ->bcc('bcc@hypervel.org')
+                ->subject('Check this out!');
+        });
 
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                MailWatcher::class => true,
-            ]);
+        $entry = $this->loadTelescopeEntries()->first();
 
-        $this->startTelescope();
+        $tags = DB::table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->getKey())
+            ->pluck('tag')
+            ->all();
+
+        $this->assertSame(EntryType::MAIL, $entry->type);
+        $this->assertEmpty($entry->content['mailable']);
+        $this->assertFalse($entry->content['queued']);
+        $this->assertSame(['from@hypervel.org'], array_keys($entry->content['from']));
+        $this->assertSame(['to@hypervel.org'], array_keys($entry->content['to']));
+        $this->assertSame(['cc1@hypervel.org', 'cc2@hypervel.org'], array_keys($entry->content['cc']));
+        $this->assertSame(['bcc@hypervel.org'], array_keys($entry->content['bcc']));
+        $this->assertSame('Check this out!', $entry->content['subject']);
+        $this->assertSame('Telescope is amazing!', $entry->content['html']);
+        $this->assertStringContainsString('Telescope is amazing!', $entry->content['raw']);
+        $this->assertEmpty($entry->content['replyTo']);
+        $this->assertContains('to@hypervel.org', $tags);
+        $this->assertContains('bcc@hypervel.org', $tags);
+        $this->assertContains('cc1@hypervel.org', $tags);
+        $this->assertContains('cc2@hypervel.org', $tags);
     }
 
     public function testMailWatcherRegistersValidHtml()
@@ -46,7 +74,7 @@ class MailWatcherTest extends FeatureTestCase
 
         $event = new MessageSent($message);
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

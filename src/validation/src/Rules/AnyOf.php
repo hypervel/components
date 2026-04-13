@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 
 class AnyOf implements Rule, ValidatorAwareRule
 {

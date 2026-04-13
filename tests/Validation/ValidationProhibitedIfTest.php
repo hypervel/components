@@ -48,7 +48,7 @@ class ValidationProhibitedIfTest extends TestCase
         new ProhibitedIf(true);
         new ProhibitedIf(fn () => true);
 
-        foreach ([1, 1.1, 'phpinfo', new stdClass()] as $condition) {
+        foreach ([1, 1.1, 'phpinfo', new stdClass] as $condition) {
             try {
                 new ProhibitedIf($condition);
                 $this->fail('The ProhibitedIf constructor must not accept ' . gettype($condition));
@@ -69,7 +69,7 @@ class ValidationProhibitedIfTest extends TestCase
 
     public function testProhibitedIfRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $rule = new ProhibitedIf(true);
 

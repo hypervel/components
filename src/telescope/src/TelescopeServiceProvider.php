@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -22,8 +23,10 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->registerCommands();
-        $this->registerPublishing();
+        if ($this->app->runningInConsole()) {
+            $this->registerCommands();
+            $this->registerPublishing();
+        }
 
         if (! config('telescope.enabled')) {
             return;
@@ -37,12 +40,12 @@ class TelescopeServiceProvider extends ServiceProvider
         /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
             $keys = [
-                Telescope::SHOULD_RECORD => false,
-                Telescope::IS_RECORDING => false,
-                Telescope::BATCH_ID => null,
+                Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
+                Telescope::IS_RECORDING_CONTEXT_KEY => false,
+                Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
-                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+                CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
     }
@@ -52,14 +55,10 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            config('telescope.path'),
-            __DIR__ . '/../routes/web.php',
-            [
-                'namespace' => 'Hypervel\Telescope\Http\Controllers',
-                'middleware' => config('telescope.middleware', []),
-            ]
-        );
+        Route::middleware(config('telescope.middleware', []))
+            ->prefix(config('telescope.path'))
+            ->namespace('Hypervel\Telescope\Http\Controllers')
+            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**
@@ -75,13 +74,9 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerPublishing(): void
     {
-        $this->publishes([
-            __DIR__ . '/../database/migrations/2025_02_08_000000_create_telescope_entries_table.php' => database_path('migrations/2025_02_08_000000_create_telescope_entries_table.php'),
+        $this->publishesMigrations([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'telescope-migrations');
-
-        $this->publishes([
-            __DIR__ . '/../public' => public_path('vendor/telescope'),
-        ], ['telescope-assets']);
 
         $this->publishes([
             __DIR__ . '/../config/telescope.php' => config_path('telescope.php'),
@@ -97,13 +92,15 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        $this->commands([
-            Console\ClearCommand::class,
-            Console\PauseCommand::class,
-            Console\PruneCommand::class,
-            Console\PublishCommand::class,
-            Console\ResumeCommand::class,
-        ]);
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                Console\ClearCommand::class,
+                Console\PauseCommand::class,
+                Console\PruneCommand::class,
+                Console\PublishCommand::class,
+                Console\ResumeCommand::class,
+            ]);
+        }
     }
 
     /**
@@ -119,6 +116,8 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->registerStorageDriver();
         $this->registerRedisEvents();
         $this->registerCacheEvents();
+
+        $this->aspects(GuzzleHttpClientAspect::class);
     }
 
     /**
@@ -126,7 +125,9 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRedisEvents(): void
     {
-        if (! config('telescope.watchers.' . RedisWatcher::class, false)) {
+        $config = config('telescope.watchers.' . RedisWatcher::class, false);
+
+        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
             return;
         }
 
@@ -138,7 +139,9 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerCacheEvents(): void
     {
-        if (! config('telescope.watchers.' . CacheWatcher::class, false)) {
+        $config = config('telescope.watchers.' . CacheWatcher::class, false);
+
+        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
             return;
         }
 
@@ -162,19 +165,27 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseDriver(): void
     {
-        $this->app->bind(
+        $this->app->singleton(
             EntriesRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             ClearableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             PrunableRepository::class,
-            fn ($container) => $container->get(DatabaseEntriesRepository::class)
+            DatabaseEntriesRepository::class
         );
+
+        $this->app->when(DatabaseEntriesRepository::class)
+            ->needs('$connection')
+            ->give(fn () => config('telescope.storage.database.connection'));
+
+        $this->app->when(DatabaseEntriesRepository::class)
+            ->needs('$chunkSize')
+            ->give(fn () => config('telescope.storage.database.chunk'));
     }
 }

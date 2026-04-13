@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Listeners;
 
 use Hypervel\Horizon\Contracts\JobRepository;
-use Hypervel\Horizon\Events\JobPushed;
+use Hypervel\Horizon\Events\JobPending;
 
 class StoreJob
 {
@@ -22,7 +22,7 @@ class StoreJob
     /**
      * Handle the event.
      */
-    public function handle(JobPushed $event): void
+    public function handle(JobPending $event): void
     {
         $this->jobs->pushed(
             $event->connectionName,

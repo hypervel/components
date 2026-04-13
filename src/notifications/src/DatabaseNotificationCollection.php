@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Database\Model\Collection;
+use Hypervel\Database\Eloquent\Collection;
 
 /**
  * @template TKey of array-key
  * @template TModel of DatabaseNotification
  *
- * @extends \Hyperf\Database\Model\Collection<TKey, TModel>
+ * @extends \Hypervel\Database\Eloquent\Collection<TKey, TModel>
  */
 class DatabaseNotificationCollection extends Collection
 {

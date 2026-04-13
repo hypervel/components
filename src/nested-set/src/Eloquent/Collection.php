@@ -47,7 +47,7 @@ class Collection extends BaseCollection
     public function toTree(mixed $root = false): static
     {
         if ($this->isEmpty()) {
-            return new static();
+            return new static;
         }
 
         $this->linkNodes();
@@ -96,7 +96,7 @@ class Collection extends BaseCollection
      */
     public function toFlatTree(bool $root = false): static
     {
-        $result = new static();
+        $result = new static;
 
         if ($this->isEmpty()) {
             return $result;

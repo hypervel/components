@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Cache;
-use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
 
@@ -35,17 +32,10 @@ use Redis as PhpRedis;
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
-    use RunTestsInCoroutine;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get(ConfigInterface::class);
-
-        // Configure Redis (prefix comes from REDIS_PREFIX env var set by bootstrap)
-        $this->configureRedisForTesting($config);
-
-        // Set Redis as cache driver
-        $config->set('cache.default', 'redis');
+        $app->make('config')->set('cache.default', 'redis');
     }
 
     /**
@@ -75,7 +65,7 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
      */
     protected function redis(): PhpRedis
     {
-        return Redis::client();
+        return $this->redisClient($this->store()->connection()->getName());
     }
 
     /**

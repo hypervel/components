@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Commands;
 
-use Hyperf\Collection\Collection;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Carbon\CarbonInterface;
 use Hypervel\Console\Command;
+use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskSkipped;
@@ -14,15 +14,20 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
+#[AsCommand(name: 'schedule:run')]
 class ScheduleRunCommand extends Command
 {
     /**
@@ -31,12 +36,38 @@ class ScheduleRunCommand extends Command
     protected ?string $signature = 'schedule:run
         {--once : Run only once without looping}
         {--concurrency=60 : The number of background tasks to process at once}
+        {--whisper : Do not output message indicating that no commands were ready to run}
     ';
 
     /**
      * The console command description.
      */
     protected string $description = 'Run the scheduled commands';
+
+    /**
+     * The schedule instance.
+     */
+    protected Schedule $schedule;
+
+    /**
+     * The event dispatcher.
+     */
+    protected Dispatcher $dispatcher;
+
+    /**
+     * The cache factory implementation.
+     */
+    protected CacheFactory $cache;
+
+    /**
+     * The exception handler.
+     */
+    protected ExceptionHandler $handler;
+
+    /**
+     * The timestamp this scheduler command started running.
+     */
+    protected ?CarbonInterface $startedAt = null;
 
     /**
      * Check if any events ran.
@@ -51,7 +82,7 @@ class ScheduleRunCommand extends Command
     /**
      * Last time the stopped state was checked.
      */
-    protected ?Carbon $lastChecked = null;
+    protected ?CarbonInterface $lastChecked = null;
 
     /**
      * The concurrent instance.
@@ -59,22 +90,19 @@ class ScheduleRunCommand extends Command
     protected ?Concurrent $concurrent = null;
 
     /**
-     * Create a new command instance.
-     */
-    public function __construct(
-        protected Schedule $schedule,
-        protected EventDispatcherInterface $dispatcher,
-        protected CacheFactory $cache,
-        protected ExceptionHandler $handler,
-    ) {
-        parent::__construct();
-    }
-
-    /**
      * Execute the console command.
      */
-    public function handle()
-    {
+    public function handle(
+        Schedule $schedule,
+        Dispatcher $dispatcher,
+        CacheFactory $cache,
+        ExceptionHandler $handler,
+    ) {
+        $this->schedule = $schedule;
+        $this->dispatcher = $dispatcher;
+        $this->cache = $cache;
+        $this->handler = $handler;
+
         $this->concurrent = new Concurrent(
             (int) $this->option('concurrency')
         );
@@ -91,11 +119,11 @@ class ScheduleRunCommand extends Command
         $noEventsAlerted = false;
         while (! $this->shouldStop()) {
             $this->runEvents(
-                $this->schedule->dueEvents($this->app),
+                $this->schedule->dueEvents($this->hypervel),
                 Date::now()
             );
 
-            if (! $this->eventsRan && ! $noEventsAlerted) {
+            if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
                 $this->info('No scheduled commands are ready to run, waiting...');
                 $noEventsAlerted = true;
             }
@@ -120,28 +148,82 @@ class ScheduleRunCommand extends Command
         }
     }
 
+    /**
+     * Run the scheduled events once.
+     */
     protected function runOnce(): void
     {
-        (new Waiter(-1))->wait(
-            fn () => $this->runEvents(
-                $this->schedule->dueEvents($this->app),
-                Date::now()
-            )
-        );
+        $this->startedAt = Date::now();
 
-        if (! $this->eventsRan) {
+        $events = $this->schedule->dueEvents($this->hypervel);
+
+        if ($events->contains->isRepeatable()) {
+            $this->clearShouldStop();
+        }
+
+        (new Waiter(-1))->wait(function () use ($events) {
+            $this->runEvents($events, $this->startedAt);
+
+            if ($events->contains->isRepeatable()) {
+                $this->repeatEvents($events->filter->isRepeatable());
+            }
+        });
+
+        if (! $this->eventsRan && ! $this->option('whisper')) {
             $this->info('No scheduled commands are ready to run.');
         }
     }
 
-    protected function runEvents(Collection $events, Carbon $startedAt): void
+    /**
+     * Run the given repeating events for the remainder of the current minute.
+     */
+    protected function repeatEvents(Collection $events): void
+    {
+        $hasEnteredMaintenanceMode = false;
+
+        while (Date::now()->lte($this->startedAt->endOfMinute())) {
+            foreach ($events as $event) {
+                if ($this->shouldStop()) {
+                    return;
+                }
+
+                if (! $event->shouldRepeatNow()) {
+                    continue;
+                }
+
+                $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->hypervel->isDownForMaintenance();
+
+                if ($hasEnteredMaintenanceMode && ! $event->runsInMaintenanceMode()) {
+                    continue;
+                }
+
+                if (! $event->filtersPass($this->hypervel)) {
+                    $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+
+                    continue;
+                }
+
+                if ($event->onOneServer) {
+                    $this->runSingleServerEvent($event, $this->startedAt);
+                } else {
+                    $this->runEvent($event);
+                }
+
+                $this->eventsRan = true;
+            }
+
+            Sleep::usleep(100_000);
+        }
+    }
+
+    protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
         foreach ($events as $event) {
-            if ($event->lastChecked && ! $event->shouldRepeatNow()) {
+            if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
                 continue;
             }
 
-            if (! $event->filtersPass($this->app)) {
+            if (! $event->filtersPass($this->hypervel)) {
                 $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
 
                 continue;
@@ -152,7 +234,10 @@ class ScheduleRunCommand extends Command
                 : $this->runEvent($event);
 
             if ($event->runInBackground) {
-                $this->concurrent->create($runEvent);
+                $this->concurrent->fork(function () use ($runEvent, $event) {
+                    $runEvent();
+                    $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+                }, [ContextRepository::CONTEXT_KEY]);
                 continue;
             }
 
@@ -163,7 +248,7 @@ class ScheduleRunCommand extends Command
     /**
      * Run the given single server event.
      */
-    protected function runSingleServerEvent(Event $event, Carbon $startedAt): void
+    protected function runSingleServerEvent(Event $event, CarbonInterface $startedAt): void
     {
         if ($this->schedule->serverShouldRun($event, $startedAt)) {
             $this->runEvent($event);
@@ -201,7 +286,7 @@ class ScheduleRunCommand extends Command
         $start = microtime(true);
 
         try {
-            $event->run($this->app);
+            $event->run($this->hypervel);
 
             $this->dispatcher->dispatch(new ScheduledTaskFinished(
                 $event,
@@ -234,23 +319,23 @@ class ScheduleRunCommand extends Command
             $this->lastChecked = Date::now();
         }
 
-        if ($this->shouldStop || $this->lastChecked->diffInSeconds() < 1) {
+        if ($this->shouldStop || abs($this->lastChecked->diffInSeconds()) < 1) {
             return $this->shouldStop;
         }
 
         $this->lastChecked = Date::now();
 
         /* @phpstan-ignore-next-line */
-        return $this->shouldStop = $this->cache->get('hypervel:schedule:stop', false);
+        return $this->shouldStop = $this->cache->get('hypervel:schedule:interrupt', false);
     }
 
     /**
-     * Clear the stop cache.
+     * Clear the interrupt cache.
      */
     protected function clearShouldStop(): void
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->delete('hypervel:schedule:stop');
+        $this->cache->delete('hypervel:schedule:interrupt');
 
         $this->shouldStop = false;
     }

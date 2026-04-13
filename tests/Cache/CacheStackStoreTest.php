@@ -419,6 +419,58 @@ class CacheStackStoreTest extends TestCase
         $this->assertTrue($store->forever($key, $value));
     }
 
+    public function testTouchPropagatesThroughAllLayers()
+    {
+        Carbon::setTestNow(Carbon::now());
+        $this->createStores();
+
+        $key = 'foo';
+        $value = 'bar';
+        $record = ['value' => $value, 'ttl' => 30];
+
+        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
+        $this->swoole->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
+        $this->redis->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
+
+        $this->assertTrue($this->store->touch($key, 60));
+    }
+
+    public function testTouchReturnsFalseWhenKeyDoesNotExist()
+    {
+        $this->createStores();
+
+        $this->swoole->shouldReceive('get')->once()->with('nonexistent')->andReturn(null);
+        $this->redis->shouldReceive('get')->once()->with('nonexistent')->andReturn(null);
+
+        $this->assertFalse($this->store->touch('nonexistent', 60));
+    }
+
+    public function testTouchProxyCapsMaxTTL()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        /** @var MockInterface|SwooleStore $swoole */
+        $swoole = m::mock(SwooleStore::class);
+        /** @var MockInterface|RedisStore $redis */
+        $redis = m::mock(RedisStore::class);
+
+        $key = 'foo';
+        $value = 'bar';
+        $maxTTL = 3;
+        $record = ['value' => $value, 'ttl' => 30];
+
+        $store = new StackStore([
+            new StackStoreProxy($swoole, $maxTTL),
+            new StackStoreProxy($redis),
+        ]);
+
+        $swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
+        $swoole->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), $maxTTL)->andReturn(true);
+        $redis->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
+
+        $this->assertTrue($store->touch($key, 60));
+    }
+
     private function createStores()
     {
         $this->redis = m::mock(RedisStore::class);

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hypervel\Prompts\Concerns\Truncation;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Tests\TestCase;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -53,7 +52,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapWithCustomLength()
+    public function testWillMatchWordwrapWithCutLongWordsEnabled()
     {
         $instance = $this->getInstance();
 
@@ -238,7 +237,7 @@ class MultiByteWordWrapTest extends TestCase
     protected function getInstance()
     {
         return new class {
-            use Truncation;
+            use InteractsWithStrings;
 
             public function wordwrap(...$args)
             {

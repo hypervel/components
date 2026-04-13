@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
+use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Support\Facades\Storage;
+use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 
-use function Hyperf\Support\with;
+use function with;
 
 class Attachment
 {
@@ -47,6 +49,14 @@ class Attachment
     }
 
     /**
+     * Create a mail attachment from a URL.
+     */
+    public static function fromUrl(string $url): static
+    {
+        return static::fromPath($url);
+    }
+
+    /**
      * Create a mail attachment from in-memory data.
      */
     public static function fromData(Closure $data, ?string $name = null): static
@@ -54,6 +64,20 @@ class Attachment
         return (new static(
             fn ($attachment, $pathStrategy, $dataStrategy) => $dataStrategy($data, $attachment)
         ))->as($name);
+    }
+
+    /**
+     * Create a mail attachment from an UploadedFile instance.
+     */
+    public static function fromUploadedFile(UploadedFile $file): static
+    {
+        return new static(function ($attachment, $pathStrategy, $dataStrategy) use ($file) {
+            $attachment
+                ->as($file->getClientOriginalName())
+                ->withMime($file->getMimeType() ?? $file->getClientMimeType());
+
+            return $dataStrategy(fn () => $file->get(), $attachment);
+        });
     }
 
     /**
@@ -78,9 +102,20 @@ class Attachment
         });
     }
 
+    /**
+     * Create a mail attachment from a file on the cloud storage disk.
+     */
+    public static function fromCloudStorage(string $path): static
+    {
+        return self::fromStorageDisk(Storage::getDefaultCloudDriver(), $path);
+    }
+
+    /**
+     * Get a storage disk instance.
+     */
     protected static function getStorageDisk(?string $disk): Filesystem
     {
-        return ApplicationContext::getContainer()->get(
+        return Container::getInstance()->make(
             FilesystemFactory::class
         )->disk($disk);
     }
@@ -97,8 +132,6 @@ class Attachment
 
     /**
      * Set the attached file's mime type.
-     *
-     * @return $this
      */
     public function withMime(string $mime): static
     {
@@ -158,5 +191,13 @@ class Attachment
             fn ($path) => [$path, $options],
             fn ($data) => [$data(), $options],
         ));
+    }
+
+    /**
+     * Flush the attachment's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

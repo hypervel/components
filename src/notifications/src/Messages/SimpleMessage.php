@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Messages;
 
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Notifications\Action;
-use Hypervel\Support\Contracts\Htmlable;
 
 class SimpleMessage
 {
@@ -184,10 +184,10 @@ class SimpleMessage
         }
 
         if (is_array($line)) {
-            return implode(' ', array_map('trim', $line));
+            return implode(' ', array_map(trim(...), $line));
         }
 
-        return trim(implode(' ', array_map('trim', preg_split('/\r\n|\r|\n/', $line ?? ''))));
+        return trim(implode(' ', array_map(trim(...), preg_split('/\r\n|\r|\n/', $line ?? ''))));
     }
 
     /**

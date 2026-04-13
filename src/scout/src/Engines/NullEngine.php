@@ -55,7 +55,7 @@ class NullEngine extends Engine
      */
     public function mapIds(mixed $results): Collection
     {
-        return new Collection();
+        return new Collection;
     }
 
     /**
@@ -63,7 +63,7 @@ class NullEngine extends Engine
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
-        return new EloquentCollection();
+        return new EloquentCollection;
     }
 
     /**
@@ -71,7 +71,7 @@ class NullEngine extends Engine
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
-        return new LazyCollection();
+        return new LazyCollection;
     }
 
     /**

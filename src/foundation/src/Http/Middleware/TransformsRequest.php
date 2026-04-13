@@ -4,74 +4,73 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hyperf\Context\Context;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Closure;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\ParameterBag;
 
-abstract class TransformsRequest implements MiddlewareInterface
+class TransformsRequest
 {
-    protected array $except = [];
-
-    protected static $skipCallbacks = [];
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): mixed
     {
-        if ($this->shouldSkip($request)) {
-            return $handler->handle($request);
+        $this->clean($request);
+
+        return $next($request);
+    }
+
+    /**
+     * Clean the request's data.
+     */
+    protected function clean(Request $request): void
+    {
+        $this->cleanParameterBag($request->query);
+
+        if ($request->isJson()) {
+            $this->cleanParameterBag($request->json());
+        } elseif ($request->request !== $request->query) {
+            $this->cleanParameterBag($request->request);
+        }
+    }
+
+    /**
+     * Clean the data in the parameter bag.
+     */
+    protected function cleanParameterBag(ParameterBag $bag): void
+    {
+        $bag->replace($this->cleanArray($bag->all()));
+    }
+
+    /**
+     * Clean the data in the given array.
+     */
+    protected function cleanArray(array $data, string $keyPrefix = ''): array
+    {
+        foreach ($data as $key => $value) {
+            $data[$key] = $this->cleanValue($keyPrefix . $key, $value);
         }
 
-        Context::set(
-            ServerRequestInterface::class,
-            $request = $this->processInput($request)
-        );
-
-        return $handler->handle($request);
+        return $data;
     }
 
-    public static function skipWhen(callable $callback): void
+    /**
+     * Clean the given value.
+     */
+    protected function cleanValue(string $key, mixed $value): mixed
     {
-        static::$skipCallbacks[] = $callback;
-    }
-
-    protected function shouldSkip(ServerRequestInterface $request): bool
-    {
-        foreach (static::$skipCallbacks as $callback) {
-            if (call_user_func($callback, $request)) {
-                return true;
-            }
+        if (is_array($value)) {
+            return $this->cleanArray($value, $key . '.');
         }
 
-        return false;
+        return $this->transform($key, $value);
     }
 
-    protected function processInput(ServerRequestInterface $request): ServerRequestInterface
+    /**
+     * Transform the given value.
+     */
+    protected function transform(string $key, mixed $value): mixed
     {
-        $parsedBody = $request->getParsedBody();
-        if (is_array($parsedBody)) {
-            $parsedBody = $this->processArray($parsedBody);
-            $request = $request->withParsedBody($parsedBody);
-        }
-
-        $queryParams = $request->getQueryParams();
-        $queryParams = $this->processArray($queryParams);
-
-        return $request->withQueryParams($queryParams);
+        return $value;
     }
-
-    protected function processArray(array $array): array
-    {
-        foreach ($array as $key => $value) {
-            if (is_string($value) && ! in_array($key, $this->except)) {
-                $array[$key] = $this->processString($value);
-            } elseif (is_array($value)) {
-                $array[$key] = $this->processArray($value);
-            }
-        }
-
-        return $array;
-    }
-
-    abstract protected function processString(string $value);
 }

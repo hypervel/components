@@ -362,7 +362,7 @@ class ValidationForEachTest extends TestCase
     public function getArrayTranslator()
     {
         return new Translator(
-            new ArrayLoader(),
+            new ArrayLoader,
             'en'
         );
     }

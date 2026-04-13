@@ -22,7 +22,7 @@ final class FlushBehaviorCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         if ($context->isAnyMode()) {
             $this->testAnyMode($context, $result);

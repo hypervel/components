@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 if (! function_exists('\Hypervel\Prompts\text')) {
     /**
@@ -14,6 +14,28 @@ if (! function_exists('\Hypervel\Prompts\text')) {
     function text(string $label, string $placeholder = '', string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', ?Closure $transform = null): string
     {
         return (new TextPrompt(...get_defined_vars()))->prompt();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\autocomplete')) {
+    /**
+     * Prompt the user for text input with auto-completion.
+     *
+     * @param array<string>|Closure(string): (array<string>|Collection<int, string>)|Collection<int, string> $options
+     */
+    function autocomplete(string $label, array|Collection|Closure $options = [], string $placeholder = '', string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', ?Closure $transform = null): string
+    {
+        return (new AutoCompletePrompt(...get_defined_vars()))->prompt();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\number')) {
+    /**
+     * Prompt the user for number input.
+     */
+    function number(string $label, string $placeholder = '', string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', ?int $min = null, ?int $max = null, ?int $step = null): int|string
+    {
+        return (new NumberPrompt(...get_defined_vars()))->prompt();
     }
 }
 
@@ -44,7 +66,7 @@ if (! function_exists('\Hypervel\Prompts\select')) {
      * @param array<int|string, string>|Collection<int|string, string> $options
      * @param string|true $required
      */
-    function select(string $label, array|Collection $options, int|string|null $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null): int|string
+    function select(string $label, array|Collection $options, int|string|null $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null, string|Closure $info = ''): int|string
     {
         return (new SelectPrompt(...get_defined_vars()))->prompt();
     }
@@ -58,7 +80,7 @@ if (! function_exists('\Hypervel\Prompts\multiselect')) {
      * @param array<int|string>|Collection<int, int|string> $default
      * @return array<int|string>
      */
-    function multiselect(string $label, array|Collection $options, array|Collection $default = [], int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = 'Use the space bar to select options.', ?Closure $transform = null): array
+    function multiselect(string $label, array|Collection $options, array|Collection $default = [], int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = 'Use the space bar to select options.', ?Closure $transform = null, string|Closure $info = ''): array
     {
         return (new MultiSelectPrompt(...get_defined_vars()))->prompt();
     }
@@ -90,7 +112,7 @@ if (! function_exists('\Hypervel\Prompts\clear')) {
      */
     function clear(): void
     {
-        (new Clear())->display();
+        (new Clear)->display();
     }
 }
 
@@ -100,7 +122,7 @@ if (! function_exists('\Hypervel\Prompts\suggest')) {
      *
      * @param array<string>|Closure(string): array<string>|Collection<int, string> $options
      */
-    function suggest(string $label, array|Closure|Collection $options, string $placeholder = '', string $default = '', int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = '', ?Closure $transform = null): string
+    function suggest(string $label, array|Closure|Collection $options, string $placeholder = '', string $default = '', int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = '', ?Closure $transform = null, string|Closure $info = ''): string
     {
         return (new SuggestPrompt(...get_defined_vars()))->prompt();
     }
@@ -113,7 +135,7 @@ if (! function_exists('\Hypervel\Prompts\search')) {
      * @param Closure(string): array<int|string, string> $options
      * @param string|true $required
      */
-    function search(string $label, Closure $options, string $placeholder = '', int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null): int|string
+    function search(string $label, Closure $options, string $placeholder = '', int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null, string|Closure $info = ''): int|string
     {
         return (new SearchPrompt(...get_defined_vars()))->prompt();
     }
@@ -126,7 +148,7 @@ if (! function_exists('\Hypervel\Prompts\multisearch')) {
      * @param Closure(string): array<int|string, string> $options
      * @return array<int|string>
      */
-    function multisearch(string $label, Closure $options, string $placeholder = '', int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = 'Use the space bar to select options.', ?Closure $transform = null): array
+    function multisearch(string $label, Closure $options, string $placeholder = '', int $scroll = 5, bool|string $required = false, mixed $validate = null, string $hint = 'Use the space bar to select options.', ?Closure $transform = null, string|Closure $info = ''): array
     {
         return (new MultiSearchPrompt(...get_defined_vars()))->prompt();
     }
@@ -217,6 +239,22 @@ if (! function_exists('\Hypervel\Prompts\outro')) {
     }
 }
 
+if (! function_exists('\Hypervel\Prompts\notify')) {
+    /**
+     * Send a notification to the user. (macOS and Linux only).
+     *
+     * The icon option is Linux only. The subtitle and sound options are macOS only.
+     *
+     * @param string $subtitle macOS only
+     * @param string $sound macOS only
+     * @param string $icon Linux only
+     */
+    function notify(string $title, string $body = '', string $subtitle = '', string $sound = '', string $icon = ''): void
+    {
+        (new NotifyPrompt(...get_defined_vars()))->display();
+    }
+}
+
 if (! function_exists('\Hypervel\Prompts\table')) {
     /**
      * Display a table.
@@ -227,6 +265,18 @@ if (! function_exists('\Hypervel\Prompts\table')) {
     function table(array|Collection $headers = [], array|Collection|null $rows = null): void
     {
         (new Table($headers, $rows))->display();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\grid')) {
+    /**
+     * Display a grid.
+     *
+     * @param array<int, string>|Collection<int, string> $items
+     */
+    function grid(array|Collection $items = [], ?int $maxWidth = null): void
+    {
+        (new Grid($items, $maxWidth))->display();
     }
 }
 
@@ -256,6 +306,73 @@ if (! function_exists('\Hypervel\Prompts\progress')) {
 if (! function_exists('\Hypervel\Prompts\form')) {
     function form(): FormBuilder
     {
-        return new FormBuilder();
+        return new FormBuilder;
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\title')) {
+    /**
+     * Update the title of the terminal.
+     */
+    function title(string $title): void
+    {
+        (new Title($title))->display();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\stream')) {
+    /**
+     * Display a stream of text.
+     */
+    function stream(): Stream
+    {
+        return new Stream;
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\task')) {
+    /**
+     * Display a task with a spinner and live output.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(Support\Logger): TReturn $callback
+     * @return TReturn
+     */
+    function task(string $label, Closure $callback, ?int $limit = null): mixed
+    {
+        return (new Task($label, $limit ?? 10))->run($callback);
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\datatable')) {
+    /**
+     * Display an interactive data table.
+     *
+     * @param array<int, array<int, string>|string>|Collection<int, array<int, string>|string> $headers
+     * @param null|array<int|string, array<int, string>>|Collection<int|string, array<int, string>> $rows
+     */
+    function datatable(
+        array|Collection $headers = [],
+        array|Collection|null $rows = null,
+        int $scroll = 10,
+        string $label = '',
+        string $hint = '',
+        bool|string $required = false,
+        mixed $validate = null,
+        ?Closure $transform = null,
+        ?Closure $filter = null,
+    ): mixed {
+        return (new DataTablePrompt(
+            headers: $headers,
+            rows: $rows,
+            scroll: $scroll,
+            label: $label,
+            hint: $hint,
+            required: $required,
+            validate: $validate,
+            transform: $transform,
+            filter: $filter,
+        ))->prompt();
     }
 }

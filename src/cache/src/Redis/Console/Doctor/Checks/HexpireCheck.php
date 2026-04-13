@@ -33,7 +33,7 @@ final class HexpireCheck implements EnvironmentCheckInterface
 
     public function run(): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Skip check for all mode - HEXPIRE not needed
         if ($this->taggingMode === 'all') {

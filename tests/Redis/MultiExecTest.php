@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hypervel\Context\Context;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Redis\Redis;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Redis\PhpRedisConnection;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis as PhpRedis;
@@ -21,12 +21,10 @@ use RuntimeException;
  */
 class MultiExecTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         parent::tearDown();
-        Context::destroy('redis.connection.default');
+        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
     }
 
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
@@ -124,7 +122,7 @@ class MultiExecTest extends TestCase
 
         $connection = $this->createMockConnection($phpRedis);
         // Set up existing connection in context BEFORE the pipeline call
-        Context::set('redis.connection.default', $connection);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
@@ -160,12 +158,85 @@ class MultiExecTest extends TestCase
         });
     }
 
+    public function testTransactionWithCallbackDoesNotReleaseExistingContextConnection(): void
+    {
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andReturn([]);
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        // Set up existing connection in context BEFORE the transaction call
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        // Connection is NOT released during the test (it already existed in context),
+        // but allow release() call for test cleanup
+        $connection->shouldReceive('release')->zeroOrMoreTimes();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->transaction(function ($tx) {
+            // empty callback
+        });
+    }
+
+    public function testTransactionWithCallbackReleasesOnException(): void
+    {
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andThrow(new RuntimeException('Transaction failed'));
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        // Connection should still be released even on exception
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Transaction failed');
+
+        $redis->transaction(function ($tx) {
+            // callback runs, but exec will throw
+        });
+    }
+
+    public function testShouldTransformIsResetWhenConnectionReleasedAfterCallback(): void
+    {
+        $execResults = ['OK'];
+
+        $pipelineInstance = m::mock(PhpRedis::class);
+        $pipelineInstance->shouldReceive('set')->once()->andReturnSelf();
+        $pipelineInstance->shouldReceive('exec')->once()->andReturn($execResults);
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('pipeline')->once()->andReturn($pipelineInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+
+        // Verify shouldTransform is called with true when getting the connection,
+        // and that release() is called (which resets shouldTransform to false internally)
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->pipeline(function ($pipe) {
+            $pipe->set('key', 'value');
+        });
+
+        // After pipeline callback completes, connection was released.
+        // The connection should no longer be in context.
+        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
     /**
      * Create a mock RedisConnection.
      */
     private function createMockConnection(m\MockInterface $phpRedis): m\MockInterface|RedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->shouldReceive('setDatabase')->andReturnNull();
@@ -179,9 +250,9 @@ class MultiExecTest extends TestCase
     }
 
     /**
-     * Create a Redis instance with the given mock connection.
+     * Create a RedisProxy instance with the given mock connection.
      */
-    private function createRedis(m\MockInterface|RedisConnection $connection): Redis
+    private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('get')->andReturn($connection);
@@ -189,6 +260,6 @@ class MultiExecTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        return new Redis($poolFactory);
+        return new RedisProxy($poolFactory, 'default');
     }
 }

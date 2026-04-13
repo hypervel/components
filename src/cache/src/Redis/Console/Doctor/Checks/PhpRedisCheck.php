@@ -24,7 +24,7 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
 
     public function run(): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         if (! extension_loaded('redis')) {
             $result->assert(false, 'PHPRedis extension is installed');

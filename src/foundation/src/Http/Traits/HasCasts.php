@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Traits;
 
-use Carbon\Carbon;
+use BackedEnum;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
-use Hyperf\Database\Exception\InvalidCastException;
-use Hyperf\Database\Model\EnumCollector;
+use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
+use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
+use Hypervel\Support\Facades\Date;
 use RuntimeException;
 use UnitEnum;
 
@@ -223,7 +224,7 @@ trait HasCasts
         $castType = $this->getCasts()[$key];
 
         if (! is_array($value)) {
-            throw new InvalidCastException(static::class, $key, $castType);
+            throw new InvalidCastException($this, $key, $castType);
         }
 
         // Check if the class has make static method (provided by DataObject)
@@ -241,7 +242,9 @@ trait HasCasts
      */
     protected function getEnumCaseFromValue(string $enumClass, int|string $value): UnitEnum
     {
-        return EnumCollector::getEnumCaseFromValue($enumClass, $value);
+        return is_subclass_of($enumClass, BackedEnum::class)
+            ? $enumClass::from($value)
+            : constant($enumClass . '::' . $value);
     }
 
     /**
@@ -301,7 +304,7 @@ trait HasCasts
             return true;
         }
 
-        throw new InvalidCastException(static::class, $key, $castType);
+        throw new InvalidCastException($this, $key, $castType);
     }
 
     /**
@@ -455,14 +458,14 @@ trait HasCasts
         // This prevents us having to re-instantiate a Carbon instance when we know
         // it already is one, which wouldn't be fulfilled by the DateTime check.
         if ($value instanceof CarbonInterface) {
-            return Carbon::instance($value);
+            return Date::instance($value);
         }
 
         // If the value is already a DateTime instance, we will just skip the rest of
         // these checks since they will be a waste of time, and hinder performance
         // when checking the field. We will just return the DateTime right away.
         if ($value instanceof DateTimeInterface) {
-            return Carbon::parse(
+            return Date::parse(
                 $value->format('Y-m-d H:i:s.u'),
                 $value->getTimezone()
             );
@@ -472,14 +475,14 @@ trait HasCasts
         // and format a Carbon object from this timestamp. This allows flexibility
         // when defining your date fields as they might be UNIX timestamps here.
         if (is_numeric($value)) {
-            return Carbon::createFromTimestamp($value);
+            return Date::createFromTimestamp($value, date_default_timezone_get());
         }
 
         // If the value is in simply year, month, day format, we will instantiate the
         // Carbon instances from that format. Again, this provides for simple date
         // fields on the database, while still supporting Carbonized conversion.
         if ($this->isStandardDateFormat($value)) {
-            return Carbon::instance(Carbon::createFromFormat('Y-m-d', $value)->startOfDay());
+            return Date::instance(Carbon::createFromFormat('Y-m-d', $value)->startOfDay());
         }
 
         $format = $this->getDateFormat();
@@ -488,10 +491,10 @@ trait HasCasts
         // the database connection and use that format to create the Carbon object
         // that is returned back out to the developers after we convert it here.
         if (Carbon::hasFormat($value, $format)) {
-            return Carbon::createFromFormat($format, $value);
+            return Date::createFromFormat($format, $value);
         }
 
-        return Carbon::parse($value);
+        return Date::parse($value);
     }
 
     /**

@@ -4,36 +4,50 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Prompts\AutoCompletePrompt;
 use Hypervel\Prompts\Clear;
 use Hypervel\Prompts\ConfirmPrompt;
+use Hypervel\Prompts\DataTablePrompt;
+use Hypervel\Prompts\Grid;
 use Hypervel\Prompts\MultiSearchPrompt;
 use Hypervel\Prompts\MultiSelectPrompt;
 use Hypervel\Prompts\Note;
+use Hypervel\Prompts\NumberPrompt;
 use Hypervel\Prompts\PasswordPrompt;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Progress;
 use Hypervel\Prompts\SearchPrompt;
 use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\Spinner;
+use Hypervel\Prompts\Stream;
 use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\Table;
+use Hypervel\Prompts\Task;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
+use Hypervel\Prompts\Themes\Default\AutoCompletePromptRenderer;
 use Hypervel\Prompts\Themes\Default\ClearRenderer;
 use Hypervel\Prompts\Themes\Default\ConfirmPromptRenderer;
+use Hypervel\Prompts\Themes\Default\DataTableRenderer;
+use Hypervel\Prompts\Themes\Default\GridRenderer;
 use Hypervel\Prompts\Themes\Default\MultiSearchPromptRenderer;
 use Hypervel\Prompts\Themes\Default\MultiSelectPromptRenderer;
 use Hypervel\Prompts\Themes\Default\NoteRenderer;
+use Hypervel\Prompts\Themes\Default\NumberPromptRenderer;
 use Hypervel\Prompts\Themes\Default\PasswordPromptRenderer;
 use Hypervel\Prompts\Themes\Default\PausePromptRenderer;
 use Hypervel\Prompts\Themes\Default\ProgressRenderer;
 use Hypervel\Prompts\Themes\Default\SearchPromptRenderer;
 use Hypervel\Prompts\Themes\Default\SelectPromptRenderer;
 use Hypervel\Prompts\Themes\Default\SpinnerRenderer;
+use Hypervel\Prompts\Themes\Default\StreamRenderer;
 use Hypervel\Prompts\Themes\Default\SuggestPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TableRenderer;
+use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Prompts\Themes\Default\TextareaPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TextPromptRenderer;
+use Hypervel\Prompts\Themes\Default\TitleRenderer;
+use Hypervel\Prompts\Title;
 use InvalidArgumentException;
 
 trait Themes
@@ -51,6 +65,7 @@ trait Themes
     protected static array $themes = [
         'default' => [
             TextPrompt::class => TextPromptRenderer::class,
+            NumberPrompt::class => NumberPromptRenderer::class,
             TextareaPrompt::class => TextareaPromptRenderer::class,
             PasswordPrompt::class => PasswordPromptRenderer::class,
             SelectPrompt::class => SelectPromptRenderer::class,
@@ -65,6 +80,12 @@ trait Themes
             Table::class => TableRenderer::class,
             Progress::class => ProgressRenderer::class,
             Clear::class => ClearRenderer::class,
+            Grid::class => GridRenderer::class,
+            AutoCompletePrompt::class => AutoCompletePromptRenderer::class,
+            Title::class => TitleRenderer::class,
+            Stream::class => StreamRenderer::class,
+            Task::class => TaskRenderer::class,
+            DataTablePrompt::class => DataTableRenderer::class,
         ],
     ];
 
@@ -118,5 +139,39 @@ trait Themes
         $renderer = $this->getRenderer();
 
         return $renderer($this);
+    }
+
+    /**
+     * Reset theme state to defaults.
+     */
+    public static function resetTheme(): void
+    {
+        static::$theme = 'default';
+        static::$themes = [
+            'default' => [
+                TextPrompt::class => TextPromptRenderer::class,
+                NumberPrompt::class => NumberPromptRenderer::class,
+                TextareaPrompt::class => TextareaPromptRenderer::class,
+                PasswordPrompt::class => PasswordPromptRenderer::class,
+                SelectPrompt::class => SelectPromptRenderer::class,
+                MultiSelectPrompt::class => MultiSelectPromptRenderer::class,
+                ConfirmPrompt::class => ConfirmPromptRenderer::class,
+                PausePrompt::class => PausePromptRenderer::class,
+                SearchPrompt::class => SearchPromptRenderer::class,
+                MultiSearchPrompt::class => MultiSearchPromptRenderer::class,
+                SuggestPrompt::class => SuggestPromptRenderer::class,
+                Spinner::class => SpinnerRenderer::class,
+                Note::class => NoteRenderer::class,
+                Table::class => TableRenderer::class,
+                Progress::class => ProgressRenderer::class,
+                Clear::class => ClearRenderer::class,
+                Grid::class => GridRenderer::class,
+                AutoCompletePrompt::class => AutoCompletePromptRenderer::class,
+                Title::class => TitleRenderer::class,
+                Stream::class => StreamRenderer::class,
+                Task::class => TaskRenderer::class,
+                DataTablePrompt::class => DataTableRenderer::class,
+            ],
+        ];
     }
 }

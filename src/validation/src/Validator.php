@@ -6,7 +6,15 @@ namespace Hypervel\Validation;
 
 use BadMethodCallException;
 use Closure;
-use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Translation\Translator;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
@@ -14,15 +22,7 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
-use Hypervel\Translation\Contracts\Translator;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\ImplicitRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Rule as RuleContract;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use stdClass;
 use Throwable;
@@ -35,7 +35,7 @@ class Validator implements ValidatorContract
     /**
      * The container instance.
      */
-    protected ?ContainerInterface $container = null;
+    protected ?Container $container = null;
 
     /**
      * The Presence Verifier implementation.
@@ -145,6 +145,7 @@ class Validator implements ValidatorContract
     protected array $fileRules = [
         'Between',
         'Dimensions',
+        'Encoding',
         'Extensions',
         'File',
         'Image',
@@ -391,7 +392,7 @@ class Validator implements ValidatorContract
      */
     public function passes(): bool
     {
-        $this->messages = new MessageBag();
+        $this->messages = new MessageBag;
 
         [$this->distinctValues, $this->failedRules] = [[], []];
 
@@ -446,6 +447,36 @@ class Validator implements ValidatorContract
     public function fails(): bool
     {
         return ! $this->passes();
+    }
+
+    /**
+     * Execute the callback if the data passes the validation rules.
+     */
+    public function whenPasses(callable $callback, ?callable $default = null): mixed
+    {
+        if ($this->passes()) {
+            return $callback($this) ?? $this;
+        }
+        if ($default) {
+            return $default($this) ?? $this;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute the callback if the data fails the validation rules.
+     */
+    public function whenFails(callable $callback, ?callable $default = null): mixed
+    {
+        if ($this->fails()) {
+            return $callback($this) ?? $this;
+        }
+        if ($default) {
+            return $default($this) ?? $this;
+        }
+
+        return $this;
     }
 
     /**
@@ -526,7 +557,7 @@ class Validator implements ValidatorContract
 
         $results = [];
 
-        $missingValue = new stdClass();
+        $missingValue = new stdClass;
 
         foreach ($this->getRules() as $key => $rules) {
             $value = data_get($this->getData(), $key, $missingValue);
@@ -653,7 +684,7 @@ class Validator implements ValidatorContract
     protected function replaceDotInParameters(array $parameters): array
     {
         return array_map(function ($field) {
-            return str_replace('\.', '__dot__' . static::$placeholderHash, $field);
+            return static::encodeAttributeWithPlaceholder((string) ($field ?? ''));
         }, $parameters);
     }
 
@@ -1040,7 +1071,7 @@ class Validator implements ValidatorContract
     {
         return (new Collection($this->rules))
             ->mapWithKeys(fn ($value, $key) => [
-                str_replace('__dot__' . static::$placeholderHash, '\.', $key) => $value,
+                static::decodeAttributeWithPlaceholder((string) $key) => $value,
             ])->all();
     }
 
@@ -1051,7 +1082,7 @@ class Validator implements ValidatorContract
     {
         $rules = (new Collection($rules))
             ->mapWithKeys(function ($value, $key) {
-                return [str_replace('\.', '__dot__' . static::$placeholderHash, (string) $key) => $value];
+                return [static::encodeAttributeWithPlaceholder((string) $key) => $value];
             })->toArray();
 
         $this->initialRules = $rules;
@@ -1061,6 +1092,18 @@ class Validator implements ValidatorContract
         $this->addRules($rules);
 
         return $this;
+    }
+
+    /**
+     * Append new validation rules to the validator.
+     */
+    public function appendRules(array $rules): static
+    {
+        $rules = (new Collection($rules))
+            ->map(fn ($value) => is_string($value) ? explode('|', $value) : $value)
+            ->all();
+
+        return $this->setRules(array_merge_recursive($this->getRulesWithoutPlaceholders(), $rules));
     }
 
     /**
@@ -1098,7 +1141,7 @@ class Validator implements ValidatorContract
 
             foreach ($response->rules as $ruleKey => $ruleValue) {
                 if ($callback($payload, $this->dataForSometimesIteration($ruleKey, ! str_ends_with($key, '.*')))) {
-                    $this->addRules([$ruleKey => $ruleValue]);
+                    $this->addRules([static::encodeAttributeWithPlaceholder($ruleKey) => $ruleValue]);
                 }
             }
         }
@@ -1374,7 +1417,7 @@ class Validator implements ValidatorContract
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): void
+    public function setContainer(Container $container): void
     {
         $this->container = $container;
     }
@@ -1406,6 +1449,30 @@ class Validator implements ValidatorContract
         /* @phpstan-ignore-next-line */
         return $this->container->make($class)
             ->{$method}(...array_values($parameters));
+    }
+
+    /**
+     * Encode the attribute with the placeholder hash.
+     */
+    protected static function encodeAttributeWithPlaceholder(string $attribute): string
+    {
+        return str_replace('\.', '__dot__' . static::$placeholderHash, $attribute);
+    }
+
+    /**
+     * Decode an attribute with a placeholder hash.
+     */
+    protected static function decodeAttributeWithPlaceholder(string $attribute): string
+    {
+        return str_replace('__dot__' . static::$placeholderHash, '\.', $attribute);
+    }
+
+    /**
+     * Flush the validator's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$placeholderHash = null;
     }
 
     /**

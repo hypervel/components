@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LogLevel;
 use Throwable;
 
@@ -32,9 +32,9 @@ class LogWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordLog']);
     }
 
@@ -47,13 +47,37 @@ class LogWatcher extends Watcher
             return;
         }
 
+        $context = Arr::except($event->context, ['telescope']);
+
+        $content = [
+            'level' => $event->level,
+            'message' => $this->interpolate((string) $event->message, $context),
+            'context' => $context,
+        ];
+
+        if ($event->extra) {
+            $content['extra'] = $event->extra;
+        }
+
         Telescope::recordLog(
-            IncomingEntry::make([
-                'level' => $event->level,
-                'message' => (string) $event->message,
-                'context' => Arr::except($event->context, ['telescope']),
-            ])->tags($this->tags($event))
+            IncomingEntry::make($content)->tags($this->tags($event))
         );
+    }
+
+    /**
+     * Interpolate the given message with the given context values.
+     */
+    private function interpolate(string $message, array $context): string
+    {
+        $replace = [];
+
+        foreach ($context as $key => $val) {
+            if (is_scalar($val) || (is_object($val) && method_exists($val, '__toString'))) {
+                $replace['{' . $key . '}'] = $val;
+            }
+        }
+
+        return strtr($message, $replace);
     }
 
     /**

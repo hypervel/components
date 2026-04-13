@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Closure;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
 use Hypervel\View\ComponentSlot;
-use Hypervel\View\Contracts\View as ViewContract;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
@@ -21,7 +21,7 @@ class ViewComponentTest extends TestCase
 {
     public function testDataExposure()
     {
-        $component = new TestViewComponent();
+        $component = new TestViewComponent;
 
         $variables = $component->data();
 
@@ -67,7 +67,7 @@ class ViewComponentTest extends TestCase
 
     public function testAttributeParentInheritance(): void
     {
-        $component = new TestViewComponent();
+        $component = new TestViewComponent;
         $attributes = new ComponentAttributeBag(['class' => 'bar', 'type' => 'button']);
 
         $component->withAttributes(['class' => 'foo', 'attributes' => $attributes]);
@@ -97,7 +97,7 @@ class ViewComponentTest extends TestCase
 
     public function testPublicMethodsWithNoArgsAreConvertedToStringableCallablesInvokedAndNotCached()
     {
-        $component = new TestSampleViewComponent();
+        $component = new TestSampleViewComponent;
 
         $this->assertEquals(0, $component->counter);
         $this->assertEquals(0, TestSampleViewComponent::$publicStaticCounter);
@@ -129,7 +129,7 @@ class ViewComponentTest extends TestCase
 
     public function testItIgnoresExceptedMethodsAndProperties()
     {
-        $component = new TestExceptedViewComponent();
+        $component = new TestExceptedViewComponent;
         $variables = $component->data();
 
         // Ignored methods (with no args) are not invoked behind the scenes.
@@ -142,7 +142,7 @@ class ViewComponentTest extends TestCase
 
     public function testMethodsOverridePropertyValues()
     {
-        $component = new TestHelloPropertyHelloMethodComponent();
+        $component = new TestHelloPropertyHelloMethodComponent;
         $variables = $component->data();
         $this->assertArrayHasKey('hello', $variables);
         $this->assertSame('world', $variables['hello']());

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Stringable;
 
 class Response implements Arrayable, Stringable
@@ -17,18 +17,15 @@ class Response implements Arrayable, Stringable
     /**
      * Create a new response.
      *
-     * @param bool $allowed Indicates whether the response was allowed
-     * @param null|string $message The response message
-     * @param null|int|string $code The response code
+     * @param bool $allowed indicates whether the response was allowed
+     * @param ?string $message the response message
+     * @param null|int|string $code the response code
      */
     public function __construct(
         protected bool $allowed,
         protected ?string $message = '',
-        protected int|string|null $code = null
+        protected int|string|null $code = null,
     ) {
-        $this->code = $code;
-        $this->allowed = $allowed;
-        $this->message = $message;
     }
 
     /**

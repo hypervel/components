@@ -16,7 +16,7 @@ class ViewPhpEngineTest extends TestCase
 {
     public function testViewsMayBeProperlyRendered()
     {
-        $engine = new PhpEngine(new Filesystem());
-        $this->assertSame('Hello World' . PHP_EOL, $engine->get(__DIR__ . '/fixtures/basic.php'));
+        $engine = new PhpEngine(new Filesystem);
+        $this->assertSame('Hello World' . PHP_EOL, $engine->get(__DIR__ . '/Fixtures/basic.php'));
     }
 }

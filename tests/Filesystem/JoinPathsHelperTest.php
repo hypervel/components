@@ -17,7 +17,7 @@ use function Hypervel\Filesystem\join_paths;
  */
 class JoinPathsHelperTest extends TestCase
 {
-    #[RequiresOperatingSystem('Linux|DAR')]
+    #[RequiresOperatingSystem('Linux|Darwin')]
     #[DataProvider('unixDataProvider')]
     public function testItCanMergePathsForUnix(string $expected, string $given)
     {

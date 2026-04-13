@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Server;
+
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnManagerStart;
+use Hypervel\Core\Events\OnStart;
+use Hypervel\Server\Commands\ServerReloadCommand;
+use Hypervel\Server\Commands\ServerStartCommand;
+use Hypervel\Server\Listeners\AfterWorkerStartListener;
+use Hypervel\Server\Listeners\InitProcessTitleListener;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
+use Hypervel\Support\ServiceProvider;
+use Swoole\Server as SwooleServer;
+
+class ServerServiceProvider extends ServiceProvider
+{
+    /**
+     * Register the service provider.
+     */
+    public function register(): void
+    {
+        $this->app->singleton(SwooleServer::class, fn ($app) => $app->make(SwooleServerFactory::class)($app));
+
+        $this->commands([
+            ServerReloadCommand::class,
+            ServerStartCommand::class,
+        ]);
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $events = $this->app->make('events');
+
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+            $this->app->make(AfterWorkerStartListener::class)->handle($event);
+        });
+
+        $events->listen(OnStart::class, function (OnStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
+            $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+    }
+}

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
 use TypeError;
 
 enum CacheRepositoryEnumTestKeyBackedEnum: string
@@ -276,7 +276,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testBackedEnumAndStringInteroperability(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         // Store with enum
         $repo->put(CacheRepositoryEnumTestKeyBackedEnum::UserProfile, 'enum-stored', 60);
@@ -293,7 +293,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testUnitEnumAndStringInteroperability(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         // Store with enum
         $repo->put(CacheRepositoryEnumTestKeyUnitEnum::Dashboard, 'enum-stored', 60);
@@ -310,7 +310,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithBackedEnumArray(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $tagged = $repo->tags([CacheRepositoryEnumTestTagBackedEnum::Users, CacheRepositoryEnumTestTagBackedEnum::Posts]);
 
@@ -320,7 +320,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithUnitEnumArray(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $tagged = $repo->tags([CacheRepositoryEnumTestTagUnitEnum::Reports, CacheRepositoryEnumTestTagUnitEnum::Exports]);
 
@@ -330,7 +330,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithMixedEnumsAndStrings(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $tagged = $repo->tags([CacheRepositoryEnumTestTagBackedEnum::Users, 'custom-tag', CacheRepositoryEnumTestTagUnitEnum::Reports]);
 
@@ -364,7 +364,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTaggedCacheOperationsWithEnumKeys(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $tagged = $repo->tags([CacheRepositoryEnumTestTagBackedEnum::Users]);
 
@@ -380,7 +380,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testOffsetAccessWithBackedEnum(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         // offsetSet with enum
         $repo[CacheRepositoryEnumTestKeyBackedEnum::UserProfile] = 'offset-value';
@@ -398,7 +398,7 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testOffsetAccessWithUnitEnum(): void
     {
-        $repo = new Repository(new ArrayStore());
+        $repo = new Repository(new ArrayStore);
 
         $repo[CacheRepositoryEnumTestKeyUnitEnum::Dashboard] = 'dashboard-data';
 
@@ -409,6 +409,7 @@ class CacheRepositoryEnumTest extends TestCase
     protected function getRepository(): Repository
     {
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
         $dispatcher->shouldReceive('dispatch')->with(m::any())->andReturnNull();
         $repository = new Repository(m::mock(Store::class));
 

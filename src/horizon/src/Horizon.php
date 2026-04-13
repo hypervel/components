@@ -6,9 +6,9 @@ namespace Hypervel\Horizon;
 
 use Closure;
 use Exception;
+use Hypervel\Http\Request;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
-use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 class Horizon
@@ -29,16 +29,14 @@ class Horizon
     public static ?string $slackChannel = null;
 
     /**
+     * The SMS notifications phone number.
+     */
+    public static ?string $smsNumber = null;
+
+    /**
      * The email address for notifications.
      */
     public static ?string $email = null;
-
-    /**
-     * Indicates if Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static bool $useDarkTheme = false;
 
     /**
      * The database configuration methods.
@@ -51,7 +49,7 @@ class Horizon
     /**
      * Determine if the given request can access the Horizon dashboard.
      */
-    public static function check(?ServerRequestInterface $request): bool
+    public static function check(?Request $request): bool
     {
         return (static::$authUsing ?: function () {
             return app()->environment('local');
@@ -65,7 +63,7 @@ class Horizon
     {
         static::$authUsing = $callback;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -83,7 +81,7 @@ class Horizon
 
         $config['options']['prefix'] = config('horizon.prefix') ?: 'horizon:';
 
-        config(['redis.horizon' => $config]);
+        config(['database.redis.horizon' => $config]);
     }
 
     /**
@@ -130,18 +128,6 @@ class Horizon
     }
 
     /**
-     * Specifies that Horizon should use the dark theme.
-     *
-     * @deprecated
-     */
-    public static function night(): static
-    {
-        static::$useDarkTheme = true;
-
-        return new static();
-    }
-
-    /**
      * Get the default JavaScript variables for Horizon.
      */
     public static function scriptVariables(): array
@@ -159,7 +145,7 @@ class Horizon
     {
         static::$email = $email;
 
-        return new static();
+        return new static;
     }
 
     /**
@@ -170,6 +156,16 @@ class Horizon
         static::$slackWebhookUrl = $url;
         static::$slackChannel = $channel;
 
-        return new static();
+        return new static;
+    }
+
+    /**
+     * Specify the phone number to which SMS notifications should be routed.
+     */
+    public static function routeSmsNotificationsTo(string $number): static
+    {
+        static::$smsNumber = $number;
+
+        return new static;
     }
 }

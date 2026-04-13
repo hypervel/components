@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Coroutine\Exception\ExceptionThrower;
-use Hyperf\Coroutine\Exception\WaitTimeoutException;
-use Hyperf\Coroutine\Waiter as HyperfWaiter;
-use Hyperf\Engine\Channel;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ExceptionThrower;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
+use Hypervel\Coroutine\Waiter as BaseWaiter;
+use Hypervel\Engine\Channel;
 use Throwable;
 
-class Waiter extends HyperfWaiter
+class Waiter extends BaseWaiter
 {
-    public function wait(Closure $closure, ?float $timeout = null)
+    public function wait(Closure $closure, ?float $timeout = null): mixed
     {
         if ($timeout === null) {
             $timeout = $this->popTimeout;
@@ -25,15 +25,19 @@ class Waiter extends HyperfWaiter
         $coroutineId = Coroutine::id();
         Coroutine::create(function () use ($channel, $closure, $coroutineId) {
             if ($coroutineId) {
-                Context::copy($coroutineId);
+                CoroutineContext::copyFrom($coroutineId);
             }
+
+            $result = null;
+
+            Coroutine::defer(function () use ($channel, &$result): void {
+                $channel->push($result, $this->pushTimeout);
+            });
 
             try {
                 $result = $closure();
             } catch (Throwable $exception) {
                 $result = new ExceptionThrower($exception);
-            } finally {
-                $channel->push($result ?? null, $this->pushTimeout);
             }
         });
 

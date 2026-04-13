@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Stringable\Str;
-use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Support\Str;
 
 class JobName
 {
@@ -14,14 +13,7 @@ class JobName
      */
     public static function parse(string $job): array
     {
-        $result = Str::parseCallback($job, 'fire');
-
-        // Make CallQueuedHandler compatible with Laravel's Queue
-        if ($result[0] === 'Illuminate\Queue\CallQueuedHandler') {
-            $result[0] = CallQueuedHandler::class;
-        }
-
-        return $result;
+        return Str::parseCallback($job, 'fire');
     }
 
     /**
@@ -31,6 +23,20 @@ class JobName
     {
         if (! empty($payload['displayName'])) {
             return $payload['displayName'];
+        }
+
+        return $name;
+    }
+
+    /**
+     * Get the class name for queued job class.
+     *
+     * @param array<string, mixed> $payload
+     */
+    public static function resolveClassName(string $name, array $payload): string
+    {
+        if (is_string($payload['data']['commandName'] ?? null)) {
+            return $payload['data']['commandName'];
         }
 
         return $name;

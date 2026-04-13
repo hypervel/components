@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Support\Arr;
-
 trait ListensForSignals
 {
     /**
@@ -43,7 +41,7 @@ trait ListensForSignals
     protected function processPendingSignals(): void
     {
         while ($this->pendingSignals) {
-            $signal = Arr::first($this->pendingSignals);
+            $signal = array_first($this->pendingSignals);
 
             $this->{$signal}();
 

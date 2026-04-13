@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -130,7 +129,7 @@ class TypesenseEngine extends Engine
      */
     protected function createImportSortingDataObject(array $document): stdClass
     {
-        $data = new stdClass();
+        $data = new stdClass;
 
         $data->code = $document['code'] ?? 0;
         $data->success = $document['success'];
@@ -262,7 +261,7 @@ class TypesenseEngine extends Engine
         $limit = min($builder->limit ?? $this->maxPerPage, $this->maxPerPage, $this->maxTotalResults);
         $remainingResults = min($builder->limit ?? $this->maxTotalResults, $this->maxTotalResults);
 
-        $results = new Collection();
+        $results = new Collection;
         $totalFound = 0;
 
         while ($remainingResults > 0) {
@@ -638,8 +637,8 @@ class TypesenseEngine extends Engine
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 

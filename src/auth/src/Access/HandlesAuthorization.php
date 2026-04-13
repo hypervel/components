@@ -15,7 +15,7 @@ trait HandlesAuthorization
     }
 
     /**
-     * Throws an unauthorized exception.
+     * Throw an unauthorized exception.
      */
     protected function deny(?string $message = null, int|string|null $code = null): Response
     {

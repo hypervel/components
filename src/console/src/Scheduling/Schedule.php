@@ -8,23 +8,20 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
-use Hyperf\Collection\Collection;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Console\Contracts\SchedulingMutex;
-use Hypervel\Container\BindingResolutionException;
 use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
-use Hypervel\Queue\Contracts\ShouldBeUnique;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Collection;
 use Hypervel\Support\ProcessUtils;
+use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -109,21 +106,21 @@ class Schedule
             );
         }
 
-        $container = ApplicationContext::getContainer();
+        $container = Container::getInstance();
 
         $this->eventMutex = $container->bound(EventMutex::class)
-            ? $container->get(EventMutex::class)
-            : $container->get(CacheEventMutex::class);
+            ? $container->make(EventMutex::class)
+            : $container->make(CacheEventMutex::class);
 
         $this->schedulingMutex = $container->bound(SchedulingMutex::class)
-            ? $container->get(SchedulingMutex::class)
-            : $container->get(CacheSchedulingMutex::class);
+            ? $container->make(SchedulingMutex::class)
+            : $container->make(CacheSchedulingMutex::class);
     }
 
     /**
      * Add a new callback event to the schedule.
      */
-    public function call(callable|string $callback, array $parameters = []): CallbackEvent
+    public function call(callable|string|array $callback, array $parameters = []): CallbackEvent
     {
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
@@ -140,10 +137,14 @@ class Schedule
     /**
      * Add a new Artisan command event to the schedule.
      */
-    public function command(string $command, array $parameters = []): Event
+    public function command(SymfonyCommand|string $command, array $parameters = []): Event
     {
+        if ($command instanceof SymfonyCommand) {
+            $command = get_class($command);
+        }
+
         if (class_exists($command)) {
-            $command = ApplicationContext::getContainer()->get($command);
+            $command = Container::getInstance()->make($command);
 
             return $this->exec(
                 $command->getName(),
@@ -174,16 +175,26 @@ class Schedule
                 : $job::class;
         }
 
-        /* @phpstan-ignore-next-line */
-        return $this->name($jobName)->call(function () use ($job, $queue, $connection) {
-            $job = is_string($job) ? ApplicationContext::getContainer()->get($job) : $job;
+        $this->events[] = $event = new CallbackEvent(
+            $this->eventMutex,
+            function () use ($job, $queue, $connection) {
+                $job = is_string($job) ? Container::getInstance()->make($job) : $job;
 
-            if ($job instanceof ShouldQueue) {
-                $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
-            } else {
-                $this->dispatchNow($job);
-            }
-        });
+                if ($job instanceof ShouldQueue) {
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                } else {
+                    $this->dispatchNow($job);
+                }
+            },
+            [],
+            $this->timezone
+        );
+
+        $event->name($jobName);
+
+        $this->mergePendingAttributes($event);
+
+        return $event;
     }
 
     /**
@@ -203,6 +214,14 @@ class Schedule
             $job = CallQueuedClosure::create($job);
         }
 
+        // Clone the job to prevent mutation of the original instance. Hypervel's
+        // container caches unbound concretes (auto-singletons) for Swoole performance,
+        // so Container::make() may return the same object across multiple schedule
+        // callbacks. Without cloning, onConnection()/onQueue() would mutate a shared
+        // instance, causing state bleed between scheduled events and corrupting
+        // QueueFake assertions (which store object references, not snapshots).
+        $job = clone $job;
+
         if ($job instanceof ShouldBeUnique) {
             $this->dispatchUniqueJobToQueue($job, $queue, $connection);
             return;
@@ -220,11 +239,11 @@ class Schedule
      */
     protected function dispatchUniqueJobToQueue(object $job, ?string $queue, ?string $connection): void
     {
-        if (! ApplicationContext::getContainer()->has(CacheFactory::class)) {
+        if (! Container::getInstance()->has(Cache::class)) {
             throw new RuntimeException('Cache driver not available. Scheduling unique jobs not supported.');
         }
 
-        $cache = ApplicationContext::getContainer()->get(CacheFactory::class);
+        $cache = Container::getInstance()->make(Cache::class);
         if (! (new UniqueLock($cache))->acquire($job)) {
             return;
         }
@@ -270,6 +289,7 @@ class Schedule
         }
 
         $this->groupStack[] = $this->attributes;
+        $this->attributes = null;
 
         $events($this);
 
@@ -281,16 +301,16 @@ class Schedule
      */
     protected function mergePendingAttributes(Event $event): void
     {
-        if (isset($this->attributes)) {
-            $this->attributes->mergeAttributes($event);
-
-            $this->attributes = null;
-        }
-
         if (! empty($this->groupStack)) {
             $group = end($this->groupStack);
 
             $group->mergeAttributes($event);
+        }
+
+        if (isset($this->attributes)) {
+            $this->attributes->mergeAttributes($event);
+
+            $this->attributes = null;
         }
     }
 
@@ -321,11 +341,11 @@ class Schedule
             return ProcessUtils::escapeArgument($value);
         });
 
-        if (str_starts_with($key, '--')) {
+        if (is_string($key) && str_starts_with($key, '--')) {
             $value = $value->map(function ($value) use ($key) {
                 return "{$key}={$value}";
             });
-        } elseif (str_starts_with($key, '-')) {
+        } elseif (is_string($key) && str_starts_with($key, '-')) {
             $value = $value->map(function ($value) use ($key) {
                 return "{$key} {$value}";
             });
@@ -391,7 +411,7 @@ class Schedule
     {
         if ($this->dispatcher === null) {
             try {
-                $this->dispatcher = ApplicationContext::getContainer()->get(Dispatcher::class);
+                $this->dispatcher = Container::getInstance()->make(Dispatcher::class);
             } catch (BindingResolutionException $e) {
                 throw new RuntimeException(
                     'Unable to resolve the dispatcher from the service container. Please bind it or install the hypervel/bus package.',
@@ -414,7 +434,7 @@ class Schedule
         }
 
         if (method_exists(PendingEventAttributes::class, $method)) {
-            $this->attributes ??= end($this->groupStack) ?: new PendingEventAttributes($this);
+            $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);
         }

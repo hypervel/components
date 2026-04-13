@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View\Blade;
 
 use Exception;
-use Hypervel\Container\DefinitionSource;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
@@ -72,7 +71,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         $app = $this->createApplication();
         $app->instance('blade.compiler', $this->compiler);
 
-        $exampleObject = new Fluent();
+        $exampleObject = new Fluent;
 
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));
     }
@@ -89,11 +88,8 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
 
     protected function createApplication()
     {
-        $container = new Application(
-            new DefinitionSource([]),
-            'bath_path',
-        );
-        ApplicationContext::setContainer($container);
+        $container = new Application('bath_path');
+        Container::setInstance($container);
 
         return $container;
     }

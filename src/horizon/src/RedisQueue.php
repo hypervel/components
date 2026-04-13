@@ -6,14 +6,15 @@ namespace Hypervel\Horizon;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\Context;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
+use Hypervel\Horizon\Events\JobPending;
 use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
-use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue as BaseQueue;
 use Hypervel\Support\Str;
@@ -21,7 +22,7 @@ use Override;
 
 class RedisQueue extends BaseQueue
 {
-    public const LAST_PUSHED_CONTEXT_KEY = 'horizon.queue.last_pushed';
+    public const LAST_PUSHED_CONTEXT_KEY = '__horizon.queue.last_pushed';
 
     /**
      * Get the number of queue jobs that are ready to process.
@@ -58,6 +59,8 @@ class RedisQueue extends BaseQueue
     {
         $payload = (new JobPayload($payload))->prepare($this->getLastPushed());
 
+        $this->event($this->getQueue($queue), new JobPending($payload->value));
+
         parent::pushRaw($payload->value, $queue, $options);
 
         $this->event($this->getQueue($queue), new JobPushed($payload->value));
@@ -92,6 +95,8 @@ class RedisQueue extends BaseQueue
             $queue,
             $delay,
             function ($payload, $queue, $delay) {
+                $this->event($this->getQueue($queue), new JobPending($payload));
+
                 return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
                     $this->event($this->getQueue($queue), new JobPushed($payload));
                 });
@@ -106,6 +111,7 @@ class RedisQueue extends BaseQueue
     public function pop(?string $queue = null, int $index = 0): ?Job
     {
         return tap(parent::pop($queue, $index), function ($result) use ($queue) {
+            /** @var null|RedisJob $result */
             if ($result) {
                 $this->event($this->getQueue($queue), new JobReserved($result->getReservedJob()));
             }
@@ -119,7 +125,7 @@ class RedisQueue extends BaseQueue
     public function migrateExpiredJobs(string $from, string $to): array
     {
         return tap(parent::migrateExpiredJobs($from, $to), function ($jobs) use ($to) {
-            $this->event($to, new JobsMigrated($jobs === false ? [] : $jobs));
+            $this->event($to, new JobsMigrated($jobs));
         });
     }
 
@@ -142,7 +148,7 @@ class RedisQueue extends BaseQueue
     {
         parent::deleteAndRelease($queue, $job, $delay);
 
-        $this->event($this->getQueue($queue), new JobReleased($job->getReservedJob()));
+        $this->event($this->getQueue($queue), new JobReleased($job->getReservedJob(), $delay));
     }
 
     /**
@@ -150,10 +156,10 @@ class RedisQueue extends BaseQueue
      */
     protected function event(string $queue, mixed $event): void
     {
-        if ($this->container->has(Dispatcher::class)) {
+        if ($this->container->bound(Dispatcher::class)) {
             $queue = Str::replaceFirst('queues:', '', $queue);
 
-            $this->container->get(Dispatcher::class)->dispatch(
+            $this->container->make(Dispatcher::class)->dispatch(
                 $event->connection($this->getConnectionName())->queue($queue)
             );
         }
@@ -164,7 +170,7 @@ class RedisQueue extends BaseQueue
      */
     protected function setLastPushed(object|string $job): void
     {
-        Context::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
+        CoroutineContext::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
     }
 
     /**
@@ -172,6 +178,6 @@ class RedisQueue extends BaseQueue
      */
     protected function getLastPushed(): object|string|null
     {
-        return Context::get(static::LAST_PUSHED_CONTEXT_KEY);
+        return CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
     }
 }

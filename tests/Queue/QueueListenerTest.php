@@ -16,11 +16,6 @@ use Symfony\Component\Process\Process;
  */
 class QueueListenerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testRunProcessCallsProcess()
     {
         $process = m::mock(Process::class)->makePartial();
@@ -45,7 +40,7 @@ class QueueListenerTest extends TestCase
     public function testMakeProcessCorrectlyFormatsCommandLine()
     {
         $listener = new Listener(__DIR__);
-        $options = new ListenerOptions();
+        $options = new ListenerOptions;
         $options->backoff = 1;
         $options->memory = 2;
         $options->timeout = 3;

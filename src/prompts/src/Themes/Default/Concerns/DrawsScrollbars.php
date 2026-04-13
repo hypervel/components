@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Themes\Default\Concerns;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 trait DrawsScrollbars
 {
     /**
      * Render a scrollbar beside the visible items.
      *
-     * @template T of array<int, string>|\Hyperf\Collection\Collection<int, string>
+     * @template T of array<int, string>|\Hypervel\Support\Collection<int, string>
      *
      * @param T $visible
      * @return T

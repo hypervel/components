@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Exception;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\BelongsTo;
-use Hyperf\Database\Model\Relations\HasMany;
-use Hyperf\Database\Query\Builder as HyperfQueryBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;
@@ -41,32 +41,27 @@ trait HasNode
     protected static ?bool $hasSoftDelete = null;
 
     /**
+     * Create a new Eloquent query builder for the model.
+     */
+    public function newEloquentBuilder(BaseQueryBuilder $query): QueryBuilder
+    {
+        return new QueryBuilder($query);
+    }
+
+    /**
      * Bootstrap node events.
      */
     public static function bootHasNode(): void
     {
-        static::registerCallback(
-            'saving',
-            fn ($model) => $model->callPendingActions()
-        );
+        static::saving(fn ($model) => $model->callPendingActions());
 
-        static::registerCallback(
-            'deleting',
-            fn ($model) => $model->refreshNode()
-        );
+        static::deleting(fn ($model) => $model->refreshNode());
 
-        static::registerCallback(
-            'deleted',
-            fn ($model) => $model->deleteDescendants()
-        );
+        static::deleted(fn ($model) => $model->deleteDescendants());
 
         if (static::usesSoftDelete()) {
-            static::registerCallback(
-                'restoring',
-                fn ($model) => NodeContext::keepDeletedAt($model)
-            );
-            static::registerCallback(
-                'restored',
+            static::restoring(fn ($model) => NodeContext::keepDeletedAt($model));
+            static::restored(
                 fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
             );
         }
@@ -111,7 +106,7 @@ trait HasNode
             return static::$hasSoftDelete;
         }
 
-        return static::$hasSoftDelete = method_exists(new static(), 'bootSoftDeletes');
+        return static::$hasSoftDelete = method_exists(new static, 'bootSoftDeletes');
     }
 
     protected function actionRaw(): bool
@@ -527,7 +522,7 @@ trait HasNode
     /**
      * Restore the descendants.
      */
-    protected function restoreDescendants(Carbon|string $deletedAt): void
+    protected function restoreDescendants(CarbonInterface|string $deletedAt): void
     {
         $this->descendants()
             ->where($this->getDeletedAtColumn(), '>=', $deletedAt)
@@ -537,7 +532,7 @@ trait HasNode
     /**
      * Create a new Model query builder for the model.
      *
-     * @param HyperfQueryBuilder $query
+     * @param BaseQueryBuilder $query
      */
     public function newModelBuilder($query): QueryBuilder
     {
@@ -589,7 +584,7 @@ trait HasNode
 
     public static function scoped(array $attributes): mixed
     {
-        $instance = new static();
+        $instance = new static;
 
         $instance->setRawAttributes($attributes);
 
@@ -619,7 +614,7 @@ trait HasNode
 
         $instance->save();
 
-        $relation = new Collection();
+        $relation = new Collection;
 
         foreach ((array) $children as $child) {
             $relation->add($child = static::create($child, $instance));
@@ -973,7 +968,7 @@ trait HasNode
         return true;
     }
 
-    public function replicate(?array $except = null): Model
+    public function replicate(?array $except = null): static
     {
         $defaults = [
             $this->getParentIdName(),

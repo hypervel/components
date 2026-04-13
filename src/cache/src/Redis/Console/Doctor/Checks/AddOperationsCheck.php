@@ -22,7 +22,7 @@ final class AddOperationsCheck implements CheckInterface
 
     public function run(DoctorContext $context): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         // Add new key (no tags - mode agnostic)
         $addResult = $context->cache->add($context->prefixed('add:new'), 'first', 60);

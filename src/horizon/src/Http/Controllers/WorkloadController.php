@@ -6,7 +6,7 @@ namespace Hypervel\Horizon\Http\Controllers;
 
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 
-class WorkloadController
+class WorkloadController extends Controller
 {
     /**
      * Get the current queue workload for the application.

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Models;
 
-use Carbon\Carbon;
-use Hyperf\Database\Model\Relations\BelongsToMany;
+use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Traits\HasRole;
 
@@ -15,8 +15,8 @@ use Hypervel\Permission\Traits\HasRole;
  * @property int $id
  * @property string $name
  * @property string $guard_name
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonInterface $created_at
+ * @property CarbonInterface $updated_at
  * @property-read Collection<Role> $roles
  */
 class Permission extends Model implements PermissionContract

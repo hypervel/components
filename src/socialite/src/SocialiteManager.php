@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\FacebookProvider;
@@ -35,13 +33,30 @@ class SocialiteManager extends Manager implements Contracts\Factory
     }
 
     /**
+     * Get a driver instance.
+     *
+     * Refreshes the request on cached providers so each coroutine
+     * gets the current request, not a stale one from first resolution.
+     */
+    public function driver(?string $driver = null): mixed
+    {
+        $provider = parent::driver($driver);
+
+        if ($provider instanceof AbstractProvider) {
+            $provider->setRequest($this->container->make('request'));
+        }
+
+        return $provider;
+    }
+
+    /**
      * Create an instance of the specified driver.
      */
     protected function createGithubDriver(): GithubProvider
     {
         $config = $this->config->get('services.github');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GithubProvider::class,
             $config
         );
@@ -54,7 +69,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.facebook');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             FacebookProvider::class,
             $config
         );
@@ -67,7 +82,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.google');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GoogleProvider::class,
             $config
         );
@@ -80,7 +95,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.linkedin');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             LinkedInProvider::class,
             $config
         );
@@ -93,7 +108,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.linkedin-openid');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             LinkedInOpenIdProvider::class,
             $config
         );
@@ -106,7 +121,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.bitbucket');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             BitbucketProvider::class,
             $config
         );
@@ -119,7 +134,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.gitlab');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             GitlabProvider::class,
             $config
         )->setHost($config['host'] ?? null); // phpstan-ignore-line
@@ -132,7 +147,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.x') ?? $this->config->get('services.x-oauth-2');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             XProvider::class,
             $config
         );
@@ -145,7 +160,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.twitch');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             TwitchProvider::class,
             $config
         );
@@ -158,7 +173,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.slack');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             SlackProvider::class,
             $config
         );
@@ -171,7 +186,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     {
         $config = $this->config->get('services.slack-openid');
 
-        return $this->buildProvider(
+        return $this->buildOAuth2Provider(
             SlackOpenIdProvider::class,
             $config
         );
@@ -180,7 +195,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     /**
      * Build an OAuth 2 provider instance.
      */
-    public function buildProvider(string $provider, ?array $config): mixed
+    public function buildOAuth2Provider(string $provider, ?array $config): mixed
     {
         $requiredKeys = ['client_id', 'client_secret', 'redirect'];
 
@@ -191,13 +206,12 @@ class SocialiteManager extends Manager implements Contracts\Factory
         }
 
         return (new $provider(
-            $this->container->get(RequestContract::class),
-            $this->container->get(ResponseContract::class),
+            $this->container->make('request'),
             $config['client_id'],
             $config['client_secret'],
             $this->formatRedirectUrl($config),
             Arr::get($config, 'guzzle', [])
-        ))->scopes($config['scopes'] ?? []);
+        ))->withConfig($config);
     }
 
     /**
@@ -220,7 +234,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
         $redirect = value($config['redirect']);
 
         return Str::startsWith($redirect ?? '', '/')
-            ? $this->container->get(UrlGeneratorContract::class)->to($redirect)
+            ? $this->container->make('url')->to($redirect)
             : $redirect;
     }
 
@@ -230,6 +244,17 @@ class SocialiteManager extends Manager implements Contracts\Factory
     public function forgetDrivers(): static
     {
         $this->drivers = [];
+
+        return $this;
+    }
+
+    /**
+     * Set the container instance used by the manager.
+     */
+    public function setContainer(Container $container): static
+    {
+        $this->container = $container;
+        $this->config = $container->make('config');
 
         return $this;
     }

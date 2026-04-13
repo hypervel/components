@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Contracts;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\EntryResult;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
-use Hyperf\Contract\ConfigInterface;
+use GuzzleHttp\Client as GuzzleClient;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -27,10 +27,10 @@ class ScoutServiceProvider extends ServiceProvider
             'scout'
         );
 
-        $this->app->bind(EngineManager::class, EngineManager::class);
+        $this->app->singleton(EngineManager::class, EngineManager::class);
 
-        $this->app->bind(MeilisearchClient::class, function () {
-            $config = $this->app->get(ConfigInterface::class);
+        $this->app->singleton(MeilisearchClient::class, function () {
+            $config = $this->app->make('config');
 
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
@@ -38,12 +38,16 @@ class ScoutServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(TypesenseClient::class, function () {
-            $config = $this->app->get(ConfigInterface::class);
+        $this->app->singleton(TypesenseClient::class, function () {
+            $config = $this->app->make('config');
+            $settings = $config->get('scout.typesense.client-settings', []);
 
-            return new TypesenseClient(
-                $config->get('scout.typesense.client-settings', [])
-            );
+            // Explicitly inject Guzzle as the HTTP client so Typesense never
+            // falls back to PSR-18 auto-discovery, which may resolve to
+            // Symfony's CurlHttpClient (unsafe with Swoole coroutines).
+            $settings['client'] ??= new GuzzleClient;
+
+            return new TypesenseClient($settings);
         });
     }
 
@@ -52,8 +56,10 @@ class ScoutServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->registerPublishing();
-        $this->registerCommands();
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+            $this->registerCommands();
+        }
     }
 
     /**

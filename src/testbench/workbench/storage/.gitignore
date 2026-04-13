@@ -1,0 +1,5 @@
+*
+!.gitignore
+!app/
+!framework/
+!logs/

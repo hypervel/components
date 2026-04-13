@@ -6,12 +6,12 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use TypeError;
 
 enum PendingBroadcastTestConnectionStringEnum: string
@@ -38,17 +38,12 @@ enum PendingBroadcastTestConnectionUnitEnum
  */
 class PendingBroadcastTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testViaAcceptsStringBackedEnum(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $result = $pending->via(PendingBroadcastTestConnectionStringEnum::Pusher);
@@ -59,10 +54,10 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsUnitEnum(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via(PendingBroadcastTestConnectionUnitEnum::redis);
@@ -72,7 +67,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
     {
-        $event = new TestPendingBroadcastableEvent();
+        $event = new TestPendingBroadcastableEvent;
         $event->broadcastVia(PendingBroadcastTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);
@@ -85,10 +80,10 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsNull(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via(null);
@@ -98,10 +93,10 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsString(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
-        $event = new TestPendingBroadcastEvent();
+        $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
 
         $pending->via('custom-connection');

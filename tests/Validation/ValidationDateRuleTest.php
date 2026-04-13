@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Carbon\Carbon;
+use Hypervel\Support\Carbon;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
@@ -23,7 +23,7 @@ class ValidationDateRuleTest extends TestCase
         $rule = Rule::date();
         $this->assertEquals('date', (string) $rule);
 
-        $rule = new Date();
+        $rule = new Date;
         $this->assertSame('date', (string) $rule);
     }
 
@@ -123,7 +123,7 @@ class ValidationDateRuleTest extends TestCase
 
     public function testDateValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $rule = Rule::date();
 

@@ -6,12 +6,11 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Carbon\CarbonImmutable;
 use Closure;
-use Hyperf\Stringable\Str;
 use Hypervel\Bus\Batch;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 
 class BatchRepositoryFake implements BatchRepository
 {
@@ -75,7 +74,7 @@ class BatchRepositoryFake implements BatchRepository
      */
     public function decrementPendingJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**
@@ -83,7 +82,7 @@ class BatchRepositoryFake implements BatchRepository
      */
     public function incrementFailedJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts();
+        return new UpdatedBatchJobCounts;
     }
 
     /**
@@ -92,7 +91,7 @@ class BatchRepositoryFake implements BatchRepository
     public function markAsFinished(int|string $batchId): void
     {
         if (isset($this->batches[$batchId])) {
-            $this->batches[$batchId]->finishedAt = Carbon::now();
+            $this->batches[$batchId]->finishedAt = CarbonImmutable::now();
         }
     }
 

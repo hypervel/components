@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Database\Model\Relations\MorphMany;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 
 trait HasDatabaseNotifications
 {
@@ -14,23 +13,23 @@ trait HasDatabaseNotifications
      */
     public function notifications(): MorphMany
     {
-        return $this->morphMany(DatabaseNotification::class, 'notifiable')
+        return $this->morphMany(DatabaseNotification::class, 'notifiable') /* @phpstan-ignore return.type */
             ->latest();
     }
 
     /**
      * Get the entity's read notifications.
      */
-    public function readNotifications(): Builder
+    public function readNotifications(): MorphMany
     {
-        return $this->notifications()->read();
+        return $this->notifications()->read(); /* @phpstan-ignore method.notFound */
     }
 
     /**
      * Get the entity's unread notifications.
      */
-    public function unreadNotifications(): Builder
+    public function unreadNotifications(): MorphMany
     {
-        return $this->notifications()->unread();
+        return $this->notifications()->unread(); /* @phpstan-ignore method.notFound */
     }
 }

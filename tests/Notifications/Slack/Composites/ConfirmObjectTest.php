@@ -15,7 +15,7 @@ class ConfirmObjectTest extends TestCase
 {
     public function testArrayable(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
 
         $this->assertSame([
             'title' => [
@@ -39,7 +39,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testTitleIsCustomizable(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->title('This is a custom title.');
 
         $this->assertSame([
@@ -64,7 +64,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testTitleTruncatedOverOneHundredCharacters(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->title(str_repeat('a', 101));
 
         $this->assertSame([
@@ -89,7 +89,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testTextIsCustomizable(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->text('This is some custom text.');
 
         $this->assertSame([
@@ -135,7 +135,7 @@ class ConfirmObjectTest extends TestCase
             ],
         ], $objectA->toArray());
 
-        $objectB = new ConfirmObject();
+        $objectB = new ConfirmObject;
         $objectB->text(str_repeat('b', 301));
 
         $this->assertSame([
@@ -160,7 +160,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testConfirmIsCustomizable(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->confirm('Custom confirmation button.');
 
         $this->assertSame([
@@ -185,7 +185,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testConfirmTruncatedOverThirtyCharacters(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->confirm(str_repeat('a', 31));
 
         $this->assertSame([
@@ -210,7 +210,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testColorSchemeWithDanger(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->danger();
 
         $this->assertSame([
@@ -236,7 +236,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testDenyIsCustomizable(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->deny('Custom deny button.');
 
         $this->assertSame([
@@ -261,7 +261,7 @@ class ConfirmObjectTest extends TestCase
 
     public function testDenyTruncatedOverThirtyCharacters(): void
     {
-        $object = new ConfirmObject();
+        $object = new ConfirmObject;
         $object->deny(str_repeat('a', 31));
 
         $this->assertSame([

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Collection;
 use Throwable;
 
 class ChainedBatch implements ShouldQueue
@@ -42,6 +44,9 @@ class ChainedBatch implements ShouldQueue
 
         $this->name = $batch->name;
         $this->options = $batch->options;
+
+        $this->queue = $batch->queue();
+        $this->connection = $batch->connection();
     }
 
     /**
@@ -49,8 +54,8 @@ class ChainedBatch implements ShouldQueue
      */
     public static function prepareNestedBatches(Collection $jobs): Collection
     {
-        return $jobs->map(fn ($job) => match (true) {
-            is_array($job) => static::prepareNestedBatches(collect($job))->all(),
+        return $jobs->filter()->values()->map(fn ($job) => match (true) {
+            is_array($job) => static::prepareNestedBatches(new Collection($job))->all(),
             $job instanceof Collection => static::prepareNestedBatches($job),
             $job instanceof PendingBatch => new ChainedBatch($job),
             default => $job,
@@ -72,9 +77,10 @@ class ChainedBatch implements ShouldQueue
      */
     public function toPendingBatch(): PendingBatch
     {
-        $batch = ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
-            ->batch($this->jobs);
+        /** @var QueueingDispatcher $dispatcher */
+        $dispatcher = Container::getInstance()->make(Dispatcher::class);
+
+        $batch = $dispatcher->batch($this->jobs);
 
         $batch->name = $this->name;
         $batch->options = $this->options;
@@ -117,9 +123,7 @@ class ChainedBatch implements ShouldQueue
 
             $batch->finally(function (Batch $batch) use ($next) {
                 if (! $batch->cancelled()) {
-                    ApplicationContext::getContainer()
-                        ->get(Dispatcher::class)
-                        ->dispatch($next);
+                    Container::getInstance()->make(Dispatcher::class)->dispatch($next);
                 }
             });
 

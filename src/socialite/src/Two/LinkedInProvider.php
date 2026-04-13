@@ -100,7 +100,7 @@ class LinkedInProvider extends AbstractProvider implements ProviderInterface
             ) === 800;
         });
 
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => $user['id'],
             'nickname' => null,
             'name' => $firstName . ' ' . $lastName,

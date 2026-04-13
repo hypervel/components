@@ -25,7 +25,7 @@ class TransformsToResourceCollectionTest extends TestCase
 {
     public function testToResourceCollectionWithExplicitClass(): void
     {
-        $model = new ResourceCollectionTestModel();
+        $model = new ResourceCollectionTestModel;
         $collection = new EloquentCollection([$model]);
 
         $resource = $collection->toResourceCollection(ResourceCollectionTestResource::class);
@@ -47,7 +47,7 @@ class TransformsToResourceCollectionTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Support\Traits\ResourceCollectionTestModel].');
 
-        $model = new ResourceCollectionTestModel();
+        $model = new ResourceCollectionTestModel;
         $collection = new EloquentCollection([$model]);
 
         $collection->toResourceCollection();
@@ -55,7 +55,7 @@ class TransformsToResourceCollectionTest extends TestCase
 
     public function testToResourceCollectionUsesUseResourceCollectionAttribute(): void
     {
-        $model = new ResourceCollectionTestModelWithCollectionAttribute();
+        $model = new ResourceCollectionTestModelWithCollectionAttribute;
         $collection = new EloquentCollection([$model]);
 
         $resource = $collection->toResourceCollection();
@@ -65,7 +65,7 @@ class TransformsToResourceCollectionTest extends TestCase
 
     public function testToResourceCollectionUsesUseResourceAttributeWithCollection(): void
     {
-        $model = new ResourceCollectionTestModelWithResourceAttribute();
+        $model = new ResourceCollectionTestModelWithResourceAttribute;
         $collection = new EloquentCollection([$model]);
 
         $resource = $collection->toResourceCollection();
@@ -76,7 +76,7 @@ class TransformsToResourceCollectionTest extends TestCase
 
     public function testToResourceCollectionPrefersUseResourceCollectionOverUseResource(): void
     {
-        $model = new ResourceCollectionTestModelWithBothAttributes();
+        $model = new ResourceCollectionTestModelWithBothAttributes;
         $collection = new EloquentCollection([$model]);
 
         $resource = $collection->toResourceCollection();
@@ -87,7 +87,7 @@ class TransformsToResourceCollectionTest extends TestCase
 
     public function testSupportCollectionHasToResourceCollectionMethod(): void
     {
-        $model = new ResourceCollectionTestModelWithResourceAttribute();
+        $model = new ResourceCollectionTestModelWithResourceAttribute;
         $collection = new Collection([$model]);
 
         $resource = $collection->toResourceCollection();
@@ -110,14 +110,14 @@ class TransformsToResourceCollectionTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Expected class stdClass to implement guessResourceName method.');
 
-        $collection = new Collection([new stdClass()]);
+        $collection = new Collection([new stdClass]);
 
         $collection->toResourceCollection();
     }
 
     public function testExplicitResourceTakesPrecedenceOverAttribute(): void
     {
-        $model = new ResourceCollectionTestModelWithResourceAttribute();
+        $model = new ResourceCollectionTestModelWithResourceAttribute;
         $collection = new EloquentCollection([$model]);
 
         $resource = $collection->toResourceCollection(ResourceCollectionTestAlternativeResource::class);

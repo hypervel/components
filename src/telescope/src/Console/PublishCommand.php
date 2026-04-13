@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'telescope:publish')]
 class PublishCommand extends Command
 {
     /**
@@ -26,11 +28,6 @@ class PublishCommand extends Command
         $this->call('vendor:publish', [
             '--tag' => 'telescope-config',
             '--force' => $this->option('force'),
-        ]);
-
-        $this->call('vendor:publish', [
-            '--tag' => 'telescope-assets',
-            '--force' => true,
         ]);
     }
 }

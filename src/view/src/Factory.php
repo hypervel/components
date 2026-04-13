@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Closure;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Context\Context;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\View\Contracts\Engine;
-use Hypervel\View\Contracts\Factory as FactoryContract;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 
@@ -31,12 +31,12 @@ class Factory implements FactoryContract
     /**
      * The number of active rendering operations.
      */
-    protected const RENDER_COUNT_CONTEXT_KEY = 'render_count';
+    protected const RENDER_COUNT_CONTEXT_KEY = '__view.render_count';
 
     /**
      * The "once" block IDs that have been rendered.
      */
-    protected const RENDERED_ONCE_CONTEXT_KEY = 'rendered_once';
+    protected const RENDERED_ONCE_CONTEXT_KEY = '__view.rendered_once';
 
     /**
      * The IoC container instance.
@@ -72,6 +72,16 @@ class Factory implements FactoryContract
      * The cache of normalized names for views.
      */
     protected array $normalizedNameCache = [];
+
+    /**
+     * The registered pre-render observers.
+     *
+     * These are boot-time registrations (e.g. Telescope ViewWatcher, Sentry view
+     * tracing) that persist for the worker lifetime. They must NOT be cleared by
+     * flushState(), which resets per-render/per-coroutine state (sections, stacks,
+     * components, etc.).
+     */
+    protected array $renderingObservers = [];
 
     /**
      * Create a new view factory instance.
@@ -273,7 +283,7 @@ class Factory implements FactoryContract
      */
     public function incrementRender(): void
     {
-        Context::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
+        CoroutineContext::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
             return ($value ?? 0) + 1;
         });
     }
@@ -283,9 +293,31 @@ class Factory implements FactoryContract
      */
     public function decrementRender(): void
     {
-        Context::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
+        CoroutineContext::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
             return ($value ?? 1) - 1;
         });
+    }
+
+    /**
+     * Register a pre-render observer.
+     *
+     * The observer is called before each view's engine executes, receiving
+     * the View instance. Registration is boot-time only — observers persist
+     * for the worker lifetime on this singleton.
+     */
+    public function observeRendering(callable $observer): void
+    {
+        $this->renderingObservers[] = $observer;
+    }
+
+    /**
+     * Notify pre-render observers that a view is about to render.
+     */
+    public function notifyRendering(ViewContract $view): void
+    {
+        foreach ($this->renderingObservers as $observer) {
+            $observer($view);
+        }
     }
 
     /**
@@ -293,7 +325,7 @@ class Factory implements FactoryContract
      */
     protected function getRenderCount(): int
     {
-        return Context::get(self::RENDER_COUNT_CONTEXT_KEY, 0);
+        return CoroutineContext::get(self::RENDER_COUNT_CONTEXT_KEY, 0);
     }
 
     /**
@@ -301,7 +333,7 @@ class Factory implements FactoryContract
      */
     public function doneRendering(): bool
     {
-        return Context::get(self::RENDER_COUNT_CONTEXT_KEY, 0) === 0;
+        return CoroutineContext::get(self::RENDER_COUNT_CONTEXT_KEY, 0) === 0;
     }
 
     /**
@@ -309,7 +341,7 @@ class Factory implements FactoryContract
      */
     public function hasRenderedOnce(string $id): bool
     {
-        $renderedOnce = Context::get(self::RENDERED_ONCE_CONTEXT_KEY, []);
+        $renderedOnce = CoroutineContext::get(self::RENDERED_ONCE_CONTEXT_KEY, []);
 
         return isset($renderedOnce[$id]);
     }
@@ -319,7 +351,7 @@ class Factory implements FactoryContract
      */
     public function markAsRenderedOnce(string $id): void
     {
-        Context::override(self::RENDERED_ONCE_CONTEXT_KEY, function ($value) use ($id) {
+        CoroutineContext::override(self::RENDERED_ONCE_CONTEXT_KEY, function ($value) use ($id) {
             $value ??= [];
             $value[$id] = true;
 
@@ -396,8 +428,8 @@ class Factory implements FactoryContract
      */
     public function flushState(): void
     {
-        Context::set(self::RENDER_COUNT_CONTEXT_KEY, 0);
-        Context::set(self::RENDERED_ONCE_CONTEXT_KEY, []);
+        CoroutineContext::set(self::RENDER_COUNT_CONTEXT_KEY, 0);
+        CoroutineContext::set(self::RENDERED_ONCE_CONTEXT_KEY, []);
 
         $this->flushSections();
         $this->flushStacks();

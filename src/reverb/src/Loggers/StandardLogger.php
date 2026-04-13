@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Reverb\Loggers;
+
+use Hypervel\Reverb\Contracts\Logger;
+use Hypervel\Support\Facades\Log;
+
+class StandardLogger implements Logger
+{
+    /**
+     * Log an informational message.
+     */
+    public function info(string $title, ?string $message = null): void
+    {
+        $output = $title;
+
+        if ($message) {
+            $output .= ': ' . $message;
+        }
+
+        Log::info($output);
+    }
+
+    /**
+     * Log an error message.
+     */
+    public function error(string $message): void
+    {
+        Log::error($message);
+    }
+
+    /**
+     * Log a message sent to the server.
+     */
+    public function message(string $message): void
+    {
+        $message = json_decode($message, true);
+
+        if (isset($message['data']) && is_string($message['data'])) {
+            $message['data'] = json_decode($message['data'], true);
+        }
+
+        if (isset($message['data']['channel_data']) && is_string($message['data']['channel_data'])) {
+            $message['data']['channel_data'] = json_decode($message['data']['channel_data'], true);
+        }
+
+        $message = json_encode($message, JSON_PRETTY_PRINT);
+
+        Log::info($message);
+    }
+
+    /**
+     * Append a new line to the log.
+     */
+    public function line(int $lines = 1): void
+    {
+    }
+}

@@ -6,7 +6,9 @@ namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Telescope\Contracts\ClearableRepository;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'telescope:clear')]
 class ClearCommand extends Command
 {
     /**

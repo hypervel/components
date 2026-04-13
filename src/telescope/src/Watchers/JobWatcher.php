@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\ExceptionContext;
@@ -19,8 +22,6 @@ use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
 class JobWatcher extends Watcher
@@ -37,15 +38,15 @@ class JobWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
             return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];
         });
 
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(JobProcessed::class, [$this, 'recordProcessedJob']);
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(JobFailed::class, [$this, 'recordFailedJob']);
     }
 
@@ -69,6 +70,10 @@ class JobWatcher extends Watcher
         $content = array_merge([
             'status' => 'pending',
         ], $this->defaultJobData($connection, $queue, $payload, $this->data($payload)));
+
+        // Store dispatch-time context so pending jobs have visibility.
+        // Overwritten with runtime context in recordProcessedJob/recordFailedJob.
+        $content['context'] = $this->facadeContext();
 
         Telescope::recordJob(
             $entry = IncomingEntry::make($content)
@@ -95,10 +100,18 @@ class JobWatcher extends Watcher
             return;
         }
 
+        // Overwrite dispatch-time context with runtime context, which includes
+        // any data added during job execution (e.g. tenant ID, trace context).
+        // Always set the key to ensure stale dispatch-time context is cleared.
+        $update = [
+            'status' => 'processed',
+            'context' => $this->facadeContext(),
+        ];
+
         Telescope::recordUpdate(EntryUpdate::make(
             $uuid,
             EntryType::JOB,
-            ['status' => 'processed']
+            $update
         ));
 
         /* @phpstan-ignore-next-line */
@@ -121,22 +134,55 @@ class JobWatcher extends Watcher
             return;
         }
 
+        // Overwrite dispatch-time context with runtime context, which includes
+        // any data added during job execution (e.g. tenant ID, trace context).
+        // Always set the key to ensure stale dispatch-time context is cleared.
+        $update = [
+            'status' => 'failed',
+            'context' => $this->facadeContext(),
+            'exception' => [
+                'message' => $event->exception->getMessage(),
+                'trace' => collect($event->exception->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
+                'line' => $event->exception->getLine(),
+                'line_preview' => ExceptionContext::get($event->exception),
+            ],
+        ];
+
         Telescope::recordUpdate(EntryUpdate::make(
             $uuid,
             EntryType::JOB,
-            [
-                'status' => 'failed',
-                'exception' => [
-                    'message' => $event->exception->getMessage(),
-                    'trace' => collect($event->exception->getTrace())->map(fn ($trace) => Arr::except($trace, ['args']))->all(),
-                    'line' => $event->exception->getLine(),
-                    'line_preview' => ExceptionContext::get($event->exception),
-                ],
-            ]
+            $update
         )->addTags(['failed']));
 
         /* @phpstan-ignore-next-line */
         $this->updateBatch($event->job->payload());
+    }
+
+    /**
+     * Get the current facade context for the job entry.
+     *
+     * Returns both visible and hidden context since jobs receive both,
+     * and "hidden" only means hidden from log output, not from Telescope.
+     * Returns null when no context exists.
+     */
+    protected function facadeContext(): ?array
+    {
+        if (! ContextRepository::hasInstance()) {
+            return null;
+        }
+
+        $repository = ContextRepository::getInstance();
+        $data = $repository->all();
+        $hidden = $repository->allHidden();
+
+        if (! $data && ! $hidden) {
+            return null;
+        }
+
+        return [
+            'data' => $data,
+            'hidden' => $hidden,
+        ];
     }
 
     /**

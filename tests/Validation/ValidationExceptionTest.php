@@ -186,7 +186,7 @@ class ValidationExceptionTest extends TestCase
 
     protected function getTranslator($locale = 'en', $loaded = [])
     {
-        $translator ??= new Translator(new ArrayLoader(), $locale);
+        $translator ??= new Translator(new ArrayLoader, $locale);
 
         $translator->setLoaded($loaded);
 

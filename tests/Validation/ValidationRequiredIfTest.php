@@ -63,7 +63,7 @@ class ValidationRequiredIfTest extends TestCase
 
     public function testRequiredIfRuleValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $rule = new RequiredIf(true);
 

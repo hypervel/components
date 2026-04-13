@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
 
 abstract class Manager
 {
     /**
      * The configuration repository instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The registered custom driver creators.
@@ -31,9 +30,9 @@ abstract class Manager
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
-        $this->config = $container->get(ConfigInterface::class);
+        $this->config = $container->make('config');
     }
 
     /**
@@ -114,7 +113,7 @@ abstract class Manager
     /**
      * Get the container instance used by the manager.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }
@@ -124,7 +123,7 @@ abstract class Manager
      *
      * @return $this
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 
@@ -145,12 +144,8 @@ abstract class Manager
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->driver()->{$method}(...$parameters);
     }

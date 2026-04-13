@@ -39,7 +39,7 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
 
     public function run(): CheckResult
     {
-        $result = new CheckResult();
+        $result = new CheckResult;
 
         try {
             $info = $this->redis->info('server');

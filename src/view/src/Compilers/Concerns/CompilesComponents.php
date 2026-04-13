@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hyperf\Contract\CanBeEscapedWhenCastToString;
-use Hyperf\DbConnection\Model\Model;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
 use Hypervel\View\ComponentAttributeBag;
@@ -16,7 +15,7 @@ trait CompilesComponents
     /**
      * The component name hash stack.
      */
-    protected const COMPONENT_HASH_STACK_CONTEXT_KEY = 'component_hash_stack';
+    protected const COMPONENT_HASH_STACK_CONTEXT_KEY = '__view.component_hash_stack';
 
     /**
      * Compile the component statements into valid PHP.
@@ -47,7 +46,7 @@ trait CompilesComponents
     {
         $hash = hash('xxh128', $component);
 
-        Context::override(static::COMPONENT_HASH_STACK_CONTEXT_KEY, function ($stack) use ($hash) {
+        CoroutineContext::override(static::COMPONENT_HASH_STACK_CONTEXT_KEY, function ($stack) use ($hash) {
             $stack ??= [];
             $stack[] = $hash;
             return $stack;
@@ -101,11 +100,11 @@ trait CompilesComponents
 
     protected function popComponentHashStack(): string
     {
-        $stack = Context::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
+        $stack = CoroutineContext::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
 
         $hash = array_pop($stack);
 
-        Context::set(static::COMPONENT_HASH_STACK_CONTEXT_KEY, $stack);
+        CoroutineContext::set(static::COMPONENT_HASH_STACK_CONTEXT_KEY, $stack);
 
         return $hash;
     }
@@ -199,7 +198,7 @@ unset(\$__defined_vars); ?>";
         }
 
         return is_string($value)
-               || (is_object($value) && ! $value instanceof Model && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
+               || (is_object($value) && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
                         ? e($value)
                         : $value;
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use WeakMap;
 
 class Once
@@ -33,7 +33,7 @@ class Once
      */
     public static function instance(): static
     {
-        return Context::getOrSet(self::INSTANCE_CONTEXT_KEY, fn () => new static(new WeakMap()));
+        return CoroutineContext::getOrSet(self::INSTANCE_CONTEXT_KEY, fn () => new static(new WeakMap));
     }
 
     /**
@@ -41,7 +41,7 @@ class Once
      */
     public function value(Onceable $onceable): mixed
     {
-        if (Context::get(self::ENABLED_CONTEXT_KEY, true) !== true) {
+        if (CoroutineContext::get(self::ENABLED_CONTEXT_KEY, true) !== true) {
             return call_user_func($onceable->callable);
         }
 
@@ -65,7 +65,7 @@ class Once
      */
     public static function enable(): void
     {
-        Context::set(self::ENABLED_CONTEXT_KEY, true);
+        CoroutineContext::set(self::ENABLED_CONTEXT_KEY, true);
     }
 
     /**
@@ -73,7 +73,7 @@ class Once
      */
     public static function disable(): void
     {
-        Context::set(self::ENABLED_CONTEXT_KEY, false);
+        CoroutineContext::set(self::ENABLED_CONTEXT_KEY, false);
     }
 
     /**
@@ -81,6 +81,15 @@ class Once
      */
     public static function flush(): void
     {
-        Context::destroy(self::INSTANCE_CONTEXT_KEY);
+        CoroutineContext::forget(self::INSTANCE_CONTEXT_KEY);
+    }
+
+    /**
+     * Reset all static state on the class.
+     */
+    public static function flushState(): void
+    {
+        static::flush();
+        static::enable();
     }
 }

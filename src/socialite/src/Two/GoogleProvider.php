@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
+use Exception;
+use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
 
@@ -35,6 +38,10 @@ class GoogleProvider extends AbstractProvider implements ProviderInterface
 
     protected function getUserByToken(string $token): array
     {
+        if ($this->isJwtToken($token)) {
+            return $this->getUserFromJwtToken($token);
+        }
+
         $response = $this->getHttpClient()->get('https://www.googleapis.com/oauth2/v3/userinfo', [
             RequestOptions::QUERY => [
                 'prettyPrint' => 'false',
@@ -62,7 +69,7 @@ class GoogleProvider extends AbstractProvider implements ProviderInterface
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => Arr::get($user, 'sub'),
             'nickname' => Arr::get($user, 'nickname'),
             'name' => Arr::get($user, 'name'),
@@ -70,5 +77,52 @@ class GoogleProvider extends AbstractProvider implements ProviderInterface
             'avatar' => $avatarUrl = Arr::get($user, 'picture'),
             'avatar_original' => $avatarUrl,
         ]);
+    }
+
+    /**
+     * Determine if the given token is a JWT (ID token).
+     */
+    protected function isJwtToken(string $token): bool
+    {
+        return substr_count($token, '.') === 2 && strlen($token) > 100;
+    }
+
+    /**
+     * Get user data from a Google ID token (JWT).
+     *
+     * @throws Exception
+     */
+    protected function getUserFromJwtToken(string $idToken): array
+    {
+        try {
+            $user = (array) JWT::decode(
+                $idToken,
+                JWK::parseKeySet($this->getGoogleJwks())
+            );
+
+            if (! isset($user['iss']) || $user['iss'] !== 'https://accounts.google.com') {
+                throw new Exception('Invalid ID token issuer.');
+            }
+
+            if (! isset($user['aud']) || $user['aud'] !== $this->getClientId()) {
+                throw new Exception('Invalid ID token audience.');
+            }
+
+            return $user;
+        } catch (Exception $e) {
+            throw new Exception('Failed to verify Google JWT token: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get Google's JSON Web Key Set for JWT verification.
+     */
+    protected function getGoogleJwks(): array
+    {
+        $response = $this->getHttpClient()->get(
+            'https://www.googleapis.com/oauth2/v3/certs'
+        );
+
+        return json_decode((string) $response->getBody(), true);
     }
 }

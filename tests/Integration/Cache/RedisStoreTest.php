@@ -1,0 +1,332 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Cache;
+
+use DateTime;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Sleep;
+use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
+use Redis;
+use RuntimeException;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class RedisStoreTest extends TestCase
+{
+    use InteractsWithRedis;
+
+    public function testCacheTtl()
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        while ((microtime(true) - time()) > 0.5 && (microtime(true) - time()) < 0.6);
+
+        $store->put('hello', 'world', 1);
+        $putAt = microtime(true);
+
+        Sleep::for(600)->milliseconds();
+        $this->assertTrue((microtime(true) - $putAt) < 1);
+        $this->assertSame('world', $store->get('hello'));
+
+        // Although this key expires after exactly 1 second, Redis has a
+        // 0-1 millisecond error rate on expiring keys (as of Redis 2.6) so
+        // for a non-flakey test we need to account for the millisecond.
+        // see: https://redis.io/commands/expire/
+        while ((microtime(true) - $putAt) < 1.001);
+
+        $this->assertNull($store->get('hello'));
+    }
+
+    public function testItCanStoreInfinite()
+    {
+        Cache::store('redis')->clear();
+
+        $result = Cache::store('redis')->put('foo', INF);
+        $this->assertTrue($result);
+        $this->assertSame(INF, Cache::store('redis')->get('foo'));
+
+        $result = Cache::store('redis')->put('bar', -INF);
+        $this->assertTrue($result);
+        $this->assertSame(-INF, Cache::store('redis')->get('bar'));
+    }
+
+    public function testItCanStoreNan()
+    {
+        Cache::store('redis')->clear();
+
+        $result = Cache::store('redis')->put('foo', NAN);
+        $this->assertTrue($result);
+        $this->assertNan(Cache::store('redis')->get('foo'));
+    }
+
+    public function testItCanExpireWithZeroTTL()
+    {
+        Cache::store('redis')->clear();
+
+        $result = Cache::store('redis')->put('foo', 10, 10);
+        $this->assertTrue($result);
+
+        $result = Cache::store('redis')->put('foo', 10, 0);
+        $this->assertTrue($result);
+
+        $value = Cache::store('redis')->get('foo');
+        $this->assertNull($value);
+    }
+
+    #[TestWith(['hypervel_cache_'])]
+    #[TestWith(['hypervel-cache-'])]
+    public function testTagsCanBeAccessed(string $cachePrefix)
+    {
+        config(['cache.prefix' => $cachePrefix]);
+
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['people', 'author'])->put('name', 'Sally', 5);
+        Cache::store('redis')->tags(['people', 'author'])->put('age', 30, 5);
+
+        $this->assertEquals('Sally', Cache::store('redis')->tags(['people', 'author'])->get('name'));
+        $this->assertEquals(30, Cache::store('redis')->tags(['people', 'author'])->get('age'));
+
+        Cache::store('redis')->tags(['people', 'author'])->flush();
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(0, count($keyCount));
+    }
+
+    public function testTagEntriesCanBeStoredForever()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['people', 'author'])->forever('name', 'Sally');
+        Cache::store('redis')->tags(['people', 'author'])->forever('age', 30);
+
+        $this->assertEquals('Sally', Cache::store('redis')->tags(['people', 'author'])->get('name'));
+        $this->assertEquals(30, Cache::store('redis')->tags(['people', 'author'])->get('age'));
+
+        Cache::store('redis')->tags(['people', 'author'])->flush();
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(0, count($keyCount));
+    }
+
+    public function testTagEntriesCanBeIncremented()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['votes'])->put('person-1', 0, 5);
+        Cache::store('redis')->tags(['votes'])->increment('person-1');
+        Cache::store('redis')->tags(['votes'])->increment('person-1');
+
+        $this->assertEquals(2, Cache::store('redis')->tags(['votes'])->get('person-1'));
+
+        Cache::store('redis')->tags(['votes'])->decrement('person-1');
+        Cache::store('redis')->tags(['votes'])->decrement('person-1');
+
+        $this->assertEquals(0, Cache::store('redis')->tags(['votes'])->get('person-1'));
+    }
+
+    public function testIncrementedTagEntriesProperlyTurnStale()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['votes'])->add('person-1', 0, $seconds = 1);
+        Cache::store('redis')->tags(['votes'])->increment('person-1');
+        Cache::store('redis')->tags(['votes'])->increment('person-1');
+
+        sleep(2);
+
+        Cache::store('redis')->tags(['votes'])->flushStale();
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(0, count($keyCount));
+    }
+
+    public function testPastTtlTagEntriesAreNotAdded()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['votes'])->add('person-1', 0, new DateTime('yesterday'));
+
+        $value = Cache::store('redis')->tags(['votes'])->get('person-1');
+        $this->assertNull($value);
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(0, count($keyCount));
+    }
+
+    public function testPutPastTtlTagEntriesProperlyTurnStale()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['votes'])->put('person-1', 0, new DateTime('yesterday'));
+        Cache::store('redis')->tags(['votes'])->flushStale();
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(0, count($keyCount));
+    }
+
+    public function testTagsCanBeFlushedBySingleKey()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['people', 'author'])->put('person-1', 'Sally', 5);
+        Cache::store('redis')->tags(['people', 'artist'])->put('person-2', 'John', 5);
+
+        Cache::store('redis')->tags(['artist'])->flush();
+
+        $this->assertEquals('Sally', Cache::store('redis')->tags(['people', 'author'])->get('person-1'));
+        $this->assertNull(Cache::store('redis')->tags(['people', 'artist'])->get('person-2'));
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(3, count($keyCount)); // Sets for people, authors, and actual entry for Sally
+    }
+
+    public function testStaleEntriesCanBeFlushed()
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['people', 'author'])->put('person-1', 'Sally', 1);
+        Cache::store('redis')->tags(['people', 'artist'])->put('person-2', 'John', 1);
+
+        sleep(2);
+
+        // Add a non-stale entry to people...
+        Cache::store('redis')->tags(['people', 'author'])->put('person-3', 'Jennifer', 5);
+
+        Cache::store('redis')->tags(['people'])->flushStale();
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertEquals(4, count($keyCount)); // Sets for people, authors, and artists + individual entry for Jennifer
+    }
+
+    public function testMultipleItemsCanBeSetAndRetrieved()
+    {
+        $store = Cache::store('redis');
+        $result = $store->put('foo', 'bar', 10);
+        $resultMany = $store->putMany([
+            'fizz' => 'buz',
+            'quz' => 'baz',
+        ], 10);
+        $this->assertTrue($result);
+        $this->assertTrue($resultMany);
+        $this->assertEquals([
+            'foo' => 'bar',
+            'fizz' => 'buz',
+            'quz' => 'baz',
+            'norf' => null,
+        ], $store->many(['foo', 'fizz', 'quz', 'norf']));
+
+        $this->assertEquals([], $store->many([]));
+    }
+
+    // REMOVED: testPutManyCallsPutWhenClustered - Hypervel's RedisStore delegates putMany to the
+    // PutMany operation class which has its own cluster fallback. This behavior is tested in
+    // tests/Cache/Redis/Operations/PutManyTest.php (cluster mode tests).
+
+    public function testIncrementWithSerializationEnabled()
+    {
+        $this->markTestSkipped('Test makes no sense anymore. Application must explicitly wrap such code in runClean() when used with serialization/compression enabled.');
+    }
+
+    public function testTagsCanBeFlushedWithLargeNumberOfKeys()
+    {
+        Cache::store('redis')->clear();
+
+        $tags = ['large-test-' . time()];
+
+        for ($i = 1; $i <= 5000; ++$i) {
+            Cache::store('redis')->tags($tags)->put("key:{$i}", "value:{$i}", 300);
+        }
+
+        $this->assertEquals('value:1', Cache::store('redis')->tags($tags)->get('key:1'));
+        $this->assertEquals('value:2500', Cache::store('redis')->tags($tags)->get('key:2500'));
+        $this->assertEquals('value:5000', Cache::store('redis')->tags($tags)->get('key:5000'));
+
+        Cache::store('redis')->tags($tags)->flush();
+
+        $this->assertNull(Cache::store('redis')->tags($tags)->get('key:1'));
+        $this->assertNull(Cache::store('redis')->tags($tags)->get('key:2500'));
+        $this->assertNull(Cache::store('redis')->tags($tags)->get('key:5000'));
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertCount(0, $keyCount);
+    }
+
+    public function testLocksCanBeFlushed()
+    {
+        /** @var \Hypervel\Cache\RedisStore $store */
+        $store = Cache::store('redis');
+        if (! $store->hasSeparateLockStore()) {
+            $this->markTestSkipped('A separate Redis lock connection is required to test flushing locks.');
+        }
+        $store->flush();
+
+        $store->lock('lock-1', 60)->acquire();
+        $store->lock('lock-2', 60)->acquire();
+        $store->lock('lock-3', 60)->acquire();
+
+        $this->assertTrue($store->flushLocks());
+
+        $this->assertTrue($store->lock('lock-1', 60)->acquire());
+        $this->assertTrue($store->lock('lock-2', 60)->acquire());
+        $this->assertTrue($store->lock('lock-3', 60)->acquire());
+    }
+
+    public function testFlushLocksDoesNotAffectNonLockKeys()
+    {
+        /** @var \Hypervel\Cache\RedisStore $store */
+        $store = Cache::store('redis');
+        if (! $store->hasSeparateLockStore()) {
+            $this->markTestSkipped('A separate Redis lock connection is required to test flushing locks.');
+        }
+        $store->flush();
+
+        $store->put('foo', 'bar', 60);
+        $store->lock('lock-1', 60)->acquire();
+
+        $store->flushLocks();
+
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testHasSeparateLockStoreReturnsTrueWhenLockConnectionDiffers()
+    {
+        /** @var \Hypervel\Cache\RedisStore $store */
+        $store = Cache::store('redis');
+        if (! $store->hasSeparateLockStore()) {
+            $this->markTestSkipped('A separate Redis lock connection is required to test flushing locks.');
+        }
+
+        $this->assertTrue($store->hasSeparateLockStore());
+    }
+
+    public function testHasSeparateLockStoreReturnsFalseWhenLockConnectionIsSame()
+    {
+        /** @var \Hypervel\Cache\RedisStore $store */
+        $store = Cache::store('redis');
+        $store->setConnection('default');
+        $store->setLockConnection('default');
+
+        $this->assertFalse($store->hasSeparateLockStore());
+    }
+
+    public function testFlushLocksThrowsExceptionWhenLockConnectionIsSame()
+    {
+        /** @var \Hypervel\Cache\RedisStore $store */
+        $store = Cache::store('redis');
+        $store->setConnection('default');
+        $store->setLockConnection('default');
+
+        $this->expectException(RuntimeException::class);
+
+        $store->flushLocks();
+    }
+}

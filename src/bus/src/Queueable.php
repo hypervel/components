@@ -7,9 +7,10 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
@@ -28,6 +29,22 @@ trait Queueable
      * The name of the queue the job should be sent to.
      */
     public ?string $queue = null;
+
+    /**
+     * The message group the job should be sent to.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public array|string|int|null $messageGroup = null;
+
+    /**
+     * The deduplicator callback the job should use to generate the deduplication ID.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     *
+     * @var null|array|callable
+     */
+    public mixed $deduplicator = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -69,9 +86,7 @@ trait Queueable
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $value = enum_value($connection);
-
-        $this->connection = is_null($value) ? null : $value;
+        $this->connection = enum_value($connection);
 
         return $this;
     }
@@ -81,9 +96,33 @@ trait Queueable
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
+        $this->queue = enum_value($queue);
 
-        $this->queue = is_null($value) ? null : $value;
+        return $this;
+    }
+
+    /**
+     * Set the desired job message group.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public function onGroup(array|UnitEnum|string|int|null $group): static
+    {
+        $this->messageGroup = enum_value($group);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job deduplicator callback.
+     *
+     * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     */
+    public function withDeduplicator(array|callable|null $deduplicator): static
+    {
+        $this->deduplicator = $deduplicator instanceof Closure
+            ? new SerializableClosure($deduplicator)
+            : $deduplicator;
 
         return $this;
     }
@@ -93,9 +132,7 @@ trait Queueable
      */
     public function allOnConnection(UnitEnum|string|null $connection): static
     {
-        $value = enum_value($connection);
-
-        $resolvedConnection = is_null($value) ? null : $value;
+        $resolvedConnection = enum_value($connection);
 
         $this->chainConnection = $resolvedConnection;
         $this->connection = $resolvedConnection;
@@ -108,9 +145,7 @@ trait Queueable
      */
     public function allOnQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
-
-        $resolvedQueue = is_null($value) ? null : $value;
+        $resolvedQueue = enum_value($queue);
 
         $this->chainQueue = $resolvedQueue;
         $this->queue = $resolvedQueue;
@@ -173,11 +208,9 @@ trait Queueable
      */
     public function chain(array $chain): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect($chain));
-
-        $this->chained = $jobs->map(function ($job) {
-            return $this->serializeJob($job);
-        })->all();
+        $this->chained = ChainedBatch::prepareNestedBatches(new Collection($chain))
+            ->map(fn ($job) => $this->serializeJob($job))
+            ->all();
 
         return $this;
     }
@@ -187,9 +220,11 @@ trait Queueable
      */
     public function prependToChain(mixed $job): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect([$job]));
+        $jobs = ChainedBatch::prepareNestedBatches(Collection::wrap($job));
 
-        $this->chained = Arr::prepend($this->chained, $this->serializeJob($jobs->first()));
+        foreach ($jobs->reverse() as $job) {
+            $this->chained = Arr::prepend($this->chained, $this->serializeJob($job));
+        }
 
         return $this;
     }
@@ -199,9 +234,11 @@ trait Queueable
      */
     public function appendToChain(mixed $job): static
     {
-        $jobs = ChainedBatch::prepareNestedBatches(collect([$job]));
+        $jobs = ChainedBatch::prepareNestedBatches(Collection::wrap($job));
 
-        $this->chained = array_merge($this->chained, [$this->serializeJob($jobs->first())]);
+        foreach ($jobs as $job) {
+            $this->chained = array_merge($this->chained, [$this->serializeJob($job)]);
+        }
 
         return $this;
     }
@@ -248,9 +285,9 @@ trait Queueable
     /**
      * Invoke all of the chain's failed job callbacks.
      */
-    public function invokeChainCatchCallbacks(Throwable $e): void
+    public function invokeChainCatchCallbacks(?Throwable $e): void
     {
-        Collection::make($this->chainCatchCallbacks)->each(function ($callback) use ($e) {
+        (new Collection($this->chainCatchCallbacks))->each(function ($callback) use ($e) {
             $callback($e);
         });
     }
@@ -261,14 +298,14 @@ trait Queueable
     public function assertHasChain(array $expectedChain): void
     {
         PHPUnit::assertTrue(
-            collect($expectedChain)->isNotEmpty(),
+            (new Collection($expectedChain))->isNotEmpty(),
             'The expected chain can not be empty.'
         );
 
-        if (collect($expectedChain)->contains(fn ($job) => is_object($job))) {
-            $expectedChain = collect($expectedChain)->map(fn ($job) => serialize($job))->all();
+        if ((new Collection($expectedChain))->contains(fn ($job) => is_object($job))) {
+            $expectedChain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
         } else {
-            $chain = collect($this->chained)->map(fn ($job) => get_class(unserialize($job)))->all();
+            $chain = (new Collection($this->chained))->map(fn ($job) => get_class(unserialize($job)))->all();
         }
 
         PHPUnit::assertTrue(

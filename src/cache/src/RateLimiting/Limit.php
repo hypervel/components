@@ -4,46 +4,69 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\RateLimiting;
 
-use Closure;
-
 class Limit
 {
     /**
      * The rate limit signature key.
      */
-    public string $key;
+    public mixed $key;
 
     /**
-     * The maximum number of attempts allowed within the given number of minutes.
+     * The maximum number of attempts allowed within the given number of seconds.
      */
     public int $maxAttempts;
 
     /**
-     * The number of minutes until the rate limit is reset.
+     * The number of seconds until the rate limit is reset.
      */
-    public int $decayMinutes;
+    public int $decaySeconds;
+
+    /**
+     * The after callback used to determine if the limiter should be hit.
+     *
+     * @var null|callable
+     */
+    public mixed $afterCallback = null;
 
     /**
      * The response generator callback.
+     *
+     * @var null|callable
      */
-    public ?Closure $responseCallback = null;
+    public mixed $responseCallback = null;
 
     /**
      * Create a new limit instance.
      */
-    public function __construct(string $key = '', int $maxAttempts = 60, int $decayMinutes = 1)
+    public function __construct(mixed $key = '', int $maxAttempts = 60, int $decaySeconds = 60)
     {
         $this->key = $key;
         $this->maxAttempts = $maxAttempts;
-        $this->decayMinutes = $decayMinutes;
+        $this->decaySeconds = $decaySeconds;
     }
 
     /**
      * Create a new rate limit.
      */
-    public static function perMinute(int $maxAttempts): static
+    public static function perSecond(int $maxAttempts, int $decaySeconds = 1): static
     {
-        return new static('', $maxAttempts);
+        return new static('', $maxAttempts, $decaySeconds);
+    }
+
+    /**
+     * Create a new rate limit.
+     */
+    public static function perMinute(int $maxAttempts, int $decayMinutes = 1): static
+    {
+        return new static('', $maxAttempts, 60 * $decayMinutes);
+    }
+
+    /**
+     * Create a new rate limit using minutes as decay time.
+     */
+    public static function perMinutes(int $decayMinutes, int $maxAttempts): static
+    {
+        return new static('', $maxAttempts, 60 * $decayMinutes);
     }
 
     /**
@@ -51,7 +74,7 @@ class Limit
      */
     public static function perHour(int $maxAttempts, int $decayHours = 1): static
     {
-        return new static('', $maxAttempts, 60 * $decayHours);
+        return new static('', $maxAttempts, 60 * 60 * $decayHours);
     }
 
     /**
@@ -59,7 +82,7 @@ class Limit
      */
     public static function perDay(int $maxAttempts, int $decayDays = 1): static
     {
-        return new static('', $maxAttempts, 60 * 24 * $decayDays);
+        return new static('', $maxAttempts, 60 * 60 * 24 * $decayDays);
     }
 
     /**
@@ -67,13 +90,13 @@ class Limit
      */
     public static function none(): Unlimited
     {
-        return new Unlimited();
+        return new Unlimited;
     }
 
     /**
      * Set the key of the rate limit.
      */
-    public function by(string $key): static
+    public function by(mixed $key): static
     {
         $this->key = $key;
 
@@ -81,12 +104,32 @@ class Limit
     }
 
     /**
+     * Set the callback to determine if the limiter should be hit.
+     */
+    public function after(callable $callback): static
+    {
+        $this->afterCallback = $callback;
+
+        return $this;
+    }
+
+    /**
      * Set the callback that should generate the response when the limit is exceeded.
      */
-    public function response(Closure $callback): static
+    public function response(callable $callback): static
     {
         $this->responseCallback = $callback;
 
         return $this;
+    }
+
+    /**
+     * Get a potential fallback key for the limit.
+     */
+    public function fallbackKey(): string
+    {
+        $prefix = $this->key ? "{$this->key}:" : '';
+
+        return "{$prefix}attempts:{$this->maxAttempts}:decay:{$this->decaySeconds}";
     }
 }

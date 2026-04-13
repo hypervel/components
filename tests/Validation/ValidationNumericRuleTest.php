@@ -22,7 +22,7 @@ class ValidationNumericRuleTest extends TestCase
         $rule = Rule::numeric();
         $this->assertEquals('numeric', (string) $rule);
 
-        $rule = new Numeric();
+        $rule = new Numeric;
         $this->assertSame('numeric', (string) $rule);
     }
 
@@ -162,7 +162,7 @@ class ValidationNumericRuleTest extends TestCase
 
     public function testNumericValidation()
     {
-        $trans = new Translator(new ArrayLoader(), 'en');
+        $trans = new Translator(new ArrayLoader, 'en');
 
         $rule = Rule::numeric();
 

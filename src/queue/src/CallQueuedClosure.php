@@ -6,11 +6,11 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
 use ReflectionFunction;
 use Throwable;
 
@@ -21,6 +21,11 @@ class CallQueuedClosure implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
     use SerializesModels;
+
+    /**
+     * The name assigned to the job.
+     */
+    public ?string $name = null;
 
     /**
      * The callbacks that should be executed on failure.
@@ -51,14 +56,8 @@ class CallQueuedClosure implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ContainerInterface $container): void
+    public function handle(Container $container): void
     {
-        if (! method_exists($container, 'call')) {
-            ($this->closure->getClosure())($this);
-            return;
-        }
-
-        /** @var \Hypervel\Container\Contracts\Container $container */
         $container->call($this->closure->getClosure(), ['job' => $this]);
     }
 
@@ -91,6 +90,18 @@ class CallQueuedClosure implements ShouldQueue
     {
         $reflection = new ReflectionFunction($this->closure->getClosure());
 
-        return 'Closure (' . basename($reflection->getFileName()) . ':' . $reflection->getStartLine() . ')';
+        $prefix = is_null($this->name) ? '' : "{$this->name} - ";
+
+        return $prefix . 'Closure (' . basename($reflection->getFileName()) . ':' . $reflection->getStartLine() . ')';
+    }
+
+    /**
+     * Assign a name to the job.
+     */
+    public function name(string $name): static
+    {
+        $this->name = $name;
+
+        return $this;
     }
 }

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
@@ -17,18 +17,17 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 
 use function Termwind\terminal;
 
+#[AsCommand(name: 'queue:work')]
 class WorkCommand extends Command
 {
-    use HasLaravelStyleCommand;
     use InteractsWithTime;
 
     /**
@@ -74,8 +73,8 @@ class WorkCommand extends Command
      * Create a new queue work command.
      */
     public function __construct(
-        protected ContainerInterface $container,
-        protected ConfigInterface $config,
+        protected Container $container,
+        protected Repository $config,
         protected Worker $worker,
         protected CacheFactory $cache
     ) {
@@ -87,6 +86,10 @@ class WorkCommand extends Command
      */
     public function handle(): ?int
     {
+        if ($this->downForMaintenance() && $this->option('once')) {
+            return $this->worker->sleep($this->option('sleep'));
+        }
+
         // We'll listen to the processed and failed events so we can write information
         // to the console as jobs are processed, which will let the developer watch
         // which jobs are coming through a queue and be informed on its progress.
@@ -119,7 +122,7 @@ class WorkCommand extends Command
     {
         return $this->worker
             ->setName($this->option('name'))
-            ->setCache($this->cache)
+            ->setCache($this->cache->store())
             ->{$this->option('once') ? 'runNextJob' : 'daemon'}(
                 $connection,
                 $queue,
@@ -141,7 +144,7 @@ class WorkCommand extends Command
         return new WorkerOptions(
             $this->option('name'),
             (int) max($this->option('backoff'), $this->option('delay')),
-            (int) $this->option('memory'),
+            (float) $this->option('memory'),
             (int) $this->option('timeout'),
             (int) $this->option('sleep'),
             (int) $this->option('tries'),
@@ -164,20 +167,19 @@ class WorkCommand extends Command
             return;
         }
 
-        $event = $this->container->get(EventDispatcherInterface::class);
-        $event->listen(JobProcessing::class, function ($event) {
+        $this->hypervel['events']->listen(JobProcessing::class, function ($event) {
             $this->writeOutput($event->job, 'starting');
         });
 
-        $event->listen(JobProcessed::class, function ($event) {
+        $this->hypervel['events']->listen(JobProcessed::class, function ($event) {
             $this->writeOutput($event->job, 'success');
         });
 
-        $event->listen(JobReleasedAfterException::class, function ($event) {
+        $this->hypervel['events']->listen(JobReleasedAfterException::class, function ($event) {
             $this->writeOutput($event->job, 'released_after_exception');
         });
 
-        $event->listen(JobFailed::class, function ($event) {
+        $this->hypervel['events']->listen(JobFailed::class, function ($event) {
             $this->writeOutput($event->job, 'failed', $event->exception);
 
             $this->logFailedJob($event);
@@ -301,7 +303,7 @@ class WorkCommand extends Command
      */
     protected function logFailedJob(JobFailed $event): void
     {
-        $this->container->get(FailedJobProviderInterface::class)
+        $this->container->make(FailedJobProviderInterface::class)
             ->log(
                 $event->connectionName,
                 $event->job->getQueue(),
@@ -319,6 +321,14 @@ class WorkCommand extends Command
             "queue.connections.{$connection}.queue",
             'default'
         );
+    }
+
+    /**
+     * Determine if the worker should run in maintenance mode.
+     */
+    protected function downForMaintenance(): bool
+    {
+        return $this->option('force') ? false : $this->hypervel->isDownForMaintenance();
     }
 
     /**

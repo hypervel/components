@@ -17,22 +17,23 @@ use Egulias\EmailValidator\Validation\MultipleValidationWithAnd;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
-use Hyperf\Database\Model\Model;
-use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
 use InvalidArgumentException;
 use SplFileInfo;
+use Symfony\Component\HttpFoundation\File\File;
 use ValueError;
 
-use function Hyperf\Support\with;
+use function with;
 
 trait ValidatesAttributes
 {
@@ -276,7 +277,7 @@ trait ValidatesAttributes
     protected function getDateTime(DateTimeInterface|string $value): ?DateTime
     {
         try {
-            return @Carbon::parse($value);
+            return @Date::parse($value) ?: null; // @phpstan-ignore ternary.alwaysTrue (Date::parse() PHPDoc claims non-null but can fail at runtime)
         } catch (Exception) {
         }
 
@@ -387,7 +388,7 @@ trait ValidatesAttributes
         $this->requireParameterCount(2, $parameters, 'between');
 
         return with(
-            BigNumber::of($this->getSize($attribute, $value)),
+            BigNumber::of((string) $this->getSize($attribute, $value)),
             fn ($size) => $size->isGreaterThanOrEqualTo($this->trim($parameters[0])) && $size->isLessThanOrEqualTo($this->trim($parameters[1]))
         );
     }
@@ -395,9 +396,13 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is a boolean.
      */
-    public function validateBoolean(string $attribute, mixed $value): bool
+    public function validateBoolean(string $attribute, mixed $value, array $parameters): bool
     {
         $acceptable = [true, false, 0, 1, '0', '1'];
+
+        if (($parameters[0] ?? null) === 'strict') {
+            $acceptable = [true, false];
+        }
 
         return in_array($value, $acceptable, true);
     }
@@ -459,10 +464,10 @@ trait ValidatesAttributes
      */
     protected function validateCurrentPassword(string $attribute, mixed $value, mixed $parameters): bool
     {
-        $auth = $this->container->get(\Hypervel\Auth\Contracts\Factory::class);
-        $hasher = $this->container->get(\Hypervel\Hashing\Contracts\Hasher::class);
+        $auth = $this->container->make('auth');
+        $hasher = $this->container->make('hash');
 
-        $guard = $auth->guard(Arr::first($parameters));
+        $guard = $auth->guard(array_first($parameters));
 
         if ($guard->guest()) {
             return false;
@@ -508,7 +513,7 @@ trait ValidatesAttributes
 
         foreach ($parameters as $format) {
             try {
-                $date = DateTime::createFromFormat('!' . $format, $value);
+                $date = DateTime::createFromFormat('!' . $format, $value, new DateTimeZone('UTC'));
 
                 if ($date && $date->format($format) == $value) {
                     return true;
@@ -785,20 +790,34 @@ trait ValidatesAttributes
         $validations = (new Collection($parameters))
             ->unique()
             ->map(fn ($validation) => match (true) {
-                $validation === 'strict' => new NoRFCWarningsValidation(),
-                $validation === 'dns' => new DNSCheckValidation(),
-                $validation === 'spoof' => new SpoofCheckValidation(),
-                $validation === 'filter' => new FilterEmailValidation(),
+                $validation === 'strict' => new NoRFCWarningsValidation,
+                $validation === 'dns' => new DNSCheckValidation,
+                $validation === 'spoof' => new SpoofCheckValidation,
+                $validation === 'filter' => new FilterEmailValidation,
                 $validation === 'filter_unicode' => FilterEmailValidation::unicode(),
                 is_string($validation) && class_exists($validation) => $this->container->make($validation),
-                default => new RFCValidation(),
+                default => new RFCValidation,
             })
             ->values()
-            ->all() ?: [new RFCValidation()];
+            ->all() ?: [new RFCValidation];
 
-        $emailValidator = ApplicationContext::getContainer()->get(EmailValidator::class);
+        $emailValidator = Container::getInstance()->make(EmailValidator::class);
 
         return $emailValidator->isValid((string) $value, new MultipleValidationWithAnd($validations));
+    }
+
+    /**
+     * Validate that a value has a specific character encoding.
+     */
+    public function validateEncoding(string $attribute, mixed $value, array $parameters): bool
+    {
+        $this->requireParameterCount(1, $parameters, 'encoding');
+
+        if (! in_array(mb_strtolower($parameters[0]), array_map(mb_strtolower(...), mb_list_encodings()))) {
+            throw new InvalidArgumentException("Validation rule encoding parameter [{$parameters[0]}] is not a valid encoding.");
+        }
+
+        return mb_check_encoding($value instanceof File ? $value->getContent() : $value, $parameters[0]);
     }
 
     /**
@@ -918,7 +937,7 @@ trait ValidatesAttributes
     /**
      * Prepare the given ID for querying.
      */
-    protected function prepareUniqueId(mixed $id): ?int
+    protected function prepareUniqueId(mixed $id): int|string|null
     {
         if (preg_match('/\[(.*)\]/', (string) $id, $matches)) {
             $id = $this->getValue($matches[1]);
@@ -957,12 +976,12 @@ trait ValidatesAttributes
         [$connection, $table] = str_contains($table, '.') ? explode('.', $table, 2) : [null, $table];
 
         if (str_contains($table, '\\') && class_exists($table) && is_a($table, Model::class, true)) {
-            $model = new $table();
+            $model = new $table;
 
             $table = $model->getTable();
             $connection ??= $model->getConnectionName();
 
-            if (str_contains($table, '.') && Str::startsWith($table, $connection)) {
+            if ($connection !== null && str_contains($table, '.') && Str::startsWith($table, $connection)) {
                 $connection = null;
             }
 
@@ -1027,7 +1046,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        return in_array(strtolower($value->getExtension()), $parameters);
+        return in_array(strtolower($value->getClientOriginalExtension()), $parameters);
     }
 
     /**
@@ -1064,7 +1083,7 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Gt');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of($this->getSize($attribute, $value))->isGreaterThan($this->trim($parameters[0]));
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThan($this->trim($parameters[0]));
         }
 
         if (is_numeric($parameters[0])) {
@@ -1072,7 +1091,7 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of($this->trim($value))->isGreaterThan($this->trim($comparedToValue));
+            return BigNumber::of((string) $this->trim($value))->isGreaterThan((string) $this->trim($comparedToValue));
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
@@ -1096,7 +1115,7 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Lt');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of($this->getSize($attribute, $value))->isLessThan($this->trim($parameters[0]));
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThan($this->trim($parameters[0]));
         }
 
         if (is_numeric($parameters[0])) {
@@ -1104,7 +1123,7 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of($this->trim($value))->isLessThan($this->trim($comparedToValue));
+            return BigNumber::of((string) $this->trim($value))->isLessThan((string) $this->trim($comparedToValue));
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
@@ -1128,7 +1147,7 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Gte');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of($this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
         }
 
         if (is_numeric($parameters[0])) {
@@ -1136,7 +1155,7 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of($this->trim($value))->isGreaterThanOrEqualTo($this->trim($comparedToValue));
+            return BigNumber::of((string) $this->trim($value))->isGreaterThanOrEqualTo((string) $this->trim($comparedToValue));
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
@@ -1160,7 +1179,7 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Lte');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of($this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
         }
 
         if (is_numeric($parameters[0])) {
@@ -1168,7 +1187,7 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of($this->trim($value))->isLessThanOrEqualTo($this->trim($comparedToValue));
+            return BigNumber::of((string) $this->trim($value))->isLessThanOrEqualTo((string) $this->trim($comparedToValue));
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
@@ -1265,10 +1284,36 @@ trait ValidatesAttributes
     }
 
     /**
+     * Validate that an array contains at least one of the given keys.
+     */
+    public function validateInArrayKeys(string $attribute, mixed $value, array $parameters): bool
+    {
+        if (! is_array($value)) {
+            return false;
+        }
+
+        if (empty($parameters)) {
+            return false;
+        }
+
+        foreach ($parameters as $param) {
+            if (Arr::exists($value, $param)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Validate that an attribute is an integer.
      */
-    public function validateInteger(string $attribute, mixed $value): bool
+    public function validateInteger(string $attribute, mixed $value, array $parameters = []): bool
     {
+        if (($parameters[0] ?? null) === 'strict') {
+            return is_int($value);
+        }
+
         return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }
 
@@ -1340,7 +1385,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        return BigNumber::of($this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+        return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
     }
 
     /**
@@ -1376,7 +1421,7 @@ trait ValidatesAttributes
             $parameters = array_unique(array_merge($parameters, ['jpg', 'jpeg']));
         }
 
-        return $value->getPath() !== '' && in_array($value->getExtension(), $parameters);
+        return $value->getPath() !== '' && in_array($value->guessExtension(), $parameters);
     }
 
     /**
@@ -1421,7 +1466,9 @@ trait ValidatesAttributes
             'phar',
         ];
 
-        return in_array(trim(strtolower($value->getExtension())), $phpExtensions);
+        return ($value instanceof UploadedFile)
+            ? in_array(trim(strtolower($value->getClientOriginalExtension())), $phpExtensions)
+            : in_array(trim(strtolower($value->getExtension())), $phpExtensions);
     }
 
     /**
@@ -1433,7 +1480,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'min');
 
-        return BigNumber::of($this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+        return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
     }
 
     /**
@@ -1544,8 +1591,8 @@ trait ValidatesAttributes
         }
 
         try {
-            $numerator = BigDecimal::of($this->trim($value));
-            $denominator = BigDecimal::of($this->trim($parameters[0]));
+            $numerator = BigDecimal::of((string) $this->trim($value));
+            $denominator = BigDecimal::of((string) $this->trim($parameters[0]));
 
             if ($numerator->isZero() && $denominator->isZero()) {
                 return false;
@@ -1588,8 +1635,12 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is numeric.
      */
-    public function validateNumeric(string $attribute, mixed $value): bool
+    public function validateNumeric(string $attribute, mixed $value, array $parameters = []): bool
     {
+        if (($parameters[0] ?? null) === 'strict' && is_string($value)) {
+            return false;
+        }
+
         return is_numeric($value);
     }
 
@@ -2090,7 +2141,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'size');
 
-        return BigNumber::of($this->getSize($attribute, $value))->isEqualTo($this->trim($parameters[0]));
+        return BigNumber::of((string) $this->getSize($attribute, $value))->isEqualTo($this->trim($parameters[0]));
     }
 
     /**
@@ -2247,7 +2298,7 @@ trait ValidatesAttributes
             '<=' => $first <= $second,
             '>=' => $first >= $second,
             '=' => $first == $second,
-            default => throw new InvalidArgumentException(),
+            default => throw new InvalidArgumentException,
         };
     }
 

@@ -152,7 +152,7 @@ class SlackMessage
      */
     public function attachment(Closure $callback): static
     {
-        $this->attachments[] = $attachment = new SlackAttachment();
+        $this->attachments[] = $attachment = new SlackAttachment;
 
         $callback($attachment);
 

@@ -5,17 +5,30 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\TranslatorLoaderInterface;
-use Hyperf\Database\Migrations\Migrator;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Router\RouteFileCollector;
-use Hypervel\Support\Facades\Artisan;
+use Hypervel\Console\Application as Artisan;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\CachesConfiguration;
+use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
+use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Factory as ViewFactoryContract;
+use ReflectionClass;
+use ReflectionProperty;
 
 abstract class ServiceProvider
 {
+    /**
+     * The registration priority for this provider.
+     *
+     * Higher values are registered first among discovered/merged providers.
+     * Core framework providers (DefaultProviders) always load first regardless
+     * of priority. Use gaps between values (10, 20, 30) to allow future
+     * insertion without renumbering.
+     */
+    public int $priority = 0;
+
     /**
      * All of the registered booting callbacks.
      */
@@ -42,6 +55,27 @@ abstract class ServiceProvider
      * @var array
      */
     protected static $publishableMigrationPaths = [];
+
+    /**
+     * Commands that should be run during the "optimize" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $optimizeCommands = [];
+
+    /**
+     * Commands that should be run during the "optimize:clear" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $optimizeClearCommands = [];
+
+    /**
+     * Commands that should be run during the "reload" command.
+     *
+     * @var array<string, string>
+     */
+    public static array $reloadCommands = [];
 
     public function __construct(
         protected ApplicationContract $app
@@ -93,14 +127,71 @@ abstract class ServiceProvider
 
     /**
      * Merge the given configuration with the existing configuration.
+     *
+     * Top-level keys use shallow merge (app values override package defaults).
+     * Keys declared in mergeableOptions() get an additional one-level-deeper
+     * merge so the app can add entries to collection arrays (stores, connections,
+     * guards, etc.) without losing the package's default entries.
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get(ConfigInterface::class);
-        $config->set($key, array_merge(
-            require $path,
-            $config->get($key, [])
-        ));
+        if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
+            return;
+        }
+
+        $config = $this->app->make('config');
+
+        $packageDefaults = require $path;
+        $appConfig = $config->get($key, []);
+
+        $merged = array_merge($packageDefaults, $appConfig);
+
+        foreach ($this->mergeableOptions($key) as $option) {
+            if (isset($packageDefaults[$option], $appConfig[$option])) {
+                $merged[$option] = array_merge($packageDefaults[$option], $appConfig[$option]);
+            }
+        }
+
+        $config->set($key, $merged);
+    }
+
+    /**
+     * Get the options within the configuration that should be merged.
+     *
+     * Override this in package service providers to declare which config keys
+     * contain collection arrays that should be merged rather than replaced.
+     * This uses the same two-level merge logic as LoadConfiguration::mergeableOptions().
+     *
+     * With mergeableOptions() returning ['stores']:
+     *   - Package defines stores: array, file, redis, swoole
+     *   - App defines stores: redis (custom config), s3 (new)
+     *   - Result: array, file, redis (app's version — fully replaced, no package keys leak in), swoole, s3
+     *
+     * Without 'stores' in mergeableOptions():
+     *   - Package defines stores: array, file, redis, swoole
+     *   - App defines stores: redis (custom config), s3 (new)
+     *   - Result: redis (app's version), s3 — everything else gone
+     *
+     * @return array<int, string>
+     */
+    protected function mergeableOptions(string $name): array
+    {
+        return [];
+    }
+
+    /**
+     * Replace the given configuration with the existing configuration recursively.
+     */
+    protected function replaceConfigRecursivelyFrom(string $path, string $key): void
+    {
+        if (! ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached())) {
+            $config = $this->app->make('config');
+
+            $config->set($key, array_replace_recursive(
+                require $path,
+                $config->get($key, [])
+            ));
+        }
     }
 
     /**
@@ -108,8 +199,9 @@ abstract class ServiceProvider
      */
     protected function loadRoutesFrom(string $path): void
     {
-        $this->app->get(RouteFileCollector::class)
-            ->addRouteFile($path);
+        if (! ($this->app instanceof CachesRoutes && $this->app->routesAreCached())) {
+            require $path;
+        }
     }
 
     /**
@@ -118,6 +210,15 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
+            if (isset($this->app->config['view']['paths'])
+                && is_array($this->app->config['view']['paths'])) {
+                foreach ($this->app->config['view']['paths'] as $viewPath) {
+                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                        $view->addNamespace($namespace, $appPath);
+                    }
+                }
+            }
+
             $view->addNamespace($namespace, $path);
         });
     }
@@ -137,11 +238,11 @@ abstract class ServiceProvider
     /**
      * Register a translation file namespace.
      */
-    protected function loadTranslationsFrom(string $path, string $namespace): void
+    protected function loadTranslationsFrom(string $path, ?string $namespace = null): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path, $namespace) {
-            $translator->addNamespace($namespace, $path);
-        });
+        $this->callAfterResolving('translator', fn ($translator) => is_null($namespace)
+            ? $translator->addPath($path)
+            : $translator->addNamespace($namespace, $path));
     }
 
     /**
@@ -149,7 +250,7 @@ abstract class ServiceProvider
      */
     protected function loadJsonTranslationsFrom(string $path): void
     {
-        $this->callAfterResolving(TranslatorLoaderInterface::class, function ($translator) use ($path) {
+        $this->callAfterResolving('translator', function ($translator) use ($path) {
             $translator->addJsonPath($path);
         });
     }
@@ -174,7 +275,7 @@ abstract class ServiceProvider
         $this->app->afterResolving($name, $callback);
 
         if ($this->app->resolved($name)) {
-            $callback($this->app->get($name), $this->app);
+            $callback($this->app->make($name), $this->app);
         }
     }
 
@@ -185,12 +286,14 @@ abstract class ServiceProvider
     {
         $this->publishes($paths, $groups);
 
-        static::$publishableMigrationPaths = array_unique(
-            array_merge(
-                static::$publishableMigrationPaths,
-                array_keys($paths)
-            )
-        );
+        if ($this->app->make('config')->get('database.migrations.update_date_on_publish', false)) {
+            static::$publishableMigrationPaths = array_unique(
+                array_merge(
+                    static::$publishableMigrationPaths,
+                    array_keys($paths)
+                )
+            );
+        }
     }
 
     /**
@@ -307,26 +410,200 @@ abstract class ServiceProvider
     }
 
     /**
+     * Flush all static publish state.
+     */
+    public static function flushState(): void
+    {
+        static::$publishes = [];
+        static::$publishGroups = [];
+        static::$publishableMigrationPaths = [];
+        static::$optimizeCommands = [];
+        static::$optimizeClearCommands = [];
+        static::$reloadCommands = [];
+    }
+
+    /**
+     * Add a provider to the bootstrap provider configuration file.
+     */
+    public static function addProviderToBootstrapFile(string $provider, ?string $path = null): bool
+    {
+        $path ??= app()->getBootstrapProvidersPath();
+
+        if (! file_exists($path)) {
+            return false;
+        }
+
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($path, true);
+        }
+
+        $providers = (new Collection(require $path))
+            ->merge([$provider])
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($p) => '    ' . $p . '::class,')
+            ->implode(PHP_EOL);
+
+        $content = '<?php
+
+return [
+' . $providers . '
+];';
+
+        file_put_contents($path, $content . PHP_EOL);
+
+        return true;
+    }
+
+    /**
+     * Remove a provider from the bootstrap provider file.
+     *
+     * @param array<int, string>|string $providersToRemove
+     */
+    public static function removeProviderFromBootstrapFile(string|array $providersToRemove, ?string $path = null, bool $strict = false): bool
+    {
+        $path ??= app()->getBootstrapProvidersPath();
+
+        if (! file_exists($path)) {
+            return false;
+        }
+
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($path, true);
+        }
+
+        $providersToRemove = Arr::wrap($providersToRemove);
+
+        $providers = (new Collection(require $path))
+            ->unique()
+            ->sort()
+            ->values()
+            ->when(
+                $strict,
+                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => in_array($p, $providersToRemove, true)),
+                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => Str::contains($p, $providersToRemove))
+            )
+            ->map(fn ($p) => '    ' . $p . '::class,')
+            ->implode(PHP_EOL);
+
+        $content = '<?php
+
+return [
+' . $providers . '
+];';
+
+        file_put_contents($path, $content . PHP_EOL);
+
+        return true;
+    }
+
+    /**
+     * Register commands that should run on "optimize".
+     */
+    protected function optimizes(?string $optimize = null, ?string $clear = null, ?string $key = null): void
+    {
+        $key = $this->getProviderKey($key);
+
+        if ($optimize) {
+            static::$optimizeCommands[$key] = $optimize;
+        }
+
+        if ($clear) {
+            static::$optimizeClearCommands[$key] = $clear;
+        }
+    }
+
+    /**
+     * Register commands that should run on "reload".
+     */
+    protected function reloads(string $reload, ?string $key = null): void
+    {
+        $key = $this->getProviderKey($key);
+
+        static::$reloadCommands[$key] = $reload;
+    }
+
+    /**
+     * Get a short descriptive key for the current service provider.
+     */
+    protected function getProviderKey(?string $key = null): string
+    {
+        $key ??= (string) Str::of(get_class($this))
+            ->classBasename()
+            ->before('ServiceProvider')
+            ->kebab()
+            ->lower()
+            ->trim();
+
+        if (empty($key)) {
+            $key = class_basename(get_class($this));
+        }
+
+        return $key;
+    }
+
+    /**
      * Register the package's custom Artisan commands.
      */
     public function commands(array $commands): void
     {
-        Artisan::addCommands($commands);
+        Artisan::starting(function ($artisan) use ($commands) {
+            $artisan->resolveCommands($commands);
+        });
     }
 
     /**
-     * Get the default providers for a Laravel application.
+     * Register AOP aspects.
+     *
+     * Reads `$classes` and `$priority` from each aspect class's default
+     * property values via reflection (without instantiating the aspect).
+     * Must be called during register(), before boot().
+     *
+     * @param array<int, string>|string $aspects
+     */
+    protected function aspects(string|array $aspects): void
+    {
+        $aspects = is_array($aspects) ? $aspects : func_get_args();
+
+        foreach ($aspects as $aspect) {
+            $reflectionClass = new ReflectionClass($aspect);
+            $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
+
+            $classes = [];
+            $priority = null;
+
+            foreach ($properties as $property) {
+                if ($property->getName() === 'classes') {
+                    $classes = $property->getDefaultValue();
+                } elseif ($property->getName() === 'priority') {
+                    $priority = $property->getDefaultValue();
+                }
+            }
+
+            AspectCollector::setAround($aspect, $classes, $priority);
+        }
+    }
+
+    /**
+     * Register class map overrides.
+     *
+     * Applies entries to the Composer autoloader immediately.
+     * Fails hard if any target class is already loaded.
+     * Must be called during register(), before the target class is autoloaded.
+     *
+     * @param array<class-string, string> $map originalClass => replacementFilePath
+     */
+    protected function classMap(array $map): void
+    {
+        ClassMapManager::add($map);
+    }
+
+    /**
+     * Get the default providers for a Hypervel application.
      */
     public static function defaultProviders(): DefaultProviders
     {
-        return new DefaultProviders();
-    }
-
-    /**
-     * Get the provider config for Hyperf framework.
-     */
-    public static function getProviderConfig(): array
-    {
-        return [];
+        return new DefaultProviders;
     }
 }

@@ -4,7 +4,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "jwt",
         "swoole",
         "hypervel"
@@ -13,21 +12,28 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "jwtors": [
+    "authors": [
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "nesbot/carbon": "^2.72.6",
-        "hyperf/collection": "~3.1.0",
+        "php": "^8.4",
         "lcobucci/jwt": "^5.0",
+        "nesbot/carbon": "^3.8.4",
         "psr/simple-cache": "^3.0",
-        "hyperf/stringable": "~3.1.0",
-        "ramsey/uuid": "^4.7",
-        "hypervel/cache": "^0.3"
+        "hypervel/auth": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -35,11 +41,13 @@
         }
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\JWT\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\JWT\\JWTServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

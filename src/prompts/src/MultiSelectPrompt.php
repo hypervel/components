@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 class MultiSelectPrompt extends Prompt
 {
+    use Concerns\HasInfo;
     use Concerns\Scrolling;
 
     /**
@@ -47,6 +48,7 @@ class MultiSelectPrompt extends Prompt
         public mixed $validate = null,
         public string $hint = '',
         public ?Closure $transform = null,
+        public string|Closure $info = '',
     ) {
         $this->options = $options instanceof Collection ? $options->all() : $options;
         $this->default = $default instanceof Collection ? $default->all() : $default;
@@ -64,6 +66,22 @@ class MultiSelectPrompt extends Prompt
             Key::ENTER => $this->submit(),
             default => null,
         });
+    }
+
+    /**
+     * Get the value of the highlighted option.
+     */
+    public function highlightedValue(): int|string|null
+    {
+        if ($this->highlighted === null) {
+            return null;
+        }
+
+        if (array_is_list($this->options)) {
+            return $this->options[$this->highlighted] ?? null;
+        }
+
+        return array_keys($this->options)[$this->highlighted] ?? null;
     }
 
     /**

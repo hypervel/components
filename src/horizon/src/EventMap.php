@@ -10,8 +10,11 @@ trait EventMap
      * All of the Horizon event / listener mappings.
      */
     protected array $events = [
-        Events\JobPushed::class => [
+        Events\JobPending::class => [
             Listeners\StoreJob::class,
+        ],
+
+        Events\JobPushed::class => [
             Listeners\StoreMonitoredTags::class,
         ],
 
@@ -61,11 +64,9 @@ trait EventMap
             Listeners\MonitorWaitTimes::class,
         ],
 
-        Events\WorkerProcessRestarting::class => [
-        ],
+        Events\WorkerProcessRestarting::class => [],
 
-        Events\SupervisorProcessRestarting::class => [
-        ],
+        Events\SupervisorProcessRestarting::class => [],
 
         Events\LongWaitDetected::class => [
             Listeners\SendNotification::class,

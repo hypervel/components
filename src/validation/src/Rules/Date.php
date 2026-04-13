@@ -68,6 +68,38 @@ class Date implements Stringable
     }
 
     /**
+     * Ensure the date is in the past.
+     */
+    public function past(): static
+    {
+        return $this->before('now');
+    }
+
+    /**
+     * Ensure the date is in the future.
+     */
+    public function future(): static
+    {
+        return $this->after('now');
+    }
+
+    /**
+     * Ensure the date is now or in the past.
+     */
+    public function nowOrPast(): static
+    {
+        return $this->beforeOrEqual('now');
+    }
+
+    /**
+     * Ensure the date is now or in the future.
+     */
+    public function nowOrFuture(): static
+    {
+        return $this->afterOrEqual('now');
+    }
+
+    /**
      * Ensure the date is before the given date or date field.
      */
     public function before(DateTimeInterface|string $date): static
@@ -144,5 +176,13 @@ class Date implements Stringable
             $this->format === null ? 'date' : 'date_format:' . $this->format,
             ...$this->constraints,
         ]);
+    }
+
+    /**
+     * Flush the date rule's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

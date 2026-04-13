@@ -4,43 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Framework\Event\BeforeWorkerStart;
-use Hyperf\Support\DotenvManager;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Config\Repository;
+use Hypervel\Core\Events\BeforeWorkerStart;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Support\DotenvManager;
 
-class ReloadDotenvAndConfig implements ListenerInterface
+class ReloadDotenvAndConfig
 {
     protected static array $modifiedItems = [];
 
     protected static bool $stopCallback = false;
 
-    public function __construct(protected ApplicationContract $container)
+    public function __construct(protected Application $container)
     {
-        $this->setConfigCallback();
-
-        $container->afterResolving(ConfigInterface::class, function (ConfigInterface $config) {
-            if (static::$stopCallback) {
-                return;
-            }
-
-            static::$stopCallback = true;
-            foreach (static::$modifiedItems as $key => $value) {
-                $config->set($key, $value);
-            }
-            static::$stopCallback = false;
-        });
+        $this->setConfigCallback(
+            $this->container->make(Repository::class)
+        );
     }
 
-    public function listen(): array
-    {
-        return [
-            BeforeWorkerStart::class,
-        ];
-    }
-
-    public function process(object $event): void
+    /**
+     * Reload dotenv and config before a worker starts.
+     */
+    public function handle(BeforeWorkerStart $event): void
     {
         $this->reloadDotenv();
         $this->reloadConfig();
@@ -48,27 +34,75 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function reloadConfig(): void
     {
-        $this->container->unbind(ConfigInterface::class);
+        $config = $this->rebuildConfigRepository();
+
+        $this->setConfigCallback($config);
+        $this->replayModifiedItems($config);
     }
 
     protected function reloadDotenv(): void
     {
-        $basePath = $this->container->basePath();
-        if (! file_exists($basePath . DIRECTORY_SEPARATOR . '.env')) {
+        if (! file_exists($this->container->environmentFilePath())) {
             return;
         }
 
-        DotenvManager::reload([$basePath]);
+        DotenvManager::reload(
+            [$this->container->environmentPath()],
+            $this->container->environmentFile(),
+        );
     }
 
-    protected function setConfigCallback(): void
+    /**
+     * Track runtime config mutations on the active repository instance.
+     */
+    protected function setConfigCallback(Repository $config): void
     {
-        $this->container->get(ConfigInterface::class)
-            ->afterSettingCallback(function (array $values) {
-                static::$modifiedItems = array_merge(
-                    static::$modifiedItems,
-                    $values
-                );
-            });
+        $config->afterSettingCallback(function (array $values): void {
+            if (static::$stopCallback) {
+                return;
+            }
+
+            static::$modifiedItems = array_replace(
+                static::$modifiedItems,
+                $values
+            );
+        });
+    }
+
+    /**
+     * Rebuild the config repository through the normal foundation bootstrap path.
+     */
+    protected function rebuildConfigRepository(): Repository
+    {
+        (new LoadConfiguration)->bootstrap($this->container);
+
+        return $this->container->make(Repository::class);
+    }
+
+    /**
+     * Reapply runtime config mutations onto a freshly rebuilt repository.
+     */
+    protected function replayModifiedItems(Repository $config): void
+    {
+        if (static::$modifiedItems === []) {
+            return;
+        }
+
+        static::$stopCallback = true;
+
+        try {
+            $config->set(static::$modifiedItems);
+        } finally {
+            static::$stopCallback = false;
+        }
+    }
+
+    /**
+     * Flush the listener's static mutation tracking state.
+     */
+    public static function flushState(): void
+    {
+        static::$modifiedItems = [];
+        static::$stopCallback = false;
     }
 }

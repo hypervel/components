@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Collection\Collection;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 
+/**
+ * @mixin PendingProcess
+ */
 class Factory
 {
     use Macroable {
@@ -57,7 +60,7 @@ class Factory
      */
     public function describe(): FakeProcessDescription
     {
-        return new FakeProcessDescription();
+        return new FakeProcessDescription;
     }
 
     /**
@@ -78,7 +81,7 @@ class Factory
         $this->recording = true;
 
         if (is_null($callback)) {
-            $this->fakeHandlers = ['*' => fn () => new FakeProcessResult()];
+            $this->fakeHandlers = ['*' => fn () => new FakeProcessResult];
 
             return $this;
         }
@@ -154,7 +157,7 @@ class Factory
         $callback = is_string($callback) ? fn ($process) => $process->command === $callback : $callback;
 
         PHPUnit::assertTrue(
-            collect($this->recorded)->filter(function ($pair) use ($callback) {
+            (new Collection($this->recorded))->filter(function ($pair) use ($callback) {
                 return $callback($pair[0], $pair[1]);
             })->count() > 0,
             'An expected process was not invoked.'
@@ -170,9 +173,9 @@ class Factory
     {
         $callback = is_string($callback) ? fn ($process) => $process->command === $callback : $callback;
 
-        $count = collect($this->recorded)->filter(function ($pair) use ($callback) {
-            return $callback($pair[0], $pair[1]);
-        })->count();
+        $count = (new Collection($this->recorded))
+            ->filter(fn ($pair) => $callback($pair[0], $pair[1]))
+            ->count();
 
         PHPUnit::assertSame(
             $times,
@@ -191,7 +194,7 @@ class Factory
         $callback = is_string($callback) ? fn ($process) => $process->command === $callback : $callback;
 
         PHPUnit::assertTrue(
-            collect($this->recorded)->filter(function ($pair) use ($callback) {
+            (new Collection($this->recorded))->filter(function ($pair) use ($callback) {
                 return $callback($pair[0], $pair[1]);
             })->count() === 0,
             'An unexpected process was invoked.'

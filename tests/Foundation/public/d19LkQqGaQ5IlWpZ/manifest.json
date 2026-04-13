@@ -1,0 +1,12 @@
+{
+    "resources/js/app.js": {
+        "src": "resources/js/app.js",
+        "file": "assets/app.versioned.js",
+        "integrity": "expected-app.js-integrity"
+    },
+    "resources/css/app.css": {
+        "src": "resources/css/app.css",
+        "file": "assets/app.versioned.css",
+        "integrity": "expected-app.css-integrity"
+    }
+}

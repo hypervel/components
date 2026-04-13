@@ -37,7 +37,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
                 RequestOptions::HEADERS => [
                     'Accept' => 'application/json',
                     'Authorization' => 'Bearer ' . $token,
-                    'Client-ID' => $this->clientId,
+                    'Client-ID' => $this->getClientId(),
                 ],
             ]
         );
@@ -70,7 +70,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
     {
         $user = $user['data']['0'];
 
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => $user['id'],
             'nickname' => $user['display_name'],
             'name' => $user['display_name'],

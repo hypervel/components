@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Carbon\Carbon;
 use Closure;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Carbon;
 
 class StackStore implements Store
 {
@@ -81,6 +81,23 @@ class StackStore implements Store
             fn (Store $store) => $store->forever($key, $record),
             fn (Store $store) => $store->forget($key),
         );
+    }
+
+    /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        $record = $this->getOrRestoreRecord($key);
+
+        if (is_null($record)) {
+            return false;
+        }
+
+        $record['ttl'] = $seconds;
+        unset($record['expiration']);
+
+        return $this->putRecord($key, $record);
     }
 
     public function forget(string $key): bool

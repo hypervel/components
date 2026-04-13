@@ -6,8 +6,8 @@ namespace Hypervel\Validation\Rules;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Database\Model\Model;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
@@ -54,7 +54,7 @@ trait DatabaseRule
         }
 
         if (is_subclass_of($table, Model::class)) {
-            $model = new $table();
+            $model = new $table;
 
             if (str_contains($model->getTable(), '.')) {
                 return $table;

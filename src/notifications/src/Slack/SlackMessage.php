@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Slack;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Contract\Arrayable;
-use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Conditionable;
 use JsonException;
 use LogicException;
 
@@ -109,7 +109,7 @@ class SlackMessage implements Arrayable
      */
     public function actionsBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new ActionsBlock();
+        $this->blocks[] = $block = new ActionsBlock;
 
         $callback($block);
 
@@ -121,7 +121,7 @@ class SlackMessage implements Arrayable
      */
     public function contextBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new ContextBlock();
+        $this->blocks[] = $block = new ContextBlock;
 
         $callback($block);
 
@@ -133,7 +133,7 @@ class SlackMessage implements Arrayable
      */
     public function dividerBlock(): static
     {
-        $this->blocks[] = new DividerBlock();
+        $this->blocks[] = new DividerBlock;
 
         return $this;
     }
@@ -172,7 +172,7 @@ class SlackMessage implements Arrayable
      */
     public function sectionBlock(Closure $callback): static
     {
-        $this->blocks[] = $block = new SectionBlock();
+        $this->blocks[] = $block = new SectionBlock;
 
         $callback($block);
 

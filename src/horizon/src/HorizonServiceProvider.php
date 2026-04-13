@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hyperf\Redis\RedisFactory;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Facades\Route;
@@ -21,11 +20,22 @@ class HorizonServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->normalizeConfig();
         $this->registerEvents();
         $this->registerRoutes();
         $this->registerResources();
-        $this->registerPublishing();
+        $this->offerPublishing();
         $this->registerCommands();
+    }
+
+    /**
+     * Normalize the Horizon configuration.
+     */
+    protected function normalizeConfig(): void
+    {
+        if (! $this->app['config']->get('horizon.name')) {
+            $this->app['config']->set('horizon.name', $this->app['config']->get('app.name'));
+        }
     }
 
     /**
@@ -33,7 +43,7 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerEvents(): void
     {
-        $events = $this->app->get(Dispatcher::class);
+        $events = $this->app->make(Dispatcher::class);
 
         foreach ($this->events as $event => $listeners) {
             foreach ($listeners as $listener) {
@@ -47,14 +57,14 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::group(
-            config('horizon.path'),
-            __DIR__ . '/../routes/web.php',
-            [
-                'namespace' => 'Hypervel\Horizon\Http\Controllers',
-                'middleware' => config('horizon.middleware', ['web']),
-            ]
-        );
+        Route::group([
+            'domain' => config('horizon.domain', null),
+            'prefix' => config('horizon.path'),
+            'namespace' => 'Hypervel\Horizon\Http\Controllers',
+            'middleware' => config('horizon.middleware', ['web']),
+        ], function () {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
+        });
     }
 
     /**
@@ -68,15 +78,17 @@ class HorizonServiceProvider extends ServiceProvider
     /**
      * Setup the resource publishing groups for Horizon.
      */
-    protected function registerPublishing(): void
+    protected function offerPublishing(): void
     {
-        $this->publishes([
-            __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
-        ], 'horizon-config');
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__ . '/../stubs/HorizonServiceProvider.stub' => app_path('Providers/HorizonServiceProvider.php'),
+            ], 'horizon-provider');
 
-        $this->publishes([
-            __DIR__ . '/../stubs/HorizonServiceProvider.stub' => app_path('Providers/HorizonServiceProvider.php'),
-        ], 'horizon-provider');
+            $this->publishes([
+                __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
+            ], 'horizon-config');
+        }
     }
 
     /**
@@ -84,23 +96,31 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                Console\ClearCommand::class,
+                Console\ClearMetricsCommand::class,
+                Console\ContinueCommand::class,
+                Console\ContinueSupervisorCommand::class,
+                Console\ForgetFailedCommand::class,
+                Console\HorizonCommand::class,
+                Console\InstallCommand::class,
+                Console\ListCommand::class,
+                Console\ListenCommand::class,
+                Console\PauseCommand::class,
+                Console\PauseSupervisorCommand::class,
+                Console\PurgeCommand::class,
+                Console\SupervisorCommand::class,
+                Console\SupervisorStatusCommand::class,
+                Console\TerminateCommand::class,
+                Console\TimeoutCommand::class,
+                Console\WorkCommand::class,
+            ]);
+
+            $this->reloads('horizon:terminate', 'queue');
+        }
+
         $this->commands([
-            Console\ClearCommand::class,
-            Console\ClearMetricsCommand::class,
-            Console\ContinueCommand::class,
-            Console\ContinueSupervisorCommand::class,
-            Console\ForgetFailedCommand::class,
-            Console\HorizonCommand::class,
-            Console\InstallCommand::class,
-            Console\ListCommand::class,
-            Console\PauseCommand::class,
-            Console\PauseSupervisorCommand::class,
-            Console\PurgeCommand::class,
-            Console\SupervisorCommand::class,
-            Console\SupervisorStatusCommand::class,
-            Console\TerminateCommand::class,
-            Console\TimeoutCommand::class,
-            Console\WorkCommand::class,
             Console\SnapshotCommand::class,
             Console\StatusCommand::class,
             Console\SupervisorsCommand::class,
@@ -152,7 +172,7 @@ class HorizonServiceProvider extends ServiceProvider
         $this->callAfterResolving(QueueManager::class, function (QueueManager $manager) {
             $manager->addConnector('redis', function () {
                 return new RedisConnector(
-                    $this->app->get(RedisFactory::class)
+                    $this->app['redis']
                 );
             });
         });

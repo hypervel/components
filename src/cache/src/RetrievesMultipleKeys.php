@@ -34,7 +34,7 @@ trait RetrievesMultipleKeys
         $manyResult = null;
 
         foreach ($values as $key => $value) {
-            $result = $this->put($key, $value, $seconds);
+            $result = $this->put((string) $key, $value, $seconds);
 
             $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
         }

@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
@@ -32,7 +33,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         parent::setUp();
 
         $this->provider = new DatabaseFailedJobProvider(
-            $this->resolver = $this->app->get(ConnectionResolverInterface::class),
+            $this->resolver = $this->app->make('db'),
             'failed_jobs'
         );
     }
@@ -104,19 +105,33 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 
+    public function testCanPruneFailedJobsWithRelativeHoursAndMinutes()
+    {
+        Carbon::setTestNow(Carbon::create(2025, 8, 24, 12, 0, 0));
+
+        $this->createFailedJobsRecord(['failed_at' => Carbon::create(2025, 8, 24, 11, 45, 0)]);
+        $this->createFailedJobsRecord(['failed_at' => Carbon::create(2025, 8, 24, 13, 0, 0)]);
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 11, 45, 0));
+        $this->assertSame(2, $this->failedJobsTable()->count());
+
+        $this->provider->prune(Carbon::create(2025, 8, 24, 14, 0, 0));
+        $this->assertSame(0, $this->failedJobsTable()->count());
+    }
+
     public function testCanFlushFailedJobs()
     {
-        Carbon::setTestNow(Carbon::now());
+        Date::setTestNow(Date::now());
 
-        $this->createFailedJobsRecord(['failed_at' => Carbon::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
         $this->provider->flush();
         $this->assertSame(0, $this->failedJobsTable()->count());
 
-        $this->createFailedJobsRecord(['failed_at' => Carbon::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
         $this->provider->flush(15 * 24);
         $this->assertSame(1, $this->failedJobsTable()->count());
 
-        $this->createFailedJobsRecord(['failed_at' => Carbon::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
         $this->provider->flush(10 * 24);
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
@@ -138,46 +153,46 @@ class DatabaseFailedJobProviderTest extends TestCase
     {
         $this->assertSame(0, $this->provider->count());
 
-        $this->provider->log('database', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('database', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(1, $this->provider->count());
 
-        $this->provider->log('database', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('another-connection', 'another-queue', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('database', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('another-connection', 'another-queue', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(3, $this->provider->count());
     }
 
     public function testJobsCanBeCountedByConnection()
     {
-        $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-2', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-2', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(1, $this->provider->count('connection-1'));
         $this->assertSame(1, $this->provider->count('connection-2'));
 
-        $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(2, $this->provider->count('connection-1'));
         $this->assertSame(1, $this->provider->count('connection-2'));
     }
 
     public function testJobsCanBeCountedByQueue()
     {
-        $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('database', 'queue-2', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('database', 'queue-2', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(1, $this->provider->count(queue: 'queue-1'));
         $this->assertSame(1, $this->provider->count(queue: 'queue-2'));
 
-        $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->assertSame(2, $this->provider->count(queue: 'queue-1'));
         $this->assertSame(1, $this->provider->count(queue: 'queue-2'));
     }
 
     public function testJobsCanBeCountedByQueueAndConnection()
     {
-        $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-2', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-2', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
-        $this->provider->log('connection-2', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException());
+        $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-2', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-2', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('connection-2', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
 
         $this->assertSame(2, $this->provider->count('connection-1', 'queue-99'));
         $this->assertSame(1, $this->provider->count('connection-2', 'queue-99'));
@@ -198,7 +213,7 @@ class DatabaseFailedJobProviderTest extends TestCase
                 'queue' => 'default',
                 'payload' => json_encode(['uuid' => (string) Str::uuid()]),
                 'exception' => new Exception('Whoops!'),
-                'failed_at' => Carbon::now()->subDays(10),
+                'failed_at' => Date::now()->subDays(10),
             ], $overrides));
     }
 }

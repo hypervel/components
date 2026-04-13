@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+/**
+ * Core framework service providers loaded for every Hypervel application.
+ *
+ * Only providers that are part of the framework itself belong here — services
+ * that every app needs regardless of what it does (database, cache, session,
+ * encryption, validation, etc.) plus Swoole infrastructure (engine, server,
+ * object-pool, signal).
+ *
+ * Optional/standalone packages (Reverb, Scout, Horizon, Sanctum, etc.) must
+ * not be added here. They register their own providers via composer.json
+ * extra.hypervel.providers and are auto-discovered when installed.
+ */
 class DefaultProviders
 {
     /**
@@ -17,8 +29,36 @@ class DefaultProviders
     public function __construct(?array $providers = null)
     {
         $this->providers = $providers ?: [
-            \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
+            \Hypervel\Auth\AuthServiceProvider::class,
+            \Hypervel\Auth\Passwords\PasswordResetServiceProvider::class,
+            \Hypervel\Broadcasting\BroadcastServiceProvider::class,
+            \Hypervel\Bus\BusServiceProvider::class,
+            \Hypervel\Cache\CacheServiceProvider::class,
+            \Hypervel\Concurrency\ConcurrencyServiceProvider::class,
+            \Hypervel\Console\ConsoleServiceProvider::class,
+            \Hypervel\Cookie\CookieServiceProvider::class,
+            \Hypervel\Database\DatabaseServiceProvider::class,
+            \Hypervel\Encryption\EncryptionServiceProvider::class,
+            \Hypervel\Engine\EngineServiceProvider::class,
+            \Hypervel\Filesystem\FilesystemServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
+            \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
+            \Hypervel\Hashing\HashingServiceProvider::class,
+            \Hypervel\Http\HttpServiceProvider::class,
+            \Hypervel\Log\LogServiceProvider::class,
+            \Hypervel\Mail\MailServiceProvider::class,
+            \Hypervel\Notifications\NotificationServiceProvider::class,
+            \Hypervel\ObjectPool\ObjectPoolServiceProvider::class,
+            \Hypervel\Pagination\PaginationServiceProvider::class,
+            \Hypervel\Pipeline\PipelineServiceProvider::class,
+            \Hypervel\Queue\QueueServiceProvider::class,
+            \Hypervel\Redis\RedisServiceProvider::class,
+            \Hypervel\Server\ServerServiceProvider::class,
+            \Hypervel\ServerProcess\ServerProcessServiceProvider::class,
+            \Hypervel\Session\SessionServiceProvider::class,
+            \Hypervel\Signal\SignalServiceProvider::class,
+            \Hypervel\Translation\TranslationServiceProvider::class,
+            \Hypervel\Validation\ValidationServiceProvider::class,
             \Hypervel\View\ViewServiceProvider::class,
         ];
     }

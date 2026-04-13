@@ -7,10 +7,11 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Error;
 use ErrorException;
 use Exception;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use ParseError;
 
@@ -18,25 +19,15 @@ use ParseError;
  * @internal
  * @coversNothing
  */
+#[WithConfig('logging.default', 'null')]
+#[WithConfig('telescope.watchers', [
+    ExceptionWatcher::class => true,
+])]
 class ExceptionWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                ExceptionWatcher::class => true,
-            ]);
-        $this->app->get(ConfigInterface::class)
-            ->set('logging.default', 'null');
-
-        $this->startTelescope();
-    }
-
     public function testExceptionWatcherRegisterEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaException('Something went bananas.');
 
@@ -53,7 +44,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterThrowableEntries()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = new BananaError('Something went bananas.');
 
@@ -70,7 +61,7 @@ class ExceptionWatcherTest extends FeatureTestCase
 
     public function testExceptionWatcherRegisterEntriesWhenEvalFailed()
     {
-        $handler = $this->app->get(ExceptionHandler::class);
+        $handler = $this->app->make(ExceptionHandler::class);
 
         $exception = null;
 
@@ -93,6 +84,29 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(1, $entry->content['line']);
         $this->assertSame("Unclosed '('", $entry->content['message']);
         $this->assertArrayHasKey('trace', $entry->content);
+    }
+
+    public function testExceptionWatcherStoresExtraWhenContextFacadeUsed()
+    {
+        ContextRepository::getInstance()->add('tenant_id', 42);
+
+        $handler = $this->app->make(ExceptionHandler::class);
+        $handler->report(new BananaException('Error with context'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('extra', $entry->content);
+        $this->assertSame(42, $entry->content['extra']['tenant_id']);
+    }
+
+    public function testExceptionWatcherOmitsExtraWhenContextFacadeNotUsed()
+    {
+        $handler = $this->app->make(ExceptionHandler::class);
+        $handler->report(new BananaException('Error without context'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayNotHasKey('extra', $entry->content);
     }
 }
 

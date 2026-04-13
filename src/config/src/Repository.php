@@ -6,9 +6,10 @@ namespace Hypervel\Config;
 
 use ArrayAccess;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Config\Contracts\Repository as ConfigContract;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 
 class Repository implements ArrayAccess, ConfigContract
@@ -16,14 +17,17 @@ class Repository implements ArrayAccess, ConfigContract
     use Macroable;
 
     /**
-     * Callback for calling after `set` function.
+     * Callback invoked after each `set` call.
+     *
+     * Instance-scoped (not static) so that only the container's Repository
+     * triggers the callback. Test-created instances won't pollute shared state.
      */
-    protected static ?Closure $afterSettingCallback = null;
+    protected ?Closure $afterSettingCallback = null;
 
     /**
      * Create a new configuration repository.
      */
-    public function __construct(protected array $items)
+    public function __construct(protected array $items = [])
     {
     }
 
@@ -157,6 +161,16 @@ class Repository implements ArrayAccess, ConfigContract
     }
 
     /**
+     * Get the specified configuration value as a Collection.
+     *
+     * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
+     */
+    public function collection(string $key, mixed $default = null): Collection
+    {
+        return new Collection($this->array($key, $default));
+    }
+
+    /**
      * Set a given configuration value.
      */
     public function set(array|string $key, mixed $value = null): void
@@ -167,8 +181,8 @@ class Repository implements ArrayAccess, ConfigContract
             Arr::set($this->items, $key, $value);
         }
 
-        if (static::$afterSettingCallback) {
-            call_user_func(static::$afterSettingCallback, $keys);
+        if ($this->afterSettingCallback) {
+            call_user_func($this->afterSettingCallback, $keys);
         }
     }
 
@@ -209,7 +223,7 @@ class Repository implements ArrayAccess, ConfigContract
      */
     public function afterSettingCallback(?Closure $callback): void
     {
-        static::$afterSettingCallback = $callback;
+        $this->afterSettingCallback = $callback;
     }
 
     /**

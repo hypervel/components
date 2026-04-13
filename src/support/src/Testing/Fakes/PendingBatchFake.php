@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\PendingBatch;
+use Hypervel\Support\Collection;
 
 class PendingBatchFake extends PendingBatch
 {

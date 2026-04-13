@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\NullQueue;
 
 class NullConnector implements ConnectorInterface
@@ -14,6 +14,6 @@ class NullConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return new NullQueue();
+        return new NullQueue;
     }
 }

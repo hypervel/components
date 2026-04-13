@@ -6,18 +6,16 @@ namespace Hypervel\Tests\View;
 
 use Closure;
 use ErrorException;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Event\Contracts\Dispatcher as DispatcherContract;
-use Hypervel\Event\EventDispatcher;
-use Hypervel\Event\ListenerProvider;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\View\Compilers\CompilerInterface;
-use Hypervel\View\Contracts\Engine;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\PhpEngine;
@@ -36,8 +34,6 @@ use stdClass;
  */
 class ViewFactoryTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected function tearDown(): void
     {
         m::close();
@@ -52,8 +48,8 @@ class ViewFactoryTest extends TestCase
         $factory->getEngineResolver()->shouldReceive('resolve')->once()->with('php')->andReturn($engine = m::mock(Engine::class));
         $factory->getFinder()->shouldReceive('addExtension')->once()->with('php');
         $factory->setDispatcher($this->createEventDispatcher());
-        $factory->setContainer($this->createContainer());
-        $factory->creator('view', function ($eventName, $view) {
+        $factory->setContainer(m::mock(Container::class));
+        $factory->creator('view', function ($view) {
             $_SERVER['__test.view'] = $view;
         });
         $factory->addExtension('php', 'php');
@@ -67,26 +63,7 @@ class ViewFactoryTest extends TestCase
 
     private function createEventDispatcher()
     {
-        return new EventDispatcher(
-            new ListenerProvider(),
-            null,
-            $this->getApplication()
-        );
-    }
-
-    private function createContainer()
-    {
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')
-            ->with('view.event.enable', false)
-            ->andReturn(true);
-
-        $container = m::mock(Container::class);
-        $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
-            ->andReturn($config);
-
-        return $container;
+        return new EventDispatcher(new Application);
     }
 
     public function testExistsPassesAndFailsViews()
@@ -119,8 +96,8 @@ class ViewFactoryTest extends TestCase
         $factory->getEngineResolver()->shouldReceive('resolve')->once()->with('php')->andReturn($engine = m::mock(Engine::class));
         $factory->getFinder()->shouldReceive('addExtension')->once()->with('php');
         $factory->setDispatcher($this->createEventDispatcher());
-        $factory->setContainer($this->createContainer());
-        $factory->creator('view', function ($eventName, $view) {
+        $factory->setContainer(m::mock(Container::class));
+        $factory->creator('view', function ($view) {
             $_SERVER['__test.view'] = $view;
         });
         $factory->addExtension('php', 'php');
@@ -182,7 +159,7 @@ class ViewFactoryTest extends TestCase
         $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn('path.foo');
         $factory->getEngineResolver()->shouldReceive('resolve')->once()->with('bar')->andReturn($engine = m::mock(Engine::class));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $factory->addExtension('foo', 'bar', $resolver);
 
@@ -232,7 +209,7 @@ class ViewFactoryTest extends TestCase
             ->with('creating: name', m::type('array'))
             ->once();
 
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $view = m::mock(View::class);
         $view->shouldReceive('name')->once()->andReturn('name');
@@ -258,7 +235,7 @@ class ViewFactoryTest extends TestCase
             ->with('creating: namespaced::my-package-view', m::type('array'))
             ->once();
 
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $view = m::mock(View::class);
         $view->shouldReceive('name')->once()->andReturn('namespaced::my-package-view');
@@ -289,7 +266,7 @@ class ViewFactoryTest extends TestCase
             ->with('creating: namespaced::my-package-view', m::type('array'))
             ->once();
 
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $view = m::mock(View::class);
         $view->shouldReceive('name')->once()->andReturn('namespaced::my-package-view');
@@ -315,7 +292,7 @@ class ViewFactoryTest extends TestCase
             ->with('creating: name', m::type('array'))
             ->once();
 
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $view = m::mock(View::class);
         $view->shouldReceive('name')->once()->andReturn('name');
@@ -341,7 +318,7 @@ class ViewFactoryTest extends TestCase
             ->with('creating: components/button', m::type('array'))
             ->once();
 
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
 
         $view = m::mock(View::class);
         $view->shouldReceive('name')
@@ -361,11 +338,6 @@ class ViewFactoryTest extends TestCase
             ->shouldReceive('listen')
             ->with('composing: name', m::type(Closure::class))
             ->once();
-
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
 
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(true);
 
@@ -393,11 +365,6 @@ class ViewFactoryTest extends TestCase
 
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(true);
 
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
-
         $factory->getDispatcher()
             ->shouldReceive('dispatch')
             ->with('composing: name', m::type('array'))
@@ -421,11 +388,6 @@ class ViewFactoryTest extends TestCase
             ->once();
 
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(true);
-
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
 
         $factory->getDispatcher()
             ->shouldReceive('dispatch')
@@ -453,11 +415,6 @@ class ViewFactoryTest extends TestCase
             ->with('composing: welcome', m::type(Closure::class))
             ->once();
 
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
-
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(true);
 
         $factory->getDispatcher()
@@ -484,11 +441,6 @@ class ViewFactoryTest extends TestCase
             ->with('composing: *', m::type(Closure::class))
             ->once();
 
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
-
         $factory->getDispatcher()
             ->shouldReceive('dispatch')
             ->with('composing: name', m::type('array'))
@@ -512,11 +464,6 @@ class ViewFactoryTest extends TestCase
             ->shouldReceive('listen')
             ->with('composing: components.button', m::type(Closure::class))
             ->once();
-
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
 
         $factory->getDispatcher()
             ->shouldReceive('dispatch')
@@ -568,7 +515,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->getDispatcher()->shouldReceive('listen')->once()->with('composing: foo', m::type(Closure::class));
         $factory->setContainer($container = m::mock(Container::class));
-        $container->shouldReceive('get')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
+        $container->shouldReceive('make')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
         $composer->shouldReceive('compose')->once()->with('view')->andReturn('composed');
         $callback = $factory->composer('foo', 'FooComposer');
         $callback = $callback[0];
@@ -581,7 +528,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->getDispatcher()->shouldReceive('listen')->once()->with('composing: foo', m::type(Closure::class));
         $factory->setContainer($container = m::mock(Container::class));
-        $container->shouldReceive('get')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
+        $container->shouldReceive('make')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
         $composer->shouldReceive('doComposer')->once()->with('view')->andReturn('composed');
         $callback = $factory->composer('foo', 'FooComposer@doComposer');
         $callback = $callback[0];
@@ -597,11 +544,6 @@ class ViewFactoryTest extends TestCase
         $factory->setDispatcher($dispatcher);
 
         $dispatcher->shouldReceive('listen', m::any())->once();
-
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->once()->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn($config);
 
         $view->shouldReceive('name')->once()->andReturn('name');
 
@@ -727,14 +669,9 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandling()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->twice()->with('view.event.enable', false)->andReturn(false);
-        $container->shouldReceive('get')->twice()->with(ConfigInterface::class)->andReturn($config);
 
         $factory->startComponent('component', ['name' => 'Taylor']);
         $factory->slot('title');
@@ -749,13 +686,9 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingViewObject()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->twice()->with('view.event.enable', false)->andReturn(false);
-        $container->shouldReceive('get')->twice()->with(ConfigInterface::class)->andReturn($config);
 
         $factory->startComponent($factory->make('component'), ['name' => 'Taylor']);
         $factory->slot('title');
@@ -770,13 +703,9 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingClosure()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/Fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->twice()->with('view.event.enable', false)->andReturn(false);
-        $container->shouldReceive('get')->twice()->with(ConfigInterface::class)->andReturn($config);
         $factory->startComponent(function ($data) use ($factory) {
             $this->assertArrayHasKey('name', $data);
             $this->assertSame($data['name'], 'Taylor');
@@ -805,7 +734,7 @@ class ViewFactoryTest extends TestCase
         $translator = m::mock(stdClass::class);
         $translator->shouldReceive('get')->with('Foo', ['name' => 'taylor'])->andReturn('Bar');
         $container = m::mock(Container::class);
-        $container->shouldReceive('get')->with('translator')->andReturn($translator);
+        $container->shouldReceive('make')->with('translator')->andReturn($translator);
         $factory = $this->getFactory();
         $factory->setContainer($container);
         $factory->startTranslation(['name' => 'taylor']);
@@ -951,7 +880,7 @@ class ViewFactoryTest extends TestCase
         $factory->getFinder()->shouldReceive('find')->twice()->with('foo.bar')->andReturn('path.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->twice()->with('php')->andReturn(m::mock(Engine::class));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
         $factory->make('foo/bar');
         $factory->make('foo.bar');
     }
@@ -962,7 +891,7 @@ class ViewFactoryTest extends TestCase
         $factory->getFinder()->shouldReceive('find')->twice()->with('vendor/package::foo.bar')->andReturn('path.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->twice()->with('php')->andReturn(m::mock(Engine::class));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
-        $factory->setContainer($this->createContainer());
+        $factory->setContainer(m::mock(Container::class));
         $factory->make('vendor/package::foo/bar');
         $factory->make('vendor/package::foo.bar');
     }
@@ -981,20 +910,16 @@ class ViewFactoryTest extends TestCase
         $this->expectException(ErrorException::class);
         $this->expectExceptionMessage('section exception message');
 
-        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem());
+        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem);
         $engine->getCompiler()->shouldReceive('getCompiledPath')->andReturnUsing(function ($path) {
             return $path;
         });
         $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
         $factory = $this->getFactory();
         $factory->getEngineResolver()->shouldReceive('resolve')->twice()->andReturn($engine);
-        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__ . '/fixtures/section-exception-layout.php');
-        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__ . '/fixtures/section-exception.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__ . '/Fixtures/section-exception-layout.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__ . '/Fixtures/section-exception.php');
         $factory->getDispatcher()->shouldReceive('hasListeners')->times(4); // 2 "creating" + 2 "composing"...
-        $factory->setContainer($container = m::mock(Container::class));
-        $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->with('view.event.enable', false)->andReturn(true);
-        $container->shouldReceive('get')->with(ConfigInterface::class)->andReturn($config);
 
         $factory->make('view')->render();
     }

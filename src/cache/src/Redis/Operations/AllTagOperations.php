@@ -115,7 +115,9 @@ class AllTagOperations
     /**
      * Get the AddEntry operation for adding cache key references to tag sorted sets.
      *
-     * @deprecated Use put(), forever(), increment(), decrement() instead for combined operations
+     * Not currently called internally — the combined operation classes (Put, Forever,
+     * Increment, etc.) handle tag tracking inline for single-checkout pool efficiency.
+     * Kept for Laravel RedisTagSet API parity.
      */
     public function addEntry(): AddEntry
     {

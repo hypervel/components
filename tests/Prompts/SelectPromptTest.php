@@ -7,12 +7,13 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Prompts\SelectPrompt;
+use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\select;
 
 /**
- * @backupStaticProperties enabled
  * @internal
  * @coversNothing
  */
@@ -50,7 +51,7 @@ class SelectPromptTest extends TestCase
         $this->assertSame('green', $result);
     }
 
-    public function testAcceptsAssociativeArrayWithIntegerKeys(): void
+    public function testAcceptsAssociateArrayWithIntegerKeys(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -82,9 +83,124 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    /**
-     * @dataProvider scrollOptionsProvider
-     */
+    public function testAcceptsDefaultValuesWhenOptionsAreLabels()
+    {
+        Prompt::fake([Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+            ],
+            default: 'Green'
+        );
+
+        $this->assertSame('Green', $result);
+    }
+
+    public function testAcceptsDefaultValuesWhenOptionsAreKeysWithLabels()
+    {
+        Prompt::fake([Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ],
+            default: 'green'
+        );
+
+        $this->assertSame('green', $result);
+    }
+
+    public function testTransformsValues()
+    {
+        Prompt::fake([Key::DOWN, Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+            ],
+            transform: fn ($value) => strtolower($value),
+        );
+
+        $this->assertSame('green', $result);
+    }
+
+    public function testValidates()
+    {
+        Prompt::fake([Key::ENTER, Key::DOWN, Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ],
+            validate: fn ($value) => $value === 'red' ? 'You can\'t choose red.' : null
+        );
+
+        $this->assertSame('green', $result);
+
+        Prompt::assertOutputContains('You can\'t choose red.');
+    }
+
+    public function testCanFallBack()
+    {
+        Prompt::fallbackWhen(true);
+
+        SelectPrompt::fallbackUsing(function (SelectPrompt $prompt) {
+            $this->assertSame('What is your favorite color?', $prompt->label);
+
+            return 'Blue';
+        });
+
+        $result = select('What is your favorite color?', [
+            'Red',
+            'Green',
+            'Blue',
+        ]);
+
+        $this->assertSame('Blue', $result);
+    }
+
+    public function testCentersDefaultValueWhenNotVisible()
+    {
+        Prompt::fake([Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+                'Yellow',
+                'Orange',
+                'Purple',
+                'Pink',
+                'Brown',
+                'Black',
+            ],
+            default: 'Purple',
+            scroll: 3
+        );
+
+        $this->assertSame('Purple', $result);
+
+        Prompt::assertOutputContains('Orange');
+        Prompt::assertOutputContains('Purple');
+        Prompt::assertOutputContains('Pink');
+    }
+
+    #[DataProvider('scrollOptionsProvider')]
     public function testScrollsToBottomWhenDefaultValueIsNearEnd(int $scroll, array $outputContains): void
     {
         Prompt::fake([Key::ENTER]);
@@ -156,6 +272,81 @@ class SelectPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
+    public function testSupportsHomeKey()
+    {
+        Prompt::fake([Key::HOME[0], Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+            ],
+            default: 'Blue'
+        );
+
+        $this->assertSame('Red', $result);
+    }
+
+    public function testSupportsEndKey()
+    {
+        Prompt::fake([Key::END[0], Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+            ],
+        );
+
+        $this->assertSame('Blue', $result);
+    }
+
+    public function testAllowsEmptyStrings()
+    {
+        Prompt::fake([Key::ENTER]);
+
+        $result = select(
+            label: 'What is your favorite color?',
+            options: [
+                '' => 'Empty',
+                'not-empty' => 'Not empty',
+            ],
+        );
+
+        $this->assertSame('', $result);
+    }
+
+    public function testFailsWhenNoDefaultInNonInteractiveMode()
+    {
+        $this->expectException(NonInteractiveValidationException::class);
+        $this->expectExceptionMessage('Required.');
+
+        Prompt::interactive(false);
+
+        select('What is your favorite color?', [
+            'Red',
+            'Green',
+            'Blue',
+        ]);
+    }
+
+    public function testReturnsDefaultValueWhenNonInteractive()
+    {
+        Prompt::interactive(false);
+
+        $result = select('What is your favorite color?', [
+            'Red',
+            'Green',
+            'Blue',
+        ], default: 'Green');
+
+        $this->assertSame('Green', $result);
+    }
+
     public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
@@ -199,5 +390,41 @@ class SelectPromptTest extends TestCase
         Prompt::assertOutputContains('Please choose green.');
 
         Prompt::validateUsing(fn () => null);
+    }
+
+    public function testAllowsRequiredValidationMessageCustomizationWhenNonInteractive()
+    {
+        $this->expectException(NonInteractiveValidationException::class);
+        $this->expectExceptionMessage('The color is required.');
+
+        Prompt::interactive(false);
+
+        select(
+            label: 'What is your favorite color?',
+            options: [
+                'Red',
+                'Green',
+                'Blue',
+            ],
+            required: 'The color is required.',
+        );
+    }
+
+    public function testHandlesFalsyDefault()
+    {
+        Prompt::fake([Key::ENTER]);
+
+        $result = select(
+            label: 'How many stars would you like to give?',
+            options: [
+                '3',
+                '2',
+                '1',
+                '0',
+            ],
+            default: '0',
+        );
+
+        $this->assertSame('0', $result);
     }
 }

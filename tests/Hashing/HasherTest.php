@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Hashing;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Hashing\HashManager;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use RuntimeException;
 
 /**
@@ -32,27 +31,27 @@ class HasherTest extends TestCase
 
     public function testEmptyHashedValueReturnsFalse()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', ''));
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $this->assertFalse($hasher->check('password', ''));
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $this->assertFalse($hasher->check('password', ''));
     }
 
     public function testNullHashedValueReturnsFalse()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', null));
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $this->assertFalse($hasher->check('password', null));
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $this->assertFalse($hasher->check('password', null));
     }
 
     public function testBasicBcryptHashing()
     {
-        $hasher = new BcryptHasher();
+        $hasher = new BcryptHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));
@@ -64,7 +63,7 @@ class HasherTest extends TestCase
 
     public function testBasicArgon2iHashing()
     {
-        $hasher = new ArgonHasher();
+        $hasher = new ArgonHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));
@@ -76,7 +75,7 @@ class HasherTest extends TestCase
 
     public function testBasicArgon2idHashing()
     {
-        $hasher = new Argon2IdHasher();
+        $hasher = new Argon2IdHasher;
         $value = $hasher->make('password');
         $this->assertNotSame('password', $value);
         $this->assertTrue($hasher->check('password', $value));
@@ -129,10 +128,10 @@ class HasherTest extends TestCase
 
     protected function getContainer()
     {
-        $container = Mockery::mock(ContainerInterface::class);
-        $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
-            ->andReturn($config = new Config([
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')
+            ->with('config')
+            ->andReturn($config = new ConfigRepository([
                 'hashing' => [
                     'driver' => 'bcrypt',
                     'bcrypt' => [

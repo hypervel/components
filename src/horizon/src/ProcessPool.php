@@ -126,8 +126,6 @@ class ProcessPool implements Countable
     protected function removeProcesses(int $count): void
     {
         array_splice($this->processes, 0, $count);
-
-        $this->processes = array_values($this->processes);
     }
 
     /**

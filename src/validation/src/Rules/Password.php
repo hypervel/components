@@ -4,19 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use ArrayIterator;
 use Closure;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use InvalidArgumentException;
+use IteratorAggregate;
+use Traversable;
 
-class Password implements Rule, DataAwareRule, ValidatorAwareRule
+class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule
 {
     use Conditionable;
 
@@ -39,6 +43,16 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
      * The maximum size of the password.
      */
     protected ?int $max = null;
+
+    /**
+     * If the password is required.
+     */
+    protected bool $required = false;
+
+    /**
+     * If the password should only be validated when present.
+     */
+    protected bool $sometimes = false;
 
     /**
      * If the password requires at least one uppercase and one lowercase letter.
@@ -132,17 +146,25 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
     /**
      * Get the default configuration of the password rule and mark the field as required.
      */
-    public static function required(): array
+    public static function required(): static
     {
-        return ['required', static::default()];
+        $password = static::default();
+
+        $password->required = true;
+
+        return $password;
     }
 
     /**
      * Get the default configuration of the password rule and mark the field as sometimes being required.
      */
-    public static function sometimes(): array
+    public static function sometimes(): static
     {
-        return ['sometimes', static::default()];
+        $password = static::default();
+
+        $password->sometimes = true;
+
+        return $password;
     }
 
     /**
@@ -252,14 +274,17 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
     {
         $this->messages = [];
 
+        if (! $this->required && ! $this->sometimes && ! Arr::has($this->data, $attribute)) {
+            return true;
+        }
+
+        if (blank($value) && ! $this->required && $this->validator?->hasRule($attribute, ['Nullable'])) {
+            return true;
+        }
+
         $validator = Validator::make(
             $this->data,
-            [$attribute => [
-                'string',
-                'min:' . $this->min,
-                ...($this->max ? ['max:' . $this->max] : []),
-                ...$this->customRules,
-            ]],
+            [$attribute => [...$this]],
             $this->validator->customMessages, // @phpstan-ignore-line
             $this->validator->customAttributes // @phpstan-ignore-line
         )->after(function ($validator) use ($attribute, $value) {
@@ -288,7 +313,7 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
             return $this->fail($validator->messages()->all());
         }
 
-        if ($this->uncompromised && ! ApplicationContext::getContainer()->get(UncompromisedVerifier::class)->verify([
+        if ($this->uncompromised && ! Container::getInstance()->make(UncompromisedVerifier::class)->verify([
             'value' => $value,
             'threshold' => $this->compromisedThreshold,
         ])) {
@@ -334,5 +359,20 @@ class Password implements Rule, DataAwareRule, ValidatorAwareRule
             'compromisedThreshold' => $this->compromisedThreshold,
             'customRules' => $this->customRules,
         ];
+    }
+
+    /**
+     * Get an iterator for the password validation rules.
+     */
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator([
+            ...($this->required ? ['required'] : []),
+            ...($this->sometimes ? ['sometimes'] : []),
+            'string',
+            'min:' . $this->min,
+            ...($this->max ? ['max:' . $this->max] : []),
+            ...$this->customRules,
+        ]);
     }
 }

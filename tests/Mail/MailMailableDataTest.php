@@ -17,18 +17,19 @@ class MailMailableDataTest extends TestCase
     {
         $testData = ['first_name' => 'James'];
 
-        $mailable = new MailableStub();
+        $mailable = new MailableStub;
         $mailable->build(function ($m) use ($testData) {
             $m->view('view', $testData);
         });
-        $this->assertSame($testData, $mailable->buildViewData());
+        $expected = array_merge($testData, ['__hypervel_mailable' => MailableStub::class]);
+        $this->assertSame($expected, $mailable->buildViewData());
 
-        $mailable = new MailableStub();
+        $mailable = new MailableStub;
         $mailable->build(function ($m) use ($testData) {
             $m->view('view', $testData)
                 ->text('text-view');
         });
-        $this->assertSame($testData, $mailable->buildViewData());
+        $this->assertSame($expected, $mailable->buildViewData());
     }
 }
 

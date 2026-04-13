@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Http\Controllers;
 
-use Hyperf\Database\Exception\QueryException;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Database\QueryException;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\DB;
 
-class BatchesController
+class BatchesController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -20,6 +21,7 @@ class BatchesController
     public function __construct(
         public BatchRepository $batches
     ) {
+        parent::__construct();
     }
 
     /**
@@ -28,7 +30,9 @@ class BatchesController
     public function index(Request $request): array
     {
         try {
-            $batches = $this->batches->get(50, $request->query('before_id', null));
+            $batches = $request->query('query')
+                ? $this->searchBatches($request)
+                : $this->batches->get(50, $request->query('before_id'));
         } catch (QueryException $e) {
             $batches = [];
         }
@@ -36,6 +40,29 @@ class BatchesController
         return [
             'batches' => $batches,
         ];
+    }
+
+    /**
+     * Search the batches by name or ID.
+     */
+    private function searchBatches(Request $request): array
+    {
+        $pattern = '%' . addcslashes($request->query('query'), '\%_') . '%';
+
+        return DB::connection(config('queue.batching.database'))
+            ->table(config('queue.batching.table', 'job_batches'))
+            ->where(function ($q) use ($pattern) {
+                $q->whereRaw("lower(name) like lower(?) escape '\\'", [$pattern])
+                    ->orWhereRaw("lower(id) like lower(?) escape '\\'", [$pattern]);
+            })
+            ->orderByDesc('id')
+            ->limit(50)
+            ->when($request->query('before_id'), fn ($q, $beforeId) => $q->where('id', '<', $beforeId))
+            ->pluck('id')
+            ->map(fn ($id) => $this->batches->find($id))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     /**

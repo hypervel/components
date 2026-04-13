@@ -4,54 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\HttpServer\Server as HttpServer;
-use Hyperf\Server\Event;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\View;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RequestWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 /**
  * @internal
  * @coversNothing
  */
+#[WithConfig('telescope.watchers', [
+    RequestWatcher::class => true,
+])]
 class RequestWatchersTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                RequestWatcher::class => true,
-            ]);
-        $this->app->get(ConfigInterface::class)
-            ->set('server.servers', [
-                'http' => [
-                    'name' => 'http',
-                    'port' => 9501,
-                    'callbacks' => [
-                        Event::ON_REQUEST => [m::mock(HttpServer::class)],
-                    ],
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
-    public function testRegisterEnableRequestEvents()
-    {
-        $this->assertTrue(
-            $this->app->get(ConfigInterface::class)
-                ->get('server.servers.http.options.enable_request_lifecycle', false)
-        );
-    }
-
     public function testRequestWatcherRegistersRequests()
     {
         $result = ['email' => 'albert@hypervel.org'];
@@ -147,8 +119,8 @@ class RequestWatchersTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame(EntryType::REQUEST, $entry->type);
-        $this->assertSame('first, second', $entry->content['headers']['X-Bar']);
-        $this->assertSame('third, fourth', $entry->content['response_headers']['X-Foo']);
+        $this->assertSame('first, second', $entry->content['headers']['x-bar']);
+        $this->assertSame('third, fourth', $entry->content['response_headers']['x-foo']);
     }
 
     #[RequiresPhpExtension('gd')]
@@ -202,5 +174,90 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('GET', $entry->content['method']);
         $this->assertSame(200, $entry->content['response_status']);
         $this->assertSame('plain telescope response', $entry->content['response']);
+    }
+
+    public function testRequestWatcherRecordsPlainTextPayload()
+    {
+        Route::post('/receive-plain-text', function () {
+            return response()->json(['ok' => 'yeah']);
+        });
+
+        $this->call(
+            'POST',
+            '/receive-plain-text',
+            server: $this->transformHeadersToServerVars(['Content-type' => 'text/plain']),
+            content: 'plain-text-content'
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(EntryType::REQUEST, $entry->type);
+        $this->assertSame('POST', $entry->content['method']);
+        $this->assertSame('plain-text-content', $entry->content['payload']);
+    }
+
+    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists()
+    {
+        View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
+
+        Route::get('/fake-view', function () {
+            return Response::make(
+                View::make('tests::fake-view', ['items' => new FormatForTelescopeClass])
+            );
+        });
+
+        $this->get('/fake-view')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(EntryType::REQUEST, $entry->type);
+        $this->assertEquals(['Telescope', 'Laravel', 'PHP'], $entry->content['response']['data']['items']['properties']);
+    }
+
+    public function testRequestWatcherStoresFacadeContextWhenPresent()
+    {
+        Route::get('/with-context', fn () => 'ok');
+
+        ContextRepository::getInstance()->add('trace_id', 'abc-123');
+        ContextRepository::getInstance()->addHidden('api_key', 'secret');
+
+        $this->get('/with-context');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertIsArray($entry->content['context']);
+        $this->assertSame(['trace_id' => 'abc-123'], $entry->content['context']['data']);
+        $this->assertSame(['api_key' => 'secret'], $entry->content['context']['hidden']);
+    }
+
+    public function testRequestWatcherOmitsFacadeContextWhenAbsent()
+    {
+        Route::get('/no-context', fn () => 'ok');
+
+        $this->get('/no-context');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNull($entry->content['context']);
+    }
+
+    public function testRequestWatcherRecordsCoroutineContext()
+    {
+        Route::get('/coroutine', fn () => 'ok');
+
+        $this->get('/coroutine');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('coroutine_context', $entry->content);
+        $this->assertIsArray($entry->content['coroutine_context']);
+    }
+}
+
+class FormatForTelescopeClass
+{
+    public function formatForTelescope(): array
+    {
+        return [
+            'Telescope', 'Laravel', 'PHP',
+        ];
     }
 }

@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Traits;
 
-use Hypervel\Context\Context;
-use Hypervel\Redis\Redis as HypervelRedis;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Redis\RedisProxy;
 use Redis;
 use RedisCluster;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * Coroutine multi-exec trait.
- * @see Hyperf\Redis\Traits\MultiExec
  */
 trait MultiExec
 {
@@ -48,11 +45,11 @@ trait MultiExec
             return $this->__call($command, []);
         }
 
-        if (! $this instanceof HypervelRedis) {
+        if (! $this instanceof RedisProxy) {
             return tap($this->__call($command, []), $callback)->exec();
         }
 
-        $hasExistingConnection = Context::has($this->getContextKey());
+        $hasExistingConnection = CoroutineContext::has($this->getContextKey());
         $instance = $this->__call($command, []);
 
         try {

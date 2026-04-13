@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -20,11 +17,8 @@ use Hypervel\Testbench\TestCase;
 class ScoutTestCase extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
-
-    protected ?ApplicationContract $app = null;
 
     protected function setUp(): void
     {
@@ -32,7 +26,7 @@ class ScoutTestCase extends TestCase
 
         $this->app->register(ScoutServiceProvider::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('scout', [
                 'driver' => 'collection',
                 'prefix' => '',

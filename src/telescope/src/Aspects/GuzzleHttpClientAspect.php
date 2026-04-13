@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Aspects;
 
 use GuzzleHttp\Client;
-use Hyperf\Di\Aop\AbstractAspect;
-use Hyperf\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Telescope\Watchers\HttpClientWatcher;
+use Hypervel\Di\Aop\AbstractAspect;
+use Hypervel\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 
 class GuzzleHttpClientAspect extends AbstractAspect
 {
@@ -16,13 +16,15 @@ class GuzzleHttpClientAspect extends AbstractAspect
     ];
 
     public function __construct(
-        protected HttpClientWatcher $watcher
+        protected ClientRequestWatcher $watcher
     ) {
     }
 
-    public function process(ProceedingJoinPoint $proceedingJoinPoint)
+    /**
+     * Delegate to the client request watcher for recording.
+     */
+    public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
-        return $this->watcher
-            ->recordRequest($proceedingJoinPoint);
+        return $this->watcher->recordRequest($proceedingJoinPoint);
     }
 }

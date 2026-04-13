@@ -6,10 +6,9 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Queue\Contracts\Job as JobContract;
-use Hypervel\Queue\Exceptions\ManuallyFailedException;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Jobs\FakeJob;
+use Hypervel\Support\InteractsWithTime;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
@@ -76,7 +75,7 @@ trait InteractsWithQueue
      */
     public function withFakeQueueInteractions(): static
     {
-        $this->job = new FakeJob();
+        $this->job = new FakeJob;
 
         return $this;
     }
@@ -121,6 +120,48 @@ trait InteractsWithQueue
         PHPUnit::assertTrue(
             $this->job->hasFailed(),
             'Job was expected to be manually failed, but was not.'
+        );
+
+        return $this;
+    }
+
+    /**
+     * Assert that the job was manually failed with a specific exception.
+     */
+    public function assertFailedWith(string|Throwable $exception): static
+    {
+        $this->assertFailed();
+
+        if (is_string($exception) && class_exists($exception)) {
+            PHPUnit::assertInstanceOf(
+                $exception,
+                $this->job->failedWith,
+                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].'
+            );
+
+            return $this;
+        }
+
+        if (is_string($exception)) {
+            $exception = new ManuallyFailedException($exception);
+        }
+
+        PHPUnit::assertInstanceOf(
+            get_class($exception),
+            $this->job->failedWith,
+            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].'
+        );
+
+        PHPUnit::assertEquals(
+            $exception->getCode(),
+            $this->job->failedWith->getCode(),
+            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].'
+        );
+
+        PHPUnit::assertEquals(
+            $exception->getMessage(),
+            $this->job->failedWith->getMessage(),
+            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].'
         );
 
         return $this;

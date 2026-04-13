@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\HttpServer\Request;
-use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
-use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Http\Request;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Pusher\Pusher;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * @internal
@@ -19,7 +19,7 @@ use Pusher\Pusher;
  */
 class PusherBroadcasterTest extends TestCase
 {
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected PusherBroadcaster $broadcaster;
 
@@ -29,7 +29,8 @@ class PusherBroadcasterTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
+        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->pusher = m::mock(Pusher::class);
         $this->broadcaster = m::mock(PusherBroadcaster::class, [$this->container, $this->pusher])->makePartial();
     }
@@ -37,8 +38,6 @@ class PusherBroadcasterTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -181,21 +180,48 @@ class PusherBroadcasterTest extends TestCase
         $this->assertSame($authenticateUser, $response);
     }
 
+    public function testDecodePusherResponseWithJsonpCallback()
+    {
+        // Register ResponseFactory so the response() helper works
+        $container = \Hypervel\Container\Container::getInstance();
+        $container->singleton(
+            \Hypervel\Contracts\Routing\ResponseFactory::class,
+            fn () => new \Hypervel\Routing\ResponseFactory(
+                m::mock(\Hypervel\Contracts\View\Factory::class),
+                m::mock(\Hypervel\Routing\Redirector::class),
+            )
+        );
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')->with('channel_name')->andReturn('private-test');
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request->shouldReceive('input')->with('callback', false)->andReturn('myCallback');
+        $request->shouldReceive('input')->with('callback')->andReturn('myCallback');
+        $request->shouldReceive('user')->andReturn(m::mock('User'));
+
+        $data = ['auth' => 'abcd:efgh'];
+
+        $this->pusher->shouldReceive('authorizeChannel')
+            ->once()
+            ->andReturn(json_encode($data));
+
+        $response = $this->broadcaster->validAuthenticationResponse($request, true);
+
+        $this->assertInstanceOf(\Hypervel\Http\JsonResponse::class, $response);
+    }
+
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
-        $request->shouldReceive('input')->with('socket_id')->andReturn('1234.1234');
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request->shouldReceive('input')->with('callback', false)->andReturn(false);
 
         $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
         $user->shouldReceive('getAuthIdentifier')->andReturn(42);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn($user);
-
-        $this->container->shouldReceive('get')
-            ->with(AuthManager::class)
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn($user);
 
         return $request;
     }
@@ -205,12 +231,7 @@ class PusherBroadcasterTest extends TestCase
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
 
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('user')->andReturn(null);
-
-        $this->container->shouldReceive('get')
-            ->with(AuthManager::class)
-            ->andReturn($authManager);
+        $request->shouldReceive('user')->andReturn(null);
 
         return $request;
     }
