@@ -773,6 +773,17 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function call(callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed
     {
+        // Fast path: closures with zero declared parameters and no explicit
+        // parameters don't need DI resolution. Skip the getClassForCallable()
+        // reflection and the entire BoundMethod chain.
+        // Uses getNumberOfParameters() (not getNumberOfRequiredParameters())
+        // because BoundMethod injects optional typed parameters when resolvable.
+        if ($callback instanceof Closure && empty($parameters) && $defaultMethod === null
+            && (new ReflectionFunction($callback))->getNumberOfParameters() === 0
+        ) {
+            return $callback();
+        }
+
         $pushedToBuildStack = false;
 
         if (($className = $this->getClassForCallable($callback))

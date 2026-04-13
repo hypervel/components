@@ -396,6 +396,44 @@ class ContainerCallTest extends TestCase
         $key = ContainerTestCallStub::class . '::inject';
         $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
     }
+
+    public function testCallZeroParameterClosureUseFastPath()
+    {
+        $container = new Container;
+
+        $result = $container->call(fn () => 'hello');
+
+        $this->assertSame('hello', $result);
+    }
+
+    public function testCallClosureWithOptionalTypedParameterStillInjectsBoundDependency()
+    {
+        $container = new Container;
+        $container->bind(ContainerCallConcreteStub::class);
+
+        $result = $container->call(fn (?ContainerCallConcreteStub $stub = null) => $stub);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result);
+    }
+
+    public function testCallClosureWithRequiredTypedParameterStillInjectsDependency()
+    {
+        $container = new Container;
+
+        $result = $container->call(fn (ContainerCallConcreteStub $stub) => $stub);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result);
+    }
+
+    public function testCallInvokableObjectStillWorksWithFastPath()
+    {
+        $container = new Container;
+
+        $result = $container->call(new ContainerCallCallableStub);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
+        $this->assertSame('jeffrey', $result[1]);
+    }
 }
 
 class ContainerTestCallStub
