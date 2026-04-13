@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Inertia\Ssr;
 
 use Closure;
-use Exception;
+use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\TransferException;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
-use Hypervel\Http\Client\StrayRequestException;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\ResolvesCallables;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Vite;
 use Hypervel\Support\Str;
 
@@ -31,11 +31,54 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     private static ?float $ssrUnavailableUntil = null;
 
     /**
+     * The reusable Guzzle client for SSR requests.
+     *
+     * Cached for the worker lifetime to avoid rebuilding the client,
+     * handler stack, and curl handle cache on every SSR dispatch.
+     */
+    private static ?ClientInterface $ssrClient = null;
+
+    /**
+     * A testing-only client override.
+     */
+    private static ?ClientInterface $testingClient = null;
+
+    /**
      * Get the per-request Inertia state.
      */
     private function state(): InertiaState
     {
         return CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+    }
+
+    /**
+     * Get the Guzzle client for SSR requests.
+     *
+     * Uses a dedicated raw Guzzle client instead of the Http facade to avoid
+     * per-request PendingRequest, HandlerStack, and Client allocations.
+     * The client is cached for the worker lifetime, allowing Guzzle's
+     * internal CurlFactory to reuse curl handles (TCP connection reuse).
+     */
+    protected function ssrClient(): ClientInterface
+    {
+        if (self::$testingClient !== null) {
+            return self::$testingClient;
+        }
+
+        return self::$ssrClient ??= new Client([
+            'connect_timeout' => (int) config('inertia.ssr.connect_timeout', 2),
+            'timeout' => (int) config('inertia.ssr.timeout', 5),
+            'cookies' => false,
+            'http_errors' => false,
+        ]);
+    }
+
+    /**
+     * Set a Guzzle client for testing purposes.
+     */
+    public static function useTestingClient(?ClientInterface $client): void
+    {
+        self::$testingClient = $client;
     }
 
     /**
@@ -59,21 +102,22 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
             ? $this->getHotUrl('/__inertia_ssr')
             : $this->getProductionUrl('/render');
 
-        $connectTimeout = (int) config('inertia.ssr.connect_timeout', 2);
-        $timeout = (int) config('inertia.ssr.timeout', 5);
-
         try {
-            $response = Http::connectTimeout($connectTimeout)
-                ->timeout($timeout)
-                ->post($url, $page);
+            $response = $this->ssrClient()->request('POST', $url, [
+                'json' => $page,
+            ]);
 
-            if ($response->failed()) {
-                $this->handleSsrFailure($page, $response->json());
+            if ($response->getStatusCode() >= 400) {
+                $decoded = json_decode((string) $response->getBody(), true);
+
+                $this->handleSsrFailure($page, is_array($decoded) ? $decoded : null);
 
                 return null;
             }
 
-            if (! $data = $response->json()) {
+            $data = json_decode((string) $response->getBody(), true);
+
+            if (! $data) {
                 return null;
             }
 
@@ -84,11 +128,9 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
                 implode("\n", $data['head'] ?? []),
                 $data['body'] ?? ''
             );
-        } catch (Exception $e) {
-            if ($e instanceof StrayRequestException || $e instanceof SsrException) {
-                throw $e;
-            }
-
+        } catch (SsrException $e) {
+            throw $e;
+        } catch (TransferException $e) {
             $this->handleSsrFailure($page, [
                 'error' => $e->getMessage(),
                 'type' => 'connection',
@@ -136,15 +178,12 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      * Sets the circuit breaker backoff and dispatches a failure event.
      *
      * @param array<string, mixed> $page
+     * @param null|array<string, mixed> $error
      *
      * @throws SsrException
      */
-    protected function handleSsrFailure(array $page, mixed $error): void
+    protected function handleSsrFailure(array $page, ?array $error): void
     {
-        // Normalize: json() returns mixed — scalar/null responses become empty array
-        // so the ?? defaults below produce a clean SsrRenderFailed event.
-        $error = is_array($error) ? $error : [];
-
         // Activate circuit breaker to avoid pile-up on a dead SSR server
         self::$ssrUnavailableUntil = microtime(true) + (float) config('inertia.ssr.backoff', 5.0);
 
@@ -191,19 +230,11 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     public function isHealthy(): bool
     {
-        $connectTimeout = (int) config('inertia.ssr.connect_timeout', 2);
-        $timeout = (int) config('inertia.ssr.timeout', 5);
-
         try {
-            return Http::connectTimeout($connectTimeout)
-                ->timeout($timeout)
-                ->get($this->getProductionUrl('/health'))
-                ->successful();
-        } catch (Exception $e) {
-            if ($e instanceof StrayRequestException) {
-                throw $e;
-            }
+            $response = $this->ssrClient()->request('GET', $this->getProductionUrl('/health'));
 
+            return $response->getStatusCode() >= 200 && $response->getStatusCode() < 300;
+        } catch (TransferException) {
             return false;
         }
     }
@@ -244,10 +275,12 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     }
 
     /**
-     * Reset the circuit breaker state.
+     * Reset static state for testing.
      */
     public static function flushState(): void
     {
         self::$ssrUnavailableUntil = null;
+        self::$ssrClient = null;
+        self::$testingClient = null;
     }
 }
