@@ -358,6 +358,61 @@ class HttpClientTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $response['result']);
     }
 
+    public function testJsonCachesEmptyArray()
+    {
+        $this->factory->fake([
+            '*' => '[]',
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api');
+
+        $this->assertSame([], $response->json());
+        $this->assertSame([], $response->json());
+    }
+
+    public function testJsonCachesScalarValues()
+    {
+        $this->factory->fake([
+            'foo.com/zero' => '0',
+            'foo.com/false' => 'false',
+        ]);
+
+        $response = $this->factory->get('http://foo.com/zero');
+        $this->assertSame(0, $response->json());
+        $this->assertSame(0, $response->json());
+
+        $response = $this->factory->get('http://foo.com/false');
+        $this->assertSame(false, $response->json());
+        $this->assertSame(false, $response->json());
+    }
+
+    public function testJsonCachesNullForInvalidJson()
+    {
+        $this->factory->fake([
+            '*' => 'not valid json',
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api');
+
+        $this->assertNull($response->json());
+        $this->assertNull($response->json());
+    }
+
+    public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback()
+    {
+        $this->factory->fake([
+            '*' => '{"key":"value"}',
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api');
+
+        $this->assertSame(['key' => 'value'], $response->json());
+
+        $response->decodeUsing(fn (string $body, bool $asObject) => ['custom' => 'decoded']);
+
+        $this->assertSame(['custom' => 'decoded'], $response->json());
+    }
+
     public function testResponseObjectAsArray()
     {
         $this->factory->fake([

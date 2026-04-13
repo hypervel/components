@@ -33,6 +33,11 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     use Concerns\Testing;
 
     /**
+     * The base URL to use while testing the application.
+     */
+    protected string $baseUrl = 'http://localhost';
+
+    /**
      * Automatically loads environment variables when available.
      */
     protected bool $loadEnvironmentVariables = true;
@@ -59,6 +64,8 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         });
 
         parent::setUp();
+
+        $this->baseUrl = config('app.url', 'http://localhost');
 
         // Execute BeforeEach attributes INSIDE coroutine context
         // (matches where setUpTraits runs in Foundation TestCase)

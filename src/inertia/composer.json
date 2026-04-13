@@ -1,0 +1,65 @@
+{
+    "name": "hypervel/inertia",
+    "type": "library",
+    "description": "The Inertia.js adapter for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "inertia",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Inertia\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/pagination": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/session": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/testing": "^0.4",
+        "hypervel/view": "^0.4",
+        "symfony/console": "^8.0",
+        "symfony/process": "^8.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Inertia\\InertiaServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}
