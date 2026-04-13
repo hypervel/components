@@ -8,9 +8,7 @@ use Exception;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
@@ -27,9 +25,7 @@ use ReflectionProperty;
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
         'enabled' => true,
-        // Higher than Laravel's 0.2 threshold because the test coroutine wrapper
-        // adds ~0.15ms overhead per query that doesn't exist in production.
-        'slow' => 1,
+        'slow' => 0.2,
     ],
 ])]
 class QueryWatcherTest extends FeatureTestCase
@@ -48,18 +44,24 @@ class QueryWatcherTest extends FeatureTestCase
 
     public function testQueryWatcherCanTagSlowQueries()
     {
-        $records = Collection::times(1000, function () {
-            return [
-                'tag' => Str::random(),
-            ];
-        });
+        $bindings = array_map(
+            static fn (int $record): string => sprintf('tag-%012d', $record),
+            range(1, 300),
+        );
 
-        DB::table('telescope_monitoring')->insert($records->toArray());
+        $event = new QueryExecuted(
+            'insert into "telescope_monitoring" ("tag") values ' . implode(', ', array_fill(0, count($bindings), '(?)')),
+            $bindings,
+            500,
+            DB::connection(),
+        );
+
+        $this->app->make(QueryWatcher::class)->recordQuery($event);
 
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame(EntryType::QUERY, $entry->type);
-        $this->assertGreaterThan(1000 * 16, strlen($entry->content['sql']));
+        $this->assertGreaterThan(300 * 16, strlen($entry->content['sql']));
         $this->assertSame('testing', $entry->content['connection']);
         $this->assertTrue($entry->content['slow']);
     }
