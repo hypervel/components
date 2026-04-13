@@ -26,6 +26,13 @@ interface Kernel
     public function terminate(Request $request, Response $response): void;
 
     /**
+     * Get the application's route middleware groups.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    public function getMiddlewareGroups(): array;
+
+    /**
      * Get the application instance.
      */
     public function getApplication(): Application;
