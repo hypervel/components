@@ -130,7 +130,12 @@ class Bootstrapper
     {
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
         $pid = getmypid();
-        $runtimePath = sys_get_temp_dir() . "/hypervel-components-testbench-{$token}-{$pid}";
+        // Normalize the temp dir so that BASE_PATH matches paths derived via
+        // realpath(). On macOS, sys_get_temp_dir() returns /var/folders/...
+        // but glob() resolves symlinks to /private/var/folders/..., causing
+        // BASE_PATH to differ from app->basePath() in test assertions.
+        $tempDir = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();
+        $runtimePath = $tempDir . "/hypervel-components-testbench-{$token}-{$pid}";
 
         $filesystem = static::getFilesystem();
 
@@ -139,7 +144,7 @@ class Bootstrapper
         // (PPID=1, meaning the test process that spawned it exited). Orphaned
         // serve processes (confirmed via hypervel.pid) are killed before their
         // dirs are removed.
-        foreach (glob(sys_get_temp_dir() . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
+        foreach (glob($tempDir . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
             if (! $filesystem->isDirectory($staleDir)) {
                 continue;
             }
