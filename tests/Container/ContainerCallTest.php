@@ -326,8 +326,14 @@ class ContainerCallTest extends TestCase
         $container = new Container;
         $container->call('Hypervel\Tests\Container\containerTestInject');
 
-        $cache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
-        $this->assertEmpty($cache);
+        $methodCache = (new ReflectionProperty(BoundMethod::class, 'methodRecipes'))->getValue();
+        $this->assertEmpty($methodCache);
+
+        $functionCache = (new ReflectionProperty(BoundMethod::class, 'functionRecipes'))->getValue();
+        $functionName = 'Hypervel\Tests\Container\containerTestInject';
+        $this->assertArrayHasKey($functionName, $functionCache);
+        $this->assertCount(2, $functionCache[$functionName]);
+        $this->assertInstanceOf(ParameterRecipe::class, $functionCache[$functionName][0]);
     }
 
     public function testMethodRecipeCacheIsPopulatedForStaticMethodStrings()
@@ -395,6 +401,53 @@ class ContainerCallTest extends TestCase
         // Same array reference — no recomputation
         $key = ContainerTestCallStub::class . '::inject';
         $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
+    }
+
+    public function testFunctionRecipeCacheIsClearedOnFlush()
+    {
+        $container = new Container;
+        $container->call('Hypervel\Tests\Container\containerTestInject');
+
+        $property = new ReflectionProperty(BoundMethod::class, 'functionRecipes');
+        $this->assertNotEmpty($property->getValue());
+
+        $container->flush();
+
+        $this->assertEmpty($property->getValue());
+
+        // Verify it still works after flush (re-computes recipe)
+        $result = $container->call('Hypervel\Tests\Container\containerTestInject');
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
+        $this->assertSame('taylor', $result[1]);
+    }
+
+    public function testRepeatedGlobalFunctionStringCallsUseSameCachedRecipes()
+    {
+        $container = new Container;
+
+        $container->call('Hypervel\Tests\Container\containerTestInject');
+        $property = new ReflectionProperty(BoundMethod::class, 'functionRecipes');
+        $cacheAfterFirst = $property->getValue();
+
+        $container->call('Hypervel\Tests\Container\containerTestInject');
+        $cacheAfterSecond = $property->getValue();
+
+        $key = 'Hypervel\Tests\Container\containerTestInject';
+        $this->assertSame($cacheAfterFirst[$key], $cacheAfterSecond[$key]);
+    }
+
+    public function testFirstClassCallablePushesBuildStack()
+    {
+        $container = new Container;
+
+        $container->when(ContainerCallContextualStub::class)
+            ->needs(ContainerCallContextualInterface::class)
+            ->give(ContainerCallContextualImplB::class);
+
+        $stub = new ContainerCallContextualStub;
+        $result = $container->call($stub->handle(...));
+
+        $this->assertInstanceOf(ContainerCallContextualImplB::class, $result);
     }
 
     public function testCallZeroParameterClosureUseFastPath()
@@ -533,4 +586,20 @@ class ContainerCallTestLabel
 class ContainerCallTestLabelledService
 {
     public ?string $label = null;
+}
+
+interface ContainerCallContextualInterface
+{
+}
+
+class ContainerCallContextualImplB implements ContainerCallContextualInterface
+{
+}
+
+class ContainerCallContextualStub
+{
+    public function handle(ContainerCallContextualInterface $dependency): ContainerCallContextualInterface
+    {
+        return $dependency;
+    }
 }
