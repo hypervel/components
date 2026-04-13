@@ -73,7 +73,7 @@ trait CopyTestbenchFiles
         bool $resetOnTerminating = true
     ): void {
         $sourcePath = $this->resolveTestbenchSourcePath($filesystem, $workingPath);
-        $workingPath = $filesystem->isDirectory(join_paths($sourcePath, 'workbench'))
+        $workingPath = ($sourcePath !== testbench_path() && $filesystem->isDirectory(join_paths($sourcePath, 'workbench')))
             ? join_paths($sourcePath, 'workbench')
             : $sourcePath;
 

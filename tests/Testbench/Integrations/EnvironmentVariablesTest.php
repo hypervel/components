@@ -41,7 +41,7 @@ class EnvironmentVariablesTest extends TestCase
 
         $user = UserFactory::new()->create();
 
-        $this->assertFalse(file_exists(testbench_path('workbench/.env')));
+        $this->assertFalse(file_exists(testbench_path('hypervel/.env')));
         $this->assertFalse(file_exists(base_path('.env')));
 
         $this->assertInstanceOf(User::class, $user);
