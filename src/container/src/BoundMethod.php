@@ -18,8 +18,7 @@ class BoundMethod
      *
      * Stores pre-computed ParameterRecipe arrays for deterministic callables
      * (array callables, Class@method strings, Class::method strings, invocable
-     * objects). Closures and global function strings are not cached since they
-     * lack a deterministic ClassName::methodName key.
+     * objects). Closures and global function strings are not cached here.
      *
      * Persists for the worker lifetime. Flushed via flushMethodRecipeCache()
      * which Container::flush() calls for test isolation.
@@ -29,12 +28,23 @@ class BoundMethod
     protected static array $methodRecipes = [];
 
     /**
+     * Cache of function parameter recipes, keyed by fully-qualified function name.
+     *
+     * Global function strings are deterministic (same name = same parameters),
+     * so their ParameterRecipe arrays are cached for the worker lifetime just
+     * like method recipes.
+     *
+     * @var array<string, ParameterRecipe[]>
+     */
+    protected static array $functionRecipes = [];
+
+    /**
      * Call the given Closure / class@method and inject its dependencies.
      *
      * @throws ReflectionException
      * @throws InvalidArgumentException
      */
-    public static function call(Container $container, callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed
+    public static function call(Container $container, callable|string $callback, array $parameters = [], ?string $defaultMethod = null, ?ReflectionFunction $reflection = null): mixed
     {
         if (is_string($callback) && ! $defaultMethod && method_exists($callback, '__invoke')) {
             $defaultMethod = '__invoke';
@@ -44,8 +54,8 @@ class BoundMethod
             return static::callClass($container, $callback, $parameters, $defaultMethod);
         }
 
-        return static::callBoundMethod($container, $callback, function () use ($container, $callback, $parameters) {
-            return $callback(...array_values(static::getMethodDependencies($container, $callback, $parameters)));
+        return static::callBoundMethod($container, $callback, function () use ($container, $callback, $parameters, $reflection) {
+            return $callback(...array_values(static::getMethodDependencies($container, $callback, $parameters, $reflection)));
         });
     }
 
@@ -151,11 +161,53 @@ class BoundMethod
     }
 
     /**
-     * Flush the method recipe cache.
+     * Get cached parameter recipes for a global function, computing on first access.
+     *
+     * @return ParameterRecipe[]
+     */
+    protected static function getFunctionRecipe(string $functionName): array
+    {
+        return static::$functionRecipes[$functionName] ??= static::computeFunctionRecipe($functionName);
+    }
+
+    /**
+     * Compute parameter recipes for a global function via reflection.
+     *
+     * @return ParameterRecipe[]
+     */
+    protected static function computeFunctionRecipe(string $functionName): array
+    {
+        $reflector = new ReflectionFunction($functionName);
+        $recipes = [];
+
+        foreach ($reflector->getParameters() as $index => $param) {
+            $recipes[$index] = new ParameterRecipe(
+                name: $param->getName(),
+                position: $index,
+                declaringClassName: $param->getDeclaringClass()?->getName() ?? $functionName,
+                className: Util::getParameterClassName($param),
+                hasType: $param->hasType(),
+                hasDefault: $param->isDefaultValueAvailable(),
+                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
+                isVariadic: $param->isVariadic(),
+                isOptional: $param->isOptional(),
+                allowsNull: $param->allowsNull(),
+                attributes: $param->getAttributes(),
+                contextualAttribute: Util::getContextualAttributeFromDependency($param),
+                reflectionString: (string) $param,
+            );
+        }
+
+        return $recipes;
+    }
+
+    /**
+     * Flush the method and function recipe caches.
      */
     public static function flushMethodRecipeCache(): void
     {
         static::$methodRecipes = [];
+        static::$functionRecipes = [];
     }
 
     /**
@@ -211,14 +263,14 @@ class BoundMethod
     /**
      * Get all dependencies for a given method.
      *
-     * For deterministic callables (array callables, Class::method strings,
-     * invocable objects), uses cached ParameterRecipe metadata. For closures
-     * and global function strings (which lack a deterministic key), falls
-     * back to per-call reflection.
+     * Deterministic callables (array callables, Class::method strings, invocable
+     * objects, global function strings) use cached ParameterRecipe metadata.
+     * Closures use per-call reflection via addDependencyForCallParameter, with
+     * an optional pre-built ReflectionFunction to avoid redundant allocation.
      *
      * @throws ReflectionException
      */
-    protected static function getMethodDependencies(Container $container, callable|string $callback, array $parameters = []): array
+    protected static function getMethodDependencies(Container $container, callable|string $callback, array $parameters = [], ?ReflectionFunction $reflection = null): array
     {
         // Array callables — use cached parameter recipes
         if (is_array($callback)) {
@@ -243,12 +295,20 @@ class BoundMethod
             return static::resolveMethodRecipeParameters($container, $recipes, $parameters);
         }
 
-        // Uncacheable callables: closures and global function strings.
-        // These lack a deterministic ClassName::methodName key, so we fall
-        // back to per-call reflection via addDependencyForCallParameter.
+        // Global function strings — use cached recipes
+        if (is_string($callback)) {
+            $recipes = static::getFunctionRecipe($callback);
+
+            return static::resolveMethodRecipeParameters($container, $recipes, $parameters);
+        }
+
+        // Closures — use provided reflection from Container::call() or create
+        // new one as fallback. This avoids redundant ReflectionFunction allocation
+        // when Container::call() has already reflected the closure.
+        $reflection ??= new ReflectionFunction($callback);
         $dependencies = [];
 
-        foreach ((new ReflectionFunction($callback))->getParameters() as $parameter) {
+        foreach ($reflection->getParameters() as $parameter) {
             static::addDependencyForCallParameter($container, $parameter, $parameters, $dependencies);
         }
 
