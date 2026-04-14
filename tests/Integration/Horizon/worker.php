@@ -12,12 +12,12 @@ use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Workbench\App\Exceptions\ExceptionHandler;
 
 use function Hypervel\Coroutine\run;
 
