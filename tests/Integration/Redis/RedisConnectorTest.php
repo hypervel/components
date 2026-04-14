@@ -32,13 +32,13 @@ class RedisConnectorTest extends TestCase
 
     public function testDefaultConfiguration()
     {
-        $host = env('REDIS_HOST', '127.0.0.1');
-        $port = (int) env('REDIS_PORT', 6379);
+        $host = $this->app->make('config')->get('database.redis.default.host');
+        $port = $this->app->make('config')->get('database.redis.default.port');
 
         $client = $this->getClient('default');
 
-        $this->assertEquals($host, $client->getHost());
-        $this->assertEquals($port, $client->getPort());
+        $this->assertSame($host, $client->getHost());
+        $this->assertSame($port, $client->getPort());
     }
 
     public function testUrl()
