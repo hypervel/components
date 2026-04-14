@@ -17,9 +17,8 @@ parameters:
   excludePaths:
     - %currentWorkingDirectory%/src/helper/*
     - %currentWorkingDirectory%/tests/*
-    - %currentWorkingDirectory%/src/testbench/workbench/runtime/*
-    - %currentWorkingDirectory%/src/testbench/workbench/storage/*
-    - %currentWorkingDirectory%/src/testbench/workbench/bootstrap/cache/*
+    - %currentWorkingDirectory%/src/testbench/hypervel/*
+    - %currentWorkingDirectory%/src/testbench/workbench/*
     - %currentWorkingDirectory%/src/*/node_modules/*
     - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
