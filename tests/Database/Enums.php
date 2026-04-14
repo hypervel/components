@@ -8,16 +8,16 @@ use Hypervel\Contracts\Support\Arrayable;
 
 enum StringStatus: string
 {
-    case draft = 'draft';
-    case pending = 'pending';
-    case done = 'done';
+    case Draft = 'draft';
+    case Pending = 'pending';
+    case Done = 'done';
 }
 
 enum IntegerStatus: int
 {
-    case draft = 0;
-    case pending = 1;
-    case done = 2;
+    case Draft = 0;
+    case Pending = 1;
+    case Done = 2;
 }
 
 enum NonBackedStatus

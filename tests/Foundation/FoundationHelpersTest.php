@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 enum StringEnum: string
 {
-    case UTC = 'UTC';
+    case Utc = 'UTC';
     case NewYork = 'America/New_York';
 }
 

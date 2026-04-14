@@ -76,7 +76,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
                 'is_admin' => 1,
                 'first_name' => 'FIRST',
                 'last_name' => 'LAST',
-                'type' => WithAttributesEnum::internal,
+                'type' => WithAttributesEnum::Internal,
             ]);
 
         $model = $query->make();
@@ -84,7 +84,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
         $this->assertSame(true, $model->is_admin);
         $this->assertSame('First', $model->first_name);
         $this->assertSame('Last', $model->last_name);
-        $this->assertSame(WithAttributesEnum::internal, $model->type);
+        $this->assertSame(WithAttributesEnum::Internal, $model->type);
 
         $this->assertEqualsCanonicalizing([
             'is_admin' => 1,
@@ -103,7 +103,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
                 'is_admin' => 1,
                 'first_name' => 'FIRST',
                 'last_name' => 'LAST',
-                'type' => WithAttributesEnum::internal,
+                'type' => WithAttributesEnum::Internal,
             ]);
 
         $query->create();
@@ -113,7 +113,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
         $this->assertSame(true, $model->is_admin);
         $this->assertSame('First', $model->first_name);
         $this->assertSame('Last', $model->last_name);
-        $this->assertSame(WithAttributesEnum::internal, $model->type);
+        $this->assertSame(WithAttributesEnum::Internal, $model->type);
     }
 
     protected function bootTable(): void
@@ -164,5 +164,5 @@ class WithAttributesModel extends Model
 
 enum WithAttributesEnum: string
 {
-    case internal = 'int';
+    case Internal = 'int';
 }

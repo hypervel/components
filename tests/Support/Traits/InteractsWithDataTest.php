@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 enum InteractsWithDataTestStringEnum: string
 {
-    case UTC = 'UTC';
+    case Utc = 'UTC';
     case NewYork = 'America/New_York';
 }
 

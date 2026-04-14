@@ -13,8 +13,8 @@ use Hypervel\Validation\Validator;
 
 enum TaggedUnionDiscriminatorType: string
 {
-    case EMAIL = 'email';
-    case URL = 'url';
+    case Email = 'email';
+    case Url = 'url';
 }
 
 /**
@@ -141,7 +141,7 @@ class ValidationAnyOfRuleTest extends TestCase
     {
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
-                'type' => TaggedUnionDiscriminatorType::EMAIL->value,
+                'type' => TaggedUnionDiscriminatorType::Email->value,
                 'email' => 'taylor@laravel.com',
             ],
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
@@ -149,7 +149,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
-                'type' => TaggedUnionDiscriminatorType::EMAIL->value,
+                'type' => TaggedUnionDiscriminatorType::Email->value,
                 'email' => 'invalid-email',
             ],
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
@@ -157,7 +157,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
-                'type' => TaggedUnionDiscriminatorType::URL->value,
+                'type' => TaggedUnionDiscriminatorType::Url->value,
                 'url' => 'http://laravel.com',
             ],
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
@@ -165,7 +165,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
-                'type' => TaggedUnionDiscriminatorType::URL->value,
+                'type' => TaggedUnionDiscriminatorType::Url->value,
                 'url' => 'not-a-url',
             ],
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
@@ -173,7 +173,7 @@ class ValidationAnyOfRuleTest extends TestCase
 
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
-                'type' => TaggedUnionDiscriminatorType::EMAIL->value,
+                'type' => TaggedUnionDiscriminatorType::Email->value,
                 'url' => 'url-should-not-be-present-with-email-discriminator',
             ],
         ], ['data' => Rule::anyOf($this->taggedUnionRules)]);
@@ -358,11 +358,11 @@ class ValidationAnyOfRuleTest extends TestCase
     {
         $this->taggedUnionRules = [
             [
-                'type' => ['required', Rule::in([TaggedUnionDiscriminatorType::EMAIL])],
+                'type' => ['required', Rule::in([TaggedUnionDiscriminatorType::Email])],
                 'email' => ['required', 'email:rfc'],
             ],
             [
-                'type' => ['required', Rule::in([TaggedUnionDiscriminatorType::URL])],
+                'type' => ['required', Rule::in([TaggedUnionDiscriminatorType::Url])],
                 'url' => ['required', 'url:http,https'],
             ],
         ];

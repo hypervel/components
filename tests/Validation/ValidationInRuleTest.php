@@ -66,11 +66,11 @@ class ValidationInRuleTest extends TestCase
 
         $this->assertSame('in:"1","2","3","4"', (string) $rule);
 
-        $rule = Rule::in([StringStatus::done]);
+        $rule = Rule::in([StringStatus::Done]);
 
         $this->assertSame('in:"done"', (string) $rule);
 
-        $rule = Rule::in([IntegerStatus::done]);
+        $rule = Rule::in([IntegerStatus::Done]);
 
         $this->assertSame('in:"2"', (string) $rule);
 

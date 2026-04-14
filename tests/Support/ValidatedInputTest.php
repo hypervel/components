@@ -480,7 +480,7 @@ class ValidatedInputTest extends TestCase
 
         $this->assertNull($input->enum('doesnt_exists', StringBackedEnum::class));
 
-        $this->assertEquals(StringBackedEnum::HELLO_WORLD, $input->enum('valid_enum_value', StringBackedEnum::class));
+        $this->assertEquals(StringBackedEnum::HelloWorld, $input->enum('valid_enum_value', StringBackedEnum::class));
 
         $this->assertNull($input->enum('invalid_enum_value', StringBackedEnum::class));
     }
@@ -494,7 +494,7 @@ class ValidatedInputTest extends TestCase
 
         $this->assertEmpty($input->enums('doesnt_exists', StringBackedEnum::class));
 
-        $this->assertEquals([StringBackedEnum::HELLO_WORLD], $input->enums('valid_enum_value', StringBackedEnum::class));
+        $this->assertEquals([StringBackedEnum::HelloWorld], $input->enums('valid_enum_value', StringBackedEnum::class));
 
         $this->assertEmpty($input->enums('invalid_enum_value', StringBackedEnum::class));
     }

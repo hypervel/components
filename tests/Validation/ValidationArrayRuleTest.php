@@ -43,7 +43,7 @@ class ValidationArrayRuleTest extends TestCase
 
         $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
 
-        $rule = Rule::array([ArrayKeysBacked::key_1, ArrayKeysBacked::key_2, ArrayKeysBacked::key_3]);
+        $rule = Rule::array([ArrayKeysBacked::Key1, ArrayKeysBacked::Key2, ArrayKeysBacked::Key3]);
 
         $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
 

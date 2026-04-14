@@ -54,11 +54,11 @@ class ValidationDoesntContainRuleTest extends TestCase
 
         $this->assertSame('doesnt_contain:"foo","bar","baz"', (string) $rule);
 
-        $rule = Rule::doesntContain([StringStatus::done]);
+        $rule = Rule::doesntContain([StringStatus::Done]);
 
         $this->assertSame('doesnt_contain:"done"', (string) $rule);
 
-        $rule = Rule::doesntContain([IntegerStatus::done]);
+        $rule = Rule::doesntContain([IntegerStatus::Done]);
 
         $this->assertSame('doesnt_contain:"2"', (string) $rule);
 

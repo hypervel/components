@@ -6,5 +6,5 @@ namespace Hypervel\Tests\Database\Fixtures;
 
 enum TestEnum: string
 {
-    case test = 'test';
+    case Test = 'test';
 }

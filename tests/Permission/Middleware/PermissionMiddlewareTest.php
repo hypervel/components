@@ -144,7 +144,7 @@ class PermissionMiddlewareTest extends PermissionTestCase
     {
         $result = PermissionMiddleware::parsePermissionsToString([
             'view',
-            PermissionEnum::EDIT,
+            PermissionEnum::Edit,
             'manage',
         ]);
 

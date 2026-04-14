@@ -1306,7 +1306,7 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereIntegerInRaw('id', [
-            '1a', 2, Bar::FOO,
+            '1a', 2, Bar::Foo,
         ]);
         $this->assertSame('select * from "users" where "id" in (1, 2, 5)', $builder->toSql());
         $this->assertEquals([], $builder->getBindings());
@@ -1316,7 +1316,7 @@ class DatabaseQueryBuilderTest extends TestCase
             ['id' => '1a'],
             ['id' => 2],
             ['any' => '3'],
-            ['id' => Bar::FOO],
+            ['id' => Bar::Foo],
         ]);
         $this->assertSame('select * from "users" where "id" in (1, 2, 3, 5)', $builder->toSql());
         $this->assertEquals([], $builder->getBindings());
@@ -4982,7 +4982,7 @@ SQL;
     public function testAddBindingWithEnum()
     {
         $builder = $this->getBuilder();
-        $builder->addBinding(IntegerStatus::done);
+        $builder->addBinding(IntegerStatus::Done);
         $builder->addBinding([NonBackedStatus::done]);
         $this->assertEquals([2, 'done'], $builder->getBindings());
     }

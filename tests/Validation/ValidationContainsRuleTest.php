@@ -54,11 +54,11 @@ class ValidationContainsRuleTest extends TestCase
 
         $this->assertSame('contains:"foo","bar","baz"', (string) $rule);
 
-        $rule = Rule::contains([StringStatus::done]);
+        $rule = Rule::contains([StringStatus::Done]);
 
         $this->assertSame('contains:"done"', (string) $rule);
 
-        $rule = Rule::contains([IntegerStatus::done]);
+        $rule = Rule::contains([IntegerStatus::Done]);
 
         $this->assertSame('contains:"2"', (string) $rule);
 

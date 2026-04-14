@@ -16,7 +16,7 @@ use ReflectionProperty;
 
 enum BackedEnumNamedRateLimiter: string
 {
-    case API = 'api';
+    case Api = 'api';
     case Web = 'web';
 }
 
@@ -58,7 +58,7 @@ class RateLimiterTest extends TestCase
     public static function registerNamedRateLimiterDataProvider(): array
     {
         return [
-            'uses BackedEnum' => [BackedEnumNamedRateLimiter::API, 'api'],
+            'uses BackedEnum' => [BackedEnumNamedRateLimiter::Api, 'api'],
             'uses UnitEnum' => [UnitEnumNamedRateLimiter::ThirdParty, 'ThirdParty'],
             'uses normal string' => ['yolo', 'yolo'],
         ];
@@ -67,16 +67,16 @@ class RateLimiterTest extends TestCase
     public function testForWithBackedEnumStoresUnderValue(): void
     {
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
-        $rateLimiter->for(BackedEnumNamedRateLimiter::API, fn () => 'api-limit');
+        $rateLimiter->for(BackedEnumNamedRateLimiter::Api, fn () => 'api-limit');
 
         // Can retrieve with enum
-        $this->assertNotNull($rateLimiter->limiter(BackedEnumNamedRateLimiter::API));
+        $this->assertNotNull($rateLimiter->limiter(BackedEnumNamedRateLimiter::Api));
 
         // Can also retrieve with string value
         $this->assertNotNull($rateLimiter->limiter('api'));
 
         // Closure returns expected value
-        $this->assertSame('api-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::API)());
+        $this->assertSame('api-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::Api)());
     }
 
     public function testForWithUnitEnumStoresUnderName(): void
@@ -110,7 +110,7 @@ class RateLimiterTest extends TestCase
         $rateLimiter->for('api', fn () => 'string-registered');
 
         // Retrieve with BackedEnum that has same value
-        $limiter = $rateLimiter->limiter(BackedEnumNamedRateLimiter::API);
+        $limiter = $rateLimiter->limiter(BackedEnumNamedRateLimiter::Api);
 
         $this->assertNotNull($limiter);
         $this->assertSame('string-registered', $limiter());
@@ -134,12 +134,12 @@ class RateLimiterTest extends TestCase
     {
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
 
-        $rateLimiter->for(BackedEnumNamedRateLimiter::API, fn () => 'api-limit');
+        $rateLimiter->for(BackedEnumNamedRateLimiter::Api, fn () => 'api-limit');
         $rateLimiter->for(BackedEnumNamedRateLimiter::Web, fn () => 'web-limit');
         $rateLimiter->for(UnitEnumNamedRateLimiter::ThirdParty, fn () => 'third-party-limit');
         $rateLimiter->for('custom', fn () => 'custom-limit');
 
-        $this->assertSame('api-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::API)());
+        $this->assertSame('api-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::Api)());
         $this->assertSame('web-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::Web)());
         $this->assertSame('third-party-limit', $rateLimiter->limiter(UnitEnumNamedRateLimiter::ThirdParty)());
         $this->assertSame('custom-limit', $rateLimiter->limiter('custom')());

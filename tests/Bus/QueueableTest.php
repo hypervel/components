@@ -39,7 +39,7 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['redis', 'redis'],
-            'uses string-backed enum' => [ConnectionEnum::SQS, 'sqs'],
+            'uses string-backed enum' => [ConnectionEnum::Sqs, 'sqs'],
             'uses unit enum' => [UnitConnectionEnum::Sync, 'Sync'],
             'uses null' => [null, null],
         ];
@@ -84,7 +84,7 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['high', 'high'],
-            'uses string-backed enum' => [QueueEnum::HIGH, 'high'],
+            'uses string-backed enum' => [QueueEnum::High, 'high'],
             'uses unit enum' => [UnitQueueEnum::Low, 'Low'],
             'uses null' => [null, null],
         ];
@@ -178,8 +178,8 @@ class FakeJob
 
 enum ConnectionEnum: string
 {
-    case SQS = 'sqs';
-    case REDIS = 'redis';
+    case Sqs = 'sqs';
+    case Redis = 'redis';
 }
 
 enum IntConnectionEnum: int
@@ -196,8 +196,8 @@ enum UnitConnectionEnum
 
 enum QueueEnum: string
 {
-    case HIGH = 'high';
-    case DEFAULT = 'default';
+    case High = 'high';
+    case Default = 'default';
 }
 
 enum IntQueueEnum: int

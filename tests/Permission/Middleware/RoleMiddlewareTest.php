@@ -144,7 +144,7 @@ class RoleMiddlewareTest extends PermissionTestCase
     {
         $result = RoleMiddleware::parseRolesToString([
             'admin',
-            RoleEnum::VIEWER,
+            RoleEnum::Viewer,
             'manager',
         ]);
 

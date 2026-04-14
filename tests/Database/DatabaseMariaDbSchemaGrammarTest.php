@@ -679,7 +679,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` varchar(100) null default CURRENT TIMESTAMP', $statements[0]);
 
         $blueprint = new Blueprint($this->getConnection(), 'users');
-        $blueprint->string('foo', 100)->nullable()->default(Foo::BAR);
+        $blueprint->string('foo', 100)->nullable()->default(Foo::Bar);
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);

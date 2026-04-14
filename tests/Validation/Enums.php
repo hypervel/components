@@ -6,14 +6,14 @@ namespace Hypervel\Tests\Validation;
 
 enum StringStatus: string
 {
-    case pending = 'pending';
-    case done = 'done';
+    case Pending = 'pending';
+    case Done = 'done';
 }
 
 enum IntegerStatus: int
 {
-    case pending = 1;
-    case done = 2;
+    case Pending = 1;
+    case Done = 2;
 }
 
 enum PureEnum
@@ -31,7 +31,7 @@ enum ArrayKeys
 
 enum ArrayKeysBacked: string
 {
-    case key_1 = 'key_1';
-    case key_2 = 'key_2';
-    case key_3 = 'key_3';
+    case Key1 = 'key_1';
+    case Key2 = 'key_2';
+    case Key3 = 'key_3';
 }

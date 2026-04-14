@@ -62,9 +62,9 @@ class HasRoleTest extends PermissionTestCase
 
     public function testUserCanBeAssignedRoleByEnum()
     {
-        $this->user->assignRole(RoleEnum::ADMIN);
+        $this->user->assignRole(RoleEnum::Admin);
 
-        $this->assertTrue($this->user->hasRole(RoleEnum::ADMIN));
+        $this->assertTrue($this->user->hasRole(RoleEnum::Admin));
         $this->assertTrue($this->user->hasRole('admin'));
         $this->assertCount(1, $this->user->roles);
     }
@@ -156,13 +156,13 @@ class HasRoleTest extends PermissionTestCase
         $this->user->assignRole(
             'admin', // string
             $this->viewerRole->id, // int
-            RoleEnum::ADMIN, // enum
+            RoleEnum::Admin, // enum
         );
 
         $this->user->refresh();
         $this->assertTrue($this->user->hasRole('admin'));
         $this->assertTrue($this->user->hasRole($this->viewerRole->id));
-        $this->assertTrue($this->user->hasRole(RoleEnum::ADMIN));
+        $this->assertTrue($this->user->hasRole(RoleEnum::Admin));
 
         // Should only have 2 unique roles (admin and viewer, manager is duplicate)
         $this->assertCount(2, $this->user->roles);
@@ -173,7 +173,7 @@ class HasRoleTest extends PermissionTestCase
         $roles = [
             'admin',
             $this->viewerRole->id,
-            RoleEnum::ADMIN,
+            RoleEnum::Admin,
         ];
 
         $this->user->assignRole($roles);

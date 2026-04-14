@@ -42,7 +42,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for(BackedEnumNamedRateLimited::FOO, function ($job) {
+        $rateLimiter->for(BackedEnumNamedRateLimited::Foo, function ($job) {
             return Limit::none();
         });
 
@@ -54,7 +54,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for(UnitEnumNamedRateLimited::LARAVEL, function ($job) {
+        $rateLimiter->for(UnitEnumNamedRateLimited::hypervel, function ($job) {
             return Limit::none();
         });
 
@@ -387,12 +387,12 @@ class RateLimitedReleaseAfterTestJob extends RateLimitedTestJob
 
 enum BackedEnumNamedRateLimited: string
 {
-    case FOO = 'bar';
+    case Foo = 'bar';
 }
 
 enum UnitEnumNamedRateLimited
 {
-    case LARAVEL;
+    case hypervel;
 }
 
 class RateLimitedTestJobUsingBackedEnum
@@ -409,7 +409,7 @@ class RateLimitedTestJobUsingBackedEnum
 
     public function middleware(): array
     {
-        return [new RateLimited(BackedEnumNamedRateLimited::FOO)];
+        return [new RateLimited(BackedEnumNamedRateLimited::Foo)];
     }
 }
 
@@ -427,6 +427,6 @@ class RateLimitedTestJobUsingUnitEnum
 
     public function middleware(): array
     {
-        return [new RateLimited(UnitEnumNamedRateLimited::LARAVEL)];
+        return [new RateLimited(UnitEnumNamedRateLimited::hypervel)];
     }
 }

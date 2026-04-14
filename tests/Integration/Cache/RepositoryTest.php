@@ -304,55 +304,55 @@ class RepositoryTest extends TestCase
         $cache = Cache::driver('array');
 
         // put / get / has / missing
-        $cache->put(TestCacheKey::FOO, 'value');
-        $this->assertSame('value', $cache->get(TestCacheKey::FOO));
-        $this->assertSame(['foo' => 'value', 'bar' => null], $cache->get([TestCacheKey::FOO, TestCacheKey::BAR]));
-        $this->assertTrue($cache->has(TestCacheKey::FOO));
-        $this->assertFalse($cache->missing(TestCacheKey::FOO));
+        $cache->put(TestCacheKey::Foo, 'value');
+        $this->assertSame('value', $cache->get(TestCacheKey::Foo));
+        $this->assertSame(['foo' => 'value', 'bar' => null], $cache->get([TestCacheKey::Foo, TestCacheKey::Bar]));
+        $this->assertTrue($cache->has(TestCacheKey::Foo));
+        $this->assertFalse($cache->missing(TestCacheKey::Foo));
 
         // pull
-        $this->assertSame('value', $cache->pull(TestCacheKey::FOO));
-        $this->assertNull($cache->get(TestCacheKey::FOO));
+        $this->assertSame('value', $cache->pull(TestCacheKey::Foo));
+        $this->assertNull($cache->get(TestCacheKey::Foo));
 
         // add
-        $this->assertTrue($cache->add(TestCacheKey::FOO, 'added', 3600));
-        $this->assertFalse($cache->add(TestCacheKey::FOO, 'duplicate', 3600));
-        $this->assertSame('added', $cache->get(TestCacheKey::FOO));
+        $this->assertTrue($cache->add(TestCacheKey::Foo, 'added', 3600));
+        $this->assertFalse($cache->add(TestCacheKey::Foo, 'duplicate', 3600));
+        $this->assertSame('added', $cache->get(TestCacheKey::Foo));
 
         // forever
-        $cache->forever(TestCacheKey::BAR, 'forever');
-        $this->assertSame('forever', $cache->get(TestCacheKey::BAR));
+        $cache->forever(TestCacheKey::Bar, 'forever');
+        $this->assertSame('forever', $cache->get(TestCacheKey::Bar));
 
         // remember / rememberForever / sear
-        $this->assertSame('remember', $cache->remember(TestCacheKey::BAZ, 3600, fn () => 'remember'));
-        $this->assertSame('forever', $cache->rememberForever(TestCacheKey::QUX, fn () => 'forever'));
-        $this->assertSame('forever', $cache->sear(TestCacheKey::QUX, fn () => 'ignored'));
+        $this->assertSame('remember', $cache->remember(TestCacheKey::Baz, 3600, fn () => 'remember'));
+        $this->assertSame('forever', $cache->rememberForever(TestCacheKey::Qux, fn () => 'forever'));
+        $this->assertSame('forever', $cache->sear(TestCacheKey::Qux, fn () => 'ignored'));
 
         // increment / decrement
-        $cache->put(TestCacheKey::FOO, 5);
-        $this->assertSame(6, $cache->increment(TestCacheKey::FOO));
-        $this->assertSame(5, $cache->decrement(TestCacheKey::FOO));
+        $cache->put(TestCacheKey::Foo, 5);
+        $this->assertSame(6, $cache->increment(TestCacheKey::Foo));
+        $this->assertSame(5, $cache->decrement(TestCacheKey::Foo));
 
         // forget
-        $cache->put(TestCacheKey::FOO, 'x');
-        $this->assertTrue($cache->forget(TestCacheKey::FOO));
-        $this->assertNull($cache->get(TestCacheKey::FOO));
+        $cache->put(TestCacheKey::Foo, 'x');
+        $this->assertTrue($cache->forget(TestCacheKey::Foo));
+        $this->assertNull($cache->get(TestCacheKey::Foo));
 
         // flexible / withoutOverlapping
-        $this->assertSame('flexible', $cache->flexible(TestCacheKey::FOO, [5, 10], fn () => 'flexible'));
-        $this->assertSame('overlapping', $cache->withoutOverlapping(TestCacheKey::FOO, fn () => 'overlapping'));
+        $this->assertSame('flexible', $cache->flexible(TestCacheKey::Foo, [5, 10], fn () => 'flexible'));
+        $this->assertSame('overlapping', $cache->withoutOverlapping(TestCacheKey::Foo, fn () => 'overlapping'));
 
         // many / getMultiple
         $cache->clear();
-        $this->assertSame(['foo' => null, 'bar' => null, 'baz' => null], $cache->many([TestCacheKey::FOO, TestCacheKey::BAR, TestCacheKey::BAZ]));
-        $this->assertSame(['foo' => 'default', 'qux' => 'default'], $cache->getMultiple([TestCacheKey::FOO, TestCacheKey::QUX], 'default'));
+        $this->assertSame(['foo' => null, 'bar' => null, 'baz' => null], $cache->many([TestCacheKey::Foo, TestCacheKey::Bar, TestCacheKey::Baz]));
+        $this->assertSame(['foo' => 'default', 'qux' => 'default'], $cache->getMultiple([TestCacheKey::Foo, TestCacheKey::Qux], 'default'));
     }
 }
 
 enum TestCacheKey: string
 {
-    case FOO = 'foo';
-    case BAR = 'bar';
-    case BAZ = 'baz';
-    case QUX = 'qux';
+    case Foo = 'foo';
+    case Bar = 'bar';
+    case Baz = 'baz';
+    case Qux = 'qux';
 }

@@ -57,7 +57,7 @@ class ValidationEnumRuleTest extends TestCase
         $v = new Validator(
             $this->app->make('translator'),
             [
-                'status' => StringStatus::done,
+                'status' => StringStatus::Done,
             ],
             [
                 'status' => new Enum(StringStatus::class),
@@ -105,7 +105,7 @@ class ValidationEnumRuleTest extends TestCase
             [
                 'status_1' => PureEnum::one,
                 'status_2' => PureEnum::two,
-                'status_3' => IntegerStatus::done->value,
+                'status_3' => IntegerStatus::Done->value,
             ],
             [
                 'status_1' => new Enum(PureEnum::class),
@@ -158,11 +158,11 @@ class ValidationEnumRuleTest extends TestCase
     public static function conditionalCasesDataProvider(): array
     {
         return [
-            [IntegerStatus::done, IntegerStatus::done, true],
-            [IntegerStatus::done, [IntegerStatus::done, IntegerStatus::pending], true],
-            [IntegerStatus::done, new Collection([IntegerStatus::done, IntegerStatus::pending]), true],
-            [IntegerStatus::pending->value, [IntegerStatus::done, IntegerStatus::pending], true],
-            [IntegerStatus::done->value, IntegerStatus::pending, false],
+            [IntegerStatus::Done, IntegerStatus::Done, true],
+            [IntegerStatus::Done, [IntegerStatus::Done, IntegerStatus::Pending], true],
+            [IntegerStatus::Done, new Collection([IntegerStatus::Done, IntegerStatus::Pending]), true],
+            [IntegerStatus::Pending->value, [IntegerStatus::Done, IntegerStatus::Pending], true],
+            [IntegerStatus::Done->value, IntegerStatus::Pending, false],
         ];
     }
 
@@ -339,14 +339,14 @@ class ValidationEnumRuleTest extends TestCase
 
     public function testEnumRuleStringableWithOnly()
     {
-        $rule = (new Enum(StringStatus::class))->only([StringStatus::pending]);
+        $rule = (new Enum(StringStatus::class))->only([StringStatus::Pending]);
 
         $this->assertSame('in:"pending"', (string) $rule);
     }
 
     public function testEnumRuleStringableWithExcept()
     {
-        $rule = (new Enum(StringStatus::class))->except([StringStatus::pending]);
+        $rule = (new Enum(StringStatus::class))->except([StringStatus::Pending]);
 
         $this->assertSame('in:"done"', (string) $rule);
     }

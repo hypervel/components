@@ -74,7 +74,7 @@ class PipelineTransactionTest extends TestCase
     public static function transactionConnectionDataProvider(): array
     {
         return [
-            'unit enum' => [EnumForPipelineTransactionTest::DEFAULT, 'testing'],
+            'unit enum' => [EnumForPipelineTransactionTest::Default, 'testing'],
             'string' => ['testing', 'testing'],
             'null' => [null, 'testing2'],
         ];
@@ -109,5 +109,5 @@ class PipelineTransactionTest extends TestCase
 
 enum EnumForPipelineTransactionTest: string
 {
-    case DEFAULT = 'testing';
+    case Default = 'testing';
 }
