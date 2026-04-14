@@ -53,6 +53,7 @@
             "Hypervel\\Hashing\\": "src/hashing/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\Http\\": "src/http/src/",
+            "Hypervel\\Inertia\\": "src/inertia/src/",
             "Hypervel\\JsonSchema\\": "src/json-schema/src/",
             "Hypervel\\JWT\\": "src/jwt/src/",
             "Hypervel\\Log\\": "src/log/src/",
@@ -106,6 +107,7 @@
             "src/collections/src/helpers.php",
             "src/support/src/functions.php",
             "src/support/src/helpers.php",
+            "src/inertia/src/helpers.php",
             "src/testbench/src/functions.php"
         ]
     },
@@ -213,6 +215,7 @@
         "hypervel/hashing": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
+        "hypervel/inertia": "self.version",
         "hypervel/jwt": "self.version",
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",
@@ -299,6 +302,7 @@
                 "Hypervel\\Filesystem\\FilesystemServiceProvider",
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
+                "Hypervel\\Inertia\\InertiaServiceProvider",
                 "Hypervel\\JWT\\JWTServiceProvider",
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",

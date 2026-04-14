@@ -540,6 +540,10 @@ All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is o
 
 These are primarily useful for DB operations or external service setup that needs coroutine context. Most ported Laravel tests won't need them.
 
+#### Request Context in Tests
+
+`request()` resolves from `RequestContext` — when no request exists in context (tests that don't make HTTP requests), each `request()` call creates a throwaway fallback instance. This means `request()->merge()` has no effect on subsequent `request()` calls. Replace `request()->merge(['key' => 'value'])` with `RequestContext::set(Request::create('/?key=value'))` to seed a stable request in context.
+
 #### Static State and Test Cleanup
 
 `AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled.

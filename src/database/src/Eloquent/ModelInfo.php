@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent;
 
 use ArrayAccess;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\Collection as BaseCollection;
 use InvalidArgumentException;
 use LogicException;
 
@@ -15,19 +17,17 @@ use LogicException;
 class ModelInfo implements Arrayable, ArrayAccess
 {
     /**
-     * @template TModel of \Hypervel\Database\Eloquent\Model
-     *
-     * @param class-string<TModel> $class the model's fully-qualified class
+     * @param class-string<Model> $class the model's fully-qualified class
      * @param string $database the database connection name
      * @param string $table the database table name
      * @param null|class-string $policy the policy that applies to the model
-     * @param \Hypervel\Support\Collection<int, array<string, mixed>> $attributes the attributes available on the model
-     * @param \Hypervel\Support\Collection<int, array{name: string, type: string, related: class-string<\Hypervel\Database\Eloquent\Model>}> $relations the relations defined on the model
-     * @param \Hypervel\Support\Collection<int, array{event: string, class: string}> $events the events that the model dispatches
-     * @param \Hypervel\Support\Collection<int, array{event: string, observer: array<int, string>}> $observers the observers registered for the model
-     * @param class-string<\Hypervel\Database\Eloquent\Collection<TModel>> $collection the Collection class that collects the models
-     * @param class-string<\Hypervel\Database\Eloquent\Builder<TModel>> $builder the Builder class registered for the model
-     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resource the JSON resource class that represents the model
+     * @param BaseCollection<int, array<string, mixed>> $attributes the attributes available on the model
+     * @param BaseCollection<int, array{name: string, type: string, related: class-string<Model>}> $relations the relations defined on the model
+     * @param BaseCollection<int, array{event: string, class: string}> $events the events that the model dispatches
+     * @param BaseCollection<int, array{event: string, observer: array<int, string>}> $observers the observers registered for the model
+     * @param class-string<Collection<Model>> $collection the Collection class that collects the models
+     * @param class-string<Builder<Model>> $builder the Builder class registered for the model
+     * @param null|class-string<JsonResource> $resource the JSON resource class that represents the model
      */
     public function __construct(
         public $class,
@@ -48,17 +48,17 @@ class ModelInfo implements Arrayable, ArrayAccess
      * Convert the model info to an array.
      *
      * @return array{
-     *     "class": class-string<\Hypervel\Database\Eloquent\Model>,
+     *     "class": class-string<Model>,
      *     database: string,
      *     table: string,
      *     policy: null|class-string,
-     *     attributes: \Hypervel\Support\Collection<int, array<string, mixed>>,
-     *     relations: \Hypervel\Support\Collection<int, array{name: string, type: string, related: class-string<\Hypervel\Database\Eloquent\Model>}>,
-     *     events: \Hypervel\Support\Collection<int, array{event: string, class: string}>,
-     *     observers: \Hypervel\Support\Collection<int, array{event: string, observer: array<int, string>}>,
-     *     collection: class-string<\Hypervel\Database\Eloquent\Collection<\Hypervel\Database\Eloquent\Model>>,
-     *     builder: class-string<\Hypervel\Database\Eloquent\Builder<\Hypervel\Database\Eloquent\Model>>,
-     *     resource: null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     *     attributes: BaseCollection<int, array<string, mixed>>,
+     *     relations: BaseCollection<int, array{name: string, type: string, related: class-string<Model>}>,
+     *     events: BaseCollection<int, array{event: string, class: string}>,
+     *     observers: BaseCollection<int, array{event: string, observer: array<int, string>}>,
+     *     collection: class-string<Collection<Model>>,
+     *     builder: class-string<Builder<Model>>,
+     *     resource: null|class-string<JsonResource>
      * }
      */
     public function toArray(): array

@@ -1,0 +1,90 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Inertia\Commands;
+
+use Hypervel\Console\Command;
+use Hypervel\Inertia\Ssr\BundleDetector;
+use Hypervel\Inertia\Ssr\SsrException;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
+
+#[AsCommand(name: 'inertia:start-ssr')]
+class StartSsr extends Command
+{
+    /**
+     * The console command name.
+     */
+    protected ?string $signature = 'inertia:start-ssr {--runtime= : The runtime to use (e.g. `node`, `bun`, or an absolute path)}';
+
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Start the Inertia SSR server';
+
+    /**
+     * Start the Inertia SSR server.
+     */
+    public function handle(): int
+    {
+        if (! config('inertia.ssr.enabled', true)) {
+            $this->error('Inertia SSR is not enabled. Enable it via the `inertia.ssr.enabled` config option.');
+
+            return self::FAILURE;
+        }
+
+        $bundle = (new BundleDetector)->detect();
+        $configuredBundle = config('inertia.ssr.bundle');
+
+        if ($bundle === null) {
+            $this->error(
+                $configuredBundle
+                    ? 'Inertia SSR bundle not found at the configured path: "' . $configuredBundle . '"'
+                    : 'Inertia SSR bundle not found. Set the correct Inertia SSR bundle path in your `inertia.ssr.bundle` config.'
+            );
+
+            return self::FAILURE;
+        }
+        if ($configuredBundle && $bundle !== $configuredBundle) {
+            $this->warn('Inertia SSR bundle not found at the configured path: "' . $configuredBundle . '"');
+            $this->warn('Using a default bundle instead: "' . $bundle . '"');
+        }
+
+        $runtime = $this->option('runtime') ?? config('inertia.ssr.runtime', 'node');
+
+        if (config('inertia.ssr.ensure_runtime_exists', false) && ! (new ExecutableFinder)->find($runtime)) {
+            $this->error('SSR runtime "' . $runtime . '" could not be found.');
+
+            return self::FAILURE;
+        }
+
+        $this->callSilently('inertia:stop-ssr');
+
+        $process = app(Process::class, ['command' => [$runtime, $bundle]]);
+        $process->setTimeout(null);
+        $process->start();
+
+        if (extension_loaded('pcntl')) {
+            $stop = function () use ($process) {
+                $process->stop();
+            };
+            pcntl_async_signals(true);
+            pcntl_signal(SIGINT, $stop);
+            pcntl_signal(SIGQUIT, $stop);
+            pcntl_signal(SIGTERM, $stop);
+        }
+
+        foreach ($process as $type => $data) {
+            if ($process::OUT === $type) {
+                $this->info(trim($data));
+            } else {
+                $this->error(trim($data));
+                report(new SsrException($data));
+            }
+        }
+
+        return self::SUCCESS;
+    }
+}

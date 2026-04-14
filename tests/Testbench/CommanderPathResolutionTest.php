@@ -25,7 +25,8 @@ class CommanderPathResolutionTest extends TestCase
     {
         parent::setUp();
 
-        $this->temporaryPackagePath = sys_get_temp_dir() . '/hypervel-testbench-paths-' . getmypid() . '-' . uniqid();
+        $tempDir = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();
+        $this->temporaryPackagePath = $tempDir . '/hypervel-testbench-paths-' . getmypid() . '-' . uniqid();
     }
 
     protected function tearDown(): void

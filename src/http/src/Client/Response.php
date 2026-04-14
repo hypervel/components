@@ -31,7 +31,12 @@ class Response implements ArrayAccess, Stringable
     /**
      * The decoded JSON response.
      */
-    protected array $decoded = [];
+    protected mixed $decoded = null;
+
+    /**
+     * Whether the response body has been decoded.
+     */
+    protected bool $hasDecoded = false;
 
     /**
      * The custom decode callback.
@@ -73,8 +78,9 @@ class Response implements ArrayAccess, Stringable
      */
     public function json(?string $key = null, mixed $default = null): mixed
     {
-        if (! $this->decoded) {
+        if (! $this->hasDecoded) {
             $this->decoded = $this->decode($this->body());
+            $this->hasDecoded = true;
         }
 
         if (is_null($key)) {
@@ -111,7 +117,8 @@ class Response implements ArrayAccess, Stringable
     public function decodeUsing(?Closure $callback): static
     {
         $this->decodeUsing = $callback;
-        $this->decoded = [];
+        $this->decoded = null;
+        $this->hasDecoded = false;
 
         return $this;
     }
@@ -119,7 +126,7 @@ class Response implements ArrayAccess, Stringable
     /**
      * Decode the given response body.
      */
-    protected function decode(string $body, bool $asObject = false): array|object|null
+    protected function decode(string $body, bool $asObject = false): mixed
     {
         if ($this->decodeUsing instanceof Closure) {
             return ($this->decodeUsing)($body, $asObject);

@@ -773,17 +773,42 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function call(callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed
     {
-        // Fast path: closures with zero declared parameters and no explicit
-        // parameters don't need DI resolution. Skip the getClassForCallable()
-        // reflection and the entire BoundMethod chain.
-        // Uses getNumberOfParameters() (not getNumberOfRequiredParameters())
-        // because BoundMethod injects optional typed parameters when resolvable.
-        if ($callback instanceof Closure && empty($parameters) && $defaultMethod === null
-            && (new ReflectionFunction($callback))->getNumberOfParameters() === 0
-        ) {
-            return $callback();
+        // Closure path: reflect once and reuse across fast-path check,
+        // build-stack determination, and dependency resolution.
+        if ($callback instanceof Closure && $defaultMethod === null) {
+            $reflection = new ReflectionFunction($callback);
+
+            // Fast path: zero declared parameters and no explicit parameters
+            // don't need DI resolution. Uses getNumberOfParameters() (not
+            // getNumberOfRequiredParameters()) because BoundMethod injects
+            // optional typed parameters when resolvable.
+            if (empty($parameters) && $reflection->getNumberOfParameters() === 0) {
+                return $callback();
+            }
+
+            // First-class callables ($obj->method(...)) are Closure instances
+            // but not anonymous — they need the build stack for contextual
+            // bindings. Anonymous closures never have a class context.
+            $pushedToBuildStack = false;
+
+            if (! $reflection->isAnonymous()
+                && ($className = $reflection->getClosureScopeClass()?->name)
+                && ! in_array($className, $this->getBuildStack(), true)
+            ) {
+                $this->pushBuildStack($className);
+                $pushedToBuildStack = true;
+            }
+
+            try {
+                return BoundMethod::call($this, $callback, $parameters, null, $reflection);
+            } finally {
+                if ($pushedToBuildStack) {
+                    $this->popBuildStack();
+                }
+            }
         }
 
+        // Non-closure path: shape-based class extraction, no reflection.
         $pushedToBuildStack = false;
 
         if (($className = $this->getClassForCallable($callback))
@@ -804,12 +829,22 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Get the class name for the given callback, if one can be determined.
+     *
+     * Closures are handled directly in call() before this method is reached,
+     * so this only needs to handle non-closure callable types.
      */
     protected function getClassForCallable(callable|string $callback): string|false
     {
-        if (is_callable($callback)
-            && ! ($reflector = new ReflectionFunction($callback(...)))->isAnonymous()) {
-            return $reflector->getClosureScopeClass()->name ?? false;
+        if (is_array($callback)) {
+            return is_string($callback[0]) ? $callback[0] : $callback[0]::class;
+        }
+
+        if (is_string($callback) && str_contains($callback, '::')) {
+            return explode('::', $callback, 2)[0];
+        }
+
+        if (is_object($callback)) {
+            return $callback::class;
         }
 
         return false;
