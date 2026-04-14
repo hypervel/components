@@ -199,18 +199,22 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->loop();
 
-        $record = app(SupervisorRepository::class)->find($supervisor->name);
-        $this->assertSame('running', $record->status);
-        $this->assertSame(2, collect($record->processes)->sum());
-        $this->assertSame(2, $record->processes['redis:default,another']);
-        $this->assertTrue(isset($record->pid));
-        $this->assertSame('redis', $record->options['connection']);
+        $this->wait(function () use ($supervisor) {
+            $record = app(SupervisorRepository::class)->find($supervisor->name);
+            $this->assertSame('running', $record->status);
+            $this->assertSame(2, collect($record->processes)->sum());
+            $this->assertSame(2, $record->processes['redis:default,another']);
+            $this->assertTrue(isset($record->pid));
+            $this->assertSame('redis', $record->options['connection']);
+        });
 
         $supervisor->pause();
         $supervisor->loop();
 
-        $record = app(SupervisorRepository::class)->find($supervisor->name);
-        $this->assertSame('paused', $record->status);
+        $this->wait(function () use ($supervisor) {
+            $record = app(SupervisorRepository::class)->find($supervisor->name);
+            $this->assertSame('paused', $record->status);
+        });
     }
 
     public function testSupervisorRepositoryReturnsNullIfNoSupervisorExistsWithGivenName()
