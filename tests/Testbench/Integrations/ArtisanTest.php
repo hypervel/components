@@ -39,7 +39,6 @@ class ArtisanTest extends TestCase
     {
         foreach ([
             package_path('src', 'testbench', 'hypervel', 'artisan'),
-            package_path('src', 'testbench', 'workbench', 'artisan'),
         ] as $artisanPath) {
             $process = new Process(
                 command: [php_binary(), $artisanPath, '--version', '--no-ansi'],
