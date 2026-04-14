@@ -64,7 +64,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
         $webMiddleware = [
             StartSession::class,
             PreventRequestForgery::class,
-            Authenticate::class . ':session',
+            Authenticate::class . ':web',
         ];
         $apiMiddleware = [
             EnsureFrontendRequestsAreStateful::class,
@@ -109,7 +109,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
     {
         $user = $this->createUser();
 
-        $this->actingAs($user, 'session');
+        $this->actingAs($user, 'web');
 
         $this->getJson('/web/user', [
             'origin' => config('app.url'),
