@@ -22,10 +22,9 @@ parameters:
     - %currentWorkingDirectory%/src/*/node_modules/*
     - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
-    - %currentWorkingDirectory%/src/*/class_map/*
     - %currentWorkingDirectory%/src/foundation/src/ComposerScripts.php
+    # @TODO: Add pest to root composer.json require-dev and remove this line once Pest 5 is released (required for PHPUnit 13 support).
     - %currentWorkingDirectory%/src/testbench/src/Pest/Autoload.php
-    - %currentWorkingDirectory%/src/foundation/src/Testing/Concerns/*
     - %currentWorkingDirectory%/src/foundation/src/Http/WebSocketKernel.php
     - %currentWorkingDirectory%/src/log/src/Adapter/*
     - %currentWorkingDirectory%/src/container/src/Attributes/Context.php

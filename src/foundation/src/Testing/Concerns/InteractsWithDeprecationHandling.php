@@ -33,10 +33,12 @@ trait InteractsWithDeprecationHandling
     protected function withoutDeprecationHandling(): static
     {
         if ($this->originalDeprecationHandler === null) {
-            $this->originalDeprecationHandler = set_error_handler(function ($level, $message, $file = '', $line = 0) {
+            $this->originalDeprecationHandler = set_error_handler(function (int $level, string $message, string $file = '', int $line = 0): bool {
                 if (in_array($level, [E_DEPRECATED, E_USER_DEPRECATED]) || (error_reporting() & $level)) {
                     throw new ErrorException($message, 0, $level, $file, $line);
                 }
+
+                return true;
             });
         }
 

@@ -9,6 +9,8 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Event;
 use Mockery;
+use Mockery\Expectation;
+use Mockery\MockInterface;
 
 trait MocksApplicationServices
 {
@@ -76,9 +78,12 @@ trait MocksApplicationServices
      */
     protected function withoutEvents()
     {
+        /** @var Dispatcher&MockInterface $mock */
         $mock = Mockery::mock(Dispatcher::class)->shouldIgnoreMissing();
 
-        $mock->shouldReceive('dispatch')->andReturnUsing(function ($called) {
+        /** @var Expectation $expectation */
+        $expectation = $mock->shouldReceive('dispatch');
+        $expectation->andReturnUsing(function ($called) {
             $this->firedEvents[] = $called;
         });
 
