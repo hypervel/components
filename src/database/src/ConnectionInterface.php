@@ -127,6 +127,11 @@ interface ConnectionInterface
     public function getName(): ?string;
 
     /**
+     * Get the database driver name (e.g. "mysql", "pgsql", "sqlite").
+     */
+    public function getDriverName(): string;
+
+    /**
      * Get a human-readable name for the database driver.
      */
     public function getDriverTitle(): string;
