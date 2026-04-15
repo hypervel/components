@@ -33,7 +33,8 @@ Testbench and workbench:
 | Path | Description |
 |------|-------------|
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
-| `src/testbench/workbench/` | Workbench app used by testbench for integration tests. Contains `app/`, `database/factories/`, `database/seeders/`. |
+| `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
+| `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
 
 ## Porting Packages
 
@@ -519,7 +520,7 @@ These apply to all test porting, regardless of whether the source is Hyperf or L
 | Class | Use When |
 |-------|----------|
 | `Hypervel\Tests\TestCase` | Unit tests, mocks only, no container needed |
-| `Hypervel\Testbench\TestCase` | Integration tests, needs container (facades, config, DB, etc.) |
+| `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that writes files to disk** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
 
 Always call `parent::setUp()` in your setUp method.
 
