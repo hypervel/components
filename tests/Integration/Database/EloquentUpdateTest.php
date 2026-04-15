@@ -10,10 +10,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentUpdateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

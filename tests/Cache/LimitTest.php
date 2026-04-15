@@ -8,10 +8,6 @@ use Hypervel\Cache\RateLimiting\GlobalLimit;
 use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LimitTest extends TestCase
 {
     public function testConstructors()

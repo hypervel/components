@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\DeferProp;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeferPropTest extends TestCase
 {
     public function testCanInvoke(): void

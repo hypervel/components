@@ -16,10 +16,6 @@ use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Swoole\Coroutine\Channel;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpPoolTransportTest extends TestCase
 {
     public function testBackpressureReturnsSkippedWhenPoolExhausted()

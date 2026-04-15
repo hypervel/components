@@ -11,10 +11,6 @@ use Hypervel\Testbench\Attributes\DefineRoute;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DefineTest extends TestCase
 {
     #[Test]

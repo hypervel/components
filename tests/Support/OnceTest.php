@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
 class OnceTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;

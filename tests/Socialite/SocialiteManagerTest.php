@@ -15,10 +15,6 @@ use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use ReflectionProperty;
 use Swoole\Coroutine\Channel;
 
-/**
- * @internal
- * @coversNothing
- */
 class SocialiteManagerTest extends TestCase
 {
     public function setUp(): void

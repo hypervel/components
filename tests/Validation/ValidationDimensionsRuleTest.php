@@ -12,10 +12,6 @@ use Hypervel\Validation\Rules\Dimensions;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationDimensionsRuleTest extends TestCase
 {
     public function testItCorrectlyFormatsAStringVersionOfTheRule()

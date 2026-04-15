@@ -6,10 +6,6 @@ namespace Hypervel\Tests\View\Blade;
 
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeCustomTest extends AbstractBladeTestCase
 {
     public function testCustomPhpCodeIsCorrectlyHandled()

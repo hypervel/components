@@ -21,10 +21,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('redis')]
-/**
- * @internal
- * @coversNothing
- */
 class RedisQueueTest extends TestCase
 {
     use InteractsWithRedis;

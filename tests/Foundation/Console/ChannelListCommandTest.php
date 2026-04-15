@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelListCommandTest extends \Hypervel\Testbench\TestCase
 {
     public function testDoesNotWarnAboutBroadcastServiceProvider()

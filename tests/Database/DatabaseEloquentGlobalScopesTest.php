@@ -11,10 +11,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentGlobalScopesTest extends TestCase
 {
     protected function setUp(): void

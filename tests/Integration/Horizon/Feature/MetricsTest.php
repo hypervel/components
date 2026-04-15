@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MetricsTest extends IntegrationTestCase
 {
     public function testTotalThroughputIsStored()

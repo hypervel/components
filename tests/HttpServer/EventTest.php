@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventTest extends TestCase
 {
     public function testRequestReceivedEvent()

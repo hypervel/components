@@ -10,10 +10,6 @@ use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrequencyTest extends TestCase
 {
     /** @var \Hypervel\Console\Scheduling\Event */

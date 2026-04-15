@@ -8,10 +8,6 @@ use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueRoutesTest extends TestCase
 {
     public function testSet()

@@ -8,10 +8,6 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Tests\Permission\Enums\Role as RoleEnum;
 use Hypervel\Tests\Permission\Models\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasRoleTest extends PermissionTestCase
 {
     protected User $user;

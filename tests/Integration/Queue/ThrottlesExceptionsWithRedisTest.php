@@ -21,10 +21,6 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
 #[RequiresPhpExtension('redis')]
-/**
- * @internal
- * @coversNothing
- */
 class ThrottlesExceptionsWithRedisTest extends TestCase
 {
     use InteractsWithRedis;

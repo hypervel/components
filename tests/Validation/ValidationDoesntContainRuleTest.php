@@ -14,10 +14,6 @@ use PHPUnit\Framework\TestCase;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationDoesntContainRuleTest extends TestCase
 {
     public function testItCorrectlyFormatsAStringVersionOfTheRule()

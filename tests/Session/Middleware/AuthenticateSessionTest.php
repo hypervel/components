@@ -14,10 +14,6 @@ use Hypervel\Session\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthenticateSessionTest extends TestCase
 {
     public function testHandleWithoutSession()

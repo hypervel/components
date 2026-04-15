@@ -16,10 +16,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventPingTest extends TestCase
 {
     public function testPingRescuesTransferExceptions()

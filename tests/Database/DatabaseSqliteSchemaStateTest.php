@@ -12,10 +12,6 @@ use Mockery as m;
 use PDO;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSqliteSchemaStateTest extends TestCase
 {
     public function testLoadSchemaToDatabase(): void

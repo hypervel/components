@@ -10,10 +10,6 @@ use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationExceptionTest extends TestCase
 {
     public function testExceptionSummarizesZeroErrors()

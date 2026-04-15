@@ -12,10 +12,6 @@ use Mockery as m;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Channel;
 
-/**
- * @internal
- * @coversNothing
- */
 class ListenerContextIsolationTest extends TestCase
 {
     public function testQueryCapStopsAtMaxQueries()

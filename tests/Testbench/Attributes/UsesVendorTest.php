@@ -17,10 +17,6 @@ use PHPUnit\Framework\Attributes\Test;
 use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class UsesVendorTest extends TestCase
 {
     use LazilyRefreshDatabase;

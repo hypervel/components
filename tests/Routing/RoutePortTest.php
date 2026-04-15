@@ -21,10 +21,6 @@ use Hypervel\Routing\UrlGenerator;
 use LogicException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutePortTest extends RoutingTestCase
 {
     public function testPortDefaultsToNull()

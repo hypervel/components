@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\MergeProp;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeepMergePropTest extends TestCase
 {
     public function testCanInvokeWithACallback(): void

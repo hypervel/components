@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandEventsTest extends TestCase
 {
     use WithConsoleEvents;

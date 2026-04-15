@@ -8,10 +8,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class EncryptionTest extends TestCase
 {

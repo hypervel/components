@@ -9,10 +9,6 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Routing\Events\RouteMatched;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServiceProviderListenerRegistrationTest extends SentryTestCase
 {
     public function testQueryExecutedIsNotRegisteredWhenSqlBreadcrumbsAndTracingAreDisabled(): void

@@ -13,10 +13,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[ResetRefreshDatabaseState]
 #[WithConfig('database.default', 'testing')]
 class DatabaseMigrationsUsingEventsTest extends TestCase

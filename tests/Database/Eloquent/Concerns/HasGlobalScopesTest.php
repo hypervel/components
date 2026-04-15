@@ -13,10 +13,6 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasGlobalScopesTest extends TestCase
 {
     protected function tearDown(): void

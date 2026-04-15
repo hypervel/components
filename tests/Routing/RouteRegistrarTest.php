@@ -22,10 +22,6 @@ use InvalidArgumentException;
 use Mockery as m;
 use Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteRegistrarTest extends RoutingTestCase
 {
     protected Router $router;

@@ -15,10 +15,6 @@ use Hypervel\Validation\Validator;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationFileRuleTest extends TestCase
 {
     protected function setUp(): void

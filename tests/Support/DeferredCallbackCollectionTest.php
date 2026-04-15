@@ -8,10 +8,6 @@ use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeferredCallbackCollectionTest extends TestCase
 {
     public function testForgetRemovesCallbacksByName()

@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use PhpOption\Option;
 use PhpOption\Some;
 
-/**
- * @internal
- * @coversNothing
- */
 class DotenvManagerTest extends TestCase
 {
     protected function setUp(): void

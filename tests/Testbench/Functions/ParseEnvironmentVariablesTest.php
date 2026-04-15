@@ -9,10 +9,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\parse_environment_variables;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParseEnvironmentVariablesTest extends TestCase
 {
     #[Test]

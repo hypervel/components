@@ -8,10 +8,6 @@ use Hypervel\Support\Collection;
 use PHPUnit\Framework\TestCase;
 use Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class CollectionTest extends TestCase
 {
     public function testGroupByWithStringKey(): void

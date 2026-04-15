@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationAddFailureTest extends TestCase
 {
     /**

@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Models\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class UserFactoryTest extends TestCase
 {
     use WithWorkbench;

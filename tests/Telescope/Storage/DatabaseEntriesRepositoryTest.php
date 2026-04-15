@@ -15,10 +15,6 @@ use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEntriesRepositoryTest extends FeatureTestCase
 {
     public function testFindEntryByUuid()

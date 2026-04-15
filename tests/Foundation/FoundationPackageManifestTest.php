@@ -9,10 +9,6 @@ use Hypervel\Foundation\PackageManifest;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationPackageManifestTest extends TestCase
 {
     private string $basePath;

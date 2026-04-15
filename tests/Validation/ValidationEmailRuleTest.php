@@ -14,10 +14,6 @@ use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationEmailRuleTest extends TestCase
 {
     private const ATTRIBUTE = 'my_email';

@@ -14,10 +14,6 @@ use Hypervel\Validation\InvokableValidationRule;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationInvokableRuleTest extends TestCase
 {
     public function testItCanPass()

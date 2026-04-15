@@ -12,10 +12,6 @@ use Hypervel\Support\Testing\Fakes\BatchFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class BusBatchableTest extends TestCase
 {
     public function testBatchMayBeRetrieved()

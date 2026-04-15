@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\note;
 
-/**
- * @internal
- * @coversNothing
- */
 class NoteTest extends TestCase
 {
     public function testRendersNote()

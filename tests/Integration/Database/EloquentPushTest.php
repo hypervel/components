@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentPushTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

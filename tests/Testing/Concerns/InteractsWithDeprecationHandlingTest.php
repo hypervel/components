@@ -9,10 +9,6 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDeprecationHandling;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithDeprecationHandlingTest extends TestCase
 {
     use InteractsWithDeprecationHandling;

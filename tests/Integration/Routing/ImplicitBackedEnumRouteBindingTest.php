@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Routing;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\Fixtures\CategoryBackedEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class ImplicitBackedEnumRouteBindingTest extends RoutingTestCase
 {
     protected function defineEnvironment($app): void

@@ -32,10 +32,6 @@ enum UnitEnumNamedRateLimiter
     case Internal;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class RateLimiterTest extends TestCase
 {
     #[DataProvider('registerNamedRateLimiterDataProvider')]

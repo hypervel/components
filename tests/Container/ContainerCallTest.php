@@ -17,10 +17,6 @@ use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerCallTest extends TestCase
 {
     public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException()

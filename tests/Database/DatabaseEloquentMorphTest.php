@@ -16,10 +16,6 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentMorphTest extends TestCase
 {
     public function testMorphOneSetsProperConstraints()

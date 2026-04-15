@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseTransactionsTest extends TestCase
 {
     /**

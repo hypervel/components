@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthenticatableTest extends TestCase
 {
     public function testItReturnsSameRememberTokenForString()

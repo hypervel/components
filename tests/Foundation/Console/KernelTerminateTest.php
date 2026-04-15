@@ -13,10 +13,6 @@ use Hypervel\Testbench\TestCase;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class KernelTerminateTest extends TestCase
 {
     public function testTerminateDispatchesTerminatingEventAndAppTerminateInOrder()

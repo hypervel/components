@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TagRepositoryTest extends IntegrationTestCase
 {
     public function testPaginationOfJobIdsCanBeAccomplished()

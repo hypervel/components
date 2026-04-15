@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\LegacyMockInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheSpyMemoTest extends TestCase
 {
     protected function setUp(): void

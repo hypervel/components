@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Testbench\Concerns;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HandlesRoutesTest extends TestCase
 {
     protected bool $defineRoutesCalled = false;

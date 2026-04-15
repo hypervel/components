@@ -17,10 +17,6 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailableQueuedTest extends TestCase
 {
     protected function setUp(): void

@@ -12,10 +12,6 @@ use Mockery;
 use Mockery\MockInterface;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 class SenderTest extends TestCase
 {
     public function testSenderCheck()

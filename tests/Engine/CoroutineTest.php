@@ -12,10 +12,6 @@ use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Tests\TestCase;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineTest extends TestCase
 {
     public function testCoroutineCreate()

@@ -8,13 +8,8 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\ServiceProvider;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportServiceProviderTest extends TestCase
 {
     protected Application $app;

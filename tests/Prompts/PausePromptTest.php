@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\pause;
 
-/**
- * @internal
- * @coversNothing
- */
 class PausePromptTest extends TestCase
 {
     public function testContinuesAfterEnter(): void

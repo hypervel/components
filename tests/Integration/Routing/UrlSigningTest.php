@@ -15,10 +15,6 @@ use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class UrlSigningTest extends RoutingTestCase
 {
     protected function defineEnvironment($app): void

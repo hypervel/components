@@ -8,10 +8,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectorTest extends SqliteTestCase
 {
     /**

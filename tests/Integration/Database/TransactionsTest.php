@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransactionsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

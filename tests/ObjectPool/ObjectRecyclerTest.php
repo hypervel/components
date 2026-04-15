@@ -12,10 +12,6 @@ use Hypervel\ObjectPool\ObjectRecycler;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ObjectRecyclerTest extends TestCase
 {
     public function testStart()

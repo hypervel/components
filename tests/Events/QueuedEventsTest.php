@@ -25,10 +25,6 @@ use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueuedEventsTest extends TestCase
 {
     public function testQueuedEventHandlersAreQueued()

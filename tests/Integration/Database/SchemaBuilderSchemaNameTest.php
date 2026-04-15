@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 {
     protected function setUp(): void

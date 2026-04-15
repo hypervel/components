@@ -13,10 +13,6 @@ use Monolog\Logger as Monolog;
 use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextLogProcessorTest extends TestCase
 {
     public function testContextIsAddedToLogRecords()

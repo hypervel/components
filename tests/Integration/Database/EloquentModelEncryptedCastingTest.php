@@ -16,10 +16,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Fluent;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelEncryptedCastingTest extends DatabaseTestCase
 {
     protected Encrypter $encrypter;

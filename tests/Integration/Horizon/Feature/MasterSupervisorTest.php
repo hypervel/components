@@ -20,10 +20,6 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class MasterSupervisorTest extends IntegrationTestCase
 {
     public function testNamesCanBeCustomized()

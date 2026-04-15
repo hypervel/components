@@ -18,10 +18,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Cookie;
 
-/**
- * @internal
- * @coversNothing
- */
 class MaintenanceModeTest extends TestCase
 {
     protected function setUp(): void

@@ -19,10 +19,6 @@ use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewTest extends TestCase
 {
     protected function tearDown(): void

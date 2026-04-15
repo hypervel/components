@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Validation\Rule;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationMacroTest extends TestCase
 {
     public function testMacroable()

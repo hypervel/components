@@ -9,10 +9,6 @@ use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tinker\TinkerServiceProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class TinkerCommandTest extends TestCase
 {
     protected function getPackageProviders(Application $app): array

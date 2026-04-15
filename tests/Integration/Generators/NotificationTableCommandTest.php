@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Generators;
 
 use Hypervel\Notifications\Console\NotificationTableCommand;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationTableCommandTest extends TestCase
 {
     public function testCreateMakesMigration()

@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasherTest extends TestCase
 {
     public HashManager $hashManager;

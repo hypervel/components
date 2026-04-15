@@ -10,10 +10,6 @@ use Mockery as m;
 use ReflectionProperty;
 use Symfony\Component\Console\Input\InputInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class GeneratorCommandTest extends TestCase
 {
     public function testGetPathWithRelativePath()

@@ -19,10 +19,6 @@ use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\testbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 class SyncSkeletonCommandTest extends TestCase
 {

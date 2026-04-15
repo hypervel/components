@@ -10,10 +10,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Date;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class WormholeTest extends TestCase
 {
     public function testCanTravelBackToPresent()

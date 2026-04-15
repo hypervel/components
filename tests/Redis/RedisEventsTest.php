@@ -21,10 +21,6 @@ use Mockery as m;
 use Redis as PhpRedis;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisEventsTest extends TestCase
 {
     public function testCommandFailedEventIsDispatched(): void

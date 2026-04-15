@@ -12,10 +12,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportFacadeTest extends TestCase
 {
     protected function setUp(): void

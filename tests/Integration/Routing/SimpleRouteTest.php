@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Routing;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class SimpleRouteTest extends RoutingTestCase
 {
     public function testSimpleRouteThroughTheFramework()

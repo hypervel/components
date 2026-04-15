@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConcernsBuildsQueriesTraitTest extends TestCase
 {
     public function testTapCallbackInstance()

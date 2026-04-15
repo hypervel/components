@@ -12,10 +12,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\NotPwnedVerifier;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationNotPwnedVerifierTest extends TestCase
 {
     public function testEmptyValues()

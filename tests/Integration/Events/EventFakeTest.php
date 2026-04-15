@@ -17,10 +17,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\ExpectationFailedException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventFakeTest extends TestCase
 {
     use RefreshDatabase;

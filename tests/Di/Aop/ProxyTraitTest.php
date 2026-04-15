@@ -13,10 +13,6 @@ use Hypervel\Tests\Di\Fixtures\Aspect\GetParamsAspect;
 use Hypervel\Tests\Di\Fixtures\Aspect\IncrAspect;
 use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProxyTraitTest extends TestCase
 {
     public function testGetParamsMap()

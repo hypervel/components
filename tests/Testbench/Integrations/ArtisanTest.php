@@ -13,10 +13,6 @@ use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 #[UsesVendor]
 class ArtisanTest extends TestCase
 {

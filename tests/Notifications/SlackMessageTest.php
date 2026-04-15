@@ -24,10 +24,6 @@ use RuntimeException;
 
 use function tap;
 
-/**
- * @internal
- * @coversNothing
- */
 class SlackMessageTest extends TestCase
 {
     protected ?SlackWebApiChannel $slackChannel;

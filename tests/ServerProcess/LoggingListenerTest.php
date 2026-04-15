@@ -14,10 +14,6 @@ use Hypervel\ServerProcess\Listeners\LogBeforeProcessStartListener;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class LoggingListenerTest extends TestCase
 {
     public function testLogBeforeProcessStartLogsViaStdoutLogger()

@@ -13,10 +13,6 @@ use Hypervel\Support\Testing\Fakes\PendingMailFake;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportReflectorTest extends TestCase
 {
     public function testGetClassName()

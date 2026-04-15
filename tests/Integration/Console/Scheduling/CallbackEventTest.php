@@ -10,10 +10,6 @@ use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallbackEventTest extends TestCase
 {
     public function testDefaultResultIsSuccess()

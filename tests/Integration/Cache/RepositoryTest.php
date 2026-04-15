@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('cache')]
 class RepositoryTest extends TestCase
 {

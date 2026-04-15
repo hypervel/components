@@ -9,10 +9,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Features\FeaturesCollection;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('testing.class_attribute', 'class_value')]
 class HandlesAttributesTest extends TestCase
 {

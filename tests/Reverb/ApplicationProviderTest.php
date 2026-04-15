@@ -10,10 +10,6 @@ use Hypervel\Reverb\ConfigApplicationProvider;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Tests\Reverb\Fixtures\FakeApplicationProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApplicationProviderTest extends ReverbTestCase
 {
     public function testRetrievesApplicationsFromCustomProvider()

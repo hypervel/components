@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TokenAbility;
 use Hypervel\Tests\Sanctum\Fixtures\UserWithApiTokens;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasApiTokensTest extends TestCase
 {
     public function testCanCheckTokenAbilitiesWithTransientToken(): void

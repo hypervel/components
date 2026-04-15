@@ -10,10 +10,6 @@ use Hypervel\Cache\Repository;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheMemoizedStoreTest extends TestCase
 {
     public function testTouchExtendsTtl()

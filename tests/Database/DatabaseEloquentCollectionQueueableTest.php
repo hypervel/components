@@ -11,10 +11,6 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentCollectionQueueableTest extends TestCase
 {
     public function testSerializesPivotsEntitiesId()

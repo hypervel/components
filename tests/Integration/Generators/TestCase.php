@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Generators;
 
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 
-/**
- * @internal
- * @coversNothing
- */
 abstract class TestCase extends \Hypervel\Testbench\TestCase
 {
     use InteractsWithPublishedFiles;

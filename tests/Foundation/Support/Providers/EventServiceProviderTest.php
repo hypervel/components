@@ -16,10 +16,6 @@ use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\List
 use ReflectionMethod;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventServiceProviderTest extends TestCase
 {
     public function testGetEventsMergesDiscoveredEventsWithListens()

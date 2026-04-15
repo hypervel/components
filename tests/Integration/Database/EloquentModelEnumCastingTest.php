@@ -14,10 +14,6 @@ use ValueError;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelEnumCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

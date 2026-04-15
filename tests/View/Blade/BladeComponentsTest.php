@@ -10,10 +10,6 @@ use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\View\Component;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeComponentsTest extends AbstractBladeTestCase
 {
     public function testComponentsAreCompiled()

@@ -14,10 +14,6 @@ use Hypervel\Tests\Server\Fixtures\InitProcessTitleListenerStub2;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class InitProcessTitleListenerTest extends TestCase
 {
     public function testProcessDefaultName()

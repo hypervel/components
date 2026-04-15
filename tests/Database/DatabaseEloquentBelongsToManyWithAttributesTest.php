@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 {
     protected function setUp(): void

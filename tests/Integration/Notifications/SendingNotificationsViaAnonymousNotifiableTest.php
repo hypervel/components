@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Notification as NotificationFacade;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingNotificationsViaAnonymousNotifiableTest extends TestCase
 {
     public function testMailIsSent()

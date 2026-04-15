@@ -12,10 +12,6 @@ use Hypervel\Queue\Jobs\Job;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class StoreTagsForFailedTest extends IntegrationTestCase
 {
     public function testTemporaryFailedJobShouldBeDeletedWhenTheMainJobIsDeleted(): void

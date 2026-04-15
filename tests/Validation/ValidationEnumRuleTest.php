@@ -16,10 +16,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationEnumRuleTest extends TestCase
 {
     protected function setUp(): void

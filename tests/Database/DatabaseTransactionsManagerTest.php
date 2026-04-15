@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseTransactionsManagerTest extends TestCase
 {
     public function testBeginningTransactions()

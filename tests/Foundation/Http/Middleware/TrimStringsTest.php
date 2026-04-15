@@ -9,10 +9,6 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
-/**
- * @internal
- * @coversNothing
- */
 class TrimStringsTest extends TestCase
 {
     public function testTrimStringsIgnoringExceptAttribute()

@@ -10,10 +10,6 @@ use Hypervel\Horizon\ProvisioningPlan;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProvisioningPlanTest extends IntegrationTestCase
 {
     public function testSupervisorsAreAdded()

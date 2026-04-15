@@ -11,10 +11,6 @@ use Hypervel\Tinker\ClassAliasAutoloader;
 use Mockery as m;
 use Psy\Shell;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClassAliasAutoloaderTest extends TestCase
 {
     protected string $classmapPath;

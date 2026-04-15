@@ -12,10 +12,6 @@ use Hypervel\Validation\DatabasePresenceVerifier;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationDatabasePresenceVerifierTest extends TestCase
 {
     public function testBasicCount()

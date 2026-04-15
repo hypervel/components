@@ -12,10 +12,6 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 {
     protected function setUp(): void

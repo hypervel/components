@@ -14,10 +14,6 @@ use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
 use UnitEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationExistsRuleTest extends TestCase
 {
     use RefreshDatabase;

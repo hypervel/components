@@ -12,10 +12,6 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMessageTest extends TestCase
 {
     protected Message $message;

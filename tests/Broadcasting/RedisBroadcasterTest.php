@@ -14,10 +14,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisBroadcasterTest extends TestCase
 {
     protected RedisBroadcaster $broadcaster;

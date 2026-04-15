@@ -12,10 +12,6 @@ use Hypervel\Routing\Controller;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthorizesResourcesTest extends TestCase
 {
     public function testCreateMethod()

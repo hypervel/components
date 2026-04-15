@@ -8,10 +8,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Database\Fixtures\NamedScopeUser;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 class EloquentNamedScopeAttributeTest extends DatabaseTestCase
 {

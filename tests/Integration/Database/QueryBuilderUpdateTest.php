@@ -12,10 +12,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 require_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryBuilderUpdateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

@@ -8,10 +8,6 @@ use Hypervel\Mail\Mailable;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailableAssertionsTest extends TestCase
 {
     public function testMailableAssertSeeInTextPassesWhenPresent()

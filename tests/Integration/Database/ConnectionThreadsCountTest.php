@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Support\Facades\DB;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectionThreadsCountTest extends DatabaseTestCase
 {
     public function testGetThreadsCount()

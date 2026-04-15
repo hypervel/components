@@ -13,10 +13,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Monolog\LogRecord;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextLoggingIntegrationTest extends TestCase
 {
     public function testContextIsNotUsedAsMessageParameters()

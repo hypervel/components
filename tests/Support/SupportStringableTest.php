@@ -16,10 +16,6 @@ use Hypervel\Tests\TestCase;
 use League\CommonMark\Environment\EnvironmentBuilderInterface;
 use League\CommonMark\Extension\ExtensionInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportStringableTest extends TestCase
 {
     protected Container $container;

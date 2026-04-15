@@ -14,10 +14,6 @@ use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
         'enabled' => true,

@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\MenuItem;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScopedNodeTest extends TestCase
 {
     use RefreshDatabase;

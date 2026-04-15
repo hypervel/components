@@ -11,10 +11,6 @@ use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 class FileValidationTest extends TestCase
 {
     #[TestWith(['0'])]

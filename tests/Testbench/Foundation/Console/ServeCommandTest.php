@@ -22,10 +22,6 @@ use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServeCommandTest extends TestCase
 {
     protected function tearDown(): void

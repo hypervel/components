@@ -12,10 +12,6 @@ use Hypervel\Validation\Validator;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationRequiredIfTest extends TestCase
 {
     public function testItClosureReturnsFormatsAStringVersionOfTheRule()

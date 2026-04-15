@@ -15,10 +15,6 @@ use Hypervel\Tests\ServerProcess\Fixtures\ListenableProcess;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ListenMethodTest extends TestCase
 {
     public function testListenerContinuesAfterSignalInterruption()

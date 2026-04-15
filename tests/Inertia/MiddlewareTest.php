@@ -23,10 +23,6 @@ use Hypervel\Tests\Inertia\Fixtures\WithAllErrorsMiddleware;
 use LogicException;
 use PHPUnit\Framework\Attributes\After;
 
-/**
- * @internal
- * @coversNothing
- */
 class MiddlewareTest extends TestCase
 {
     #[After]

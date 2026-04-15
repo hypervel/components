@@ -11,10 +11,6 @@ use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class PackageManifestTest extends TestCase
 {
     private string $basePath;

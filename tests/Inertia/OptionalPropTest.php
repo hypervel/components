@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\OptionalProp;
 
-/**
- * @internal
- * @coversNothing
- */
 class OptionalPropTest extends TestCase
 {
     public function testCanInvoke(): void

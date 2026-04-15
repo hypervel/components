@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Schema;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryingWithEnumsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

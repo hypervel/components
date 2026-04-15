@@ -18,10 +18,6 @@ use Symfony\Component\Process\Process as SymfonyProcess;
 
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[WithConfig('app.key', 'SECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class RemoteCommandTest extends TestCase

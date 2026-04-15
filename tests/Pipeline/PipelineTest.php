@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class PipelineTest extends TestCase
 {
     public function testPipelineBasicUsage()

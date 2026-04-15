@@ -145,10 +145,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProviderOrderingTest extends TestCase
 {
     public function testFrameworkProvidersLoadBeforeApplicationProviders()

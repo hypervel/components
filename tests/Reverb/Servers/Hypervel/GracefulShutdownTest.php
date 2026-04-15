@@ -20,10 +20,6 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class GracefulShutdownTest extends ReverbTestCase
 {
     protected function tearDown(): void

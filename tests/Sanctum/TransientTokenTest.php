@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Sanctum;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransientTokenTest extends TestCase
 {
     public function testCanDetermineWhatItCanAndCantDo()

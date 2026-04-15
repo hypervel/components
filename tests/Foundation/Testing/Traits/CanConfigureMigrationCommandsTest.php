@@ -8,10 +8,6 @@ use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class CanConfigureMigrationCommandsTest extends TestCase
 {
     protected $traitObject;

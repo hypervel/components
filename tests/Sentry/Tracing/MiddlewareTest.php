@@ -13,10 +13,6 @@ use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class MiddlewareTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

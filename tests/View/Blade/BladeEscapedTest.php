@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeEscapedTest extends AbstractBladeTestCase
 {
     public function testEscapedWithAtDirectivesAreCompiled()

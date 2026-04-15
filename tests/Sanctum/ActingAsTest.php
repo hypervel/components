@@ -9,10 +9,6 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class ActingAsTest extends TestCase
 {
     protected function setUp(): void

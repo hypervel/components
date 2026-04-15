@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelUsersControllerTest extends ReverbTestCase
 {
     public function testReturnsErrorWhenNonPresenceChannelProvided()

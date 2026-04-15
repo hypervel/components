@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 use Hypervel\Reverb\Protocols\Pusher\PusherPubSubIncomingMessageHandler;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
 {
     public function testListenerOnlyEventWithoutAppIdDoesNotThrow()

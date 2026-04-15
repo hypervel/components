@@ -10,10 +10,6 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class BeforeCommitContractTest extends TestCase
 {
     public function testJobWithoutContractRespectsBeforeCommit()

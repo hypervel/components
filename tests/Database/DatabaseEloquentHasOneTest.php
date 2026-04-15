@@ -13,10 +13,6 @@ use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasOneTest extends TestCase
 {
     protected $builder;

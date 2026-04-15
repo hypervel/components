@@ -12,10 +12,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheTokenRepositoryTest extends TestCase
 {
     public function testCreateStoresHashedTokenAndReturnsPlainToken()

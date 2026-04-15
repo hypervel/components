@@ -14,10 +14,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationRepositoryTest extends TestCase
 {
     public function testGetRanMigrationsListMigrationsByPackage()

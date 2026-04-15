@@ -12,10 +12,6 @@ use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class TimeStrategyTest extends TestCase
 {
     public function testGetRecycleInterval()

@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\TestingServiceProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestingServiceProviderTest extends TestCase
 {
     private mixed $originalParallelTesting;

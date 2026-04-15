@@ -15,10 +15,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use UnexpectedValueException;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthPasswordBrokerTest extends TestCase
 {
     public function testIfUserIsNotFoundErrorRedirectIsReturned()

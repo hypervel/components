@@ -8,10 +8,6 @@ use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class MessageTest extends TestCase
 {
     public function testConstructWithChannelAndPayload()

@@ -10,10 +10,6 @@ use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithQueueTest extends TestCase
 {
     public function testCreatesAnExceptionFromString()

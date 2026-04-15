@@ -35,10 +35,6 @@ use WeakMap;
 include_once 'Common.php';
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportCollectionTest extends TestCase
 {
     #[DataProvider('collectionClassProvider')]

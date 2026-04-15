@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Schedule;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleGroupTest extends TestCase
 {
     public function testGroupCanSetScheduleCronExpression()

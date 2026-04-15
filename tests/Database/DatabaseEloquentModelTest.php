@@ -70,10 +70,6 @@ use WeakMap;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentModelTest extends TestCase
 {
     use InteractsWithTime;

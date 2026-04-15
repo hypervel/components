@@ -9,10 +9,6 @@ use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReloadCommandTest extends TestCase
 {
     protected function getPackageProviders(ApplicationContract $app): array

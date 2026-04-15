@@ -13,10 +13,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class BlacklistTest extends TestCase
 {
     /**

@@ -14,10 +14,6 @@ use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandInvokerTest extends TestCase
 {
     public function testInvokeSendsCommandAndCollectsResults()

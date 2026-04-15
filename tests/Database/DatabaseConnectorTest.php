@@ -14,10 +14,6 @@ use PDO;
 use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConnectorTest extends TestCase
 {
     public function testOptionResolution()

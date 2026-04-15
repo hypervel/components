@@ -8,10 +8,6 @@ use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequiresDatabaseTest extends TestCase
 {
     public function testSkipsWhenDriverDoesNotMatch(): void

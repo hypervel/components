@@ -18,10 +18,6 @@ use PDO;
 use PDOException;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
         'enabled' => true,

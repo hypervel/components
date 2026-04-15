@@ -15,10 +15,6 @@ use Sentry\Logs\LogLevel;
 
 use function Sentry\logger;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogLogsIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

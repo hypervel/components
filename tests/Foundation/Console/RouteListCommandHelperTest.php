@@ -13,10 +13,6 @@ use Hypervel\Routing\Controller;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('filesystems.disks.local.serve', false)]
 class RouteListCommandHelperTest extends TestCase
 {

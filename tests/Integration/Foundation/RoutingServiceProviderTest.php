@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingServiceProviderTest extends TestCase
 {
     public function testItIncludesMergedDataInServerRequestInterfaceInstancesUsingGetRequests()

@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithSignalsTest extends TestCase
 {
     public function testTrapCreatesRegistry()

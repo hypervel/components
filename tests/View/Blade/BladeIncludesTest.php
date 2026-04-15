@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeIncludesTest extends AbstractBladeTestCase
 {
     public function testEachsAreCompiled()

@@ -11,10 +11,6 @@ use Hypervel\Tests\Di\Fixtures\Aspect\NoProcessAspect;
 use Hypervel\Tests\TestCase;
 use WeakReference;
 
-/**
- * @internal
- * @coversNothing
- */
 class PipelineTest extends TestCase
 {
     public function testPipelineExecutesAspectAndReturnsResult()

@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\Fixtures\ApiResourceTaskController;
 use Hypervel\Tests\Integration\Routing\Fixtures\ApiResourceTestController;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteApiResourceTest extends RoutingTestCase
 {
     public function testApiResource()

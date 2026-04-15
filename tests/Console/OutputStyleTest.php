@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class OutputStyleTest extends TestCase
 {
     public function testDetectsNewLine()

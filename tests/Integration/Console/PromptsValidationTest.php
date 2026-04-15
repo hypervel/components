@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Prompts\text;
 
-/**
- * @internal
- * @coversNothing
- */
 class PromptsValidationTest extends TestCase
 {
     protected function setUp(): void

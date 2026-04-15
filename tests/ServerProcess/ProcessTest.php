@@ -14,10 +14,6 @@ use Mockery as m;
 use ReflectionClass;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessTest extends TestCase
 {
     /** @var array<int, object> */

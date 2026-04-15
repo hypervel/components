@@ -17,10 +17,6 @@ use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailSesV2TransportTest extends TestCase
 {
     protected function setUp(): void

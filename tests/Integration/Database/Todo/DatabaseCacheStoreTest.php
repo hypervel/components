@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('cache')]
 class DatabaseCacheStoreTest extends DatabaseTestCase
 {

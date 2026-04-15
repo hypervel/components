@@ -18,10 +18,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class TypeTest extends TestCase
 {
     public function testAsAArrayRepresentation()

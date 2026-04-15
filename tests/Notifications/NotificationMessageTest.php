@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Notifications;
 use Hypervel\Notifications\Messages\SimpleMessage as Message;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationMessageTest extends TestCase
 {
     public function testLevelCanBeRetrieved()

@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSoftDeletingTraitTest extends TestCase
 {
     public function testDeleteSetsSoftDeletedColumn()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Query\Processors\MySqlProcessor;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMySqlProcessorTest extends TestCase
 {
     public function testProcessColumns()

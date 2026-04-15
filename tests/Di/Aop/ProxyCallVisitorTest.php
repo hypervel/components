@@ -13,10 +13,6 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassMethod;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProxyCallVisitorTest extends TestCase
 {
     public function testShouldRewrite()

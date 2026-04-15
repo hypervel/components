@@ -38,10 +38,6 @@ enum EventTestTimezoneUnitEnum
     case EST;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class EventTest extends TestCase
 {
     protected ?Container $container = null;

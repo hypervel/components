@@ -9,10 +9,6 @@ use Hypervel\Horizon\SupervisorCommands\Scale;
 use Hypervel\Tests\Horizon\UnitTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScaleCommandTest extends UnitTestCase
 {
     public function testScaleCommandTellsSupervisorToScale()

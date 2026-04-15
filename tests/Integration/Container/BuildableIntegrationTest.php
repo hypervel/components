@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\ValidationException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BuildableIntegrationTest extends TestCase
 {
     public function testBuildMethodCanResolveItselfViaContainer()

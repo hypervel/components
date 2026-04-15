@@ -25,10 +25,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentFactoryTest extends TestCase
 {
     protected function setUp(): void

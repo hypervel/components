@@ -13,10 +13,6 @@ use Hypervel\Signal\SignalRegisterListener;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SignalRegisterListenerTest extends TestCase
 {
     public function testHandleBeforeWorkerStartInitializesAndListensForWorker()

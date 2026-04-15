@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeCannotStatementsTest extends AbstractBladeTestCase
 {
     public function testCannotStatementsAreCompiled()

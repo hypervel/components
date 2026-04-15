@@ -12,10 +12,6 @@ use PHPUnit\Framework\TestCase;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationArrayRuleTest extends TestCase
 {
     public function testItCorrectlyFormatsAStringVersionOfTheRule()

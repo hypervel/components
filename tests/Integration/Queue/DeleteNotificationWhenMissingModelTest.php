@@ -20,10 +20,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 #[WithMigration('queue')]
 class DeleteNotificationWhenMissingModelTest extends QueueTestCase

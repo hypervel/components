@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Console\Migrations\TableGuesser;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TableGuesserTest extends TestCase
 {
     public function testMigrationIsProperlyParsed()

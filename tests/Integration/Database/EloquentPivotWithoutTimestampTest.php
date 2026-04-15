@@ -11,10 +11,6 @@ use Hypervel\Tests\Integration\Database\EloquentPivotWithoutTimestampTest as App
 // Load the fixtures file which defines models and migrations
 require_once __DIR__ . '/EloquentPivotWithoutTimestampTest.fixtures.php';
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('auth.providers.users.model', App\User::class)]
 #[WithMigration]
 class EloquentPivotWithoutTimestampTest extends DatabaseTestCase

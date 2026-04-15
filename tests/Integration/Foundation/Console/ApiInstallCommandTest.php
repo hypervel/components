@@ -8,10 +8,6 @@ use Hypervel\Foundation\Console\ApiInstallCommand;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
     /**

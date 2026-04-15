@@ -16,10 +16,6 @@ use Hypervel\Testing\Assert as PHPUnit;
 use PDO;
 use PDOException;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryBuilderTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

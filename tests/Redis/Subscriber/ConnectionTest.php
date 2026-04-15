@@ -11,10 +11,6 @@ use Hypervel\Redis\Subscriber\Exceptions\SocketException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectionTest extends TestCase
 {
     public function testSendSucceeds()

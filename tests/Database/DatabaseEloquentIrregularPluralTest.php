@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentIrregularPluralTest extends TestCase
 {
     protected function setUp(): void

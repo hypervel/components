@@ -9,10 +9,6 @@ use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheNoLockTest extends TestCase
 {
     public function testLockImplementsRefreshableLock()

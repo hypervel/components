@@ -9,10 +9,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Hypervel\WebSocketServer\Sender;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectionTest extends ReverbTestCase
 {
     public function testIdReturnsFd()

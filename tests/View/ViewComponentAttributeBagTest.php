@@ -7,10 +7,6 @@ namespace Hypervel\Tests\View;
 use Hypervel\View\ComponentAttributeBag;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewComponentAttributeBagTest extends TestCase
 {
     public function testAttributeRetrieval()

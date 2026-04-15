@@ -14,10 +14,6 @@ use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
 use UnitEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationUniqueRuleTest extends TestCase
 {
     use RefreshDatabase;

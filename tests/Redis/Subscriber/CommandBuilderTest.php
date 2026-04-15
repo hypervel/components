@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Redis\Subscriber;
 use Hypervel\Redis\Subscriber\CommandBuilder;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandBuilderTest extends TestCase
 {
     public function testBuildNull()

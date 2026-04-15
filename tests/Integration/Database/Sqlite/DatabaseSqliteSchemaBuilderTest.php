@@ -8,10 +8,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void

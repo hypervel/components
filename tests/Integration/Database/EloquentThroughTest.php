@@ -14,10 +14,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentThroughTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

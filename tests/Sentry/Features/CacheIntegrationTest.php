@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Tracing\Span;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheIntegrationTest extends SentryTestCase
 {
     protected function setUp(): void

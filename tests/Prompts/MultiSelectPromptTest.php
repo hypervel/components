@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\multiselect;
 
-/**
- * @internal
- * @coversNothing
- */
 class MultiSelectPromptTest extends TestCase
 {
     public function testAcceptsAnArrayOfLabels()

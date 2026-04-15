@@ -18,10 +18,6 @@ use Symfony\Component\Console\Output\NullOutput;
 use function Hypervel\Prompts\multiselect;
 use function Hypervel\Prompts\select;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfiguresPromptsTest extends TestCase
 {
     #[DataProvider('selectDataProvider')]

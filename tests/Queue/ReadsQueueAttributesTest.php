@@ -16,10 +16,6 @@ use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Attributes\UniqueFor;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReadsQueueAttributesTest extends TestCase
 {
     use ReadsQueueAttributes;

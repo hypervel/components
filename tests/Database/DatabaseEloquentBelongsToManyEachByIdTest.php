@@ -8,10 +8,6 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 {
     protected function setUp(): void

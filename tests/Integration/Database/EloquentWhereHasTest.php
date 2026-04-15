@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentWhereHasTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

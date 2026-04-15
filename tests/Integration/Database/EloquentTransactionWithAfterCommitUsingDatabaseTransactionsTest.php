@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends TestCase
 {
     use DatabaseTransactions;

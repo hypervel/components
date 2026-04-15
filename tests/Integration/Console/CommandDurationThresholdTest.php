@@ -12,10 +12,6 @@ use Hypervel\Testbench\TestCase;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandDurationThresholdTest extends TestCase
 {
     public function testItCanHandleExceedingCommandDuration()

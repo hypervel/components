@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MonitorWaitTimesTest extends IntegrationTestCase
 {
     public function testQueuesWithLongWaitsAreFound()

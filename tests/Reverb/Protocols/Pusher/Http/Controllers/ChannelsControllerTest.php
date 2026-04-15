@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelsControllerTest extends ReverbTestCase
 {
     public function testCanReturnAllChannelInformation()

@@ -12,10 +12,6 @@ use Hypervel\View\Engines\EngineResolver;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMarkdownTest extends TestCase
 {
     public function testRenderFunctionReturnsHtml()

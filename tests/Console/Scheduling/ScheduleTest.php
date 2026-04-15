@@ -50,10 +50,6 @@ enum ScheduleTestCacheStoreIntEnum: int
     case Store2 = 2;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleTest extends TestCase
 {
     protected Container $container;

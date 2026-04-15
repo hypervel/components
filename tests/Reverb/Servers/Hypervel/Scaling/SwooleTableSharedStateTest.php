@@ -9,10 +9,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use RuntimeException;
 use Swoole\Table;
 
-/**
- * @internal
- * @coversNothing
- */
 class SwooleTableSharedStateTest extends ReverbTestCase
 {
     protected SwooleTableSharedState $state;

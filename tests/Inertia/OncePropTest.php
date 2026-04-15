@@ -17,10 +17,6 @@ enum TestUnitEnum
     case Baz;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class OncePropTest extends TestCase
 {
     public function testCanInvokeWithACallback(): void

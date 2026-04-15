@@ -19,10 +19,6 @@ use Mockery as m;
 use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisIntegrationTest extends SentryTestCase
 {
     protected function setUp(): void

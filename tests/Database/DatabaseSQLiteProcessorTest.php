@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSQLiteProcessorTest extends TestCase
 {
     public function testProcessColumns()

@@ -28,10 +28,6 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRepositoryTest extends TestCase
 {
     protected function setUp(): void

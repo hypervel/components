@@ -16,10 +16,6 @@ use ReflectionObject;
 
 include_once __DIR__ . '/Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportFluentTest extends TestCase
 {
     public function testAttributesAreSetByConstructor()

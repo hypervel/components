@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View\Blade;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeEchoTest extends AbstractBladeTestCase
 {
     public function testEchosAreCompiled()

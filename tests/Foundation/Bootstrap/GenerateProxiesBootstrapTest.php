@@ -12,10 +12,6 @@ use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class GenerateProxiesBootstrapTest extends TestCase
 {
     public function testHttpKernelIncludesGenerateProxies()

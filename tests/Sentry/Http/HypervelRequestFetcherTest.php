@@ -9,10 +9,6 @@ use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Psr\Http\Message\ServerRequestInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class HypervelRequestFetcherTest extends SentryTestCase
 {
     protected function defineRoutes(Router $router): void

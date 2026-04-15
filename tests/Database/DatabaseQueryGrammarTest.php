@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseQueryGrammarTest extends TestCase
 {
     public function testWhereRawReturnsStringWhenExpressionPassed()

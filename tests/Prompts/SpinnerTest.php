@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\spin;
 
-/**
- * @internal
- * @coversNothing
- */
 class SpinnerTest extends TestCase
 {
     public function testSpinner()

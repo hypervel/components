@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
 
-/**
- * @internal
- * @coversNothing
- */
 class InertiaServiceProviderTest extends TestCase
 {
     public function testBladeDirectiveIsRegistered(): void

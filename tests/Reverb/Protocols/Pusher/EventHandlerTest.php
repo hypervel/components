@@ -10,10 +10,6 @@ use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JsonException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventHandlerTest extends ReverbTestCase
 {
     protected FakeConnection $connection;

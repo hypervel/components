@@ -11,10 +11,6 @@ use ReflectionProperty;
 use Sentry\ClientBuilder;
 use Sentry\Transport\TransportInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigTest extends SentryTestCase
 {
     public function testPoolIsConstructedFromSentryPoolConfig()

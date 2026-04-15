@@ -15,10 +15,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class ImplicitModelRouteBindingTest extends RoutingTestCase
 {

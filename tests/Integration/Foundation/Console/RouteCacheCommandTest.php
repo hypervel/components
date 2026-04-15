@@ -10,10 +10,6 @@ use Hypervel\Routing\CompiledRouteCollection;
 
 use function Hypervel\Testbench\workbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
 {
     protected Filesystem $files;

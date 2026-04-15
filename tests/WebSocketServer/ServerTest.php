@@ -24,10 +24,6 @@ use Swoole\Server as SwooleServer;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketSwooleServer;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerTest extends TestCase
 {
     protected function tearDown(): void

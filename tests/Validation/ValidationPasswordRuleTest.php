@@ -13,10 +13,6 @@ use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationPasswordRuleTest extends TestCase
 {
     protected function setUp(): void

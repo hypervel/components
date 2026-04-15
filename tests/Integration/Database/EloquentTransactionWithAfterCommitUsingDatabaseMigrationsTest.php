@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentTransactionWithAfterCommitUsingDatabaseMigrationsTest extends DatabaseTestCase
 {
     use DatabaseMigrations;

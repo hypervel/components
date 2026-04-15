@@ -11,10 +11,6 @@ use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Testbench\Foundation\Env;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class PhpUnit10DeprecationsTest extends TestCase
 {
     #[Test]

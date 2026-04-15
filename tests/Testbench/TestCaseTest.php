@@ -15,10 +15,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\container;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCaseTest extends TestCase
 {
     #[Override]

@@ -19,10 +19,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class FailOnExceptionMiddlewareTest extends TestCase
 {
     protected function setUp(): void

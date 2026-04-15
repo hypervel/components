@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingMailableNotificationsTest extends TestCase
 {
     use RefreshDatabase;

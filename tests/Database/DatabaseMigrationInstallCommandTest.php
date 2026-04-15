@@ -13,10 +13,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationInstallCommandTest extends TestCase
 {
     public function testFireCallsRepositoryToInstall()

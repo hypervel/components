@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\Pipeline;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class PipelineTransactionTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

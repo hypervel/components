@@ -12,10 +12,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('cache.default', 'file')]
 class FileCacheLockTest extends TestCase
 {

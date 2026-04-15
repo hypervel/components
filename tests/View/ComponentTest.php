@@ -19,10 +19,6 @@ use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ComponentTest extends TestCase
 {
     protected $viewFactory;

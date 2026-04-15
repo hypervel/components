@@ -9,10 +9,6 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnvTest extends TestCase
 {
     #[Test]

@@ -13,10 +13,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;

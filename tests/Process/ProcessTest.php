@@ -14,10 +14,6 @@ use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessTest extends TestCase
 {
     public function testSuccessfulProcess()

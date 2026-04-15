@@ -12,10 +12,6 @@ use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToTest extends TestCase
 {
     protected $builder;

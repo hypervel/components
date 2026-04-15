@@ -9,10 +9,6 @@ use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {
     public function testToRawSql()

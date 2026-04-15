@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\HigherOrderWhenProxy;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConditionableTest extends TestCase
 {
     protected function setUp(): void

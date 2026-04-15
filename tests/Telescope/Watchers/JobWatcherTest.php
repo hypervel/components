@@ -27,10 +27,6 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('queue')]
 #[WithConfig('queue.failed.database', 'testing')]
 #[WithConfig('logging.default', 'null')]

@@ -8,10 +8,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TimestampTypeTest extends DatabaseTestCase
 {
     public function testChangeDatetimeColumnToTimestampColumn()

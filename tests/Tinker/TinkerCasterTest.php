@@ -8,10 +8,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tinker\TinkerCaster;
 
-/**
- * @internal
- * @coversNothing
- */
 class TinkerCasterTest extends TestCase
 {
     public function testCanCastCollection()

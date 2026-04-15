@@ -8,10 +8,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\MessageBag;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportMessageBagTest extends TestCase
 {
     public function testUniqueness()

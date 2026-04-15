@@ -13,10 +13,6 @@ use function Hypervel\Prompts\form;
 use function Hypervel\Prompts\outro;
 use function Hypervel\Prompts\text;
 
-/**
- * @internal
- * @coversNothing
- */
 class FormTest extends TestCase
 {
     public function testCanRunMultipleSteps()

@@ -11,10 +11,6 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthTest extends IntegrationTestCase
 {
     public function testAuthenticationCallbackWorks()

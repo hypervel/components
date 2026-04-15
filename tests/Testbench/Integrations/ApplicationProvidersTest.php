@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Testbench\Integrations;
 use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApplicationProvidersTest extends TestCase
 {
     #[Test]

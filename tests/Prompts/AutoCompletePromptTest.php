@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\autocomplete;
 
-/**
- * @internal
- * @coversNothing
- */
 class AutoCompletePromptTest extends TestCase
 {
     public function testAcceptsAnyInput()

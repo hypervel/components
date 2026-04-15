@@ -8,10 +8,6 @@ use BadMethodCallException;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportMacroableTest extends TestCase
 {
     private EmptyMacroable $macroable;

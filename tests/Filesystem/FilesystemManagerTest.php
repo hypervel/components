@@ -33,10 +33,6 @@ enum FilesystemTestUnitDisk
     case local;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class FilesystemManagerTest extends TestCase
 {
     private string $tempDir;

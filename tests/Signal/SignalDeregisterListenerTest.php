@@ -12,10 +12,6 @@ use Hypervel\Signal\SignalManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SignalDeregisterListenerTest extends TestCase
 {
     public function testHandleOnWorkerExitStopsSignalManager()

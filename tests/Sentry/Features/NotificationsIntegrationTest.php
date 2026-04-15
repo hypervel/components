@@ -15,10 +15,6 @@ use Mockery as m;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationsIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

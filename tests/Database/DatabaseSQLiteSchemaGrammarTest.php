@@ -17,10 +17,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSQLiteSchemaGrammarTest extends TestCase
 {
     public function testBasicCreateTable()

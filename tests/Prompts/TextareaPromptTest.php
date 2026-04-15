@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\textarea;
 
-/**
- * @internal
- * @coversNothing
- */
 class TextareaPromptTest extends TestCase
 {
     public function testReturnsTheInput(): void

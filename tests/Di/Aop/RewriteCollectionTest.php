@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Di\Aop;
 use Hypervel\Di\Aop\RewriteCollection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RewriteCollectionTest extends TestCase
 {
     public function testDefaultLevelIsMethodLevel()

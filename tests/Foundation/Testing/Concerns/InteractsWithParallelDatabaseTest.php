@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithParallelDatabaseTest extends TestCase
 {
     use InteractsWithParallelDatabase;

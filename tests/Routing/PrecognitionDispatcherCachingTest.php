@@ -15,10 +15,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class PrecognitionDispatcherCachingTest extends TestCase
 {
     public function testCallableDispatcherPrecognitionPropertyStartsNull()

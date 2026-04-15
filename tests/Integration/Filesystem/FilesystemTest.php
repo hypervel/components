@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 class FilesystemTest extends TestCase
 {

@@ -8,10 +8,6 @@ use Hypervel\Contracts\Support\HasOnceHash;
 use Hypervel\Support\Onceable;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class OnceableTest extends TestCase
 {
     public function testTryFromTraceCapturesCallingObject(): void

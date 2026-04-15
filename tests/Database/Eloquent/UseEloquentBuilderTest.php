@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class UseEloquentBuilderTest extends TestCase
 {
     protected function tearDown(): void

@@ -14,10 +14,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('filesystems.disks.local.serve', false)]
 class RouteServiceProviderTest extends TestCase
 {

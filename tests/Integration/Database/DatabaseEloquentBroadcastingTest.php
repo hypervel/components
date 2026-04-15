@@ -18,10 +18,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

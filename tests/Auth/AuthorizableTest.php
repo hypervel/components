@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthorizableTest extends TestCase
 {
     public function testCan()

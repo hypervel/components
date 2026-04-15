@@ -8,10 +8,6 @@ use Hypervel\Support\Xml;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class XmlTest extends TestCase
 {
     public function testToArray()

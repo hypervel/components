@@ -9,10 +9,6 @@ use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SectionBlockTest extends TestCase
 {
     public function testArrayable(): void

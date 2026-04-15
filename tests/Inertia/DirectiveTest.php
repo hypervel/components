@@ -13,10 +13,6 @@ use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
 use Hypervel\View\Compilers\BladeCompiler;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DirectiveTest extends TestCase
 {
     private Filesystem|m\MockInterface $filesystem;

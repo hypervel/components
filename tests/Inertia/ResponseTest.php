@@ -28,10 +28,6 @@ use Hypervel\View\View;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResponseTest extends TestCase
 {
     public function testCanMacro(): void

@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class MutexTest extends TestCase
 {
     public function testMutexLock()

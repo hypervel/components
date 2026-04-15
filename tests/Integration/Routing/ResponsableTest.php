@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResponsableTest extends RoutingTestCase
 {
     public function testResponsableObjectsAreRendered()

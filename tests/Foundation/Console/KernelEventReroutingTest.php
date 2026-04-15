@@ -11,10 +11,6 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class KernelEventReroutingTest extends TestCase
 {
     public function testRerouteSymfonyCommandEventsWiresDispatcherToExistingArtisan()

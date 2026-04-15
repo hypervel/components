@@ -16,10 +16,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrontendRequestsAreStatefulTest extends TestCase
 {
     use RefreshDatabase;

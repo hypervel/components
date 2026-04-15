@@ -8,10 +8,6 @@ use Closure;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Queue\Queueable;
 
-/**
- * @internal
- * @coversNothing
- */
 class FakeSqsJobWithDeduplication implements ShouldQueue
 {
     use Queueable;

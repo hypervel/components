@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Auth\Recaller;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RecallerTest extends TestCase
 {
     public function testIdReturnsFirstSegment()

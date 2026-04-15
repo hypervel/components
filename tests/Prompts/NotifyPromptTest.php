@@ -20,10 +20,6 @@ class TestableNotifyPrompt extends NotifyPrompt
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class NotifyPromptTest extends TestCase
 {
     public function testSetsTheTitle()

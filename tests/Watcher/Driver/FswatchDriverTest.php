@@ -13,10 +13,6 @@ use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FswatchDriverTest extends TestCase
 {
     public function testWatch()

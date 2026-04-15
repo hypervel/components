@@ -26,10 +26,6 @@ enum RateLimitedTestUnitEnum
     case uploads;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class RateLimitedTest extends TestCase
 {
     public function testConstructorAcceptsString(): void

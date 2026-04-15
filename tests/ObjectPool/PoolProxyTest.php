@@ -12,10 +12,6 @@ use Hypervel\ObjectPool\PoolProxy;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PoolProxyTest extends TestCase
 {
     public function testCallPoolProxy()

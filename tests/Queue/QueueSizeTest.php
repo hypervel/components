@@ -9,10 +9,6 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSizeTest extends TestCase
 {
     public function testQueueSize()

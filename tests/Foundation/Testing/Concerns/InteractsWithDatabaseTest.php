@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Fixtures\User;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithDatabaseTest extends TestCase
 {
     use RefreshDatabase;

@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentHasManyTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

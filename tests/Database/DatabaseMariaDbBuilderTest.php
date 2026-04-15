@@ -10,10 +10,6 @@ use Hypervel\Database\Schema\MariaDbBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMariaDbBuilderTest extends TestCase
 {
     public function testCreateDatabase()

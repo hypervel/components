@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequiresEnvTest extends TestCase
 {
     #[Test]

@@ -14,10 +14,6 @@ use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisStoreTest extends TestCase
 {
     use InteractsWithRedis;

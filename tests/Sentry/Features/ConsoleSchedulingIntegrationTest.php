@@ -13,10 +13,6 @@ use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleSchedulingIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

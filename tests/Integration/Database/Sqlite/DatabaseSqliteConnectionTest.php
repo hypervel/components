@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSqliteConnectionTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void

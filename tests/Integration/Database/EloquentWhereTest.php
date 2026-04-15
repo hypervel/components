@@ -12,10 +12,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentWhereTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -337,10 +333,6 @@ class EloquentWhereTest extends DatabaseTestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class UserWhereTest extends Model
 {
     protected ?string $table = 'users';

@@ -17,10 +17,6 @@ use Meilisearch\Client;
 use Meilisearch\Endpoints\Indexes;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MeilisearchEngineTest extends TestCase
 {
     public function testUpdateAddsDocumentsToIndex()

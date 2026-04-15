@@ -12,10 +12,6 @@ use Hypervel\ServerProcess\Events\PipeMessage;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventTest extends TestCase
 {
     public function testBeforeProcessHandleHoldsProcessAndIndex()

@@ -13,10 +13,6 @@ use Hypervel\Tests\Support\Fixtures\StringBackedEnum;
 use Hypervel\Tests\TestCase;
 use JsonSerializable;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportJsTest extends TestCase
 {
     public function testScalars()

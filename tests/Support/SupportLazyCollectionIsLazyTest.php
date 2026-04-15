@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportLazyCollectionIsLazyTest extends TestCase
 {
     use Concerns\CountsEnumerations;

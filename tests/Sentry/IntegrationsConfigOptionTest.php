@@ -12,10 +12,6 @@ use Sentry\Integration\ExceptionListenerIntegration;
 use Sentry\Integration\FatalErrorListenerIntegration;
 use Sentry\Integration\IntegrationInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class IntegrationsConfigOptionTest extends SentryTestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

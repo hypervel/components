@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\suggest;
 
-/**
- * @internal
- * @coversNothing
- */
 class SuggestPromptTest extends TestCase
 {
     public function testAcceptsAnyInput(): void

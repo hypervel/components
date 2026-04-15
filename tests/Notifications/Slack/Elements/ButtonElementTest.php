@@ -10,10 +10,6 @@ use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ButtonElementTest extends TestCase
 {
     public function testArrayable(): void

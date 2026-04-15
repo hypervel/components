@@ -8,10 +8,6 @@ use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class AboutCommandTest extends TestCase
 {
     /**

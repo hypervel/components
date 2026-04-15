@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentMorphToTouchesTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

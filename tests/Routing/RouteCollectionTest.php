@@ -12,10 +12,6 @@ use LogicException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteCollectionTest extends RoutingTestCase
 {
     protected RouteCollection $routeCollection;

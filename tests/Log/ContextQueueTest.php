@@ -15,10 +15,6 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextQueueTest extends TestCase
 {
     public function testContextIsIncludedInJobPayload()

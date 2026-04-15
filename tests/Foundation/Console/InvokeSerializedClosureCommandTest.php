@@ -10,10 +10,6 @@ use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class InvokeSerializedClosureCommandTest extends TestCase
 {
     public function testItCanInvokeSerializedClosureFromArgument(): void

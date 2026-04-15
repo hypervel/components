@@ -9,10 +9,6 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Sentry\SentryTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthEventsTest extends SentryTestCase
 {
     protected array $setupConfig = [

@@ -16,10 +16,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\Category;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class NodeTest extends TestCase
 {
     use RefreshDatabase;

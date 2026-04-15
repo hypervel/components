@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class SignalTest extends TestCase
 {
     public function testSignal()

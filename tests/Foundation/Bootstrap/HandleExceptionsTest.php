@@ -16,10 +16,6 @@ use Monolog\Handler\NullHandler;
 use ReflectionClass;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class HandleExceptionsTest extends TestCase
 {
     protected $app;

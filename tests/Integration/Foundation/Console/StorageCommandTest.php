@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Filesystem\Filesystem;
 
-/**
- * @internal
- * @coversNothing
- */
 class StorageCommandTest extends \Hypervel\Testbench\TestCase
 {
     protected Filesystem $files;

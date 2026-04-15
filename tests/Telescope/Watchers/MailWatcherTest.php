@@ -15,10 +15,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('mail.driver', 'array')]
 #[WithConfig('telescope.watchers', [
     MailWatcher::class => true,

@@ -14,10 +14,6 @@ use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\workbench;
 use function Hypervel\Testbench\workbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class HelpersTest extends TestCase
 {
     #[Test]

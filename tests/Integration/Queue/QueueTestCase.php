@@ -9,10 +9,6 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 abstract class QueueTestCase extends TestCase
 {
     use DatabaseMigrations;

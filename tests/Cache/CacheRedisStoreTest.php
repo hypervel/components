@@ -10,10 +10,6 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRedisStoreTest extends RedisCacheTestCase
 {
     public function testGetReturnsNullWhenNotFound()

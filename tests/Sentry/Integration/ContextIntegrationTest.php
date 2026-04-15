@@ -12,10 +12,6 @@ use Sentry\EventType;
 
 use function Sentry\captureException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextIntegrationTest extends SentryTestCase
 {
     public function testContextIntegrationIsRegistered()

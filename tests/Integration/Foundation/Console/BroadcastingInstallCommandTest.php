@@ -8,10 +8,6 @@ use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
     /**

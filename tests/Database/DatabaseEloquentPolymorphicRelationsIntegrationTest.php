@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 {
     /**

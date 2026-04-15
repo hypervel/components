@@ -8,10 +8,6 @@ use Hypervel\Translation\MessageSelector;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TranslationMessageSelectorTest extends TestCase
 {
     #[DataProvider('chooseTestData')]

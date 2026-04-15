@@ -14,10 +14,6 @@ use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FindNewerDriverTest extends TestCase
 {
     public function testWatch()

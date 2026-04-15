@@ -17,10 +17,6 @@ use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteMiddlewareCachingTest extends RoutingTestCase
 {
     public function testResolvedMiddlewareIsCachedOnRoute()

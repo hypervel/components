@@ -16,10 +16,6 @@ use Hypervel\Validation\Validator;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationRuleCanTest extends TestCase
 {
     protected $user;

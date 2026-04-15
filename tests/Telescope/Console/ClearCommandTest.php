@@ -9,10 +9,6 @@ use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClearCommandTest extends FeatureTestCase
 {
     public function testClearCommandWillDeleteAllEntries()

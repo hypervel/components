@@ -13,10 +13,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\number;
 
-/**
- * @internal
- * @coversNothing
- */
 class NumberPromptTest extends TestCase
 {
     public function testReturnsTheInput()

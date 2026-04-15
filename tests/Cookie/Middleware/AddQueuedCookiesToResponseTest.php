@@ -12,10 +12,6 @@ use Mockery as m;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class AddQueuedCookiesToResponseTest extends TestCase
 {
     public function testHandle()

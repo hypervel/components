@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Routing;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingServiceProviderTest extends RoutingTestCase
 {
     public function testResolvingPsrRequest()

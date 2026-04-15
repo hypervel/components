@@ -12,10 +12,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMySqlConnectionTest extends MySqlTestCase

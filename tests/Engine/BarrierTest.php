@@ -8,10 +8,6 @@ use Hypervel\Engine\Barrier;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class BarrierTest extends TestCase
 {
     public function testBarrier()

@@ -21,10 +21,6 @@ use Mockery as m;
 use ReflectionClass;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
-/**
- * @internal
- * @coversNothing
- */
 class MiddlewareTest extends TestCase
 {
     public function testConvertEmptyStringsToNull()

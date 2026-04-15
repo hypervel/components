@@ -10,10 +10,6 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

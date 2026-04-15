@@ -12,10 +12,6 @@ use function Hypervel\Testbench\default_skeleton_path;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\transform_realpath_to_relative;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransformRealpathToRelativeTest extends TestCase
 {
     #[Test]

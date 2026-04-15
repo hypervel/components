@@ -8,10 +8,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Engines\PhpEngine;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewPhpEngineTest extends TestCase
 {
     public function testViewsMayBeProperlyRendered()

@@ -12,10 +12,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailableWithoutSecuredEncodingTest extends MailableTestCase
 {
     use LazilyRefreshDatabase;

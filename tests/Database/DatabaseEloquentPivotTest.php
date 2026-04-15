@@ -14,10 +14,6 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentPivotTest extends TestCase
 {
     public function testPropertiesAreSetCorrectly()

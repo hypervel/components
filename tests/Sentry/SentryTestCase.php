@@ -20,10 +20,6 @@ use Sentry\State\Scope;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 
-/**
- * @internal
- * @coversNothing
- */
 class SentryTestCase extends \Hypervel\Testbench\TestCase
 {
     protected static bool $hasSetupGlobalEventProcessor = false;

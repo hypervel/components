@@ -11,10 +11,6 @@ use Hypervel\Mail\Mailables\Envelope;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailableAlternativeSyntaxTest extends TestCase
 {
     public function testBasicMailableInspection()

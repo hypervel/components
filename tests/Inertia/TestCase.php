@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\View;
 use Hypervel\Testbench\TestCase as Testbench;
 use Hypervel\Testing\TestResponse;
 
-/**
- * @internal
- * @coversNothing
- */
 abstract class TestCase extends Testbench
 {
     /**

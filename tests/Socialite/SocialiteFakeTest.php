@@ -13,10 +13,6 @@ use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User as OAuth2User;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SocialiteFakeTest extends TestCase
 {
     protected function getPackageProviders($app): array

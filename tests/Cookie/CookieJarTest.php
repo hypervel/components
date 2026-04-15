@@ -31,10 +31,6 @@ enum CookieJarTestNameIntEnum: int
     case First = 1;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class CookieJarTest extends TestCase
 {
     // =========================================================================

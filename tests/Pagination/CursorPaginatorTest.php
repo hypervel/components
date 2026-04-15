@@ -9,10 +9,6 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CursorPaginatorTest extends TestCase
 {
     public function testReturnsRelevantContextInformation()

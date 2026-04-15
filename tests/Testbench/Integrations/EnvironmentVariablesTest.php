@@ -14,10 +14,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\testbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnvironmentVariablesTest extends TestCase
 {
     #[Override]

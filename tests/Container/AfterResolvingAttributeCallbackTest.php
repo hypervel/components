@@ -8,10 +8,6 @@ use Attribute;
 use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AfterResolvingAttributeCallbackTest extends TestCase
 {
     public function testCallbackIsCalledAfterDependencyResolutionWithAttribute()

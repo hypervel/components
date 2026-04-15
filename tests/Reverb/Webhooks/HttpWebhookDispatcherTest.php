@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpWebhookDispatcherTest extends ReverbTestCase
 {
     public function testDispatchesJobForAllowedEvent()

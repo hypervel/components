@@ -9,10 +9,6 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Validator;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationInArrayKeysTest extends TestCase
 {
     public function testInArrayKeysValidation()

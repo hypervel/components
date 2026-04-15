@@ -22,10 +22,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallQueuedHandlerTest extends TestCase
 {
     public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface()

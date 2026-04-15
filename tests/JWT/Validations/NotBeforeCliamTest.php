@@ -9,10 +9,6 @@ use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\JWT\Validations\NotBeforeCliam;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotBeforeCliamTest extends TestCase
 {
     public function testValid()

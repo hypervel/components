@@ -8,10 +8,6 @@ use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class TerminatingConsoleTest extends TestCase
 {
     #[Test]

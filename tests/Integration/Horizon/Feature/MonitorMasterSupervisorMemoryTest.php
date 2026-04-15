@@ -10,10 +10,6 @@ use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
 {
     protected function setUp(): void

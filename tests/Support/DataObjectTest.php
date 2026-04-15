@@ -13,10 +13,6 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DataObjectTest extends TestCase
 {
     /**

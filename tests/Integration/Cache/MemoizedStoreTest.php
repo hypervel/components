@@ -23,10 +23,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('cache.default', 'redis')]
 #[WithConfig('cache.prefix', 'hypervel-cache-')]
 class MemoizedStoreTest extends TestCase

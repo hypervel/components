@@ -8,10 +8,6 @@ use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class AssertPublishedFilesTest extends TestCase
 {
     use InteractsWithPublishedFiles;

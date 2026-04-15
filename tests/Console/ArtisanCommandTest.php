@@ -13,10 +13,6 @@ use Mockery\Exception\InvalidCountException;
 use Mockery\Exception\InvalidOrderException;
 use PHPUnit\Framework\AssertionFailedError;
 
-/**
- * @internal
- * @coversNothing
- */
 class ArtisanCommandTest extends TestCase
 {
     public function testConsoleCommandPasses()

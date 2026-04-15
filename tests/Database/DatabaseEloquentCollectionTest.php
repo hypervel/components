@@ -16,10 +16,6 @@ use LogicException;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentCollectionTest extends TestCase
 {
     /**

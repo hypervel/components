@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\Fixtures\AbilityBackedEnum;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteCanBackedEnumTest extends RoutingTestCase
 {
     public function testSimpleRouteWithStringBackedEnumCanAbilityGuestForbiddenThroughTheFramework()

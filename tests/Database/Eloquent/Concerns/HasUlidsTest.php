@@ -10,10 +10,6 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasUlidsTest extends TestCase
 {
     use RefreshDatabase;

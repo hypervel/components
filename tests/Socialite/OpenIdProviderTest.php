@@ -18,10 +18,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class OpenIdProviderTest extends TestCase
 {
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()

@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 use ReflectionParameter;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class UtilTest extends TestCase
 {
     public function testUnwrapIfClosure()

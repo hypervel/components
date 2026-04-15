@@ -10,10 +10,6 @@ use Hypervel\View\ViewServiceProvider;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApplicationProvidersWithDisabledServicesTest extends TestCase
 {
     #[Override]

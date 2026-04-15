@@ -9,10 +9,6 @@ use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\RewriteCollection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AspectTest extends TestCase
 {
     public function testParseMoreThanOneMethods()

@@ -16,10 +16,6 @@ use Workbench\Database\Seeders\TestbenchDatabaseSeeder;
 use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\workbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class LoadMigrationsFromArrayTest extends TestCase
 {
     #[Test]

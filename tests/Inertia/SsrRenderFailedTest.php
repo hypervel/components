@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Inertia\Ssr\SsrErrorType;
 use Hypervel\Inertia\Ssr\SsrRenderFailed;
 
-/**
- * @internal
- * @coversNothing
- */
 class SsrRenderFailedTest extends TestCase
 {
     public function testItExtractsComponentFromPage(): void

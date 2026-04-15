@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class WorkerProcessTest extends IntegrationTestCase
 {
     public function testWorkerProcessFiresEventIfStoppedProcessCantBeRestarted()

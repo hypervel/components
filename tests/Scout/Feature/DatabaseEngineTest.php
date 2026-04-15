@@ -9,10 +9,6 @@ use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEngineTest extends ScoutTestCase
 {
     protected function setUp(): void

@@ -9,10 +9,6 @@ use Hypervel\Context\Traits\CoroutineProxy;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineProxyTest extends TestCase
 {
     public function testCoroutineProxy()

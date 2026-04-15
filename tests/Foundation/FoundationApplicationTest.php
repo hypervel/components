@@ -18,10 +18,6 @@ use stdClass;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationApplicationTest extends TestCase
 {
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent()

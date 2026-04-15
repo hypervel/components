@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('cache.default', 'null')]
 #[WithConfig('cache.stores.null', ['driver' => 'null'])]
 class NoLockTest extends TestCase

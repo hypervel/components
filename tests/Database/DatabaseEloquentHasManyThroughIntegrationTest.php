@@ -12,10 +12,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 {
     protected function setUp(): void

@@ -17,10 +17,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class GoogleProviderIdTokenTest extends TestCase
 {
     public function testItCanDetectJwtTokens()

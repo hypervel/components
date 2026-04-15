@@ -8,10 +8,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithMigrationTest extends TestCase
 {
     #[Test]

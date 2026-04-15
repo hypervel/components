@@ -12,10 +12,6 @@ use Hypervel\Testbench\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithExceptionHandlingTest extends TestCase
 {
     public function testWithoutExceptionHandlingRethrowsExceptions()

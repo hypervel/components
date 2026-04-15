@@ -11,10 +11,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheSessionStoreTest extends TestCase
 {
     public function testItemsCanBeSetAndRetrieved()

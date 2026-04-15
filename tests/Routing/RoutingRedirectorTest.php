@@ -12,10 +12,6 @@ use Hypervel\Session\Store;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingRedirectorTest extends RoutingTestCase
 {
     protected HeaderBag $headers;

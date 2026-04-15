@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\Fixtures\ApiResourceTestController;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteRedirectTest extends RoutingTestCase
 {
     #[DataProvider('routeRedirectDataSets')]

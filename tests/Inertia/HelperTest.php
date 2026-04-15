@@ -8,10 +8,6 @@ use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ResponseFactory;
 
-/**
- * @internal
- * @coversNothing
- */
 class HelperTest extends TestCase
 {
     public function testTheHelperFunctionReturnsAnInstanceOfTheResponseFactory(): void

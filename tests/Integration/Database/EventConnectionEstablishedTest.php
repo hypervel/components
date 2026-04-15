@@ -9,10 +9,6 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventConnectionEstablishedTest extends DatabaseTestCase
 {
     protected function defineEnvironment(Application $app): void

@@ -9,10 +9,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentCollectionFreshTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

@@ -9,10 +9,6 @@ use Hypervel\Socialite\Two\SlackProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SlackProviderTest extends TestCase
 {
     public function testDefaultScopeKeyIsUserScope()

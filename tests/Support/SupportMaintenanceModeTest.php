@@ -9,10 +9,6 @@ use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Support\Facades\MaintenanceMode;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportMaintenanceModeTest extends TestCase
 {
     public function testExtend()

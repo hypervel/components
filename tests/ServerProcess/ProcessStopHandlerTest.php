@@ -9,10 +9,6 @@ use Hypervel\ServerProcess\Handlers\ProcessStopHandler;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessStopHandlerTest extends TestCase
 {
     public function testImplementsSignalHandlerInterface()

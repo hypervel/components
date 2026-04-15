@@ -12,10 +12,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseWipeCommandTest extends TestCase
 {
     public function testWipeCommandDropsSchemaObjectsAndPurgesConnection()

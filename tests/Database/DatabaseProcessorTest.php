@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseProcessorTest extends TestCase
 {
     public function testInsertGetIdProcessing()

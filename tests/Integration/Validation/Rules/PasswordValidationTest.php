@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rules\Password;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 class PasswordValidationTest extends TestCase
 {
     #[TestWith(['0'])]

@@ -10,10 +10,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

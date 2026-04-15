@@ -26,10 +26,6 @@ use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleRunCommandTest extends TestCase
 {
     protected array $dispatched;

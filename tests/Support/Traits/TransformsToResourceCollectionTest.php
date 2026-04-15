@@ -17,10 +17,6 @@ use Hypervel\Testbench\TestCase;
 use LogicException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransformsToResourceCollectionTest extends TestCase
 {
     public function testToResourceCollectionWithExplicitClass(): void

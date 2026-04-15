@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\ExpectationFailedException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AssertTest extends TestCase
 {
     public function testArraySubset()

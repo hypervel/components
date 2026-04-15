@@ -14,10 +14,6 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 {
     /**

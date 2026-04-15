@@ -34,10 +34,6 @@ use Mockery as m;
 use RuntimeException;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueWorkerTest extends TestCase
 {
     protected EventDispatcher $events;

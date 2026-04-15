@@ -12,10 +12,6 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\HttpExceptionMiddleware;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionResponseTest extends TestCase
 {
     public function testExceptionsAreNotInterceptedWithoutHandler(): void

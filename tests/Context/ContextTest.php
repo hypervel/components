@@ -16,10 +16,6 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;

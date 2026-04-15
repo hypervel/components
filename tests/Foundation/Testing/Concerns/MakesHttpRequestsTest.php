@@ -19,10 +19,6 @@ use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
 
-/**
- * @internal
- * @coversNothing
- */
 class MakesHttpRequestsTest extends TestCase
 {
     public function testFromSetsHeaderAndSession()

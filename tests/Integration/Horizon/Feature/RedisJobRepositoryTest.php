@@ -10,10 +10,6 @@ use Hypervel\Horizon\JobPayload;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisJobRepositoryTest extends IntegrationTestCase
 {
     public function testItCanFindAFailedJobByItsId()

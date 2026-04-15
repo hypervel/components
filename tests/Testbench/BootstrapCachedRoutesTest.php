@@ -12,10 +12,6 @@ use PHPUnit\Framework\Attributes\Test;
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\refresh_router_lookups;
 
-/**
- * @internal
- * @coversNothing
- */
 class BootstrapCachedRoutesTest extends TestCase
 {
     private ?string $cachedRouteFile = null;

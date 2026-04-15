@@ -12,10 +12,6 @@ use Hypervel\Support\Arr;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CompiledRouteCollectionTest extends RoutingTestCase
 {
     /**

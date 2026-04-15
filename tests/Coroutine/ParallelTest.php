@@ -14,10 +14,6 @@ use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParallelTest extends TestCase
 {
     public function testParallel()

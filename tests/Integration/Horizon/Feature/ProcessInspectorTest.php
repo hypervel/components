@@ -11,10 +11,6 @@ use Hypervel\Horizon\ProcessInspector;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessInspectorTest extends IntegrationTestCase
 {
     public function testFindsOrphanedProcessIds()

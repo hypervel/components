@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Mail;
 use Hypervel\Mail\Mailable;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RenderingMailWithLocaleTest extends TestCase
 {
     protected function defineEnvironment($app): void

@@ -13,10 +13,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 {
     protected function setUp(): void

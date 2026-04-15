@@ -9,10 +9,6 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransformsRequestTest extends TestCase
 {
     public function testTransformOncePerKeyWhenMethodIsGet()

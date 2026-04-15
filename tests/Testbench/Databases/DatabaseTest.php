@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseTest extends TestCase
 {
     #[Test]

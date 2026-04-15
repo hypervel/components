@@ -10,10 +10,6 @@ use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class MarkdownParserTest extends TestCase
 {
     protected function tearDown(): void

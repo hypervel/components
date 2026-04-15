@@ -13,10 +13,6 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateCacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateChannel;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelBrokerTest extends ReverbTestCase
 {
     public function testCanReturnAChannelInstance()

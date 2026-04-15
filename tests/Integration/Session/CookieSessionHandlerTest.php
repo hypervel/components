@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CookieSessionHandlerTest extends TestCase
 {
     public function testCookieSessionDriverCookiesCanExpireOnClose()

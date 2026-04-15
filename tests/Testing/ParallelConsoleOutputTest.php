@@ -8,10 +8,6 @@ use Hypervel\Testing\ParallelConsoleOutput;
 use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParallelConsoleOutputTest extends TestCase
 {
     public function testWrite()

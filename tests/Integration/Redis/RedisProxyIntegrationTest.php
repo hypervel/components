@@ -14,10 +14,6 @@ use Throwable;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisProxyIntegrationTest extends TestCase
 {
     use InteractsWithRedis;

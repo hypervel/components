@@ -15,10 +15,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewCompilerEngineTest extends TestCase
 {
     public function testViewsMayBeRecompiledAndRendered()

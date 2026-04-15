@@ -12,10 +12,6 @@ use Hypervel\Validation\Validator;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationFactoryTest extends TestCase
 {
     public function testMakeMethodCreatesValidValidator()

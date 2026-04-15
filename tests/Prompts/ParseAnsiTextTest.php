@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParseAnsiTextTest extends TestCase
 {
     public function testParsesPlainTextIntoSingleSegment()

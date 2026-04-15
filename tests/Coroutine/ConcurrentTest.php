@@ -10,10 +10,6 @@ use Hypervel\Coroutine\Concurrent;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConcurrentTest extends TestCase
 {
     protected function setUp(): void

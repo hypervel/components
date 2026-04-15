@@ -9,10 +9,6 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\PermissionManager;
 use Hypervel\Tests\Permission\Models\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class PermissionManagerTest extends PermissionTestCase
 {
     protected PermissionManager $manager;

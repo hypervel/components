@@ -12,10 +12,6 @@ use Override;
 use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Http\Controllers\ExampleController;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class RouteTest extends TestCase
 {

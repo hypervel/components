@@ -11,10 +11,6 @@ use Hypervel\Tests\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeleteDirectoriesTest extends TestCase
 {
     #[Test]

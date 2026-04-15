@@ -8,10 +8,6 @@ use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerExtendTest extends TestCase
 {
     public function testExtendedBindings()

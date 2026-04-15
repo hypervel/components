@@ -15,10 +15,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use ParseError;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('logging.default', 'null')]
 #[WithConfig('telescope.watchers', [
     ExceptionWatcher::class => true,

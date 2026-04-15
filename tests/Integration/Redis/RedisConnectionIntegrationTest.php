@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Redis;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisConnectionIntegrationTest extends TestCase
 {
     use InteractsWithRedis;

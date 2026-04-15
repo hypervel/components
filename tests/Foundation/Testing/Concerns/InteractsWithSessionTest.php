@@ -8,10 +8,6 @@ use Hypervel\Session\CacheBasedSessionHandler;
 use Hypervel\Support\Facades\Session as SessionFacade;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithSessionTest extends TestCase
 {
     public function testWithSessionSetsSessionData(): void

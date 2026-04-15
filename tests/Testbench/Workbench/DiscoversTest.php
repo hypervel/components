@@ -16,10 +16,6 @@ use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Testbench\package_version_compare;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class DiscoversTest extends TestCase
 {

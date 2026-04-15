@@ -11,10 +11,6 @@ use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class PingInactiveConnectionsTest extends ReverbTestCase
 {
     public function testPingsInactiveConnections()

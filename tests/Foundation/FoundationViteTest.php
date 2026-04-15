@@ -11,10 +11,6 @@ use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationViteTest extends TestCase
 {
     protected function setUp(): void

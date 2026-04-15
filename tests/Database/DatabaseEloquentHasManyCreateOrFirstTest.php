@@ -16,10 +16,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void

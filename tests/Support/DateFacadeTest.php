@@ -14,10 +14,6 @@ use Hypervel\Tests\Support\Fixtures\CustomDateClass;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DateFacadeTest extends TestCase
 {
     protected static function assertBetweenStartAndNow($start, $actual)

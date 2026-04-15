@@ -14,10 +14,6 @@ use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\testbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class PackagePathTest extends TestCase
 {
     #[Test]

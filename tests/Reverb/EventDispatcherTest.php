@@ -11,10 +11,6 @@ use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventDispatcherTest extends ReverbTestCase
 {
     public function testCanPublishAnEventWhenEnabled()

@@ -16,10 +16,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BusDispatcherTest extends TestCase
 {
     public function testCommandsThatShouldQueueIsQueued()

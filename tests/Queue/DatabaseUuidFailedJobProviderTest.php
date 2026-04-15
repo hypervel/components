@@ -12,10 +12,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseUuidFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;

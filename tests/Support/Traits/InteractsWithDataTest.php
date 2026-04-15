@@ -29,10 +29,6 @@ enum InteractsWithDataTestUnitEnum
     case NewYork;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithDataTest extends TestCase
 {
     protected function setUp(): void

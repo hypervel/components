@@ -12,10 +12,6 @@ use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class WaitTimeCalculatorTest extends IntegrationTestCase
 {
     public function testTimeToClearIsCalculatedPerQueue()

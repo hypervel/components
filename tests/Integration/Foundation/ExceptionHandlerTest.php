@@ -26,10 +26,6 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\Process\PhpProcess;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionHandlerTest extends TestCase
 {
     public function testItRendersAuthorizationExceptions()

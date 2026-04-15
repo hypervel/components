@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MigrateWithRealpathTest extends TestCase
 {
     protected function setUp(): void

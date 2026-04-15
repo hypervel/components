@@ -8,10 +8,6 @@ use Hypervel\Container\ReflectionManager;
 use Hypervel\Tests\TestCase;
 use ReflectionException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReflectionManagerTest extends TestCase
 {
     public function testReflectClassReturnsSameInstanceOnRepeatedCalls(): void

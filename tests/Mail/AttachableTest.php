@@ -10,10 +10,6 @@ use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Mailable;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AttachableTest extends TestCase
 {
     public function testItCanHaveMacroConstructors()

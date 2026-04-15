@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Telescope\Console;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PruneCommandTest extends FeatureTestCase
 {
     public function testPruneCommandWillClearOldRecords()

@@ -13,10 +13,6 @@ use PHPUnit\Framework\TestCase;
 use Pusher\Pusher;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class PusherBroadcasterTest extends TestCase
 {
     protected Container $container;

@@ -11,10 +11,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\table;
 
-/**
- * @internal
- * @coversNothing
- */
 class TableTest extends TestCase
 {
     #[DataProvider('tableWithHeadersProvider')]

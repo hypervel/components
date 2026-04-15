@@ -11,10 +11,6 @@ use Hypervel\Support\ValidatedInput;
 use Hypervel\Tests\Support\Fixtures\StringBackedEnum;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidatedInputTest extends TestCase
 {
     public function testCanAccessInput()

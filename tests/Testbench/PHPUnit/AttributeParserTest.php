@@ -8,10 +8,6 @@ use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class AttributeParserTest extends TestCase
 {
     #[Test]

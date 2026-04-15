@@ -9,10 +9,6 @@ use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationRuleParserTest extends TestCase
 {
     public function testConditionalRulesAreProperlyExpandedAndFiltered()

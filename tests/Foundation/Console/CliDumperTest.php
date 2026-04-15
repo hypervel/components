@@ -14,10 +14,6 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
-/**
- * @internal
- * @coversNothing
- */
 class CliDumperTest extends TestCase
 {
     protected $config;

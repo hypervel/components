@@ -27,10 +27,6 @@ use Mockery as m;
 use PDO;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBuilderTest extends TestCase
 {
     public function testFindMethod()

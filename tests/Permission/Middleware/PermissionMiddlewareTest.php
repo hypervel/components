@@ -18,10 +18,6 @@ use Hypervel\Tests\Permission\PermissionTestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class PermissionMiddlewareTest extends PermissionTestCase
 {
     protected PermissionMiddleware $middleware;

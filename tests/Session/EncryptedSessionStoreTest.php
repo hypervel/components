@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use SessionHandlerInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class EncryptedSessionStoreTest extends TestCase
 {
     public function testSessionIsProperlyEncrypted()

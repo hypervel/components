@@ -12,10 +12,6 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteBinding;
 use Hypervel\Tests\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteBindingTest extends RoutingTestCase
 {
     public function testItCanResolveTheExplicitModelForTheGivenRoute()

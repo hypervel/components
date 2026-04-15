@@ -14,10 +14,6 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 {
     /**

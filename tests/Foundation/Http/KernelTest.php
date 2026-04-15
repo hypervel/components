@@ -14,10 +14,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class KernelTest extends TestCase
 {
     public function testAddToMiddlewarePriorityAfterWithSingleMiddleware()

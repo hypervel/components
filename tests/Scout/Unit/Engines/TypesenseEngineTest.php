@@ -21,10 +21,6 @@ use Typesense\Documents;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
 
-/**
- * @internal
- * @coversNothing
- */
 class TypesenseEngineTest extends TestCase
 {
     protected function createEngine(?MockInterface $client = null): TypesenseEngine

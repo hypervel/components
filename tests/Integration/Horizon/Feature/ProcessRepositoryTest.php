@@ -8,10 +8,6 @@ use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\ProcessRepository;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessRepositoryTest extends IntegrationTestCase
 {
     public function testExpiredOrphansCanBeFound()

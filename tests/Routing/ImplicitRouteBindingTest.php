@@ -17,10 +17,6 @@ use Hypervel\Tests\Routing\RoutingTestCase;
 use ReflectionProperty;
 use WeakMap;
 
-/**
- * @internal
- * @coversNothing
- */
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
     public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute()

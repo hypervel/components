@@ -9,10 +9,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use UnexpectedValueException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CursorTest extends TestCase
 {
     public function testCanEncodeAndDecodeSuccessfully()

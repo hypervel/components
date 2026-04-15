@@ -17,10 +17,6 @@ use Mockery as m;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthAccessGateScopeSelectTest extends TestCase
 {
     protected function getGate(bool $isAdmin = false): Gate

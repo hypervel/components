@@ -10,10 +10,6 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseIntegrationTest extends TestCase
 {
     protected array $listeners = [];

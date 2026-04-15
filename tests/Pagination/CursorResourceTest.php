@@ -10,10 +10,6 @@ use Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel;
 use Hypervel\Tests\TestCase;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CursorResourceTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()

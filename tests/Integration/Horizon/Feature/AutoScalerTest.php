@@ -14,10 +14,6 @@ use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AutoScalerTest extends IntegrationTestCase
 {
     public function testScalerAttemptsToGetCloserToProperBalanceOnEachIteration()

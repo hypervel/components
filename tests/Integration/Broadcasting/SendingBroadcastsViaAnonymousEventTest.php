@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingBroadcastsViaAnonymousEventTest extends TestCase
 {
     public function testBroadcastIsSent()

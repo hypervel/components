@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueuedListenersTest extends TestCase
 {
     public function testListenersCanBeQueuedOptionally()

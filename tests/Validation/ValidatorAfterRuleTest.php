@@ -9,10 +9,6 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidatorAfterRuleTest extends TestCase
 {
     public function testAfterAcceptsArrayOfRules()

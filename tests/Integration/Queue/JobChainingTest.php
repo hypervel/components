@@ -21,10 +21,6 @@ use Hypervel\Tests\Integration\Queue\QueueTestCase;
 
 #[WithMigration]
 #[WithMigration('queue')]
-/**
- * @internal
- * @coversNothing
- */
 class JobChainingTest extends QueueTestCase
 {
     use DatabaseMigrations;

@@ -13,10 +13,6 @@ use Hypervel\Testbench\Concerns\HandlesRoutes;
 use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('testing.testcase_class', 'class_level')]
 class TestCaseTraitsTest extends TestCase
 {

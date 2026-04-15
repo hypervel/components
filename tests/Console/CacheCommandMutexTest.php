@@ -15,10 +15,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheCommandMutexTest extends TestCase
 {
     protected CacheCommandMutex $mutex;

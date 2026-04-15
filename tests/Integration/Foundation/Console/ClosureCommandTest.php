@@ -9,10 +9,6 @@ use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClosureCommandTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

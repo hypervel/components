@@ -12,10 +12,6 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthorizationTest extends FeatureTestCase
 {
     protected function getPackageProviders(ApplicationContract $app): array

@@ -24,10 +24,6 @@ use Mockery as m;
 use Swoole\Server;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReverbTestCase extends TestCase
 {
     /**

@@ -15,10 +15,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class PoolTest extends TestCase
 {
     public function testPoolFlush()

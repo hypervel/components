@@ -14,10 +14,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMySqlSchemaStateTest extends TestCase
 {
     #[DataProvider('provider')]

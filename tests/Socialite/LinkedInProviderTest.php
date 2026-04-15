@@ -14,10 +14,6 @@ use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class LinkedInProviderTest extends TestCase
 {
     public function testMapUserWithoutEmailAndAddress()

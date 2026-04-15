@@ -12,10 +12,6 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Foundation\Auth\Access\AuthorizesRequests;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationAuthorizesRequestsTraitTest extends TestCase
 {
     public function testBasicGateCheck()

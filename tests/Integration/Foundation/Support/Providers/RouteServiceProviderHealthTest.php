@@ -10,10 +10,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('filesystems.disks.local.serve', false)]
 class RouteServiceProviderHealthTest extends TestCase
 {

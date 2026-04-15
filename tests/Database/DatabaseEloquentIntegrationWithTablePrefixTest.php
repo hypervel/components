@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 {
     /**

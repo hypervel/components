@@ -26,10 +26,6 @@ use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BroadcastManagerTest extends TestCase
 {
     public function testEventCanBeBroadcastNow()

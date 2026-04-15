@@ -16,10 +16,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheDatabaseLockTest extends TestCase
 {
     public function testLockCanBeAcquired()

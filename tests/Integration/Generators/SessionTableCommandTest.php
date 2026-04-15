@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Generators;
 
 use Hypervel\Session\Console\SessionTableCommand;
 
-/**
- * @internal
- * @coversNothing
- */
 class SessionTableCommandTest extends TestCase
 {
     public function testCreateMakesMigration()

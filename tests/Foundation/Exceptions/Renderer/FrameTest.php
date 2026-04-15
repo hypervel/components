@@ -10,10 +10,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrameTest extends TestCase
 {
     #[DataProvider('unixFileDataProvider')]

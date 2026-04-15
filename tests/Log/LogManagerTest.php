@@ -28,10 +28,6 @@ use ReflectionProperty;
 use RuntimeException;
 use Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogManagerTest extends TestCase
 {
     protected function defineEnvironment($app): void

@@ -9,10 +9,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\File;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
 {
     protected $filesystem;

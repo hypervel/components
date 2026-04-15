@@ -15,10 +15,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\artisan;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class MigrateDatabaseTest extends TestCase
 {

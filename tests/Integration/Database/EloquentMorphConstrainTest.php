@@ -10,10 +10,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentMorphConstrainTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

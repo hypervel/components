@@ -19,10 +19,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Symfony\Component\HttpFoundation\Cookie;
 
-/**
- * @internal
- * @coversNothing
- */
 class EncryptCookiesTest extends TestCase
 {
     protected Container $container;

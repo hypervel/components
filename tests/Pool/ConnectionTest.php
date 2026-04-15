@@ -14,10 +14,6 @@ use Hypervel\Tests\Pool\Fixtures\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectionTest extends TestCase
 {
     public function testGetActiveConnectionAgain()

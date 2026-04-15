@@ -17,10 +17,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class RefreshDatabaseTest extends TestCase
 {
     use RefreshDatabase;

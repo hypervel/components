@@ -12,10 +12,6 @@ use Mockery as m;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 
-/**
- * @internal
- * @coversNothing
- */
 class ComponentsTest extends TestCase
 {
     public function testAlert()

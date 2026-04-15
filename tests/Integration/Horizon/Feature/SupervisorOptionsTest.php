@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupervisorOptionsTest extends IntegrationTestCase
 {
     public function testDefaultQueueIsUsedWhenNullIsGiven()

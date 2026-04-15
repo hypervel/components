@@ -16,10 +16,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

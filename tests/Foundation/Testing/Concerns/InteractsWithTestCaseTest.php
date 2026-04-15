@@ -14,10 +14,6 @@ use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('testing.class_level', 'class_value')]
 class InteractsWithTestCaseTest extends TestCase
 {

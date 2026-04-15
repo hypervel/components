@@ -13,10 +13,6 @@ use Hypervel\Tests\Di\Fixtures\Aspect\TestAspect;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServiceProviderDiTest extends TestCase
 {
     public function testAspectsRegistersIntoCollector()

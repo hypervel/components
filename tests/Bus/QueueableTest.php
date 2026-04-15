@@ -10,10 +10,6 @@ use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueableTest extends TestCase
 {
     #[DataProvider('connectionDataProvider')]

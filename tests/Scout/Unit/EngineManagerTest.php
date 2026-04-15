@@ -19,10 +19,6 @@ use Meilisearch\Client as MeilisearchClient;
 use Mockery as m;
 use Typesense\Client as TypesenseClient;
 
-/**
- * @internal
- * @coversNothing
- */
 class EngineManagerTest extends TestCase
 {
     protected function tearDown(): void

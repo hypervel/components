@@ -12,10 +12,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportCarbonTest extends TestCase
 {
     protected Carbon $now;

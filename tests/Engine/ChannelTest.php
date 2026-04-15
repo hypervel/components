@@ -10,10 +10,6 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelTest extends TestCase
 {
     public function testChannelPushAndPop()

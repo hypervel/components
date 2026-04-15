@@ -12,10 +12,6 @@ use Hypervel\Validation\Rules\Date;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationDateRuleTest extends TestCase
 {
     public function testDefaultDateRule()

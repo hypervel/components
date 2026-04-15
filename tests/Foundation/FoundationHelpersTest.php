@@ -38,10 +38,6 @@ enum UnitEnum
     case EST;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationHelpersTest extends TestCase
 {
     public function testNowReturnsCarbon()

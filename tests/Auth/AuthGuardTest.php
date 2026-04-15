@@ -27,10 +27,6 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthGuardTest extends TestCase
 {
     public function testBasicReturnsNullOnValidAttempt()

@@ -8,10 +8,6 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\UrlWindow;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class UrlWindowTest extends TestCase
 {
     public function testPresenterCanDetermineIfThereAreAnyPagesToShow()

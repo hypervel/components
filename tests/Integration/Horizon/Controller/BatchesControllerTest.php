@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class BatchesControllerTest extends ControllerTestCase
 {
     public function testBatchesCanBeSearchedByName()

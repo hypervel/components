@@ -8,10 +8,6 @@ use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
     protected static string $readPath;

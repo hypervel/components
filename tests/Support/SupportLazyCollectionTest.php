@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportLazyCollectionTest extends TestCase
 {
     public function testCanCreateEmptyCollection()

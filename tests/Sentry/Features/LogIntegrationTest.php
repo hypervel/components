@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Severity;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

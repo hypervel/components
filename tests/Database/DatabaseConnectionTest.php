@@ -28,10 +28,6 @@ use PDOException;
 use PDOStatement;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConnectionTest extends TestCase
 {
     public function testSettingDefaultCallsGetDefaultGrammar()

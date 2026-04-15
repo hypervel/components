@@ -10,10 +10,6 @@ use Hypervel\Testing\Assert;
 
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 class AboutCommandTest extends TestCase
 {
     public function testItCanDisplayAboutCommandAsJson()

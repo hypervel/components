@@ -15,10 +15,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CastsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

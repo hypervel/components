@@ -11,10 +11,6 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommanderEnvironmentTest extends TestCase
 {
     #[Override]

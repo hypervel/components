@@ -16,10 +16,6 @@ use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailResendTransportTest extends TestCase
 {
     protected function setUp(): void

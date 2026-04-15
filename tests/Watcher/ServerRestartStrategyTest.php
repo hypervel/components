@@ -11,10 +11,6 @@ use Hypervel\Watcher\ServerRestartStrategy;
 use InvalidArgumentException;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerRestartStrategyTest extends TestCase
 {
     public function testConstructorThrowsWhenPidFileNotConfigured()

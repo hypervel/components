@@ -47,10 +47,6 @@ use SplFileInfo;
 use stdClass;
 use UnitEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationValidatorTest extends TestCase
 {
     public function testNestedErrorMessagesAreRetrievedFromLocalArray()

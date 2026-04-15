@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessManagerTest extends TestCase
 {
     public function testIsNotRunningInitially()

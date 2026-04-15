@@ -21,10 +21,6 @@ use ReflectionParameter;
 use ReflectionProperty;
 use WeakMap;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReflectionParameterCachingTest extends RoutingTestCase
 {
     public function testClosureParametersAreCached()

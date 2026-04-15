@@ -16,10 +16,6 @@ use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentMorphToTest extends TestCase
 {
     protected $builder;

@@ -9,10 +9,6 @@ use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Jobs\RegisterUser;
 
-/**
- * @internal
- * @coversNothing
- */
 class DispatchJobTest extends TestCase
 {
     #[Test]

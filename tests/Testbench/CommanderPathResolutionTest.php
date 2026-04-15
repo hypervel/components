@@ -13,10 +13,6 @@ use Symfony\Component\Process\Process;
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommanderPathResolutionTest extends TestCase
 {
     private string $temporaryPackagePath;

@@ -15,10 +15,6 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class DefaultConfigurationTest extends TestCase
 {

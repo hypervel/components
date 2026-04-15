@@ -9,10 +9,6 @@ use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class BootProvidersTest extends TestCase
 {
     public function testBoot()

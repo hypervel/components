@@ -20,10 +20,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RateLimitedTest extends TestCase
 {
     public function testUnlimitedJobsAreExecuted()

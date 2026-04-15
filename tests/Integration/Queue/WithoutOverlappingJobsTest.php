@@ -15,10 +15,6 @@ use Hypervel\Queue\Middleware\WithoutOverlapping;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithoutOverlappingJobsTest extends QueueTestCase
 {
     public function testNonOverlappingJobsAreExecuted()

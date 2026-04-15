@@ -15,10 +15,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerTest extends ReverbTestCase
 {
     protected Server $server;

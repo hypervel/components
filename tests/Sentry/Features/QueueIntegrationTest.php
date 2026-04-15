@@ -16,10 +16,6 @@ use Sentry\EventType;
 use function Sentry\addBreadcrumb;
 use function Sentry\captureException;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Migrations\Migrator;
 
-/**
- * @internal
- * @coversNothing
- */
 class MigrationServiceProviderTest extends DatabaseTestCase
 {
     /**

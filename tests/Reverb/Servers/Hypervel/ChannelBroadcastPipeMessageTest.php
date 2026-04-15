@@ -10,10 +10,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 class ChannelBroadcastPipeMessageTest extends ReverbTestCase
 {
     public function testPipeMessageBroadcastsToLocalConnections()

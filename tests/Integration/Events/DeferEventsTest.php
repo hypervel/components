@@ -8,10 +8,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeferEventsTest extends TestCase
 {
     public function testDeferEvents()

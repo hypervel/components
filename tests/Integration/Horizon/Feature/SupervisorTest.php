@@ -26,10 +26,6 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupervisorTest extends IntegrationTestCase
 {
     public $phpBinary;

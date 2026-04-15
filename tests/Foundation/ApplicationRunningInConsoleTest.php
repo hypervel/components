@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApplicationRunningInConsoleTest extends TestCase
 {
     private ?array $originalArgv = null;

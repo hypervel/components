@@ -8,10 +8,6 @@ use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Tests\Sanctum\Fixtures\TokenAbility;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PersonalAccessTokenTest extends TestCase
 {
     public function testCanDetermineWhatItCanAndCantDo()

@@ -10,10 +10,6 @@ use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigTest extends TestCase
 {
     #[Override]

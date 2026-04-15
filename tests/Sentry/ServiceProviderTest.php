@@ -8,10 +8,6 @@ use Hypervel\Sentry\Facade;
 use Hypervel\Support\Facades\Artisan;
 use Sentry\State\HubInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServiceProviderTest extends SentryTestCase
 {
     protected array $setupConfig = [

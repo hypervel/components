@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 {
     protected function setUp(): void

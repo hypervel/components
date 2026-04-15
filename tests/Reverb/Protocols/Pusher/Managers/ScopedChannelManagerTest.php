@@ -10,10 +10,6 @@ use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScopedChannelManagerTest extends ReverbTestCase
 {
     public function testForReturnsScopedManagerNotSelf()

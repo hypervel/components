@@ -21,10 +21,6 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailerTest extends TestCase
 {
     protected function tearDown(): void

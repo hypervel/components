@@ -21,10 +21,6 @@ use Psr\Container\ContainerExceptionInterface;
 use stdClass;
 use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerTest extends TestCase
 {
     public function testContainerSingleton()

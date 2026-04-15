@@ -12,10 +12,6 @@ use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DashboardStatsControllerTest extends ControllerTestCase
 {
     public function testAllStatsAreCorrectlyReturned()

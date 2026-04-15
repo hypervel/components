@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueFakeTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

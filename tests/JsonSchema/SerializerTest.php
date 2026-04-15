@@ -8,10 +8,6 @@ use Hypervel\JsonSchema\Types\Type;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class SerializerTest extends TestCase
 {
     public function testItDoesNotKnowHowToSerializeUnknownTypes()

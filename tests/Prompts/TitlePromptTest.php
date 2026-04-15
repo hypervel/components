@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\title;
 
-/**
- * @internal
- * @coversNothing
- */
 class TitlePromptTest extends TestCase
 {
     public function testUpdatesTheTitle()

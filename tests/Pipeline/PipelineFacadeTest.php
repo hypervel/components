@@ -8,10 +8,6 @@ use Hypervel\Pipeline\Pipeline;
 use Hypervel\Support\Facades\Pipeline as PipelineFacade;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PipelineFacadeTest extends TestCase
 {
     public function testFacadeReturnsFreshInstanceOnEveryAccess()

@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentMassPrunableTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

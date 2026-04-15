@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Testbench;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DontDiscoverPackagesTest extends TestCase
 {
     protected bool $enablesPackageDiscoveries = false;

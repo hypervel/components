@@ -14,10 +14,6 @@ use Sentry\State\Scope;
 
 use function Sentry\withScope;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionContextIntegrationTest extends SentryTestCase
 {
     public function testExceptionContextIntegrationIsRegistered(): void

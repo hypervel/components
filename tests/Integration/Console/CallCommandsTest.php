@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Console\Attribute\AsCommand;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallCommandsTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

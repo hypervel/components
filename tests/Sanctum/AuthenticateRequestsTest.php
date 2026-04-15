@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthenticateRequestsTest extends TestCase
 {
     use RefreshDatabase;

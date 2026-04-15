@@ -19,10 +19,6 @@ use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Testbench\load_migration_paths;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 class FeatureTestCase extends TestCase
 {

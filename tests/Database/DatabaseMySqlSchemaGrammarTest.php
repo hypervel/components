@@ -14,10 +14,6 @@ use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMySqlSchemaGrammarTest extends TestCase
 {
     public function testBasicCreateTable()

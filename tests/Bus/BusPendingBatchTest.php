@@ -16,10 +16,6 @@ use Mockery as m;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class BusPendingBatchTest extends TestCase
 {
     public function testPendingBatchMayBeConfiguredAndDispatched()

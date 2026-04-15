@@ -8,10 +8,6 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PaginatorTest extends TestCase
 {
     public function testSimplePaginatorReturnsRelevantContextInformation()

@@ -17,10 +17,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabasePostgresSchemaGrammarTest extends TestCase
 {
     public function testBasicCreateTable()

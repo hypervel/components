@@ -8,10 +8,6 @@ use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Tests\TestCase;
 use Swoole\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessCollectorTest extends TestCase
 {
     public function testIsEmptyInitially()

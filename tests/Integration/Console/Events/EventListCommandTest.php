@@ -10,10 +10,6 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Support\Facades\Artisan;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventListCommandTest extends \Hypervel\Testbench\TestCase
 {
     public $dispatcher;

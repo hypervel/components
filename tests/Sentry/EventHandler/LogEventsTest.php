@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Sentry\EventHandler;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Tests\Sentry\SentryTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogEventsTest extends SentryTestCase
 {
     public function testHypervelLogsAreRecordedWhenEnabled(): void

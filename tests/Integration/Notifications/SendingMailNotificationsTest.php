@@ -22,10 +22,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingMailNotificationsTest extends TestCase
 {
     public $mailFactory;

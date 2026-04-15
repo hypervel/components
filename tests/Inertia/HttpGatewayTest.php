@@ -18,10 +18,6 @@ use Hypervel\Inertia\Ssr\SsrRenderFailed;
 use Hypervel\Support\Facades\Event;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpGatewayTest extends TestCase
 {
     protected HttpGateway $gateway;

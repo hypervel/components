@@ -15,10 +15,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheDatabaseStoreTest extends TestCase
 {
     public function testNullIsReturnedWhenItemNotFound()

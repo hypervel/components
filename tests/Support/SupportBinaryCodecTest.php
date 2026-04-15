@@ -11,10 +11,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportBinaryCodecTest extends TestCase
 {
     public function testFormatsReturnsDefaultFormats()

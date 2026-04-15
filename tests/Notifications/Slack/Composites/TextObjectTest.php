@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TextObjectTest extends TestCase
 {
     public function testArrayable(): void

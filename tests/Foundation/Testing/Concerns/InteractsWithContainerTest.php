@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithContainerTest extends TestCase
 {
     public function testSwap()

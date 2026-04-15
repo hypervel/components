@@ -10,10 +10,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class TranslationFileLoaderTest extends TestCase
 {
     public function testLoadMethodLoadsTranslationsFromAddedPath()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\View\Blade;
 use Hypervel\Support\Str;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladePrependTest extends AbstractBladeTestCase
 {
     public function testPrependIsCompiled()

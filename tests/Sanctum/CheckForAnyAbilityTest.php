@@ -13,10 +13,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class CheckForAnyAbilityTest extends TestCase
 {
     /**

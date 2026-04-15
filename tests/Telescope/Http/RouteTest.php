@@ -12,10 +12,6 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Assert as PHPUnit;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteTest extends FeatureTestCase
 {
     protected function setUp(): void

@@ -20,10 +20,6 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelCustomCastingTest extends TestCase
 {
     protected function setUp(): void

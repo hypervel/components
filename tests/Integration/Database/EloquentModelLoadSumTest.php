@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelLoadSumTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

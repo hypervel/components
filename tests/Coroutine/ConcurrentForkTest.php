@@ -12,10 +12,6 @@ use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConcurrentForkTest extends TestCase
 {
     protected function setUp(): void

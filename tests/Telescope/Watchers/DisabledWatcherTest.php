@@ -10,10 +10,6 @@ use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DisabledWatcherTest extends FeatureTestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

@@ -25,10 +25,6 @@ enum LazyCollectionTestStringEnum: string
     case Bar = 'bar';
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class LazyCollectionTest extends TestCase
 {
     public function testCountByWithStringField(): void

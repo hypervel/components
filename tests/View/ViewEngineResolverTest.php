@@ -9,10 +9,6 @@ use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewEngineResolverTest extends TestCase
 {
     public function testResolversMayBeResolved()

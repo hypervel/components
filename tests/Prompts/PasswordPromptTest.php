@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\password;
 
-/**
- * @internal
- * @coversNothing
- */
 class PasswordPromptTest extends TestCase
 {
     public function testReturnsTheInput(): void

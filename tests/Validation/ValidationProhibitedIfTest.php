@@ -13,10 +13,6 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationProhibitedIfTest extends TestCase
 {
     public function testItReturnsStringVersionOfRuleWhenCast()

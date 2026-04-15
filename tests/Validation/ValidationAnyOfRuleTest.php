@@ -17,10 +17,6 @@ enum TaggedUnionDiscriminatorType: string
     case Url = 'url';
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationAnyOfRuleTest extends TestCase
 {
     private array $taggedUnionRules;

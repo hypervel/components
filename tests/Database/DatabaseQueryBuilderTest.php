@@ -38,10 +38,6 @@ use TypeError;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseQueryBuilderTest extends TestCase
 {
     protected $called;

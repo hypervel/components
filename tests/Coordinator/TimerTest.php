@@ -10,10 +10,6 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class TimerTest extends TestCase
 {
     public function testAfter()

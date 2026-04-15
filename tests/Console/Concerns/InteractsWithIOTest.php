@@ -15,10 +15,6 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithIOTest extends TestCase
 {
     #[DataProvider('iterableDataProvider')]

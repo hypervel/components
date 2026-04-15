@@ -8,10 +8,6 @@ use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\ValidationException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequestValidationTest extends TestCase
 {
     public function testValidateMacro(): void

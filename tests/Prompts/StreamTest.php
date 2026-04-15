@@ -11,10 +11,6 @@ use RuntimeException;
 
 use function Hypervel\Prompts\stream;
 
-/**
- * @internal
- * @coversNothing
- */
 class StreamTest extends TestCase
 {
     public function testRendersAppendedText()

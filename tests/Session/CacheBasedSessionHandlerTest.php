@@ -9,10 +9,6 @@ use Hypervel\Session\CacheBasedSessionHandler;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheBasedSessionHandlerTest extends TestCase
 {
     protected CacheContract $cacheMock;

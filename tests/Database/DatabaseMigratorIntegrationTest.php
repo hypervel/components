@@ -14,10 +14,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigratorIntegrationTest extends TestCase
 {
     protected Migrator $migrator;

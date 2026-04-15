@@ -11,10 +11,6 @@ use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidationNumericRuleTest extends TestCase
 {
     public function testDefaultNumericRule()

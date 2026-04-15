@@ -20,10 +20,6 @@ use Hypervel\JWT\JWTServiceProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class JwtGuardTest extends TestCase
 {
     public function testParseTokenFromBearerHeader()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia\Commands;
 use Hypervel\Tests\Inertia\TestCase;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class StartSsrTest extends TestCase
 {
     /** @var null|list<string> */

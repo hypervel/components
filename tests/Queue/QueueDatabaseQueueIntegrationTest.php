@@ -14,10 +14,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueDatabaseQueueIntegrationTest extends TestCase
 {
     use RefreshDatabase;

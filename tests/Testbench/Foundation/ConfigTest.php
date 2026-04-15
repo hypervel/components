@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Tests\Testbench\Fixtures\Providers\ChildServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigTest extends TestCase
 {
     #[Test]

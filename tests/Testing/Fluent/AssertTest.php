@@ -12,10 +12,6 @@ use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
 use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
 class AssertTest extends TestCase
 {
     public function testAssertHas()

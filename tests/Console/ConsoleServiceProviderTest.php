@@ -12,10 +12,6 @@ use Hypervel\Console\Commands\ScheduleTestCommand;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleServiceProviderTest extends TestCase
 {
     public function testScheduleCommandsAreRegistered()

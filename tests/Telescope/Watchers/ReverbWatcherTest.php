@@ -26,10 +26,6 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     ReverbWatcher::class => [
         'enabled' => true,

@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class StorageFakeTest extends TestCase
 {
     public function testFakePreservesOriginalDiskThrowConfig()
