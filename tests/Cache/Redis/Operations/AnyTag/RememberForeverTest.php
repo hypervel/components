@@ -21,9 +21,6 @@ use RuntimeException;
  * 2. A reverse index SET tracking which tags this key belongs to (no expiration)
  * 3. Hash field entries in each tag's hash without expiration (HSET)
  * 4. Registry entries with MAX_EXPIRY (ZADD)
- *
- * @internal
- * @coversNothing
  */
 class RememberForeverTest extends RedisCacheTestCase
 {

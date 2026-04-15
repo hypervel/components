@@ -10,9 +10,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Base test case for Scout feature tests.
- *
- * @internal
- * @coversNothing
  */
 class ScoutTestCase extends TestCase
 {

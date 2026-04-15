@@ -19,9 +19,6 @@ use Throwable;
  *
  * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
  * should add the trait if they need coroutine context for their tests.
- *
- * @internal
- * @coversNothing
  */
 abstract class MeilisearchIntegrationTestCase extends TestCase
 {

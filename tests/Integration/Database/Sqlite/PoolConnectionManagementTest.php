@@ -25,9 +25,6 @@ use function Hypervel\Coroutine\run;
  * - DB-02: Pool flushAll() closes all connections properly
  * - DB-03: DatabaseManager disconnect/reconnect/purge work correctly in pooled mode
  * - DB-04: ConnectionEstablished event is dispatched for pooled connections
- *
- * @internal
- * @coversNothing
  */
 class PoolConnectionManagementTest extends TestCase
 {

@@ -13,9 +13,6 @@ use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**
  * Tests for SearchableScope macros and event dispatch.
- *
- * @internal
- * @coversNothing
  */
 class SearchableScopeTest extends ScoutTestCase
 {

@@ -16,9 +16,6 @@ use function Hypervel\Coroutine\go;
  * The Searchable trait uses Context::set/get for per-coroutine state,
  * ensuring that disabling syncing in one coroutine doesn't affect
  * other concurrent coroutines.
- *
- * @internal
- * @coversNothing
  */
 class CoroutineSafetyTest extends ScoutTestCase
 {

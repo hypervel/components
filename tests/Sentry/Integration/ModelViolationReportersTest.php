@@ -11,9 +11,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 /**
  * Since large parts of the violation reporters are shared between the different types of violations,
  * we try to test only a single type of violation reporter to keep the test cases a bit smaller when possible.
- *
- * @internal
- * @coversNothing
  */
 class ModelViolationReportersTest extends SentryTestCase
 {

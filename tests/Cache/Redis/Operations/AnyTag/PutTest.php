@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Put operation (union tags).
- *
- * @internal
- * @coversNothing
  */
 class PutTest extends RedisCacheTestCase
 {

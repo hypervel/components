@@ -12,9 +12,6 @@ use function Hypervel\Coroutine\run;
 
 /**
  * Tests that must run outside coroutine context.
- *
- * @internal
- * @coversNothing
  */
 class CoroutineNonCoroutineContextTest extends TestCase
 {

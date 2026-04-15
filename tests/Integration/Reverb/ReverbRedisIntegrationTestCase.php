@@ -13,9 +13,6 @@ namespace Hypervel\Tests\Integration\Reverb;
  * Tests auto-skip when the server is unavailable (InteractsWithServer
  * from the parent class handles this). Redis availability is implicitly
  * gated because the Redis test server requires Redis to start.
- *
- * @internal
- * @coversNothing
  */
 abstract class ReverbRedisIntegrationTestCase extends ReverbIntegrationTestCase
 {

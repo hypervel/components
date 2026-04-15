@@ -20,9 +20,6 @@ use function Hypervel\Coroutine\go;
  *
  * The resolvers are set once at bootstrap but read from Context each time,
  * ensuring different coroutines (requests) get their own pagination state.
- *
- * @internal
- * @coversNothing
  */
 class PaginationResolverTest extends TestCase
 {

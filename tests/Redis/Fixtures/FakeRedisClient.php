@@ -37,8 +37,6 @@ use Redis;
  *     ]
  * );
  * ```
- *
- * @internal For testing only - does not connect to Redis
  */
 class FakeRedisClient extends Redis
 {

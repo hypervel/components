@@ -7,15 +7,12 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- * @requires extension intl
- */
+#[RequiresPhpExtension('intl')]
 class NumberTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;

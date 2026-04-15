@@ -13,9 +13,6 @@ use Mockery as m;
 
 /**
  * Tests for makeSearchableUsing() behavior.
- *
- * @internal
- * @coversNothing
  */
 class MakeSearchableUsingTest extends ScoutTestCase
 {

@@ -394,10 +394,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testExpectsDatabaseQueryCount()
     {
-        $case = new /**
-         * @coversNothing
-         */
-        class('foo') extends TestingTestCase {
+        $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
             public function testExpectsDatabaseQueryCount()
@@ -410,10 +407,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case->testExpectsDatabaseQueryCount();
         $case->tearDown();
 
-        $case = new /**
-         * @coversNothing
-         */
-        class('foo') extends TestingTestCase {
+        $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
             public function testExpectsDatabaseQueryCount()
@@ -432,10 +426,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
             $this->assertSame("Expected 3 database queries on the [testing] connection. 0 occurred.\nFailed asserting that 0 is identical to 3.", $e->getMessage());
         }
 
-        $case = new /**
-         * @coversNothing
-         */
-        class('foo') extends TestingTestCase {
+        $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
             public function testExpectsDatabaseQueryCount()
@@ -461,10 +452,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
             $this->assertSame("Expected 3 database queries on the [testing] connection. 4 occurred.\nFailed asserting that 4 is identical to 3.", $e->getMessage());
         }
 
-        $case = new /**
-         * @coversNothing
-         */
-        class('foo') extends TestingTestCase {
+        $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
             public function testExpectsDatabaseQueryCount()

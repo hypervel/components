@@ -23,9 +23,6 @@ use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests for the cache:redis-doctor command.
- *
- * @internal
- * @coversNothing
  */
 class DoctorCommandTest extends TestCase
 {

@@ -11,9 +11,6 @@ use Mockery as m;
 
 /**
  * Tests for the AnyTag/Prune operation.
- *
- * @internal
- * @coversNothing
  */
 class PruneTest extends RedisCacheTestCase
 {

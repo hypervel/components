@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Forget operation.
- *
- * @internal
- * @coversNothing
  */
 class ForgetTest extends RedisCacheTestCase
 {

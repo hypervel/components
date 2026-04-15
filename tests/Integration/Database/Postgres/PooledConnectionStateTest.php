@@ -16,9 +16,6 @@ use function Hypervel\Coroutine\go;
  *
  * These tests verify that per-request state on a Connection does not leak
  * to subsequent requests that reuse the same pooled connection.
- *
- * @internal
- * @coversNothing
  */
 class PooledConnectionStateTest extends PostgresTestCase
 {

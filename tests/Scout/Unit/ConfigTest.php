@@ -15,9 +15,6 @@ use ReflectionClass;
 
 /**
  * Tests for Scout configuration options.
- *
- * @internal
- * @coversNothing
  */
 class ConfigTest extends ScoutTestCase
 {

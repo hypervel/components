@@ -12,9 +12,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests for RedisServiceProvider container bindings and alias resolution.
- *
- * @internal
- * @coversNothing
  */
 class RedisServiceProviderTest extends TestCase
 {

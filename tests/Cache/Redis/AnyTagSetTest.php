@@ -14,9 +14,6 @@ use Mockery as m;
  *
  * Uses MocksRedisConnections to mock at the Redis client level,
  * allowing the full operation chain to execute.
- *
- * @internal
- * @coversNothing
  */
 class AnyTagSetTest extends RedisCacheTestCase
 {

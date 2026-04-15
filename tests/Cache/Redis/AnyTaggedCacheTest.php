@@ -17,9 +17,6 @@ use RuntimeException;
  *
  * These tests verify the high-level API behavior of union-mode tagged cache operations.
  * For detailed operation tests, see tests/Cache/Redis/Operations/AnyTag/.
- *
- * @internal
- * @coversNothing
  */
 class AnyTaggedCacheTest extends RedisCacheTestCase
 {

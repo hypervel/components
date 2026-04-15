@@ -8,9 +8,6 @@ use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
 
 /**
  * Basic connectivity test for Meilisearch.
- *
- * @internal
- * @coversNothing
  */
 class MeilisearchConnectionTest extends MeilisearchIntegrationTestCase
 {

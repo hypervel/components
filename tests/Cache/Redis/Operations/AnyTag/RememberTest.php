@@ -18,9 +18,6 @@ use RuntimeException;
  * 2. A reverse index SET tracking which tags this key belongs to
  * 3. Hash field entries in each tag's hash with expiration using HSETEX
  * 4. Registry entries (ZADD)
- *
- * @internal
- * @coversNothing
  */
 class RememberTest extends RedisCacheTestCase
 {

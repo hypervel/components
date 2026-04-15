@@ -24,9 +24,6 @@ use ReflectionProperty;
  * Pre-warming populates static caches (compiled regex, middleware stacks,
  * reflection data) before fork so workers inherit them via copy-on-write.
  * These tests verify each cache is populated correctly.
- *
- * @internal
- * @coversNothing
  */
 class RouteWarmupTest extends TestCase
 {

@@ -25,6 +25,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 class SupervisorTest extends IntegrationTestCase
 {
@@ -45,7 +46,7 @@ class SupervisorTest extends IntegrationTestCase
         $this->terminateProcesses();
     }
 
-    /** @requires extension redis */
+    #[RequiresPhpExtension('redis')]
     public function testSupervisorCanStartWorkerProcessWithGivenOptions()
     {
         Queue::push(new Jobs\BasicJob);
@@ -283,7 +284,7 @@ class SupervisorTest extends IntegrationTestCase
         $supervisor->processes()->each->stop();
     }
 
-    /** @requires extension redis */
+    #[RequiresPhpExtension('redis')]
     public function testProcessesCanBePausedAndContinued()
     {
         $options = $this->supervisorOptions();

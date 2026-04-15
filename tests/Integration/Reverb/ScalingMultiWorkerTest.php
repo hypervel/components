@@ -11,9 +11,6 @@ namespace Hypervel\Tests\Integration\Reverb;
  * Redis-delivered messages are incorrectly pipe-fanned-out to sibling workers.
  *
  * Requires: REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2
- *
- * @internal
- * @coversNothing
  */
 class ScalingMultiWorkerTest extends MultiWorkerTestCase
 {

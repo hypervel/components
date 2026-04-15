@@ -13,9 +13,6 @@ use function Hypervel\Coroutine\go;
 
 /**
  * Integration tests for RedisSharedState against a real Redis server.
- *
- * @internal
- * @coversNothing
  */
 class RedisSharedStateTest extends TestCase
 {

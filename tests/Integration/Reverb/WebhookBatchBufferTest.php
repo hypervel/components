@@ -11,9 +11,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Integration tests for WebhookBatchBuffer against a real Redis server.
- *
- * @internal
- * @coversNothing
  */
 class WebhookBatchBufferTest extends TestCase
 {

@@ -13,9 +13,6 @@ use Hypervel\Testbench\TestCase;
 /**
  * Tests that pivot model events fire when using a custom pivot class via ->using()
  * on MorphToMany relationships.
- *
- * @internal
- * @coversNothing
  */
 class MorphToManyPivotEventsTest extends TestCase
 {

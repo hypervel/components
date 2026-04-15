@@ -16,9 +16,6 @@ use RuntimeException;
  *
  * ConcurrencyLimiter provides a slot-based concurrency limiter using Redis Lua scripts.
  * It acquires one of N named slots, holds it during callback execution, and releases it afterward.
- *
- * @internal
- * @coversNothing
  */
 class ConcurrencyLimiterTest extends TestCase
 {

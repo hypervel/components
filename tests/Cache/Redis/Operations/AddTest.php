@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  *
  * Uses native Redis SET with NX (only set if Not eXists) and EX (expiration)
  * flags for atomic "add if not exists" semantics.
- *
- * @internal
- * @coversNothing
  */
 class AddTest extends RedisCacheTestCase
 {

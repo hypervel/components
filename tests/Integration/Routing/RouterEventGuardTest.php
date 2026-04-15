@@ -17,9 +17,6 @@ use Hypervel\Support\Facades\Route;
  * The Router wraps each event dispatch in a hasListeners() guard so that event
  * object construction and dispatch are skipped entirely when nobody is listening.
  * This eliminates ~8us/request of overhead for apps that don't use routing events.
- *
- * @internal
- * @coversNothing
  */
 class RouterEventGuardTest extends RoutingTestCase
 {

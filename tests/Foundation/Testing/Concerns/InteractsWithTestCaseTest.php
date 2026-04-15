@@ -127,9 +127,6 @@ class InteractsWithTestCaseTest extends TestCase
 
 /**
  * Test fixture for Define meta-attribute parsing.
- *
- * @internal
- * @coversNothing
  */
 class DefineMetaAttributeTestCase extends TestCase
 {

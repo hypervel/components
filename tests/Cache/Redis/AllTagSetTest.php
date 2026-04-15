@@ -13,9 +13,6 @@ use Hypervel\Cache\Redis\AllTagSet;
  * moved to dedicated test classes in tests/Cache/Redis/Operations/AllTag/.
  *
  * This file tests the TagSet-specific API methods: tagId, tagKey, flushTag, resetTag.
- *
- * @internal
- * @coversNothing
  */
 class AllTagSetTest extends RedisCacheTestCase
 {

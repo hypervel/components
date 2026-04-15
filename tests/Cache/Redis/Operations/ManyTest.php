@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Many operation.
- *
- * @internal
- * @coversNothing
  */
 class ManyTest extends RedisCacheTestCase
 {

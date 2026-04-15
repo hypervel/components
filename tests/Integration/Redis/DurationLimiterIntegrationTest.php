@@ -15,9 +15,6 @@ use Throwable;
  * Integration tests for DurationLimiter with real Redis.
  *
  * Ported from Laravel's tests/Redis/DurationLimiterTest.php.
- *
- * @internal
- * @coversNothing
  */
 class DurationLimiterIntegrationTest extends TestCase
 {

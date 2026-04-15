@@ -9,9 +9,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the PutMany operation.
- *
- * @internal
- * @coversNothing
  */
 class PutManyTest extends RedisCacheTestCase
 {

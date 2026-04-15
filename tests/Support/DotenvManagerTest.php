@@ -202,8 +202,6 @@ class DotenvManagerTest extends TestCase
 
 /**
  * A test adapter that stores values in an internal array.
- *
- * @internal
  */
 class DotenvManagerTestAdapter implements AdapterInterface
 {

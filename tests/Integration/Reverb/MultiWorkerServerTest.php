@@ -11,9 +11,6 @@ namespace Hypervel\Tests\Integration\Reverb;
  * and presence semantics across workers.
  *
  * Requires: REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php
- *
- * @internal
- * @coversNothing
  */
 class MultiWorkerServerTest extends MultiWorkerTestCase
 {

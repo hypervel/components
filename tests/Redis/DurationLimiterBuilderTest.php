@@ -15,9 +15,6 @@ use Mockery as m;
  *
  * DurationLimiterBuilder provides a fluent API for configuring and executing
  * a DurationLimiter via Redis::throttle('key')->allow(10)->every(60)->then(...).
- *
- * @internal
- * @coversNothing
  */
 class DurationLimiterBuilderTest extends TestCase
 {

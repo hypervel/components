@@ -12,9 +12,6 @@ use RuntimeException;
  *
  * Tests the single-connection optimization that performs GET and conditional
  * SETEX in a single pool checkout.
- *
- * @internal
- * @coversNothing
  */
 class RememberTest extends RedisCacheTestCase
 {

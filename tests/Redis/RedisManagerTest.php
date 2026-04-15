@@ -21,9 +21,6 @@ use Mockery as m;
 
 /**
  * Tests for RedisManager — the named connection manager.
- *
- * @internal
- * @coversNothing
  */
 class RedisManagerTest extends TestCase
 {

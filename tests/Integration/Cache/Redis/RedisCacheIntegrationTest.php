@@ -10,9 +10,6 @@ use Hypervel\Cache\RateLimiter;
  * Integration tests ported from Laravel's RedisCacheIntegrationTest.
  *
  * Tests core Redis cache behavior (add, rate limiter) against a real Redis connection.
- *
- * @internal
- * @coversNothing
  */
 class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
 {

@@ -14,9 +14,6 @@ use Hypervel\Testbench\TestCase;
  * Tests that Redis connection configuration is correctly applied to the
  * underlying phpredis client. Ported from Laravel's RedisConnectorTest
  * (phpredis portions only — predis is not supported).
- *
- * @internal
- * @coversNothing
  */
 class RedisConnectorTest extends TestCase
 {

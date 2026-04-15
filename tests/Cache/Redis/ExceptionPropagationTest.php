@@ -14,9 +14,6 @@ use RedisException;
  * These tests verify that exceptions aren't accidentally swallowed by
  * try/catch blocks in the implementation. Redis errors should bubble up
  * to the caller so they can handle them appropriately.
- *
- * @internal
- * @coversNothing
  */
 class ExceptionPropagationTest extends RedisCacheTestCase
 {

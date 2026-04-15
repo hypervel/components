@@ -18,9 +18,6 @@ use Swoole\Coroutine\Channel;
  *
  * Verifies that config, HTTP client, state management, and context
  * isolation work independently of any protocol-specific subclass.
- *
- * @internal
- * @coversNothing
  */
 class AbstractProviderTest extends TestCase
 {

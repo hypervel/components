@@ -9,9 +9,6 @@ use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 
 /**
  * Integration tests for Typesense filtering operations.
- *
- * @internal
- * @coversNothing
  */
 class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCase
 {

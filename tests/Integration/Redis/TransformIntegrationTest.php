@@ -13,9 +13,6 @@ use Hypervel\Testbench\TestCase;
  *
  * These verify that the argument reordering and type conversions in
  * RedisConnection's transform methods work correctly against real Redis.
- *
- * @internal
- * @coversNothing
  */
 class TransformIntegrationTest extends TestCase
 {

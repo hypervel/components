@@ -9,9 +9,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests that deferred Actionable attributes are properly executed during lifecycle.
- *
- * @internal
- * @coversNothing
  */
 class DeferredAttributeExecutionTest extends TestCase
 {

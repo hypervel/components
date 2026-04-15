@@ -12,9 +12,6 @@ use RuntimeException;
  *
  * Tests the single-connection optimization that performs GET and conditional
  * SET (without TTL) in a single pool checkout. Returns [value, wasHit] tuple.
- *
- * @internal
- * @coversNothing
  */
 class RememberForeverTest extends RedisCacheTestCase
 {

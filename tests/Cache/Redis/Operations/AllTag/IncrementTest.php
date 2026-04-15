@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Increment operation (intersection tags).
- *
- * @internal
- * @coversNothing
  */
 class IncrementTest extends RedisCacheTestCase
 {

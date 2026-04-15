@@ -14,9 +14,6 @@ use Throwable;
  * Tests tag flush behavior for both modes:
  * - All mode: Items must be accessed with same tags they were stored with
  * - Any mode: Union flush - flushing ANY matching tag removes the item
- *
- * @internal
- * @coversNothing
  */
 class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {

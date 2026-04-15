@@ -132,9 +132,6 @@ class PoolFactoryTest extends TestCase
     }
 }
 
-/**
- * @internal
- */
 class PoolFactoryTestPool extends RedisPool
 {
     protected function createConnection(): ConnectionInterface
@@ -143,9 +140,6 @@ class PoolFactoryTestPool extends RedisPool
     }
 }
 
-/**
- * @internal
- */
 class PoolFactoryTestConnection extends Connection
 {
     public function close(): bool

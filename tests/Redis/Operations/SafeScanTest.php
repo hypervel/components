@@ -14,9 +14,6 @@ use Hypervel\Tests\TestCase;
 
 /**
  * Tests for SafeScan - memory-efficient SCAN with OPT_PREFIX handling.
- *
- * @internal
- * @coversNothing
  */
 class SafeScanTest extends TestCase
 {

@@ -19,9 +19,6 @@ use Hypervel\Support\Facades\Cache;
  * - Very short TTL (1s)
  * - Large TTL (1 year)
  * - Forever (no expiration)
- *
- * @internal
- * @coversNothing
  */
 class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 {

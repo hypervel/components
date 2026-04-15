@@ -18,9 +18,6 @@ use Hypervel\Support\Facades\Cache;
  * - Updating item updates field expiration
  *
  * NOTE: These tests require Redis 8.0+ with HSETEX/HTTL support.
- *
- * @internal
- * @coversNothing
  */
 class HashExpirationIntegrationTest extends RedisCacheIntegrationTestCase
 {

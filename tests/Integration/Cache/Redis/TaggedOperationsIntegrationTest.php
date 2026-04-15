@@ -14,9 +14,6 @@ use Redis;
  * Verifies that tag data structures are created correctly:
  * - All mode: ZSET with timestamp scores
  * - Any mode: HASH with field expiration, reverse index SET, registry ZSET
- *
- * @internal
- * @coversNothing
  */
 class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {

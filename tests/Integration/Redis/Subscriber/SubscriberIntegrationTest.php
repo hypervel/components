@@ -16,9 +16,6 @@ use function Hypervel\Coroutine\go;
  *
  * These tests connect to a real Redis server and verify full pub/sub
  * round-trips using the socket-based subscriber (not phpredis).
- *
- * @internal
- * @coversNothing
  */
 class SubscriberIntegrationTest extends TestCase
 {

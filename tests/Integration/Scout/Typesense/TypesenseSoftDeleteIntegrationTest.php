@@ -9,9 +9,6 @@ use Hypervel\Tests\Scout\Models\TypesenseSoftDeleteSearchableModel;
 
 /**
  * Integration tests for Scout soft delete behavior with Typesense.
- *
- * @internal
- * @coversNothing
  */
 class TypesenseSoftDeleteIntegrationTest extends TypesenseScoutIntegrationTestCase
 {

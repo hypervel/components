@@ -11,9 +11,6 @@ use Hypervel\Engine\Http\V2\Request;
  * Integration tests for the HTTP/2 Client.
  *
  * These tests require an HTTP/2 server running on the configured host/port.
- *
- * @internal
- * @coversNothing
  */
 class Http2ClientTest extends EngineIntegrationTestCase
 {

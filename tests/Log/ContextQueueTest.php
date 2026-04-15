@@ -225,8 +225,6 @@ class ContextQueueTest extends TestCase
 
 /**
  * Expose createPayloadArray for testing.
- *
- * @internal
  */
 class TestableSyncQueue extends SyncQueue
 {
@@ -236,9 +234,6 @@ class TestableSyncQueue extends SyncQueue
     }
 }
 
-/**
- * @internal
- */
 class ContextQueueTestJob implements ShouldQueue
 {
     use Dispatchable;

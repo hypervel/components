@@ -51,9 +51,6 @@ class ClusterModeRedisStore extends RedisStore
  * - Operations must use sequential commands or multi() instead
  *
  * We test against real single-instance Redis with isCluster() mocked to true.
- *
- * @internal
- * @coversNothing
  */
 class ClusterFallbackIntegrationTest extends RedisCacheIntegrationTestCase
 {

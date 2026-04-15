@@ -14,9 +14,6 @@ use Mockery as m;
  * Tests for DurationLimiter.
  *
  * DurationLimiter provides a sliding window rate limiter using Redis Lua scripts.
- *
- * @internal
- * @coversNothing
  */
 class DurationLimiterTest extends TestCase
 {

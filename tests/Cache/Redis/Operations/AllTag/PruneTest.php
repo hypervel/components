@@ -10,9 +10,6 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
 /**
  * Tests for the AllTag/Prune operation.
- *
- * @internal
- * @coversNothing
  */
 class PruneTest extends RedisCacheTestCase
 {

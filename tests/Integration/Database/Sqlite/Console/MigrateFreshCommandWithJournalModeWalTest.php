@@ -19,9 +19,6 @@ use Override;
  *
  * The DatabaseMigrations trait runs migrate:fresh in setUp, so this test
  * verifies that the migration succeeded with WAL mode enabled.
- *
- * @internal
- * @coversNothing
  */
 #[WithMigration]
 class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase

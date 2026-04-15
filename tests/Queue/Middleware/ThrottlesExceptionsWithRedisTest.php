@@ -16,9 +16,6 @@ use Mockery as m;
  * Verifies the middleware resolves the Factory contract, calls ->connection()
  * with the configured connection name, and passes the resolved RedisProxy
  * to DurationLimiter.
- *
- * @internal
- * @coversNothing
  */
 class ThrottlesExceptionsWithRedisTest extends TestCase
 {

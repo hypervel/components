@@ -11,9 +11,6 @@ use Hypervel\Testbench\TestCase;
  * Tests for the parallel testing helpers in InteractsWithRedis.
  *
  * These test the DB number computation logic, not actual Redis connections.
- *
- * @internal
- * @coversNothing
  */
 class InteractsWithRedisParallelTest extends TestCase
 {

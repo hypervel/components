@@ -18,9 +18,6 @@ use Mockery as m;
  * Tests that Model, Pivot, and MorphPivot delegate to the connection's
  * query() method when creating base query builders. This allows custom
  * connections to provide custom query builders with additional methods.
- *
- * @internal
- * @coversNothing
  */
 class NewBaseQueryBuilderTest extends TestCase
 {

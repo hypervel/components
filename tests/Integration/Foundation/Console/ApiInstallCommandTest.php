@@ -312,8 +312,6 @@ PHP;
  * Testable ApiInstallCommand that overrides requireComposerPackages to record
  * calls without actually running Composer (which uses raw Symfony Process,
  * not the fakeable facade).
- *
- * @internal
  */
 class TestableApiInstallCommand extends ApiInstallCommand
 {

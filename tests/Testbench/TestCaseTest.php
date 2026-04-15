@@ -31,10 +31,7 @@ class TestCaseTest extends TestCase
         // Use a real dummy test method on the anonymous class so PHPUnit's
         // metadata parser can resolve the stored method name while
         // createApplication() loads environment variables.
-        $testbench = new /**
-         * @coversNothing
-         */
-        class('testDummy') extends \Hypervel\Testbench\TestCase {
+        $testbench = new class('testDummy') extends \Hypervel\Testbench\TestCase {
             public function testDummy()
             {
             }

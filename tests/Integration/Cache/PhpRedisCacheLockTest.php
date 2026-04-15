@@ -21,9 +21,6 @@ use Redis;
  * Hypervel uses connection pooling — serializer/compression options must be
  * configured at the connection config level so the pool creates connections
  * with the correct settings.
- *
- * @internal
- * @coversNothing
  */
 class PhpRedisCacheLockTest extends TestCase
 {

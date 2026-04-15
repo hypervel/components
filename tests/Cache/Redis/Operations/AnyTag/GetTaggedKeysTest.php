@@ -9,9 +9,6 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
 /**
  * Tests for the GetTaggedKeys operation (union tags).
- *
- * @internal
- * @coversNothing
  */
 class GetTaggedKeysTest extends RedisCacheTestCase
 {

@@ -18,9 +18,6 @@ use Mockery as m;
  * In the testing environment, connections are cached statically to prevent
  * pool exhaustion. When Event::fake() swaps the dispatcher, cached connections
  * must dispatch events through the new (fake) dispatcher, not a stale reference.
- *
- * @internal
- * @coversNothing
  */
 class EventDispatcherFreshnessTest extends TestCase
 {

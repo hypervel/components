@@ -13,9 +13,6 @@ use Throwable;
  * Integration tests for the HTTP Client.
  *
  * These tests require an HTTP server running on the configured host/port.
- *
- * @internal
- * @coversNothing
  */
 class ClientTest extends EngineIntegrationTestCase
 {

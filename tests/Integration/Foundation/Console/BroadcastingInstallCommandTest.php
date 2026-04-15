@@ -549,8 +549,6 @@ PHP;
 /**
  * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
  * record calls without actually running Composer.
- *
- * @internal
  */
 class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
 {

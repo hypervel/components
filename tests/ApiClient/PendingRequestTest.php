@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @covers \Hypervel\ApiClient\PendingRequest
- */
 class PendingRequestTest extends TestCase
 {
     protected function setUp(): void

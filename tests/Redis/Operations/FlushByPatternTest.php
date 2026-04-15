@@ -13,9 +13,6 @@ use Mockery as m;
 
 /**
  * Tests for FlushByPattern - pattern-based key deletion with OPT_PREFIX handling.
- *
- * @internal
- * @coversNothing
  */
 class FlushByPatternTest extends TestCase
 {

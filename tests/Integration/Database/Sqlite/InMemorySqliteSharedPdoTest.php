@@ -25,9 +25,6 @@ use function Hypervel\Coroutine\run;
  * - All pool slots share the same PDO for in-memory SQLite
  * - ConnectionFactory::makeSqliteFromSharedPdo() works correctly
  * - PooledConnection handles shared PDO in reconnect/close/refresh
- *
- * @internal
- * @coversNothing
  */
 class InMemorySqliteSharedPdoTest extends TestCase
 {

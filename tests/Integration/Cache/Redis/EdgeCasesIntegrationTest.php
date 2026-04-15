@@ -19,9 +19,6 @@ use Hypervel\Support\Facades\Cache;
  * - Keys resembling Redis commands
  * - Binary data
  * - Empty arrays
- *
- * @internal
- * @coversNothing
  */
 class EdgeCasesIntegrationTest extends RedisCacheIntegrationTestCase
 {
