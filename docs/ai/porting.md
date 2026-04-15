@@ -95,6 +95,9 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **One file at a time** — never work on multiple files simultaneously.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write → delete.
+- **`cp` THEN read** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
+- **Preserve source method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the Laravel/Hyperf source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
 - **No class docblocks unless warranted** — only add a class docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added.
 - **Preserve existing comments — do not remove them.** Only remove:
   - Source package boilerplate (e.g., the Hyperf license header block)
@@ -108,6 +111,7 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
 - **Stop on any source code bug** — if phpstan or tests expose a bug in Hypervel source code (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval. Also stop and report bugs found in the **upstream** Laravel/Hyperf source being ported (resource leaks, logic errors, missing cleanup, etc.) — explain the issue and recommend whether to port as-is for 1:1 parity or fix during porting.
 - **Do not work around incorrect existing code to avoid churn** — if porting exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over minimizing blast radius. For any non-trivial fix, stop and explain the root cause and recommended change before proceeding.
+- **Never weaken or drop tests to work around source issues** — if a ported test exposes source-side problems (wrong types, broken logic, missing classes/methods, signatures that diverge from Laravel, missing API parity, etc.), STOP and report the issue with a recommendation for the most correct fix. Never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed.
 - **Never dismiss issues as "out of scope" or "pre-existing"** — When porting exposes any issue (bugs, divergences, missing API parity, incorrect visibility, type inconsistencies, naming mismatches, etc.), always stop and report it. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify not reporting something. You are not permitted to decide what is or isn't worth addressing — only the user makes that call.
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
@@ -568,8 +572,8 @@ A per-package base class is only justified when there is shared setUp logic — 
 #### Docblocks and Types
 
 - Add `declare(strict_types=1);` at the top of every file
-- Add `@internal` and `@coversNothing` docblock to every test class
 - Do **not** add `: void` return type to test methods — existing tests don't use them, stay consistent
+- **Use PHPUnit attributes instead of docblock annotations** — prefer `#[DataProvider('...')]`, `#[Depends('...')]`, etc. over their `@dataProvider`/`@depends` docblock equivalents. Do **not** add `@internal`/`@coversNothing` docblocks or `#[CoversNothing]`/`#[CoversClass(…)]` attributes — Hyperf uses both forms but Laravel doesn't, and they serve no purpose outside strict coverage modes
 
 #### phpstan
 
@@ -633,7 +637,7 @@ When both Hyperf and Laravel have tests covering the same class, merge them into
 #### Boilerplate Removal
 
 - Remove the Hyperf license header block (`@link`, `@document`, `@contact`, `@license`)
-- Remove PHPUnit attributes: `#[CoversNothing]`, `#[CoversClass(…)]`, `#[Group(…)]` — use PHPDoc annotations only
+- Remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes entirely — we don't use them (see "Docblocks and Types" above)
 
 #### Container Mocking
 
@@ -682,15 +686,14 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 1. Update namespace from `HyperfTest\{Package}` to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Hyperf\` imports to `Hypervel\`
-4. Remove Hyperf license header and PHPUnit attributes
+4. Remove Hyperf license header; remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes
 5. Extend `Hypervel\Tests\TestCase` (not `PHPUnit\Framework\TestCase`)
-6. Add `@internal` and `@coversNothing` docblock
-7. Do **not** add `: void` return types to test methods
-8. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
-9. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
-10. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
-11. Ensure `parent::setUp()` is called
-12. Run tests and fix any remaining type errors
+6. Do **not** add `: void` return types to test methods
+7. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
+8. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
+9. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
+10. Ensure `parent::setUp()` is called
+11. Run tests and fix any remaining type errors
 
 ### Porting Laravel Tests
 
@@ -857,16 +860,15 @@ This list is exhaustive. Any other missing functionality is "not yet ported" and
 1. Update namespace to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
-4. Add `@internal` and `@coversNothing` docblock to test classes
-5. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
-6. Ensure `parent::setUp()` is called
-7. Do **not** add `: void` return types to test methods
-8. Add type declarations to model properties
-9. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
-10. Add `->andReturnSelf()` to chained method mocks
-11. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
-12. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
-13. Run tests and fix any remaining type errors
+4. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
+5. Ensure `parent::setUp()` is called
+6. Do **not** add `: void` return types to test methods
+7. Add type declarations to model properties
+8. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
+9. Add `->andReturnSelf()` to chained method mocks
+10. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
+11. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
+12. Run tests and fix any remaining type errors
 
 ### Integration Tests
 
