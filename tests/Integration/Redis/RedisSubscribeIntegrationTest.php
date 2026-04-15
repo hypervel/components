@@ -24,9 +24,6 @@ use function Hypervel\Coroutine\go;
  * All tests use a no-prefix connection to avoid prefix mismatch between
  * the socket subscriber and the raw phpredis publish client.
  *
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

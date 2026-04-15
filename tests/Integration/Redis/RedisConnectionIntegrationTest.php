@@ -10,9 +10,6 @@ use Redis;
 use ReflectionClass;
 
 /**
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

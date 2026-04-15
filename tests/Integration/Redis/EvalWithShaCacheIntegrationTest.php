@@ -17,9 +17,6 @@ use Hypervel\Testbench\TestCase;
  * - NOSCRIPT fallback (eval on first call when script not cached)
  * - Error handling for invalid scripts
  *
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

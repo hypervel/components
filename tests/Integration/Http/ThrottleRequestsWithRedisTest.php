@@ -12,9 +12,6 @@ use Hypervel\Testbench\TestCase;
 use Throwable;
 
 /**
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

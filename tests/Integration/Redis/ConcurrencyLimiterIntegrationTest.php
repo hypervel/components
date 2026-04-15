@@ -18,9 +18,6 @@ use Throwable;
  *
  * Ported from Laravel's tests/Redis/ConcurrentLimiterTest.php.
  *
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

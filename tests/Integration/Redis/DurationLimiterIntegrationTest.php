@@ -16,9 +16,6 @@ use Throwable;
  *
  * Ported from Laravel's tests/Redis/DurationLimiterTest.php.
  *
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */

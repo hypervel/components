@@ -16,9 +16,6 @@ use Hypervel\Testbench\TestCase;
  * - SafeScan prepends OPT_PREFIX to patterns and strips it from results
  * - FlushByPattern uses SafeScan + UNLINK to delete matching keys
  *
- * @group integration
- * @group redis-integration
- *
  * @internal
  * @coversNothing
  */
