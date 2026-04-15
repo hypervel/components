@@ -77,7 +77,10 @@ collect($argv)
             ->reject(isDeprecated(...))
             ->reject(fulfillsBuiltinInterface(...))
             ->reject(fn ($method) => conflictsWithFacade($facade, $method))
-            ->unique(resolveName(...))
+            // PHP method names are case-insensitive, so collapse different
+            // casings of the same method (e.g. Redis "hScan" vs "hscan")
+            // down to one entry in the generated @method list.
+            ->unique(fn ($method) => strtolower(resolveName($method)))
             ->map(normaliseDetails(...));
 
         // Prepare the @method docblocks...
@@ -754,6 +757,49 @@ function splitTopLevelUnionTypes($type)
 }
 
 /**
+ * Merge the docblock-resolved type string with the native reflection type,
+ * preserving the docblock's precision while honouring native nullability.
+ *
+ * Prefers the docblock type (richer — may include generics, class-string, etc.)
+ * but unions it with "null" when the native signature is nullable and the
+ * docblock didn't already express nullability. Skips the null-append when the
+ * resolved type is "mixed" (which already subsumes null) to avoid redundant
+ * "mixed|null" output.
+ *
+ * @param null|string $docblockType
+ * @param null|string $nativeType
+ * @return null|string
+ */
+function mergeDocblockTypeWithNativeNullability($docblockType, $nativeType)
+{
+    $resolved = $docblockType ?? $nativeType;
+
+    if ($resolved === null) {
+        return null;
+    }
+
+    if ($nativeType === null) {
+        return $resolved;
+    }
+
+    $nativeMembers = splitTopLevelUnionTypes($nativeType);
+    $resolvedMembers = splitTopLevelUnionTypes($resolved);
+
+    $nativeIsNullable = in_array('null', $nativeMembers, true);
+    $resolvedHasNull = in_array('null', $resolvedMembers, true);
+    $resolvedHasMixed = in_array('mixed', $resolvedMembers, true);
+
+    if ($nativeIsNullable && ! $resolvedHasNull && ! $resolvedHasMixed) {
+        $resolvedMembers[] = 'null';
+    }
+
+    return collect($resolvedMembers)
+        ->filter()
+        ->unique()
+        ->implode('|');
+}
+
+/**
  * Determine if the type is a built-in.
  *
  * @param string $type
@@ -810,15 +856,17 @@ function resolveType($method, $type)
     }
 
     if ($type instanceof ReflectionNamedType) {
-        if ($type->getName() === 'static') {
-            return '\\' . $method->sourceClass()->getName();
+        $base = match ($type->getName()) {
+            'static' => '\\' . $method->sourceClass()->getName(),
+            'self' => '\\' . $method->getDeclaringClass()->getName(),
+            default => ($type->isBuiltin() ? '' : '\\') . $type->getName(),
+        };
+
+        if ($type->allowsNull() && $type->getName() !== 'mixed') {
+            return $base . '|null';
         }
 
-        if ($type->getName() === 'self') {
-            return '\\' . $method->getDeclaringClass()->getName();
-        }
-
-        return ($type->isBuiltin() ? '' : '\\') . $type->getName() . (($type->allowsNull() && $type->getName() !== 'mixed') ? '|null' : '');
+        return $base;
     }
 
     return null;
@@ -999,9 +1047,15 @@ function normaliseDetails($method)
                     ? $parameter->getDefaultValue()
                     : "❌ Unknown default for [{$parameter->getName()}] in [{$parameter->getDeclaringClass()?->getName()}::{$parameter->getDeclaringFunction()->getName()}] ❌",
                 'variadic' => $parameter->isVariadic(),
-                'type' => resolveDocParamType($method, $parameter) ?? resolveType($method, $parameter->getType()) ?? 'mixed',
+                'type' => mergeDocblockTypeWithNativeNullability(
+                    resolveDocParamType($method, $parameter),
+                    resolveType($method, $parameter->getType())
+                ) ?? 'mixed',
             ]),
-        'returns' => resolveReturnDocType($method) ?? resolveType($method, $method->getReturnType()) ?? 'void',
+        'returns' => mergeDocblockTypeWithNativeNullability(
+            resolveReturnDocType($method),
+            resolveType($method, $method->getReturnType())
+        ) ?? 'void',
     ];
 }
 
