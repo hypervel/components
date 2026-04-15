@@ -27,8 +27,6 @@ namespace Hypervel\Support\Facades;
  * @method static void setFallback(string $fallback)
  * @method static void setLoaded(array $loaded)
  * @method static void stringable(callable|string $class, callable|null $handler = null)
- * @method static array|string trans(string $key, array $replace = [], string|null $locale = null)
- * @method static string transChoice(string $key, array|\Countable|int $number, array $replace = [], string|null $locale = null)
  * @method static void setParsedKey(string $key, array $parsed)
  * @method static void flushParsedKeys()
  * @method static void macro(string $name, callable|object $macro)

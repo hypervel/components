@@ -17,6 +17,7 @@ use Hypervel\Contracts\Auth\PasswordBroker;
  * @method static void deleteToken(\Hypervel\Contracts\Auth\CanResetPassword $user)
  * @method static bool tokenExists(\Hypervel\Contracts\Auth\CanResetPassword $user, string $token)
  * @method static \Hypervel\Auth\Passwords\TokenRepositoryInterface getRepository()
+ * @method static \Hypervel\Support\Timebox getTimebox()
  *
  * @see \Hypervel\Auth\Passwords\PasswordBrokerManager
  * @see \Hypervel\Auth\Passwords\PasswordBroker

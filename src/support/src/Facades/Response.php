@@ -7,9 +7,9 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 
 /**
- * @method static \Hypervel\Http\Response make(array|string $content = '', int $status = 200, array $headers = [])
+ * @method static \Hypervel\Http\Response make(mixed $content = '', int $status = 200, array $headers = [])
  * @method static \Hypervel\Http\Response noContent(int $status = 204, array $headers = [])
- * @method static \Hypervel\Http\Response view(string|array $view, array $data = [], int $status = 200, array $headers = [])
+ * @method static \Hypervel\Http\Response view(array|string $view, array $data = [], int $status = 200, array $headers = [])
  * @method static \Hypervel\Http\JsonResponse json(mixed $data = [], int $status = 200, array $headers = [], int $options = 0)
  * @method static \Hypervel\Http\JsonResponse jsonp(string $callback, mixed $data = [], int $status = 200, array $headers = [], int $options = 0)
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse eventStream(\Closure $callback, array $headers = [], \Hypervel\Http\StreamedEvent|string|null $endStreamWith = '</stream>')

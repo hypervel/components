@@ -22,6 +22,7 @@ namespace Hypervel\Support\Facades;
  * @method static mixed option(string $option)
  * @method static string|false token()
  * @method static bool inParallel()
+ * @method static string tempDir(string $suffix = '')
  *
  * @see \Hypervel\Testing\ParallelTesting
  */
