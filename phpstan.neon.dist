@@ -26,9 +26,6 @@ parameters:
     # @TODO: Add pest to root composer.json require-dev and remove this line once Pest 5 is released (required for PHPUnit 13 support).
     - %currentWorkingDirectory%/src/testbench/src/Pest/Autoload.php
     - %currentWorkingDirectory%/src/foundation/src/Http/WebSocketKernel.php
-    - %currentWorkingDirectory%/src/log/src/Adapter/*
-    - %currentWorkingDirectory%/src/container/src/Attributes/Context.php
-    - %currentWorkingDirectory%/src/support/src/Js.php
   ignoreErrors:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
@@ -129,9 +126,7 @@ parameters:
     - '#Method Redis::eval\(\) invoked with [0-9] parameters, 1-3 required.#'
     - '#Access to an undefined property Hypervel\\Queue\\Jobs\\DatabaseJobRecord::\$.*#'
     - '#Access to an undefined property Hypervel\\Contracts\\Queue\\Job::\$.*#'
-    - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
-    - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
-    - '#Access to an undefined property (Hyperf\\Collection|Hypervel\\Support)\\HigherOrderCollectionProxy#'
+    - '#Access to an undefined property Hypervel\\Support\\HigherOrderCollectionProxy#'
     - '#Call to an undefined method Hypervel\\Support\\HigherOrderTapProxy#'
 
     # View Component base class uses OutputInterface for flexibility, but interactive
