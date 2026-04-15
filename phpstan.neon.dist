@@ -14,6 +14,8 @@ parameters:
   reportUnmatchedIgnoredErrors: false
   paths:
     - src
+  scanFiles:
+    - phpstan-stubs/constants.php
   excludePaths:
     - %currentWorkingDirectory%/src/helper/*
     - %currentWorkingDirectory%/tests/*
@@ -25,7 +27,6 @@ parameters:
     - %currentWorkingDirectory%/src/foundation/src/ComposerScripts.php
     # @TODO: Add pest to root composer.json require-dev and remove this line once Pest 5 is released (required for PHPUnit 13 support).
     - %currentWorkingDirectory%/src/testbench/src/Pest/Autoload.php
-    - %currentWorkingDirectory%/src/foundation/src/Http/WebSocketKernel.php
   ignoreErrors:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
@@ -53,10 +54,6 @@ parameters:
     - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
     - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
     - '#Call to an undefined method TPivotModel of Hypervel\\Database\\Eloquent\\Relations\\Pivot::#'
-
-    # Container::getInstance() - PHPStan sees the interface as abstract but concrete implementation exists at runtime
-    - identifier: staticMethod.callToAbstract
-      path: src/database/*
 
     # Deep generic template limitations - PHPStan can't fully resolve complex generic type relationships
     - identifier: generics.lessTypes
@@ -109,18 +106,10 @@ parameters:
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
 
-    # Driver-specific methods (MySQL/MariaDB)
-    - '#Call to an undefined method Hypervel\\Database\\Connection::isMaria\(\)#'
-
-    # Non-generic interface usage in PHPDoc (Arrayable, etc.)
-    - '#PHPDoc tag @return contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
-    - '#PHPDoc tag @param contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
     - '#Result of method .* \(void\) is used\.#'
     - '#Unsafe usage of new static#'
     - '#Class [a-zA-Z0-9\\\\_]+ not found.#'
-    - '#Constant BASE_PATH not found.#'
     - '#Call to an undefined static method Hypervel\\Support\\Facades\\#'
-    - '#Call to an undefined method Psr\\Container\\ContainerInterface::make\(\)#'
     - message: '#Call to an undefined method Hypervel\\Foundation\\Testing\\TestCase::#'
       path: src/foundation/src/Testing/TestCase.php
     - '#Method Redis::eval\(\) invoked with [0-9] parameters, 1-3 required.#'
@@ -136,9 +125,6 @@ parameters:
 
     # Optional class uses magic __get to proxy property access to wrapped value
     - '#Access to an undefined property Hypervel\\Support\\Optional::\$#'
-
-    # Generic type loss through Builder chain - firstOrFail() returns TModel but phpstan loses it
-    - '#Cannot call method load\(\) on stdClass#'
 
     # Conditionable::when() callback - PHPDoc requires 2 params but callbacks often only need 1
     - identifier: argument.type

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema\Grammars;
 
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ColumnDefinition;
@@ -12,6 +13,9 @@ use Hypervel\Support\Fluent;
 use Override;
 use RuntimeException;
 
+/**
+ * @property MySqlConnection $connection
+ */
 class MySqlGrammar extends Grammar
 {
     /**

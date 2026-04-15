@@ -6,12 +6,16 @@ namespace Hypervel\Database\Schema;
 
 use Exception;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Support\Str;
 use Override;
 use PDO;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
+/**
+ * @property MySqlConnection $connection
+ */
 class MySqlSchemaState extends SchemaState
 {
     /**
