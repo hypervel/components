@@ -238,7 +238,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * All of the after resolving attribute callbacks by class type.
      *
-     * @var array[]
+     * @var array<string, list<Closure>>
      */
     protected $afterResolvingAttributeCallbacks = [];
 
@@ -1442,10 +1442,12 @@ class Container implements ArrayAccess, ContainerContract
             if (! $recipe->hasConstructor) {
                 $instance = new $concrete;
 
-                $this->fireAfterResolvingAttributeCallbacks(
-                    $recipe->classAttributes,
-                    $instance
-                );
+                if ($recipe->classAttributes !== []) {
+                    $this->fireAfterResolvingAttributeCallbacks(
+                        $recipe->classAttributes,
+                        $instance
+                    );
+                }
 
                 return $instance;
             }
@@ -1458,10 +1460,14 @@ class Container implements ArrayAccess, ContainerContract
             $this->popBuildStack();
         }
 
-        $this->fireAfterResolvingAttributeCallbacks(
-            $recipe->classAttributes,
-            $instance = new $concrete(...$instances)
-        );
+        $instance = new $concrete(...$instances);
+
+        if ($recipe->classAttributes !== []) {
+            $this->fireAfterResolvingAttributeCallbacks(
+                $recipe->classAttributes,
+                $instance
+            );
+        }
 
         return $instance;
     }
@@ -1487,10 +1493,12 @@ class Container implements ArrayAccess, ContainerContract
             $this->popBuildStack();
         }
 
-        $this->fireAfterResolvingAttributeCallbacks(
-            $recipe->classAttributes,
-            $instance
-        );
+        if ($recipe->classAttributes !== []) {
+            $this->fireAfterResolvingAttributeCallbacks(
+                $recipe->classAttributes,
+                $instance
+            );
+        }
 
         return $instance;
     }
@@ -1529,7 +1537,9 @@ class Container implements ArrayAccess, ContainerContract
                 ? $this->resolvePrimitive($paramRecipe)
                 : $this->resolveClass($paramRecipe);
 
-            $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $result);
+            if ($paramRecipe->attributes !== []) {
+                $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $result);
+            }
 
             if ($paramRecipe->isVariadic) {
                 $results = array_merge($results, (array) $result);
@@ -1788,10 +1798,7 @@ class Container implements ArrayAccess, ContainerContract
 
         $this->fireCallbackArray($object, $this->globalResolvingCallbacks);
 
-        $this->fireCallbackArray(
-            $object,
-            $this->getCallbacksForType($abstract, $object, $this->resolvingCallbacks)
-        );
+        $this->fireCallbacksForType($abstract, $object, $this->resolvingCallbacks);
 
         $this->fireAfterResolvingCallbacks($abstract, $object);
     }
@@ -1803,10 +1810,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         $this->fireCallbackArray($object, $this->globalAfterResolvingCallbacks);
 
-        $this->fireCallbackArray(
-            $object,
-            $this->getCallbacksForType($abstract, $object, $this->afterResolvingCallbacks)
-        );
+        $this->fireCallbacksForType($abstract, $object, $this->afterResolvingCallbacks);
     }
 
     /**
@@ -1816,8 +1820,14 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function fireAfterResolvingAttributeCallbacks(array $attributes, mixed $object): void
     {
+        if ($attributes === []) {
+            return;
+        }
+
         foreach ($attributes as $attribute) {
-            if (is_a($attribute->getName(), ContextualAttribute::class, true)) {
+            $attributeName = $attribute->getName();
+
+            if (is_a($attributeName, ContextualAttribute::class, true)) {
                 $instance = $attribute->newInstance();
 
                 if (method_exists($instance, 'after')) {
@@ -1825,34 +1835,30 @@ class Container implements ArrayAccess, ContainerContract
                 }
             }
 
-            $callbacks = $this->getCallbacksForType(
-                $attribute->getName(),
-                $object,
-                $this->afterResolvingAttributeCallbacks
-            );
-
-            foreach ($callbacks as $callback) {
-                $callback($attribute->newInstance(), $object, $this);
+            foreach ($this->afterResolvingAttributeCallbacks as $type => $callbacks) {
+                if ($type === $attributeName || $object instanceof $type) {
+                    foreach ($callbacks as $callback) {
+                        $callback($attribute->newInstance(), $object, $this);
+                    }
+                }
             }
         }
     }
 
     /**
-     * Get all callbacks for a given type.
+     * Fire all callbacks that match the given abstract or object type.
      *
      * @param array<string, array> $callbacksPerType
      */
-    protected function getCallbacksForType(string $abstract, mixed $object, array $callbacksPerType): array
+    protected function fireCallbacksForType(string $abstract, mixed $object, array $callbacksPerType): void
     {
-        $results = [];
-
         foreach ($callbacksPerType as $type => $callbacks) {
             if ($type === $abstract || $object instanceof $type) {
-                $results = array_merge($results, $callbacks);
+                foreach ($callbacks as $callback) {
+                    $callback($object, $this);
+                }
             }
         }
-
-        return $results;
     }
 
     /**
