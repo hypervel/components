@@ -57,17 +57,44 @@ class ClientEventTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanForwardAnUnauthenticatedClientMessageOnPublicChannel()
+    public function testRejectClientEventOnPublicChannelInMembersMode()
     {
+        $this->channels()->findOrCreate('test-channel');
+
+        $connections = static::factory(3);
+
+        $connection = $connections[0]->connection();
+
+        ClientEvent::handle(
+            $connection,
+            [
+                'event' => 'client-test-message',
+                'channel' => 'test-channel',
+                'data' => ['foo' => 'bar'],
+            ]
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4301,
+                'message' => 'Client events are only supported on private and presence channels.',
+            ]),
+        ]);
+
+        // Other connections should not receive the event
+        $connections[1]->connection()->assertNothingReceived();
+        $connections[2]->connection()->assertNothingReceived();
+    }
+
+    public function testAllowsClientEventOnPublicChannelInAllMode()
+    {
+        $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'all');
         $this->channels()->findOrCreate('test-channel');
 
         $this->channelConnectionManager->shouldReceive('all')
             ->once()
             ->andReturn($connections = static::factory(3));
-
-        $this->channelConnectionManager->shouldReceive('find')
-            ->once()
-            ->andReturn($connections[0]);
 
         ClientEvent::handle(
             $connections[0]->connection(),
@@ -78,17 +105,37 @@ class ClientEventTest extends ReverbTestCase
             ]
         );
 
-        foreach ($connections as $i => $connection) {
-            if ($i === 0) {
-                $connection->connection()->assertNothingReceived();
-            } else {
-                $connection->connection()->assertReceived([
-                    'event' => 'client-test-message',
-                    'channel' => 'test-channel',
-                    'data' => ['foo' => 'bar'],
-                ]);
-            }
-        }
+        $connections[0]->connection()->assertNothingReceived();
+        $connections[1]->connection()->assertReceived([
+            'event' => 'client-test-message',
+            'channel' => 'test-channel',
+            'data' => ['foo' => 'bar'],
+        ]);
+    }
+
+    public function testRejectClientEventOnPublicChannelDoesNotProduceWebhook()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['client_event'],
+        ]);
+
+        $this->channels()->findOrCreate('test-channel');
+
+        $connection = new FakeConnection;
+
+        ClientEvent::handle(
+            $connection,
+            [
+                'event' => 'client-test-message',
+                'channel' => 'test-channel',
+                'data' => ['foo' => 'bar'],
+            ]
+        );
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
     public function testDoesNotForwardUnauthenticatedClientMessageWhenInMembersMode()
@@ -183,7 +230,7 @@ class ClientEventTest extends ReverbTestCase
     public function testDoesNotForwardAMessageToItself()
     {
         $connection = new ChannelConnection(new FakeConnection);
-        $this->channels()->findOrCreate('test-channel');
+        $this->channels()->findOrCreate('private-test-channel');
 
         $this->channelConnectionManager->shouldReceive('all')
             ->once()
@@ -195,7 +242,7 @@ class ClientEventTest extends ReverbTestCase
             $connection->connection(),
             [
                 'event' => 'client-test-message',
-                'channel' => 'test-channel',
+                'channel' => 'private-test-channel',
                 'data' => ['foo' => 'bar'],
             ]
         );
