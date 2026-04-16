@@ -1,6 +1,7 @@
-# Magic behaviour with __get, __set, __call and __callStatic is not exactly static analyser-friendly :)
-# Fortunately, You can ignore it by the following config.
-#
+# Global ignores for fundamental framework patterns that PHPStan cannot resolve
+# (Eloquent magic, generics, new static, etc.). This file is locked — new errors
+# should be fixed at the source, or suppressed inline for genuine static analysis
+# limitations.
 
 parameters:
   tmpDir: .cache/phpstan
