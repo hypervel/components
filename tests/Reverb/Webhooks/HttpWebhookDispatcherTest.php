@@ -249,6 +249,46 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
+    public function testSubscriptionCountEventIncludesCountInPayload()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'subscription_count', [
+            'channel' => 'test-channel',
+            'subscription_count' => 42,
+        ]);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'subscription_count'
+                && $event['channel'] === 'test-channel'
+                && $event['subscription_count'] === 42;
+        });
+    }
+
+    public function testSubscriptionCountBypassesEventsAllowlist()
+    {
+        Queue::fake();
+
+        // Events list only has channel_occupied — subscription_count is NOT listed
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'subscription_count', [
+            'channel' => 'test-channel',
+            'subscription_count' => 5,
+        ]);
+
+        // Should still be dispatched — subscription_count bypasses the events filter
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'subscription_count';
+        });
+    }
+
     /**
      * Create a test Application instance.
      */
