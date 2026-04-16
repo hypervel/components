@@ -134,6 +134,8 @@ class Server
      */
     public function close(Connection $connection): void
     {
+        $connection->markDisconnecting();
+
         $this->channels
             ->for($connection->app())
             ->unsubscribeFromAll($connection);
