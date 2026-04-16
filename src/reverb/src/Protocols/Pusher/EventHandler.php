@@ -9,6 +9,8 @@ use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Support\Str;
 
 class EventHandler
@@ -109,6 +111,14 @@ class EventHandler
         }
 
         $this->send($connection, 'cache_miss', channel: $channel->name());
+
+        $app = $connection->app();
+
+        if ($app->hasWebhooks() && app(SharedState::class)->tryCacheMissLock($app->id(), $channel->name())) {
+            app(WebhookDispatcher::class)->dispatch($app, 'cache_miss', [
+                'channel' => $channel->name(),
+            ]);
+        }
     }
 
     /**
