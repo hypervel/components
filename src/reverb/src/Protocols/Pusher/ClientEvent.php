@@ -45,6 +45,18 @@ class ClientEvent
         $rebroadcastEvent = $event;
 
         if ($acceptClientEventsFrom === 'members') {
+            if (! str_starts_with($event['channel'], 'private-') && ! str_starts_with($event['channel'], 'presence-')) {
+                $connection->send(json_encode([
+                    'event' => 'pusher:error',
+                    'data' => json_encode([
+                        'code' => 4301,
+                        'message' => 'Client events are only supported on private and presence channels.',
+                    ]),
+                ]));
+
+                return;
+            }
+
             $channel = app(ChannelManager::class)->for($connection->app())->find($event['channel']);
 
             $channelConnection = $channel?->find($connection);
