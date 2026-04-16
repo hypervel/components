@@ -528,6 +528,10 @@ Always call `parent::setUp()` in your setUp method.
 
 All test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file.
 
+#### Temp Directories for File I/O
+
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the directory table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, create in `setUp`, delete via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
+
 #### Coroutine Support
 
 All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
