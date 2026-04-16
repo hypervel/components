@@ -588,8 +588,8 @@ The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 4. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
 5. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
 6. **Type decisions must be evidence-based.** Check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
-7. **Don't add `assert()` to narrow types for phpstan.** Fix the underlying type signature or docblock instead. `@var` annotations are acceptable as a last resort when phpstan genuinely can't infer the type.
-8. **Don't add patterns to `phpstan.neon.dist`.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). New phpstan errors should be fixed at the source, never masked with new neon rules. Inline `@phpstan-ignore` is acceptable only when the error stems from a genuine static analysis limitation — not a fixable type issue.
+7. **Don't add `assert()` to narrow types for phpstan.** Fix the underlying type signature or docblock instead. When that isn't possible, use `@var` to narrow to the correct runtime type. Use `@phpstan-ignore` only when the error can't be resolved by fixing types or narrowing with `@var` (e.g., magic `__call`/`__get` forwarding).
+8. **Don't add patterns to `phpstan.neon.dist`.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). New phpstan errors should be fixed at the source, never masked with new neon rules.
 
 #### Handling Failing Tests
 
