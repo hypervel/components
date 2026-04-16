@@ -103,6 +103,13 @@ return [
 
             'swoole_shared_state' => [
                 'rows' => env('REVERB_SWOOLE_SHARED_STATE_ROWS', 65536),
+
+                // Rows for the webhook throttle/dedupe lock table. Only
+                // used for subscription_count throttling, cache_miss
+                // deduplication, and disconnect smoothing markers. A small
+                // fraction of channels need lock rows, so this can be much
+                // smaller than the main table.
+                'lock_rows' => env('REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS', 8192),
             ],
         ],
     ],
@@ -171,6 +178,7 @@ return [
                         // 'member_added',
                         // 'member_removed',
                         // 'client_event',
+                        // 'cache_miss',
                     ],
 
                     'headers' => [
@@ -181,6 +189,19 @@ return [
                     'filter' => [
                         'channel_name_starts_with' => env('REVERB_WEBHOOK_CHANNEL_PREFIX'),
                     ],
+
+                    // Enable subscription_count webhooks, which fire on every
+                    // subscribe/unsubscribe for non-presence channels. Throttled
+                    // to once per 5 seconds for channels with over 100 subscribers.
+                    // Controlled separately from the events list above.
+                    'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
+
+                    // Delay in milliseconds before firing channel_vacated and
+                    // member_removed webhooks after a client disconnects. If the
+                    // client reconnects within this window, both the removal and
+                    // the subsequent re-addition webhooks are suppressed. Set to
+                    // 0 to disable and fire immediately on disconnect.
+                    'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
 
                     'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
                     'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
