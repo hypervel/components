@@ -6,7 +6,9 @@ namespace Hypervel\Reverb\Protocols\Pusher\Channels\Concerns;
 
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\EventDispatcher;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 
 trait InteractsWithPresenceChannels
 {
@@ -27,6 +29,8 @@ trait InteractsWithPresenceChannels
         $result = $this->lastSubscriptionResult();
 
         if ($result->memberAdded || $presenceUserId === '') {
+            // Internal protocol event always fires — other connected clients
+            // need to see the member join for accurate presence tracking.
             EventDispatcher::dispatchInternalToChannel(
                 $connection->app(),
                 $this,
@@ -38,10 +42,33 @@ trait InteractsWithPresenceChannels
                 $connection
             );
 
-            app(WebhookDispatcher::class)->dispatch($connection->app(), 'member_added', [
-                'channel' => $this->name(),
-                'user_id' => $presenceUserId,
-            ]);
+            // Cancel any pending deferred member_removed webhook and consume
+            // the shared smoothing marker. If either was present, suppress the
+            // member_added webhook — the member never truly left.
+            $suppressMemberAdded = false;
+            $app = $connection->app();
+
+            if ($presenceUserId !== '' && $app->hasWebhooks()) {
+                $smoothingMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+
+                $cancelledLocally = app(DeferredWebhookManager::class)->cancelMemberRemoved(
+                    $app->id(),
+                    $this->name(),
+                    $presenceUserId,
+                );
+
+                $consumedMarker = $smoothingMs > 0
+                    && app(SharedState::class)->clearMemberSmoothingPending($app->id(), $this->name(), $presenceUserId, $smoothingMs);
+
+                $suppressMemberAdded = $cancelledLocally || $consumedMarker;
+            }
+
+            if (! $suppressMemberAdded) {
+                app(WebhookDispatcher::class)->dispatch($connection->app(), 'member_added', [
+                    'channel' => $this->name(),
+                    'user_id' => $presenceUserId,
+                ]);
+            }
         }
     }
 
@@ -73,10 +100,22 @@ trait InteractsWithPresenceChannels
                 $connection
             );
 
-            app(WebhookDispatcher::class)->dispatch($connection->app(), 'member_removed', [
-                'channel' => $this->name(),
-                'user_id' => $presenceUserId,
-            ]);
+            $app = $connection->app();
+
+            if ($app->hasWebhooks()) {
+                $delayMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+                $manager = app(DeferredWebhookManager::class);
+
+                if ($delayMs > 0 && $connection->isDisconnecting() && ! $manager->isDraining()) {
+                    app(SharedState::class)->setMemberSmoothingPending($app->id(), $this->name(), (string) $presenceUserId, $delayMs);
+                    $manager->deferMemberRemoved($app, $this->name(), (string) $presenceUserId, $delayMs / 1000.0, $delayMs);
+                } else {
+                    app(WebhookDispatcher::class)->dispatch($app, 'member_removed', [
+                        'channel' => $this->name(),
+                        'user_id' => $presenceUserId,
+                    ]);
+                }
+            }
         }
     }
 
