@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
 use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use Swoole\Server;
@@ -143,5 +144,29 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             'data' => '{"some":"data"}',
             'channel' => 'channel-two',
         ]);
+    }
+
+    public function testPipeMessageClearsCacheMissLockForCacheChannel()
+    {
+        $this->subscribeConnection('cache-test-channel');
+
+        $sharedState = $this->app->make(SharedState::class);
+
+        // Clear the lock that the subscribe acquired, then re-acquire
+        $sharedState->clearCacheMissLock('123456', 'cache-test-channel');
+        $this->assertTrue($sharedState->tryCacheMissLock('123456', 'cache-test-channel'));
+
+        // Pipe message broadcast to the cache channel should clear the lock
+        $message = new ChannelBroadcastPipeMessage(
+            appId: '123456',
+            channels: ['cache-test-channel'],
+            payload: ['event' => 'NewEvent', 'data' => '{"some":"data"}', 'channel' => 'cache-test-channel'],
+            exceptSocketId: null,
+        );
+
+        event(new OnPipeMessage(m::mock(Server::class), 0, $message));
+
+        // Lock should be cleared — re-acquire should succeed
+        $this->assertTrue($sharedState->tryCacheMissLock('123456', 'cache-test-channel'));
     }
 }
