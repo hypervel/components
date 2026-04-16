@@ -222,7 +222,7 @@ class PendingProcess
                 throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
             }
 
-            return new ProcessResult(tap($process)->run($output));
+            return new ProcessResult(tap($process)->run($output)); // @phpstan-ignore method.notFound (tap proxy __call)
         } catch (SymfonyTimeoutException $e) {
             throw new ProcessTimedOutException($e, new ProcessResult($process));
         }
@@ -248,7 +248,7 @@ class PendingProcess
             throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
         }
 
-        return new InvokedProcess(tap($process)->start($output));
+        return new InvokedProcess(tap($process)->start($output)); // @phpstan-ignore method.notFound (tap proxy __call)
     }
 
     /**

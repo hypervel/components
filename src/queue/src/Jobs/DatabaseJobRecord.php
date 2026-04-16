@@ -7,6 +7,11 @@ namespace Hypervel\Queue\Jobs;
 use Hypervel\Support\InteractsWithTime;
 use stdClass;
 
+/**
+ * @property int $id
+ * @property string $payload
+ * @property int $attempts
+ */
 class DatabaseJobRecord
 {
     use InteractsWithTime;

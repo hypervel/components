@@ -135,8 +135,8 @@ trait InteractsWithQueue
         if (is_string($exception) && class_exists($exception)) {
             PHPUnit::assertInstanceOf(
                 $exception,
-                $this->job->failedWith,
-                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].'
+                $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
+                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
             );
 
             return $this;
@@ -148,20 +148,20 @@ trait InteractsWithQueue
 
         PHPUnit::assertInstanceOf(
             get_class($exception),
-            $this->job->failedWith,
-            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].'
+            $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
+            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
         );
 
         PHPUnit::assertEquals(
             $exception->getCode(),
-            $this->job->failedWith->getCode(),
-            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].'
+            $this->job->failedWith->getCode(), // @phpstan-ignore property.notFound (FakeJob test-double property)
+            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].' // @phpstan-ignore property.notFound
         );
 
         PHPUnit::assertEquals(
             $exception->getMessage(),
-            $this->job->failedWith->getMessage(),
-            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].'
+            $this->job->failedWith->getMessage(), // @phpstan-ignore property.notFound (FakeJob test-double property)
+            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].' // @phpstan-ignore property.notFound
         );
 
         return $this;
@@ -201,8 +201,8 @@ trait InteractsWithQueue
         if (! is_null($delay)) {
             PHPUnit::assertSame(
                 $delay,
-                $this->job->releaseDelay,
-                "Expected job to be released with delay of [{$delay}] seconds, but was released with delay of [{$this->job->releaseDelay}] seconds."
+                $this->job->releaseDelay, // @phpstan-ignore property.notFound (FakeJob test-double property)
+                "Expected job to be released with delay of [{$delay}] seconds, but was released with delay of [{$this->job->releaseDelay}] seconds." // @phpstan-ignore property.notFound
             );
         }
 

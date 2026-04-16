@@ -140,11 +140,11 @@ trait InteractsWithTestCaseLifecycle
         $this->setUpDatabaseTraits($uses);
 
         if (isset($uses[WithoutMiddleware::class])) {
-            $this->disableMiddlewareForAllTests();
+            $this->disableMiddlewareForAllTests(); // @phpstan-ignore method.notFound
         }
 
         if (isset($uses[WithoutEvents::class])) {
-            $this->disableEventsForAllTests();
+            $this->disableEventsForAllTests(); // @phpstan-ignore method.notFound
         }
 
         foreach ($uses as $trait) {
@@ -179,23 +179,23 @@ trait InteractsWithTestCaseLifecycle
     protected function setUpDatabaseTraits(array $uses): void
     {
         if (isset($uses[RefreshDatabase::class])) {
-            $this->refreshDatabase();
+            $this->refreshDatabase(); // @phpstan-ignore method.notFound
         }
 
         if (isset($uses[LazilyRefreshDatabase::class])) {
-            $this->refreshDatabase();
+            $this->refreshDatabase(); // @phpstan-ignore method.notFound
         }
 
         if (isset($uses[DatabaseMigrations::class])) {
-            $this->runDatabaseMigrations();
+            $this->runDatabaseMigrations(); // @phpstan-ignore method.notFound
         }
 
         if (isset($uses[DatabaseTruncation::class])) {
-            $this->truncateDatabaseTables();
+            $this->truncateDatabaseTables(); // @phpstan-ignore method.notFound
         }
 
         if (isset($uses[DatabaseTransactions::class])) {
-            $this->beginDatabaseTransaction();
+            $this->beginDatabaseTransaction(); // @phpstan-ignore method.notFound
         }
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\View\Components;
 
+use Hypervel\Console\OutputStyle;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 
 class Choice extends Component
@@ -15,8 +16,11 @@ class Choice extends Component
      */
     public function render(string $question, array $choices, mixed $default = null, ?int $attempts = null, bool $multiple = false): mixed
     {
+        /** @var OutputStyle $output */
+        $output = $this->output;
+
         return $this->usingQuestionHelper(
-            fn () => $this->output->askQuestion(
+            fn () => $output->askQuestion(
                 $this->getChoiceQuestion($question, $choices, $default)
                     ->setMaxAttempts($attempts)
                     ->setMultiselect($multiple)

@@ -1346,7 +1346,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $count = 0;
 
-        foreach ($instance->whereIn($key, $ids)->get() as $model) {
+        foreach ($instance->whereIn($key, $ids)->get() as $model) { // @phpstan-ignore method.notFound (Eloquent __call forwarding)
             if ($model->delete()) {
                 ++$count;
             }
@@ -1685,7 +1685,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
             ->useWritePdo()
-            ->with(is_string($with) ? func_get_args() : $with)
+            ->with(is_string($with) ? func_get_args() : $with) // @phpstan-ignore method.notFound (Eloquent __call forwarding)
             ->first();
     }
 

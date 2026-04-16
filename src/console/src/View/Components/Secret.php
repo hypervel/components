@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\View\Components;
 
+use Hypervel\Console\OutputStyle;
 use Symfony\Component\Console\Question\Question;
 
 class Secret extends Component
@@ -17,6 +18,9 @@ class Secret extends Component
 
         $question->setHidden(true)->setHiddenFallback($fallback);
 
-        return $this->usingQuestionHelper(fn () => $this->output->askQuestion($question));
+        /** @var OutputStyle $output */
+        $output = $this->output;
+
+        return $this->usingQuestionHelper(fn () => $output->askQuestion($question));
     }
 }
