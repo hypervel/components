@@ -7,7 +7,7 @@ namespace Hypervel\Reverb\Servers\Hypervel;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Foundation\Http\WebSocketKernel;
 use Hypervel\Routing\Router;
-use Hypervel\WebSocketServer\CoreMiddleware;
+use Hypervel\WebSocketServer\HandshakeHandler;
 
 /**
  * WebSocket handshake handler for the Reverb server port.
@@ -24,7 +24,7 @@ class WebSocketServer extends WebSocketKernel
      * Overrides the parent to compile the isolated ReverbRouter instead
      * of the global app Router. The kernel bootstrap is idempotent.
      */
-    public function initCoreMiddleware(string $serverName): void
+    public function bootstrapForServer(string $serverName): void
     {
         $this->serverName = $serverName;
 
@@ -33,9 +33,7 @@ class WebSocketServer extends WebSocketKernel
 
         $this->container->make(ReverbRouter::class)->compileAndWarm();
 
-        $this->coreMiddleware = new CoreMiddleware($this->container);
-
-        $this->initOption();
+        $this->handshakeHandler = new HandshakeHandler($this->container);
     }
 
     /**

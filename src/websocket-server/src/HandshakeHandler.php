@@ -9,7 +9,7 @@ use Hypervel\Http\Request;
 use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
 use Symfony\Component\HttpFoundation\Response;
 
-class CoreMiddleware
+class HandshakeHandler
 {
     public function __construct(
         protected Container $container,

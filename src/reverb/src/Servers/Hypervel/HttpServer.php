@@ -7,7 +7,7 @@ namespace Hypervel\Reverb\Servers\Hypervel;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
+use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
@@ -25,7 +25,7 @@ use Throwable;
  * Reverb routes), not the global app Router. This ensures app routes
  * are inaccessible on the Reverb port.
  */
-class HttpServer implements OnRequestInterface, MiddlewareInitializerInterface
+class HttpServer implements OnRequestInterface, BootstrapsForServer
 {
     protected ReverbRouter $router;
 
@@ -37,7 +37,7 @@ class HttpServer implements OnRequestInterface, MiddlewareInitializerInterface
     /**
      * Resolve the Reverb router and compile its routes.
      */
-    public function initCoreMiddleware(string $serverName): void
+    public function bootstrapForServer(string $serverName): void
     {
         $this->router = $this->container->make(ReverbRouter::class);
         $this->router->compileAndWarm();

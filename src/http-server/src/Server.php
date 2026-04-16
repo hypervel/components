@@ -9,7 +9,7 @@ use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
-use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
+use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
@@ -24,7 +24,7 @@ use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Throwable;
 
-class Server implements OnRequestInterface, MiddlewareInitializerInterface
+class Server implements OnRequestInterface, BootstrapsForServer
 {
     protected ?KernelContract $kernel = null;
 
@@ -47,7 +47,7 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
      * before $server->start(). In SWOOLE_PROCESS mode this runs in the main
      * process — workers inherit the compiled state via copy-on-write fork.
      */
-    public function initCoreMiddleware(string $serverName): void
+    public function bootstrapForServer(string $serverName): void
     {
         $this->serverName = $serverName;
 

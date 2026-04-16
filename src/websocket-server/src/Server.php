@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
+use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnCloseInterface;
 use Hypervel\Contracts\Server\OnHandShakeInterface;
 use Hypervel\Contracts\Server\OnMessageInterface;
@@ -39,11 +39,11 @@ use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
+class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
 {
     protected ?KernelContract $kernel = null;
 
-    protected CoreMiddleware $coreMiddleware;
+    protected HandshakeHandler $handshakeHandler;
 
     protected ?EventDispatcherContract $event = null;
 
@@ -70,7 +70,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
      * in WS-only setups where HttpServer\Server may not be present.
      * The hasBeenBootstrapped() guard makes this idempotent.
      */
-    public function initCoreMiddleware(string $serverName): void
+    public function bootstrapForServer(string $serverName): void
     {
         $this->serverName = $serverName;
 
@@ -82,7 +82,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         // Idempotent if HTTP server already ran.
         $this->container->make('router')->compileAndWarm();
 
-        $this->coreMiddleware = new CoreMiddleware($this->container);
+        $this->handshakeHandler = new HandshakeHandler($this->container);
     }
 
     /**
@@ -121,7 +121,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             // but calls our handshake handler instead of the route's controller.
             $httpResponse = $this->getRouter()->dispatchToCallback(
                 $httpRequest,
-                fn (HttpRequest $req) => $this->coreMiddleware->handleHandshake($req)
+                fn (HttpRequest $req) => $this->handshakeHandler->handleHandshake($req)
             );
 
             // If middleware rejected (non-101 response), don't register the fd
