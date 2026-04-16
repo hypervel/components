@@ -676,6 +676,25 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
+    public function testCloseSetsDisconnectingFlag()
+    {
+        $scopedManager = m::spy(ScopedChannelManager::class);
+
+        $channelManager = m::mock(ChannelManager::class);
+        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+
+        $this->app->singleton(ChannelManager::class, fn () => $channelManager);
+        $this->app->forgetInstance(Server::class);
+        $server = $this->app->make(Server::class);
+
+        $connection = new FakeConnection;
+        $this->assertFalse($connection->isDisconnecting());
+
+        $server->close($connection);
+
+        $this->assertTrue($connection->isDisconnecting());
+    }
+
     public function testConnectionEstablishedEventIsDispatched()
     {
         Event::fake();
