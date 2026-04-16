@@ -15,6 +15,7 @@ use Hypervel\Reverb\Jobs\PingInactiveConnections;
 use Hypervel\Reverb\Jobs\PruneStaleConnections;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Loggers\NullLogger;
+use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\ChannelController;
@@ -37,12 +38,14 @@ use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketServer;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
+use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Support\ServiceProvider;
+use Swoole\Table;
 use Throwable;
 
 class ReverbServiceProvider extends ServiceProvider
@@ -78,6 +81,7 @@ class ReverbServiceProvider extends ServiceProvider
         $this->app->bind(ChannelConnectionManager::class, ArrayChannelConnectionManager::class);
 
         $this->app->singleton(WebhookDispatcher::class, HttpWebhookDispatcher::class);
+        $this->app->singleton(DeferredWebhookManager::class);
 
         $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
             $connectionName = (string) $app->make('config')
@@ -245,6 +249,10 @@ class ReverbServiceProvider extends ServiceProvider
                     $channel->broadcastInternally($payload, $except?->connection());
                 } else {
                     $channel->broadcast($payload, $except?->connection());
+
+                    if ($channel instanceof CacheChannel) {
+                        $this->app->make(SharedState::class)->clearCacheMissLock($application->id(), $channel->name());
+                    }
                 }
             }
         });
@@ -267,6 +275,8 @@ class ReverbServiceProvider extends ServiceProvider
             if ($event->server->taskworker) {
                 return;
             }
+
+            $this->app->make(DeferredWebhookManager::class)->setDraining(true);
 
             try {
                 $this->drainConnections();
@@ -370,7 +380,23 @@ class ReverbServiceProvider extends ServiceProvider
             return;
         }
 
-        $stats = $sharedState->table()->stats();
+        $this->checkSwooleTableUsage(
+            $sharedState->table(),
+            'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.rows to avoid connection failures.',
+        );
+
+        $this->checkSwooleTableUsage(
+            $sharedState->lockTable(),
+            'Reverb webhook lock table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.lock_rows to avoid missed webhook throttling.',
+        );
+    }
+
+    /**
+     * Check a Swoole Table's capacity and log a warning if above 80%.
+     */
+    protected function checkSwooleTableUsage(Table $table, string $messageFormat): void
+    {
+        $stats = $table->stats();
         $total = $stats['total_slice_num'];
 
         if ($total === 0) {
@@ -382,10 +408,10 @@ class ReverbServiceProvider extends ServiceProvider
 
         if ($usage > 0.8) {
             Log::error(sprintf(
-                'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.rows to avoid connection failures.',
+                $messageFormat,
                 $usage * 100,
                 $stats['num'],
-                $sharedState->table()->getSize(),
+                $table->getSize(),
             ));
         }
     }
