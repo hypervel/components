@@ -38,6 +38,7 @@ class RedisSharedState implements SharedState
             channelVacated: false,
             memberAdded: $memberAdded,
             memberRemoved: false,
+            subscriptionCount: $channelCount,
         );
     }
 
@@ -73,6 +74,7 @@ class RedisSharedState implements SharedState
             channelVacated: $channelVacated,
             memberAdded: false,
             memberRemoved: $memberRemoved,
+            subscriptionCount: max(0, $channelCount),
         );
     }
 
@@ -104,6 +106,86 @@ class RedisSharedState implements SharedState
             [$key],
             [],
         );
+    }
+
+    /**
+     * Get the current subscription count for a channel.
+     */
+    public function getSubscriptionCount(string $appId, string $channel): int
+    {
+        return (int) $this->redis->get("reverb:sub:{$appId}:{$channel}");
+    }
+
+    /**
+     * Get the current subscription count for a specific user in a channel.
+     */
+    public function getUserSubscriptionCount(string $appId, string $channel, string $userId): int
+    {
+        return (int) $this->redis->get("reverb:user:{$appId}:{$channel}:{$userId}");
+    }
+
+    /**
+     * Attempt to acquire a subscription_count webhook throttle lock.
+     */
+    public function trySubscriptionCountLock(string $appId, string $channel, int $ttlMs = 5000): bool
+    {
+        return $this->redis->set("reverb:subcount-lock:{$appId}:{$channel}", '1', 'PX', $ttlMs, 'NX') == true;
+    }
+
+    /**
+     * Attempt to acquire a cache_miss webhook dedupe lock.
+     */
+    public function tryCacheMissLock(string $appId, string $channel, int $ttlMs = 10000): bool
+    {
+        return $this->redis->set("reverb:cache-miss-lock:{$appId}:{$channel}", '1', 'PX', $ttlMs, 'NX') == true;
+    }
+
+    /**
+     * Clear the cache_miss dedupe lock for a channel.
+     */
+    public function clearCacheMissLock(string $appId, string $channel): void
+    {
+        $this->redis->del("reverb:cache-miss-lock:{$appId}:{$channel}");
+    }
+
+    /**
+     * Clear the subscription_count throttle lock for a channel.
+     */
+    public function clearSubscriptionCountLock(string $appId, string $channel): void
+    {
+        $this->redis->del("reverb:subcount-lock:{$appId}:{$channel}");
+    }
+
+    /**
+     * Mark a channel as having a pending deferred channel_vacated webhook.
+     */
+    public function setSmoothingPending(string $appId, string $channel, int $ttlMs): void
+    {
+        $this->redis->set("reverb:smoothing:{$appId}:{$channel}", '1', 'PX', $ttlMs);
+    }
+
+    /**
+     * Atomically consume a channel smoothing marker if it is still live.
+     */
+    public function clearSmoothingPending(string $appId, string $channel, int $ttlMs): bool
+    {
+        return (int) $this->redis->del("reverb:smoothing:{$appId}:{$channel}") > 0;
+    }
+
+    /**
+     * Mark a presence channel member as having a pending deferred member_removed webhook.
+     */
+    public function setMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): void
+    {
+        $this->redis->set("reverb:smoothing:{$appId}:{$channel}:{$userId}", '1', 'PX', $ttlMs);
+    }
+
+    /**
+     * Atomically consume a member smoothing marker if it is still live.
+     */
+    public function clearMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): bool
+    {
+        return (int) $this->redis->del("reverb:smoothing:{$appId}:{$channel}:{$userId}") > 0;
     }
 
     /**
