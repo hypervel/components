@@ -98,15 +98,10 @@ parameters:
     - '#Result of function call_user_func \(void\) is used\.#'
     - '#Result of callable passed to call_user_func\(\) \(void\) is used\.#'
 
-    # Boolean narrowing issues - PHPStan over-narrows types in conditionals
-    - identifier: booleanAnd.rightAlwaysTrue
-      path: src/database/*
-
     # Eloquent Model magic __call forwarding to Query Builder
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
 
-    - '#Result of method .* \(void\) is used\.#'
     - '#Unsafe usage of new static#'
     - message: '#Call to an undefined method Hypervel\\Foundation\\Testing\\TestCase::#'
       path: src/foundation/src/Testing/TestCase.php

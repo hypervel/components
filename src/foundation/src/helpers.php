@@ -500,7 +500,7 @@ if (! function_exists('info')) {
             $context['caller_location'] = sprintf('%s:%s', $traces[0]['file'], $traces[0]['line']);
         }
 
-        return logger()->info($message, $context);
+        return logger()->info($message, $context); // @phpstan-ignore method.void
     }
 }
 

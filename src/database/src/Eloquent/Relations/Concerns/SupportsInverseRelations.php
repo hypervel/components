@@ -41,7 +41,7 @@ trait SupportsInverseRelations
             throw RelationNotFoundException::make($this->getModel(), $relation ?: 'null');
         }
 
-        if ($this->inverseRelationship === null && $relation) {
+        if ($this->inverseRelationship === null) {
             $this->query->afterQuery(function ($result) {
                 return $this->inverseRelationship
                     ? $this->applyInverseRelationToCollection($result, $this->getParent())

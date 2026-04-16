@@ -50,7 +50,7 @@ class HorizonCommand extends Command
 
             $this->components->info('Shutting down.');
 
-            return $master->terminate();
+            return $master->terminate(); // @phpstan-ignore method.void
         });
 
         $master->monitor();

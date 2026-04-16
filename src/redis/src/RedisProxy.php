@@ -108,7 +108,7 @@ class RedisProxy implements ConnectionContract
     public function __call($name, $arguments)
     {
         if (in_array($name, ['subscribe', 'psubscribe'], true)) {
-            return $this->handleSubscribe($name, $arguments);
+            return $this->handleSubscribe($name, $arguments); // @phpstan-ignore method.void
         }
 
         $hasContextConnection = CoroutineContext::has($this->getContextKey());

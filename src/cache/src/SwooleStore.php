@@ -318,15 +318,15 @@ class SwooleStore implements Store
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
-            return $this->removeRecordsByLRU();
+            return $this->removeRecordsByLRU(); // @phpstan-ignore method.void
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LFU) {
-            return $this->removeRecordsByLFU();
+            return $this->removeRecordsByLFU(); // @phpstan-ignore method.void
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_TTL) {
-            return $this->removeRecordsByTTL();
+            return $this->removeRecordsByTTL(); // @phpstan-ignore method.void
         }
 
         throw new InvalidArgumentException("Eviction policy [{$this->evictionPolicy}] is not supported.");

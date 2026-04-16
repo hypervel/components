@@ -243,7 +243,7 @@ use Throwable;
  * @method false|int|Redis setBit(string $key, int $idx, bool $value)
  * @method false|int|Redis setRange(string $key, int $index, string $value)
  * @method bool setOption(int $option, mixed $value)
- * @method void setex(string $key, int $expire, mixed $value)
+ * @method bool|Redis setex(string $key, int $expire, mixed $value)
  * @method bool|Redis sismember(string $key, mixed $value)
  * @method bool|Redis replicaof(string|null $host = null, int $port = 6379)
  * @method false|int|Redis touch(array|string $key_or_array, string ...$more_keys)
