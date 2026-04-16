@@ -580,6 +580,16 @@ A per-package base class is only justified when there is shared setUp logic — 
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
+**When fixing phpstan errors:**
+
+1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
+2. **Native types vs docblocks determine what's dead code.** If a native return type makes a guard unreachable, the guard is dead code — remove it. If only a docblock suggests always-true, the guard is legitimate runtime defense — leave it.
+3. **Don't change contract/concrete boundaries to fix phpstan.** Swapping a contract for a concrete (or vice versa) to satisfy a type check diverges from Laravel's API. Only do this when Laravel's typing is genuinely incorrect.
+4. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
+5. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
+6. **Type decisions must be evidence-based.** Check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
+7. **Don't add `assert()` to narrow types for phpstan.** Fix the underlying type signature or docblock instead. `@var` annotations are acceptable as a last resort when phpstan genuinely can't infer the type.
+
 #### Handling Failing Tests
 
 For tests that fail after conversion:
