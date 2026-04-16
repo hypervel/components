@@ -115,12 +115,12 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerLaravelInteropAliases(): void
     {
-        if (! class_exists(\Illuminate\Queue\CallQueuedHandler::class, autoload: false)) {
-            class_alias(CallQueuedHandler::class, \Illuminate\Queue\CallQueuedHandler::class);
+        if (! class_exists('Illuminate\Queue\CallQueuedHandler', autoload: false)) {
+            class_alias(CallQueuedHandler::class, 'Illuminate\Queue\CallQueuedHandler');
         }
 
-        if (! class_exists(\Illuminate\Contracts\Database\ModelIdentifier::class, autoload: false)) {
-            class_alias(ModelIdentifier::class, \Illuminate\Contracts\Database\ModelIdentifier::class);
+        if (! class_exists('Illuminate\Contracts\Database\ModelIdentifier', autoload: false)) {
+            class_alias(ModelIdentifier::class, 'Illuminate\Contracts\Database\ModelIdentifier');
         }
     }
 
