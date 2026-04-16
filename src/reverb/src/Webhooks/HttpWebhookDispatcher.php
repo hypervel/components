@@ -26,7 +26,9 @@ class HttpWebhookDispatcher implements WebhookDispatcher
         $webhooks = $application->webhooks();
         $allowedEvents = $webhooks['events'] ?? [];
 
-        if (! empty($allowedEvents) && ! in_array($event, $allowedEvents, true)) {
+        // subscription_count has its own opt-in (webhooks.subscription_count boolean)
+        // and bypasses the events allowlist — it's already gated by the caller.
+        if ($event !== 'subscription_count' && ! empty($allowedEvents) && ! in_array($event, $allowedEvents, true)) {
             return;
         }
 
@@ -107,6 +109,10 @@ class HttpWebhookDispatcher implements WebhookDispatcher
             }
 
             $this->enrichClientEventUserId($application, $eventData, $connection);
+        }
+
+        if ($event === 'subscription_count' && isset($data['subscription_count'])) {
+            $eventData['subscription_count'] = $data['subscription_count'];
         }
 
         return $eventData;
