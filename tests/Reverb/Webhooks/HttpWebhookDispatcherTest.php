@@ -162,6 +162,112 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
+    public function testChannelEndsWithFilterSkipsNonMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => '-chat'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelEndsWithFilterAllowsMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => '-chat'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelEndsWithFilterDisabledWhenNull()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => null],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersAppliedAsAnd()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+
+        // Matches both — should pass
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersRejectWhenOnlyPrefixMatches()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersRejectWhenOnlySuffixMatches()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
     public function testCustomHeadersPassedToJob()
     {
         Queue::fake();

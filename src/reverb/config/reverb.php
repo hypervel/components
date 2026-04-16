@@ -188,6 +188,7 @@ return [
 
                     'filter' => [
                         'channel_name_starts_with' => env('REVERB_WEBHOOK_CHANNEL_PREFIX'),
+                        'channel_name_ends_with' => env('REVERB_WEBHOOK_CHANNEL_SUFFIX'),
                     ],
 
                     // Enable subscription_count webhooks, which fire on every

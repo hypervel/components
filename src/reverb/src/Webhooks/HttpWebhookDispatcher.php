@@ -39,6 +39,13 @@ class HttpWebhookDispatcher implements WebhookDispatcher
             }
         }
 
+        $channelSuffix = $webhooks['filter']['channel_name_ends_with'] ?? null;
+        if ($channelSuffix !== null && isset($data['channel'])) {
+            if (! str_ends_with($data['channel'], $channelSuffix)) {
+                return;
+            }
+        }
+
         $eventData = $this->buildEventData($application, $event, $data, $connection);
 
         $batchingEnabled = (bool) ($webhooks['batching']['enabled'] ?? false);
