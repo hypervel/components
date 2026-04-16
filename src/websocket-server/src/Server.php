@@ -23,8 +23,6 @@ use Hypervel\Http\Request as HttpRequest;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
-use Hypervel\Server\Option;
-use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
@@ -52,8 +50,6 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
     protected StdoutLoggerInterface $logger;
 
     protected string $serverName = 'websocket';
-
-    protected ?Option $option = null;
 
     public function __construct(
         protected Container $container,
@@ -87,8 +83,6 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         $this->container->make('router')->compileAndWarm();
 
         $this->coreMiddleware = new CoreMiddleware($this->container);
-
-        $this->initOption();
     }
 
     /**
@@ -308,24 +302,5 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
                 }
             }
         });
-    }
-
-    /**
-     * Initialize the server option from the server config.
-     */
-    protected function initOption(): void
-    {
-        $ports = $this->container->make(ServerFactory::class)->getConfig()?->getServers();
-        if (! $ports) {
-            return;
-        }
-
-        foreach ($ports as $port) {
-            if ($port->getName() === $this->serverName) {
-                $this->option = $port->getOptions();
-            }
-        }
-
-        $this->option ??= Option::make([]);
     }
 }

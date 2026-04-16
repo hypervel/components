@@ -19,8 +19,6 @@ use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
-use Hypervel\Server\Option;
-use Hypervel\Server\ServerFactory;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -33,8 +31,6 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
     protected ?string $serverName = null;
 
     protected ?EventDispatcherContract $event = null;
-
-    protected ?Option $option = null;
 
     public function __construct(
         protected Container $container,
@@ -65,8 +61,6 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         // performance. Runs in the main process before fork — workers
         // inherit via copy-on-write. Idempotent if WS server already ran.
         $this->container->make('router')->compileAndWarm();
-
-        $this->initOption();
     }
 
     /**
@@ -172,24 +166,5 @@ class Server implements OnRequestInterface, MiddlewareInitializerInterface
         $this->serverName = $serverName;
 
         return $this;
-    }
-
-    /**
-     * Initialize the server option from the server config.
-     */
-    protected function initOption(): void
-    {
-        $ports = $this->container->make(ServerFactory::class)->getConfig()?->getServers();
-        if (! $ports) {
-            return;
-        }
-
-        foreach ($ports as $port) {
-            if ($port->getName() === $this->serverName) {
-                $this->option = $port->getOptions();
-            }
-        }
-
-        $this->option ??= Option::make([]);
     }
 }
