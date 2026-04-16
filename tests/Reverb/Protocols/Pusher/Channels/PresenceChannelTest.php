@@ -8,6 +8,9 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
+use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
@@ -215,5 +218,252 @@ class PresenceChannelTest extends ReverbTestCase
         $channel->unsubscribe($connectionTwo->connection());
 
         $connectionOne->connection()->assertNothingReceived();
+    }
+
+    // ── Disconnect smoothing ──────────────────────────────────────────
+
+    public function testDisconnectDefersMemberRemovedWebhook()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_removed'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+
+        Queue::fake();
+
+        // Simulate disconnect — markDisconnecting then unsubscribe
+        $this->connection->markDisconnecting();
+        $channel->unsubscribe($this->connection);
+
+        // Webhook should NOT fire immediately — it's deferred
+        Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_removed';
+        });
+    }
+
+    public function testExplicitUnsubscribeFiresMemberRemovedImmediately()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_removed'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+
+        Queue::fake();
+
+        // Explicit unsubscribe — isDisconnecting is false
+        $channel->unsubscribe($this->connection);
+
+        // Webhook should fire immediately
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_removed';
+        });
+    }
+
+    // ── Reconnect suppression ─────────────────────────────────────────
+
+    public function testReconnectWithinSmoothingWindowSuppressesMemberAddedWebhook()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_added', 'member_removed'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        // Set up mock for unsubscribe's find() call
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+
+        // Simulate disconnect
+        $this->connection->markDisconnecting();
+        $channel->unsubscribe($this->connection);
+
+        // Reset queue to isolate the reconnect
+        Queue::fake();
+
+        // Reconnect with same user — should suppress member_added webhook
+        $newConnection = new FakeConnection;
+        $newData = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $channel->subscribe(
+            $newConnection,
+            static::validAuth($newConnection->id(), 'presence-test-channel', $newData),
+            $newData
+        );
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_added';
+        });
+    }
+
+    public function testReconnectStillSendsInternalMemberAddedEvent()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_added', 'member_removed'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+
+        // Simulate disconnect
+        $this->connection->markDisconnecting();
+        $channel->unsubscribe($this->connection);
+
+        // Set up mock to return connections for the internal broadcast
+        $listener = new FakeConnection;
+        $listenerChannelConnection = new ChannelConnection($listener);
+        $this->channelConnectionManager->shouldReceive('all')
+            ->andReturn([$listenerChannelConnection]);
+
+        // Reconnect
+        $newConnection = new FakeConnection;
+        $newData = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $channel->subscribe(
+            $newConnection,
+            static::validAuth($newConnection->id(), 'presence-test-channel', $newData),
+            $newData
+        );
+
+        // Internal pusher_internal:member_added event should still fire
+        // even though the webhook is suppressed
+        $listener->assertReceived([
+            'event' => 'pusher_internal:member_added',
+            'data' => json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']),
+            'channel' => 'presence-test-channel',
+        ]);
+    }
+
+    public function testCrossWorkerSmoothingMarkerSuppressesMemberAdded()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_added'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        // Simulate a marker set by another worker's disconnect
+        $sharedState = $this->app->make(SharedState::class);
+        $sharedState->setMemberSmoothingPending('123456', 'presence-test-channel', '1', 3000);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        // member_added webhook should be suppressed by the shared marker
+        Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_added';
+        });
+    }
+
+    public function testConsumedMemberMarkerDoesNotSuppressSubsequentLegitimateAdd()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_added', 'member_removed'],
+            'disconnect_smoothing_ms' => 3000,
+        ]);
+
+        // Set marker (simulating another worker's disconnect)
+        $sharedState = $this->app->make(SharedState::class);
+        $sharedState->setMemberSmoothingPending('123456', 'presence-test-channel', '1', 3000);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        // Subscribe — consumes the marker, suppresses member_added
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data
+        );
+
+        // Explicit unsubscribe — fires member_removed immediately, no new marker
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+
+        $channel->unsubscribe($this->connection);
+
+        // Reset queue
+        Queue::fake();
+
+        // New subscribe — marker was consumed, should fire member_added normally
+        $newConnection = new FakeConnection;
+        $newData = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $channel->subscribe(
+            $newConnection,
+            static::validAuth($newConnection->id(), 'presence-test-channel', $newData),
+            $newData
+        );
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'member_added';
+        });
     }
 }
