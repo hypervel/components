@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Validation\CompilableRules;
 use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
@@ -22,6 +23,11 @@ use Stringable;
 
 class ValidationRuleParser
 {
+    /** @var array<string, array{0: string, 1: array<int, mixed>}> */
+    private static array $parseCache = [];
+
+    private static int $parseCacheMaxSize = 512;
+
     /**
      * The implicit attributes.
      */
@@ -191,29 +197,65 @@ class ValidationRuleParser
 
         $data = ValidationData::initializeAndGatherData($attribute, $this->data);
 
-        foreach ($keys as $key) {
-            foreach ((array) $rules as $rule) {
-                // For mixed arrays like ['nullable', Rule::forEach(...)], separate
-                // CompilableRules from normal items. CompilableRules get per-key
-                // compilation. Normal items are passed as a group to mergeRules,
-                // preserving array-form rules like ['required_array_keys', 'foo'].
-                if (is_array($rule)) {
-                    $compilableItems = [];
-                    $normalItems = [];
+        // Pre-compute undotted data once for all Rule::compile() calls in this
+        // loop. Stored in CoroutineContext (coroutine-local, not worker-global
+        // static) so concurrent coroutines don't interfere with each other.
+        // Save/restore for re-entrancy: nested Rule::forEach can re-enter this
+        // method via NestedRules::compile() -> Rule::compile() -> $parser->explode().
+        $contextKey = Rule::UNDOTTED_DATA_CONTEXT_KEY;
+        $hadPrevious = CoroutineContext::has($contextKey);
+        $previous = $hadPrevious ? CoroutineContext::get($contextKey) : null;
 
-                    foreach ($rule as $item) {
-                        if ($item instanceof CompilableRules) {
-                            $compilableItems[] = $item;
-                        } else {
-                            $normalItems[] = $item;
+        $wrappedData = Arr::wrap($data);
+        CoroutineContext::set($contextKey, [
+            'input' => $wrappedData,
+            'result' => Arr::undot($wrappedData),
+        ]);
+
+        try {
+            foreach ($keys as $key) {
+                foreach ((array) $rules as $rule) {
+                    // For mixed arrays like ['nullable', Rule::forEach(...)], separate
+                    // CompilableRules from normal items. CompilableRules get per-key
+                    // compilation. Normal items are passed as a group to mergeRules,
+                    // preserving array-form rules like ['required_array_keys', 'foo'].
+                    if (is_array($rule)) {
+                        $compilableItems = [];
+                        $normalItems = [];
+
+                        foreach ($rule as $item) {
+                            if ($item instanceof CompilableRules) {
+                                $compilableItems[] = $item;
+                            } else {
+                                $normalItems[] = $item;
+                            }
                         }
-                    }
 
-                    foreach ($compilableItems as $compilable) {
+                        foreach ($compilableItems as $compilable) {
+                            $value = Arr::get($this->data, (string) $key);
+                            $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
+
+                            $compiled = $compilable->compile((string) $key, $value, $data, $context);
+
+                            $this->implicitAttributes = array_merge_recursive(
+                                $compiled->implicitAttributes,
+                                $this->implicitAttributes,
+                                [$attribute => [$key]]
+                            );
+
+                            $results = $this->mergeRules($results, $compiled->rules);
+                        }
+
+                        if ($normalItems !== []) {
+                            $this->implicitAttributes[$attribute][] = $key;
+
+                            $results = $this->mergeRules($results, $key, $normalItems);
+                        }
+                    } elseif ($rule instanceof CompilableRules) {
                         $value = Arr::get($this->data, (string) $key);
                         $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
 
-                        $compiled = $compilable->compile((string) $key, $value, $data, $context);
+                        $compiled = $rule->compile((string) $key, $value, $data, $context);
 
                         $this->implicitAttributes = array_merge_recursive(
                             $compiled->implicitAttributes,
@@ -222,31 +264,18 @@ class ValidationRuleParser
                         );
 
                         $results = $this->mergeRules($results, $compiled->rules);
-                    }
-
-                    if ($normalItems !== []) {
+                    } else {
                         $this->implicitAttributes[$attribute][] = $key;
 
-                        $results = $this->mergeRules($results, $key, $normalItems);
+                        $results = $this->mergeRules($results, $key, $rule);
                     }
-                } elseif ($rule instanceof CompilableRules) {
-                    $value = Arr::get($this->data, (string) $key);
-                    $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
-
-                    $compiled = $rule->compile((string) $key, $value, $data, $context);
-
-                    $this->implicitAttributes = array_merge_recursive(
-                        $compiled->implicitAttributes,
-                        $this->implicitAttributes,
-                        [$attribute => [$key]]
-                    );
-
-                    $results = $this->mergeRules($results, $compiled->rules);
-                } else {
-                    $this->implicitAttributes[$attribute][] = $key;
-
-                    $results = $this->mergeRules($results, $key, $rule);
                 }
+            }
+        } finally {
+            if ($hadPrevious) {
+                CoroutineContext::set($contextKey, $previous);
+            } else {
+                CoroutineContext::forget($contextKey);
             }
         }
 
@@ -370,7 +399,22 @@ class ValidationRuleParser
         if (is_array($rule)) {
             $rule = static::parseArrayRule($rule);
         } else {
-            $rule = static::parseStringRule($rule);
+            if (is_string($rule) && isset(self::$parseCache[$rule])) {
+                return self::$parseCache[$rule];
+            }
+
+            $parsed = static::parseStringRule($rule);
+            $parsed[0] = static::normalizeRule($parsed[0]);
+
+            if (is_string($rule)) {
+                if (count(self::$parseCache) >= self::$parseCacheMaxSize) {
+                    self::$parseCache = array_slice(self::$parseCache, (int) (self::$parseCacheMaxSize / 2), preserve_keys: true);
+                }
+
+                self::$parseCache[$rule] = $parsed;
+            }
+
+            return $parsed;
         }
 
         $rule[0] = static::normalizeRule($rule[0]);
@@ -460,5 +504,13 @@ class ValidationRuleParser
                 return $rule->passes($data) ? $rule->rules($data) : $rule->defaultRules($data);
             })->filter()->flatten(1)->values()->all()];
         })->all();
+    }
+
+    /**
+     * Reset parse cache. Called by AfterEachTestSubscriber between tests.
+     */
+    public static function flushState(): void
+    {
+        self::$parseCache = [];
     }
 }
