@@ -211,6 +211,76 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 7, 'field'));
     }
 
+    // --- Native size comparison tests ---
+
+    public function testSizeComparisonWithIntegerThreshold()
+    {
+        $validator = $this->makeValidator();
+
+        $stringMax = new InlineCheck(CheckType::SizeMax, ['n' => '5', 'mode' => SizeMode::String]);
+        $this->assertTrue($validator->publicExecuteInline($stringMax, 'hello', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($stringMax, 'hello!', 'field'));
+
+        $arrayMin = new InlineCheck(CheckType::SizeMin, ['n' => '2', 'mode' => SizeMode::Array]);
+        $this->assertTrue($validator->publicExecuteInline($arrayMin, [1, 2], 'field'));
+        $this->assertFalse($validator->publicExecuteInline($arrayMin, [1], 'field'));
+    }
+
+    public function testSizeComparisonWithDecimalThresholdFallsBackToBigNumber()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeMax, ['n' => '3.5', 'mode' => SizeMode::String]);
+        $this->assertTrue($validator->publicExecuteInline($check, 'abc', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, 'abcd', 'field'));
+    }
+
+    public function testSizeExactWithDecimalThresholdRejectsIntegerSize()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeExact, ['n' => '3.5', 'mode' => SizeMode::String]);
+        $this->assertFalse($validator->publicExecuteInline($check, 'abc', 'field'));
+    }
+
+    public function testSizeBetweenWithIntegerThresholds()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeBetween, ['min' => '2', 'max' => '5', 'mode' => SizeMode::String]);
+        $this->assertTrue($validator->publicExecuteInline($check, 'hi', 'field'));
+        $this->assertTrue($validator->publicExecuteInline($check, 'hello', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, 'h', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, 'helloo', 'field'));
+    }
+
+    public function testSizeBetweenWithDecimalThresholdFallsBack()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeBetween, ['min' => '1', 'max' => '3.5', 'mode' => SizeMode::String]);
+        $this->assertTrue($validator->publicExecuteInline($check, 'abc', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, 'abcd', 'field'));
+    }
+
+    public function testNumericModeSizeStillUsesBigNumber()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeMax, ['n' => '100', 'mode' => SizeMode::Numeric]);
+        $this->assertTrue($validator->publicExecuteInline($check, '50', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, '150', 'field'));
+    }
+
+    public function testSizeExactWithArrayMode()
+    {
+        $validator = $this->makeValidator();
+
+        $check = new InlineCheck(CheckType::SizeExact, ['n' => '3', 'mode' => SizeMode::Array]);
+        $this->assertTrue($validator->publicExecuteInline($check, [1, 2, 3], 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, [1, 2], 'field'));
+    }
+
     private function makeValidator(): ExposedExecutorValidator
     {
         $translator = new Translator(new ArrayLoader, 'en');
