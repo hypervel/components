@@ -392,6 +392,16 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame($originalVerifier, $v->getPresenceVerifier());
     }
 
+    public function testShouldStopValidatingStillStopsAfterImplicitFailure()
+    {
+        $v = $this->makeValidator(['name' => ''], ['name' => 'required|string']);
+        $v->passes();
+
+        $errors = $v->errors()->get('name');
+        $this->assertCount(1, $errors);
+        $this->assertTrue($v->errors()->has('name'));
+    }
+
     private function makeValidator(array $data, array $rules, array $messages = []): Validator
     {
         return new Validator(
