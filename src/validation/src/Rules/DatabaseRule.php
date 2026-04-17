@@ -181,6 +181,21 @@ trait DatabaseRule
     }
 
     /**
+     * Get the database presence rule metadata.
+     *
+     * @return array{table: string, column: string, wheres: array<int, array<string, mixed>>, using: array<int, mixed>}
+     */
+    public function presenceMetadata(): array
+    {
+        return [
+            'table' => $this->table,
+            'column' => $this->column,
+            'wheres' => $this->wheres,
+            'using' => $this->using,
+        ];
+    }
+
+    /**
      * Format the where clauses.
      */
     protected function formatWheres(): string
