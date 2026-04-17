@@ -362,4 +362,56 @@ class ValidationForEachTest extends TestCase
             'en'
         );
     }
+
+    public function testForEachMixedWithNormalRulesInArray()
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['name' => 'Taylor', 'email' => 'taylor@example.com']]],
+            ['items.*' => ['nullable', Rule::forEach(function () {
+                return ['name' => 'required|string', 'email' => 'required|email'];
+            })]],
+        );
+
+        $this->assertTrue($v->passes());
+    }
+
+    public function testForEachMixedWithNormalRulesInArrayFails()
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['name' => '', 'email' => 'not-email']]],
+            ['items.*' => ['nullable', Rule::forEach(function () {
+                return ['name' => 'required|string', 'email' => 'required|email'];
+            })]],
+        );
+
+        $this->assertFalse($v->passes());
+    }
+
+    public function testForEachMixedWithArrayFormRule()
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['meta' => ['foo' => 42]]]],
+            ['items.*.meta' => [['required_array_keys', 'foo'], Rule::forEach(function () {
+                return ['foo' => 'numeric'];
+            })]],
+        );
+
+        $this->assertTrue($v->passes());
+    }
+
+    public function testForEachMixedWithArrayFormRuleFails()
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['meta' => ['bar' => 42]]]],
+            ['items.*.meta' => [['required_array_keys', 'foo'], Rule::forEach(function () {
+                return ['foo' => 'numeric'];
+            })]],
+        );
+
+        $this->assertFalse($v->passes());
+    }
 }
