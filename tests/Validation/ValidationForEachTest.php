@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 class ValidationForEachTest extends TestCase
 {
@@ -413,5 +415,142 @@ class ValidationForEachTest extends TestCase
         );
 
         $this->assertFalse($v->passes());
+    }
+
+    // --- Undot cache tests (CoroutineContext) ---
+
+    public function testForEachWithLargeArrayProducesCorrectResults()
+    {
+        $items = [];
+        for ($i = 0; $i < 100; ++$i) {
+            $items[] = ['name' => 'Item ' . $i];
+        }
+
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => $items],
+            ['items.*' => Rule::forEach(function () {
+                return ['name' => 'required|string'];
+            })],
+        );
+
+        $this->assertTrue($v->passes());
+    }
+
+    public function testForEachWithDifferentDataDoesNotReturnStaleResults()
+    {
+        $v1 = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['name' => 'valid']]],
+            ['items.*' => Rule::forEach(function () {
+                return ['name' => 'required|string'];
+            })],
+        );
+
+        $this->assertTrue($v1->passes());
+
+        $v2 = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['name' => 123]]],
+            ['items.*' => Rule::forEach(function () {
+                return ['name' => 'required|string'];
+            })],
+        );
+
+        $this->assertFalse($v2->passes());
+    }
+
+    public function testForEachCacheCleanedUpAfterValidation()
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => [['name' => 'test']]],
+            ['items.*' => Rule::forEach(function () {
+                return ['name' => 'required|string'];
+            })],
+        );
+
+        $v->passes();
+
+        $this->assertFalse(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
+    }
+
+    public function testForEachExceptionCleansUpCacheContext()
+    {
+        try {
+            new Validator(
+                $this->getArrayTranslator(),
+                ['items' => [['name' => 'test']]],
+                ['items.*' => Rule::forEach(function () {
+                    throw new RuntimeException('compile failed');
+                })],
+            );
+
+            $this->fail('Expected RuntimeException to be thrown during validator construction.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('compile failed', $e->getMessage());
+            $this->assertFalse(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
+        }
+    }
+
+    public function testNestedForEachRestoresOuterCache()
+    {
+        $data = [
+            'items' => [
+                ['discounts' => [['id' => 1], ['id' => 2]]],
+                ['discounts' => [['id' => 3], ['id' => 4]]],
+            ],
+        ];
+
+        $rules = [
+            'items.*' => Rule::forEach(function () {
+                return [
+                    'discounts.*.id' => Rule::forEach(function () {
+                        return 'required|integer';
+                    }),
+                ];
+            }),
+        ];
+
+        $v = new Validator($this->getArrayTranslator(), $data, $rules);
+
+        $this->assertTrue($v->passes());
+        $this->assertFalse(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
+    }
+
+    public function testNestedForEachExceptionRestoresPreviousCacheContext()
+    {
+        $previous = [
+            'input' => ['existing' => 'flattened'],
+            'result' => ['existing' => 'undotted'],
+        ];
+
+        CoroutineContext::set(Rule::UNDOTTED_DATA_CONTEXT_KEY, $previous);
+
+        $data = [
+            'items' => [
+                ['discounts' => [['id' => 1]]],
+            ],
+        ];
+
+        $rules = [
+            'items.*' => Rule::forEach(function () {
+                return [
+                    'discounts.*.id' => Rule::forEach(function () {
+                        throw new RuntimeException('nested compile failed');
+                    }),
+                ];
+            }),
+        ];
+
+        try {
+            new Validator($this->getArrayTranslator(), $data, $rules);
+
+            $this->fail('Expected RuntimeException to be thrown during validator construction.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('nested compile failed', $e->getMessage());
+            $this->assertTrue(CoroutineContext::has(Rule::UNDOTTED_DATA_CONTEXT_KEY));
+            $this->assertSame($previous, CoroutineContext::get(Rule::UNDOTTED_DATA_CONTEXT_KEY));
+        }
     }
 }
