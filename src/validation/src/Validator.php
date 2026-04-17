@@ -31,6 +31,7 @@ class Validator implements ValidatorContract
 {
     use Concerns\FormatsMessages;
     use Concerns\ValidatesAttributes;
+    use PlanExecutor;
 
     /**
      * The container instance.
@@ -91,6 +92,31 @@ class Validator implements ValidatorContract
      * The cached data for the "distinct" rule.
      */
     protected array $distinctValues = [];
+
+    /**
+     * The compiled execution plans for the current passes() invocation.
+     *
+     * @var array<string, AttributePlan>
+     */
+    protected array $compiledPlans = [];
+
+    /**
+     * The original presence verifier, saved during batched DB checks.
+     *
+     * Restored after passes() completes so subsequent validate() calls
+     * on the same instance aren't polluted by the precomputed verifier.
+     */
+    protected ?PresenceVerifierInterface $originalPresenceVerifier = null;
+
+    /**
+     * Attributes pre-excluded by the exclude_unless/exclude_if pre-pass.
+     *
+     * Stored separately from the compiled plans so cached plans remain
+     * immutable and shareable across requests without cloning.
+     *
+     * @var array<string, true>
+     */
+    protected array $preExcludedAttributes = [];
 
     /**
      * All of the registered "after" callbacks.
@@ -393,52 +419,555 @@ class Validator implements ValidatorContract
     public function passes(): bool
     {
         $this->messages = new MessageBag;
+        [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->originalPresenceVerifier = null;
+        $this->preExcludedAttributes = [];
 
-        [$this->distinctValues, $this->failedRules] = [[], []];
+        $this->compiledPlans = $this->compileRules();
 
-        // We'll spin through each rule, validating the attributes attached to that
-        // rule. Any error messages will be added to the containers with each of
-        // the other error messages, returning true if we don't have messages.
+        // Exclude pre-evaluation reads $this->data before execution. Only safe
+        // when no code path can mutate data during execution (no custom
+        // extensions, no ValidatorAwareRule objects, no validator subclasses).
+        $canPreEvaluateExcludes = static::class === self::class
+            && $this->extensions === []
+            && ! $this->compiledPlansContainValidatorAwareRules();
+
+        if ($canPreEvaluateExcludes) {
+            $this->preEvaluateExclusions();
+        }
+
+        // Batching is safe when: base validator class, no custom extensions,
+        // and the active verifier is exactly the standard DatabasePresenceVerifier
+        // (not a subclass that may override getCount/getMultiCount).
+        // Exists/Unique objects are the rules BEING batched, not a mutation threat.
+        $activeVerifier = $this->presenceVerifier;
+        if (static::class === self::class
+            && $this->extensions === []
+            && $activeVerifier !== null
+            && $activeVerifier::class === DatabasePresenceVerifier::class
+        ) {
+            $this->maybeBatchDatabaseChecks();
+        }
+
+        try {
+            $this->executeCompiledPlans($this->compiledPlans);
+
+            foreach ($this->rules as $attribute => $rules) {
+                $attribute = (string) $attribute;
+                if ($this->shouldBeExcluded($attribute)) {
+                    $this->removeAttribute($attribute);
+                }
+            }
+
+            foreach ($this->after as $after) {
+                $after();
+            }
+
+            return $this->messages->isEmpty();
+        } finally {
+            if ($this->originalPresenceVerifier !== null) {
+                $this->presenceVerifier = $this->originalPresenceVerifier;
+                $this->originalPresenceVerifier = null;
+            }
+        }
+    }
+
+    /**
+     * Compile all attribute rules into AttributePlans.
+     *
+     * For the base Validator class, rules are compiled with inlining and
+     * cached worker-lifetime. Subclasses compile everything as DelegatedCheck
+     * to preserve validate*() overrides.
+     *
+     * @return array<string, AttributePlan>
+     */
+    protected function compileRules(): array
+    {
+        $plans = [];
+        $isBaseValidator = static::class === self::class;
+
         foreach ($this->rules as $attribute => $rules) {
             $attribute = (string) $attribute;
-            if ($this->shouldBeExcluded($attribute)) {
-                $this->removeAttribute($attribute);
 
+            if (! is_array($rules)) {
+                $rules = [$rules];
+            }
+
+            if ($isBaseValidator) {
+                $cached = RulePlanCache::get($rules);
+                if ($cached !== null) {
+                    $plans[$attribute] = $cached;
+                    continue;
+                }
+            }
+
+            $plan = $isBaseValidator
+                ? RuleCompiler::compile($rules)
+                : RuleCompiler::compileAllDelegated($rules);
+
+            if ($isBaseValidator) {
+                RulePlanCache::put($rules, $plan);
+            }
+
+            $plans[$attribute] = $plan;
+        }
+
+        return $plans;
+    }
+
+    /**
+     * Determine if any compiled plan contains a ValidatorAwareRule.
+     *
+     * ValidatorAwareRule implementations receive the live validator via
+     * setValidator($this) and can mutate $this->data via setValue()/setData().
+     * This makes pre-evaluation of exclude conditions unsafe because the
+     * pre-pass reads data before execution.
+     */
+    protected function compiledPlansContainValidatorAwareRules(): bool
+    {
+        foreach ($this->compiledPlans as $plan) {
+            foreach ($plan->checks as $check) {
+                if ($check instanceof DelegatedCheck && $check->ruleObject instanceof ValidatorAwareRule) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Pre-evaluate exclude_unless / exclude_if conditions before the main loop.
+     *
+     * Only called when $canPreOptimize is true (base Validator, no extensions,
+     * no rule objects). Handles both string form ('exclude_unless:field,value')
+     * and array-tuple form. Safety-skips rules requiring parseDependentRuleParameters
+     * type conversions so they flow through the normal delegated path.
+     */
+    protected function preEvaluateExclusions(): void
+    {
+        /** @var array<string, false|float|int|string> $cache */
+        $cache = [];
+
+        foreach ($this->rules as $attribute => $attributeRules) {
+            $attribute = (string) $attribute;
+
+            if (! is_array($attributeRules)) {
                 continue;
             }
 
-            if ($this->stopOnFirstFailure && $this->messages->isNotEmpty()) {
-                break;
-            }
-
-            foreach ($rules as $rule) {
-                $this->validateAttribute($attribute, $rule);
-
-                if ($this->shouldBeExcluded($attribute)) {
-                    break;
+            foreach ($attributeRules as $rule) {
+                $parsed = $this->parseExcludeRule($rule);
+                if ($parsed === null) {
+                    continue;
                 }
 
-                if ($this->shouldStopValidating($attribute)) {
+                [$action, $conditionField, $allowedValues] = $parsed;
+
+                if (str_contains($conditionField, '*')) {
+                    $conditionField = $this->resolveWildcardConditionField($attribute, $conditionField);
+                    if (str_contains($conditionField, '*')) {
+                        continue;
+                    }
+                }
+
+                if (array_intersect(['true', 'false', 'null'], $allowedValues) !== []) {
+                    continue;
+                }
+
+                $conditionRules = $this->rules[$conditionField] ?? [];
+                if (is_array($conditionRules) && in_array('boolean', $conditionRules, true)) {
+                    continue;
+                }
+
+                if (! array_key_exists($conditionField, $cache)) {
+                    $raw = data_get($this->data, $conditionField);
+                    if (is_bool($raw) || $raw === null) {
+                        $cache[$conditionField] = false;
+                    } elseif (is_string($raw) || is_int($raw) || is_float($raw)) {
+                        $cache[$conditionField] = $raw;
+                    } else {
+                        $cache[$conditionField] = false;
+                    }
+                }
+
+                $actual = $cache[$conditionField];
+                if ($actual === false) {
+                    continue;
+                }
+
+                $shouldExclude = ($action === 'exclude_unless' && ! in_array($actual, $allowedValues, false))
+                    || ($action === 'exclude_if' && in_array($actual, $allowedValues, false));
+
+                if ($shouldExclude) {
+                    $this->preExcludedAttributes[$attribute] = true;
                     break;
                 }
             }
         }
+    }
 
-        foreach ($this->rules as $attribute => $rules) {
-            $attribute = (string) $attribute;
-            if ($this->shouldBeExcluded($attribute)) {
-                $this->removeAttribute($attribute);
+    /**
+     * Parse a single rule into [action, field, allowedValues] if it's an
+     * exclude_unless / exclude_if rule.
+     *
+     * @return null|array{0: string, 1: string, 2: list<string>}
+     */
+    private function parseExcludeRule(mixed $rule): ?array
+    {
+        if (is_string($rule)) {
+            foreach (['exclude_unless:', 'exclude_if:'] as $prefix) {
+                if (str_starts_with($rule, $prefix)) {
+                    $action = rtrim($prefix, ':');
+                    $args = explode(',', substr($rule, strlen($prefix)));
+                    if (count($args) < 2) {
+                        return null;
+                    }
+                    return [$action, $args[0], array_slice($args, 1)];
+                }
+            }
+            return null;
+        }
+
+        if (is_array($rule) && count($rule) >= 3 && is_string($rule[0]) && is_string($rule[1])) {
+            $action = $rule[0];
+            if ($action !== 'exclude_unless' && $action !== 'exclude_if') {
+                return null;
+            }
+            return [$action, $rule[1], array_map(strval(...), array_slice($rule, 2))];
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve * segments in a condition field reference by aligning with
+     * concrete indices in the attribute path.
+     *
+     * Example: attribute "interactions.5.style.top", condition "interactions.*.type"
+     * → "interactions.5.type"
+     */
+    private function resolveWildcardConditionField(string $attribute, string $conditionField): string
+    {
+        preg_match_all('/\.(\d+)(?:\.|$)/', $attribute, $matches);
+        $indices = $matches[1];
+        $i = 0;
+
+        return (string) preg_replace_callback('/\*/', static function () use ($indices, &$i) {
+            return $indices[$i++] ?? '*';
+        }, $conditionField);
+    }
+
+    /**
+     * Build a PrecomputedPresenceVerifier for wildcard-expanded exists/unique
+     * rules by batching their lookups into single whereIn queries.
+     *
+     * Scans rules using the validator's own parsing methods (parseTable,
+     * getQueryColumn, getExtraConditions, getUniqueIds) so all rule forms
+     * (string, array, object) and table specifications (plain, model class,
+     * connection-prefixed) are handled correctly with zero duplication.
+     */
+    protected function maybeBatchDatabaseChecks(): void
+    {
+        if ($this->implicitAttributes === []) {
+            return;
+        }
+
+        $wildcardAttributes = array_merge(...array_values($this->implicitAttributes));
+        if ($wildcardAttributes === []) {
+            return;
+        }
+
+        $wildcardAttributeSet = array_flip($wildcardAttributes);
+
+        // Collect batchable groups from wildcard-expanded exists/unique rules.
+        // Groups are keyed by full query shape (not just table:column) so that
+        // rules with different wheres, ignore values, or types on the same
+        // table:column produce separate groups instead of merging silently.
+        $groups = [];
+
+        foreach ($this->rules as $attribute => $attributeRules) {
+            if (! isset($wildcardAttributeSet[$attribute]) || ! is_array($attributeRules)) {
+                continue;
+            }
+
+            foreach ($attributeRules as $rule) {
+                $meta = $this->extractPresenceRuleMeta($rule, (string) $attribute);
+
+                if ($meta === null) {
+                    continue;
+                }
+
+                $groupKey = $this->buildPresenceGroupKey($meta);
+                $groups[$groupKey] ??= ['meta' => $meta, 'values' => []];
+
+                $value = $this->getValue((string) $attribute);
+
+                if ($value !== null && $value !== '') {
+                    $groups[$groupKey]['values'][] = $value;
+                }
             }
         }
 
-        // Here we will spin through all of the "after" hooks on this validator and
-        // fire them off. This gives the callbacks a chance to perform all kinds
-        // of other validation that needs to get wrapped up in this operation.
-        foreach ($this->after as $after) {
-            $after();
+        if ($groups === []) {
+            return;
         }
 
-        return $this->messages->isEmpty();
+        // Build the set of table:column pairs represented in batchable groups,
+        // for collision checking against non-batchable rules.
+        $batchedTableColumns = [];
+        foreach ($groups as $group) {
+            $batchedTableColumns[$group['meta']['table'] . ':' . $group['meta']['column']] = true;
+        }
+
+        // Scan ALL rules for non-batchable exists/unique on the same table:column.
+        // These would hit the global verifier at runtime, so precomputing for
+        // that table:column would give them wrong results.
+        $unsafeTableColumns = $this->collectUnsafeTableColumns($wildcardAttributeSet, $batchedTableColumns);
+
+        $verifier = BatchDatabaseChecker::buildVerifier($groups, $this->presenceVerifier, $unsafeTableColumns);
+
+        if ($verifier === null) {
+            return;
+        }
+
+        $this->originalPresenceVerifier = $this->presenceVerifier;
+        $this->setPresenceVerifier($verifier);
+    }
+
+    /**
+     * Extract metadata from a presence rule for batching.
+     *
+     * For object-form rules implementing DatabasePresenceRule, reads metadata
+     * directly via presenceMetadata() — no reflection, no stringification.
+     * For string-form and array-form rules, uses the validator's own
+     * parseTable/getQueryColumn for full parity with the normal validation path.
+     *
+     * Returns null if the rule is not exists/unique, not batchable (has
+     * closure callbacks, field-reference ignore), or can't be parsed.
+     *
+     * @return null|array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string}
+     */
+    private function extractPresenceRuleMeta(mixed $rule, string $attribute): ?array
+    {
+        // Object-form: use the DatabasePresenceRule interface for exact metadata
+        if ($rule instanceof Contracts\DatabasePresenceRule) {
+            return $this->extractObjectPresenceRuleMeta($rule);
+        }
+
+        // String-form or array-form: parse and extract using validator methods
+        [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
+
+        if (! is_string($ruleName)) {
+            return null;
+        }
+
+        $type = match ($ruleName) {
+            'Exists' => 'exists',
+            'Unique' => 'unique',
+            default => null,
+        };
+
+        if ($type === null || ! isset($parameters[0])) {
+            return null;
+        }
+
+        [$connection, $table, $modelIdColumn] = $this->parseTable($parameters[0]);
+        $column = $this->getQueryColumn($parameters, $attribute);
+
+        if ($column === '' || $column === false) {
+            return null;
+        }
+
+        $ignore = null;
+        $idColumn = $modelIdColumn ?? 'id';
+        $wheres = [];
+
+        if ($type === 'exists') {
+            if (isset($parameters[2])) {
+                $wheres = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
+            }
+        } else {
+            if (isset($parameters[2])) {
+                $rawIgnore = (string) $parameters[2];
+
+                // Field references require per-item runtime resolution — not batchable
+                if (str_contains($rawIgnore, '[') || str_contains($rawIgnore, '*')) {
+                    return null;
+                }
+
+                [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
+            }
+            if (isset($parameters[4])) {
+                $wheres = $this->getExtraConditions(array_slice($parameters, 4));
+            }
+        }
+
+        return [
+            'connection' => $connection,
+            'table' => $table,
+            'column' => (string) $column,
+            'wheres' => $wheres,
+            'ignore' => $ignore,
+            'idColumn' => $idColumn,
+            'type' => $type,
+        ];
+    }
+
+    /**
+     * Extract batch metadata from a DatabasePresenceRule object.
+     *
+     * Uses presenceMetadata() for exact property access (no reflection,
+     * no __toString() truthy trap). Resolves the table via parseTable()
+     * for model class and connection handling.
+     *
+     * @return null|array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string}
+     */
+    private function extractObjectPresenceRuleMeta(Contracts\DatabasePresenceRule $rule): ?array
+    {
+        $meta = $rule->presenceMetadata();
+
+        // Not batchable if has closure query callbacks
+        if ($meta['using'] !== []) {
+            return null;
+        }
+
+        // Column 'NULL' means infer at validation time — can't batch without knowing
+        if ($meta['column'] === 'NULL') {
+            return null;
+        }
+
+        [$connection, $table] = $this->parseTable($meta['table']);
+
+        $type = $rule instanceof Rules\Unique ? 'unique' : 'exists';
+
+        $ignore = $meta['ignore'] ?? null;
+        $idColumn = $meta['idColumn'] ?? 'id';
+        $wheres = $meta['wheres'];
+
+        // Normalize wheres from object format to the key => value format
+        // used by getExtraConditions / DatabasePresenceVerifier::addConditions
+        $normalizedWheres = [];
+        foreach ($wheres as $where) {
+            if (is_array($where) && isset($where['column'], $where['value'])) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard — native type is array, not typed array shape)
+                $normalizedWheres[$where['column']] = $where['value'];
+            }
+        }
+
+        return [
+            'connection' => $connection,
+            'table' => $table,
+            'column' => $meta['column'],
+            'wheres' => $normalizedWheres,
+            'ignore' => $ignore,
+            'idColumn' => $idColumn,
+            'type' => $type,
+        ];
+    }
+
+    /**
+     * Collect table:column pairs that are unsafe for precomputed lookups.
+     *
+     * Scans non-wildcard rules (all hit the global verifier) and unbatchable
+     * wildcard rules (object-form with closures, field-reference ignore, etc.)
+     * for exists/unique references on the same table:column pairs as the
+     * batchable groups.
+     *
+     * @param array<int|string, int> $wildcardAttributeSet
+     * @param array<string, true> $batchedTableColumns table:column pairs that have batchable groups
+     * @return array<string, true>
+     */
+    private function collectUnsafeTableColumns(array $wildcardAttributeSet, array $batchedTableColumns): array
+    {
+        $unsafe = [];
+
+        foreach ($this->rules as $attribute => $attributeRules) {
+            if (! is_array($attributeRules)) {
+                continue;
+            }
+
+            $isWildcard = isset($wildcardAttributeSet[$attribute]);
+
+            foreach ($attributeRules as $rule) {
+                [$ruleName] = ValidationRuleParser::parse($rule);
+
+                if (! is_string($ruleName) || ! in_array($ruleName, ['Exists', 'Unique'], true)) {
+                    continue;
+                }
+
+                // For non-wildcard rules, ALL exists/unique hit the global verifier
+                if (! $isWildcard) {
+                    $tc = $this->extractTableColumnForUnsafeCheck($rule, (string) $attribute);
+                    if ($tc !== null && isset($batchedTableColumns[$tc])) {
+                        $unsafe[$tc] = true;
+                    }
+                    continue;
+                }
+
+                // For wildcard rules, only NON-batchable ones are unsafe
+                $meta = $this->extractPresenceRuleMeta($rule, (string) $attribute);
+                if ($meta === null) {
+                    // Non-batchable — extract just table:column
+                    $tc = $this->extractTableColumnForUnsafeCheck($rule, (string) $attribute);
+                    if ($tc !== null && isset($batchedTableColumns[$tc])) {
+                        $unsafe[$tc] = true;
+                    }
+                }
+            }
+        }
+
+        return $unsafe;
+    }
+
+    /**
+     * Extract just the table:column pair from a presence rule for collision checking.
+     *
+     * Simpler than extractPresenceRuleMeta — only needs table and column,
+     * doesn't need wheres/ignore/idColumn. Works for all rule forms.
+     */
+    private function extractTableColumnForUnsafeCheck(mixed $rule, string $attribute): ?string
+    {
+        if ($rule instanceof Contracts\DatabasePresenceRule) {
+            $meta = $rule->presenceMetadata();
+            [, $table] = $this->parseTable($meta['table']);
+
+            return $meta['column'] !== 'NULL' ? $table . ':' . $meta['column'] : null;
+        }
+
+        [, $parameters] = ValidationRuleParser::parse($rule);
+
+        if (! isset($parameters[0])) {
+            return null;
+        }
+
+        [, $table] = $this->parseTable($parameters[0]);
+        $column = $this->getQueryColumn($parameters, $attribute);
+
+        if ($column === '' || $column === false) {
+            return null;
+        }
+
+        return $table . ':' . $column;
+    }
+
+    /**
+     * Build a deterministic group key from presence rule metadata.
+     *
+     * Encodes the full query shape (connection, table, column, type, wheres,
+     * ignore, idColumn) so that rules with different query shapes on the same
+     * table:column produce separate batch groups instead of merging silently.
+     *
+     * @param array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string} $meta
+     */
+    private function buildPresenceGroupKey(array $meta): string
+    {
+        return $meta['type']
+            . ':' . ($meta['connection'] ?? '')
+            . ':' . $meta['table']
+            . ':' . $meta['column']
+            . ':' . $meta['idColumn']
+            . ':' . (is_scalar($meta['ignore']) ? (string) $meta['ignore'] : '')
+            . ':' . json_encode($meta['wheres'], JSON_THROW_ON_ERROR);
     }
 
     /**
