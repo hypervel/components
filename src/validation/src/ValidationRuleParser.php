@@ -136,21 +136,84 @@ class ValidationRuleParser
 
     /**
      * Define a set of rules that apply to each element in an array attribute.
+     *
+     * Uses a direct tree walk instead of flattening the entire data array
+     * with Arr::dot() and regex matching. This is O(n) in the number of
+     * matching keys instead of O(n*m) where m is the total flattened key count.
+     * Port of laravel/framework PR #59287.
      */
     protected function explodeWildcardRules(array $results, string $attribute, array|object|string $rules): array
     {
-        $pattern = str_replace('\*', '[^\.]*', preg_quote($attribute, '/'));
+        $rulesList = (array) $rules;
+
+        if ($this->containsCompilableRules($rulesList)) {
+            return $this->explodeWildcardRulesCompilable($results, $attribute, $rules);
+        }
+
+        $keys = $this->expandWildcardKeys($attribute, $this->data);
+
+        if ($keys === []) {
+            return $results;
+        }
+
+        $explodedRules = [];
+
+        foreach ($rulesList as $rule) {
+            if (is_string($rule)) {
+                $explodedRules = array_merge($explodedRules, explode('|', $rule));
+            } else {
+                $explodedRules = array_merge($explodedRules, $this->explodeExplicitRule($rule, $attribute));
+            }
+        }
+
+        foreach ($keys as $key) {
+            $this->implicitAttributes[$attribute][] = $key;
+
+            $results[$key] = array_merge($results[$key] ?? [], $explodedRules);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Explode wildcard rules using the original flatten + regex approach.
+     *
+     * Used for CompilableRules which need the flattened data context that
+     * the tree-walk path doesn't provide.
+     */
+    protected function explodeWildcardRulesCompilable(array $results, string $attribute, array|object|string $rules): array
+    {
+        $keys = $this->expandWildcardKeys($attribute, $this->data);
+
+        if ($keys === []) {
+            return $results;
+        }
 
         $data = ValidationData::initializeAndGatherData($attribute, $this->data);
 
-        foreach ($data as $key => $value) {
-            $key = (string) $key;
-            if (Str::startsWith($key, $attribute) || (bool) preg_match('/^' . $pattern . '\z/', $key)) {
-                foreach ((array) $rules as $rule) {
-                    if ($rule instanceof CompilableRules) {
-                        $context = Arr::get($this->data, Str::beforeLast($key, '.'));
+        foreach ($keys as $key) {
+            foreach ((array) $rules as $rule) {
+                // For mixed arrays like ['nullable', Rule::forEach(...)], separate
+                // CompilableRules from normal items. CompilableRules get per-key
+                // compilation. Normal items are passed as a group to mergeRules,
+                // preserving array-form rules like ['required_array_keys', 'foo'].
+                if (is_array($rule)) {
+                    $compilableItems = [];
+                    $normalItems = [];
 
-                        $compiled = $rule->compile($key, $value, $data, $context);
+                    foreach ($rule as $item) {
+                        if ($item instanceof CompilableRules) {
+                            $compilableItems[] = $item;
+                        } else {
+                            $normalItems[] = $item;
+                        }
+                    }
+
+                    foreach ($compilableItems as $compilable) {
+                        $value = Arr::get($this->data, (string) $key);
+                        $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
+
+                        $compiled = $compilable->compile((string) $key, $value, $data, $context);
 
                         $this->implicitAttributes = array_merge_recursive(
                             $compiled->implicitAttributes,
@@ -159,16 +222,105 @@ class ValidationRuleParser
                         );
 
                         $results = $this->mergeRules($results, $compiled->rules);
-                    } else {
+                    }
+
+                    if ($normalItems !== []) {
                         $this->implicitAttributes[$attribute][] = $key;
 
-                        $results = $this->mergeRules($results, $key, $rule);
+                        $results = $this->mergeRules($results, $key, $normalItems);
                     }
+                } elseif ($rule instanceof CompilableRules) {
+                    $value = Arr::get($this->data, (string) $key);
+                    $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
+
+                    $compiled = $rule->compile((string) $key, $value, $data, $context);
+
+                    $this->implicitAttributes = array_merge_recursive(
+                        $compiled->implicitAttributes,
+                        $this->implicitAttributes,
+                        [$attribute => [$key]]
+                    );
+
+                    $results = $this->mergeRules($results, $compiled->rules);
+                } else {
+                    $this->implicitAttributes[$attribute][] = $key;
+
+                    $results = $this->mergeRules($results, $key, $rule);
                 }
             }
         }
 
         return $results;
+    }
+
+    /**
+     * Expand a wildcard attribute into all matching concrete keys by
+     * traversing the data structure directly.
+     *
+     * @param array<string, mixed> $data
+     * @return list<string>
+     */
+    protected function expandWildcardKeys(string $attribute, array $data): array
+    {
+        $segments = explode('.', $attribute);
+        $results = [];
+
+        $this->traverseWildcardSegments($segments, 0, $data, '', $results);
+
+        return $results;
+    }
+
+    /**
+     * Recursively traverse data segments to expand wildcard keys.
+     *
+     * @param list<string> $segments
+     * @param list<string> $results
+     */
+    protected function traverseWildcardSegments(array $segments, int $index, mixed $data, string $prefix, array &$results): void
+    {
+        if ($index >= count($segments)) {
+            $results[] = rtrim($prefix, '.');
+            return;
+        }
+
+        $segment = $segments[$index];
+
+        if ($segment === '*') {
+            if (! is_array($data)) {
+                return;
+            }
+
+            foreach ($data as $key => $value) {
+                $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
+            }
+
+            return;
+        }
+
+        $nextData = is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null;
+
+        $this->traverseWildcardSegments($segments, $index + 1, $nextData, $prefix . $segment . '.', $results);
+    }
+
+    /**
+     * Determine if a rules array contains any CompilableRules at any nesting level.
+     *
+     * Checks both top-level elements and elements inside nested arrays, so
+     * mixed rule arrays like ['nullable', Rule::forEach(...)] are detected.
+     */
+    protected function containsCompilableRules(array $rules): bool
+    {
+        foreach ($rules as $rule) {
+            if ($rule instanceof CompilableRules) {
+                return true;
+            }
+
+            if (is_array($rule) && $this->containsCompilableRules($rule)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
