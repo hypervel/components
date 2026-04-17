@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
@@ -36,6 +37,14 @@ use UnitEnum;
 class Rule
 {
     use Macroable;
+
+    /**
+     * CoroutineContext key for caching the undotted data in Rule::compile().
+     *
+     * Set by ValidationRuleParser::explodeWildcardRulesCompilable() to avoid
+     * repeated Arr::undot() calls when Rule::forEach expands wildcard items.
+     */
+    public const UNDOTTED_DATA_CONTEXT_KEY = '__validation.rule_compile_undotted_data';
 
     /**
      * Get a can constraint builder instance.
@@ -252,9 +261,16 @@ class Rule
      */
     public static function compile(string $attribute, mixed $rules, ?array $data = null): object
     {
-        $parser = new ValidationRuleParser(
-            Arr::undot(Arr::wrap($data))
-        );
+        $wrappedData = Arr::wrap($data);
+
+        $cached = CoroutineContext::get(self::UNDOTTED_DATA_CONTEXT_KEY);
+        if ($cached !== null && $cached['input'] === $wrappedData) {
+            $undotted = $cached['result'];
+        } else {
+            $undotted = Arr::undot($wrappedData);
+        }
+
+        $parser = new ValidationRuleParser($undotted);
 
         if (is_array($rules) && ! array_is_list($rules)) {
             $nested = [];
