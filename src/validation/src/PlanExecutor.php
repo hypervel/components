@@ -121,7 +121,7 @@ trait PlanExecutor
                     break;
                 }
 
-                if ($this->shouldStopValidating($attribute)) {
+                if ($this->messages->isNotEmpty() && $this->shouldStopValidating($attribute)) {
                     break;
                 }
             }
@@ -245,17 +245,31 @@ trait PlanExecutor
     }
 
     /**
-     * Compare a value's size against a threshold using BigNumber.
+     * Compare a value's size against a threshold.
      *
-     * Mirrors validateMax/validateMin: BigNumber::of(getSize())->compare($target).
-     * Uses sizeOf() (the pre-resolved-mode variant) instead of getSize() to
-     * avoid runtime rule scanning. For scientific-notation numeric strings,
-     * runs ensureExponentWithinAllowedRange() to match getSize()'s behavior.
+     * For String/Array modes with integer thresholds, uses native int comparison
+     * (mb_strlen and count always return int). Falls back to BigNumber for
+     * Numeric/File modes and non-integer thresholds like '3.5'.
      */
     private function compareSize(string $attribute, mixed $value, string $target, string $operator, SizeMode $mode): bool
     {
-        $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
         $target = $this->trim($target);
+
+        if (($mode === SizeMode::String || $mode === SizeMode::Array)
+            && $target !== '' && $target === (string) (int) $target
+        ) {
+            $size = $this->sizeOf($value, $mode);
+            $intTarget = (int) $target;
+
+            return match ($operator) {
+                '>=' => $size >= $intTarget,
+                '<=' => $size <= $intTarget,
+                '==' => $size === $intTarget,
+                default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
+            };
+        }
+
+        $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
 
         return match ($operator) {
             '>=' => $size->isGreaterThanOrEqualTo($target),
@@ -266,13 +280,27 @@ trait PlanExecutor
     }
 
     /**
-     * Compare a value's size against a min/max range using BigNumber.
+     * Compare a value's size against a min/max range.
+     *
+     * Native int fast path for String/Array modes with integer thresholds.
      */
     private function compareSizeBetween(string $attribute, mixed $value, string $min, string $max, SizeMode $mode): bool
     {
+        $min = $this->trim($min);
+        $max = $this->trim($max);
+
+        if (($mode === SizeMode::String || $mode === SizeMode::Array)
+            && $min !== '' && $min === (string) (int) $min
+            && $max !== '' && $max === (string) (int) $max
+        ) {
+            $size = $this->sizeOf($value, $mode);
+
+            return $size >= (int) $min && $size <= (int) $max;
+        }
+
         $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
 
-        return $size->isGreaterThanOrEqualTo($this->trim($min)) && $size->isLessThanOrEqualTo($this->trim($max));
+        return $size->isGreaterThanOrEqualTo($min) && $size->isLessThanOrEqualTo($max);
     }
 
     /**
