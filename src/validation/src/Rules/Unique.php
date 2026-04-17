@@ -6,9 +6,10 @@ namespace Hypervel\Validation\Rules;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Validation\Contracts\DatabasePresenceRule;
 use Stringable;
 
-class Unique implements Stringable
+class Unique implements DatabasePresenceRule, Stringable
 {
     use Conditionable;
     use DatabaseRule;
@@ -47,6 +48,23 @@ class Unique implements Stringable
         $this->ignore = $model->{$this->idColumn};
 
         return $this;
+    }
+
+    /**
+     * Get the database presence rule metadata.
+     *
+     * @return array{table: string, column: string, wheres: array<int, array<string, mixed>>, using: array<int, mixed>, ignore: mixed, idColumn: string}
+     */
+    public function presenceMetadata(): array
+    {
+        return [
+            'table' => $this->table,
+            'column' => $this->column,
+            'wheres' => $this->wheres,
+            'using' => $this->using,
+            'ignore' => $this->ignore,
+            'idColumn' => $this->idColumn,
+        ];
     }
 
     /**
