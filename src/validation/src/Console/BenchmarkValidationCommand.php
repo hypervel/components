@@ -100,7 +100,7 @@ class BenchmarkValidationCommand extends Command
 
         $this->components->bulletList([
             '<fg=gray>Optimized</> — compiled execution with inline checks, plan caching, pre-evaluated excludes',
-            '<fg=gray>Legacy</> — original validateAttribute() loop (still includes O(n) wildcard tree walk)',
+            '<fg=gray>Legacy</> — pre-optimization baseline with original validateAttribute() loop and O(n²) wildcard expansion',
             '<fg=gray>Speedup</> — how many times faster the optimized path is (higher is better)',
         ]);
 
