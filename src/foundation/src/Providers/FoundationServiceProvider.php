@@ -112,7 +112,6 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
-        $this->setDatabaseConnection();
 
         $events = $this->app->make('events');
 
@@ -247,13 +246,6 @@ class FoundationServiceProvider extends ServiceProvider
             $this->app->make(DeferredCallbackCollection::class)
                 ->invokeWhen(fn (DeferredCallback $callback) => $event->successful() || $callback->always);
         });
-    }
-
-    protected function setDatabaseConnection(): void
-    {
-        $connection = $this->config->get('database.default', 'mysql');
-        $this->app->make('db')
-            ->setDefaultConnection($connection);
     }
 
     /**
