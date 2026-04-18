@@ -31,9 +31,13 @@ class ConnectionResolver implements ConnectionResolverInterface
     public const DEFAULT_CONNECTION_CONTEXT_KEY = '__database.default_connection';
 
     /**
-     * The default connection name.
+     * The config-derived default connection name, captured at construction.
+     *
+     * Serves as the fallback for getDefaultConnection() when no coroutine
+     * Context override is active. Readonly because runtime overrides go
+     * through CoroutineContext, not through this property.
      */
-    protected ?string $default;
+    protected readonly ?string $default;
 
     protected PoolFactory $factory;
 
@@ -92,8 +96,9 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * Get the default connection name.
      *
-     * Checks Context first for per-coroutine override (from usingConnection()),
-     * then falls back to the configured default.
+     * Checks Context first for per-coroutine override (from setDefaultConnection()
+     * or DatabaseManager::usingConnection()), then falls back to the
+     * config-derived default captured at construction.
      */
     public function getDefaultConnection(): ?string
     {
@@ -101,11 +106,19 @@ class ConnectionResolver implements ConnectionResolverInterface
     }
 
     /**
-     * Set the default connection name.
+     * Set the default connection name for the current execution context.
+     *
+     * Writes to coroutine Context so concurrent requests in the same Swoole
+     * worker are not affected. A null value clears the override and
+     * getDefaultConnection() falls back to the config-derived default.
      */
     public function setDefaultConnection(?string $name): void
     {
-        $this->default = $name;
+        if ($name === null) {
+            CoroutineContext::forget(self::DEFAULT_CONNECTION_CONTEXT_KEY);
+        } else {
+            CoroutineContext::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, $name);
+        }
     }
 
     /**
