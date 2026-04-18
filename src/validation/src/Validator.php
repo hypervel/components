@@ -84,6 +84,16 @@ class Validator implements ValidatorContract
     protected array $implicitAttributes = [];
 
     /**
+     * Reverse lookup from concrete expanded attribute to its wildcard pattern.
+     *
+     * Built lazily by getImplicitAttributeMap(). Invalidated when
+     * addRules() or sometimes() modify $implicitAttributes.
+     *
+     * @var null|array<string, string>
+     */
+    private ?array $implicitAttributeMap = null;
+
+    /**
      * The callback that should be used to format the attribute.
      */
     protected ?Closure $implicitAttributesFormatter = null;
@@ -938,8 +948,9 @@ class Validator implements ValidatorContract
         if ($rule instanceof Contracts\DatabasePresenceRule) {
             $meta = $rule->presenceMetadata();
             [, $table] = $this->parseTable($meta['table']);
+            $column = $meta['column'] !== 'NULL' ? $meta['column'] : $this->guessColumnForQuery($attribute);
 
-            return $meta['column'] !== 'NULL' ? $table . ':' . $meta['column'] : null;
+            return $table . ':' . $column;
         }
 
         [, $parameters] = ValidationRuleParser::parse($rule);
@@ -1230,13 +1241,27 @@ class Validator implements ValidatorContract
      */
     protected function getPrimaryAttribute(string $attribute): string
     {
-        foreach ($this->implicitAttributes as $unparsed => $parsed) {
-            if (in_array($attribute, $parsed, true)) {
-                return $unparsed;
+        return $this->getImplicitAttributeMap()[$attribute] ?? $attribute;
+    }
+
+    /**
+     * Get the reverse lookup map from concrete attribute to wildcard pattern.
+     *
+     * @return array<string, string>
+     */
+    private function getImplicitAttributeMap(): array
+    {
+        if ($this->implicitAttributeMap === null) {
+            $this->implicitAttributeMap = [];
+
+            foreach ($this->implicitAttributes as $pattern => $concreteAttributes) {
+                foreach ($concreteAttributes as $concrete) {
+                    $this->implicitAttributeMap[$concrete] = $pattern;
+                }
             }
         }
 
-        return $attribute;
+        return $this->implicitAttributeMap;
     }
 
     /**
@@ -1305,6 +1330,11 @@ class Validator implements ValidatorContract
      */
     protected function passesOptionalCheck(string $attribute): bool
     {
+        if (isset($this->compiledPlans[$attribute])) {
+            return ! $this->compiledPlans[$attribute]->sometimes
+                || Arr::has($this->data, $attribute);
+        }
+
         if (! $this->hasRule($attribute, ['Sometimes'])) {
             return true;
         }
@@ -1320,7 +1350,16 @@ class Validator implements ValidatorContract
      */
     protected function isNotNullIfMarkedAsNullable(object|string $rule, string $attribute): bool
     {
-        if ($this->isImplicit($rule) || ! $this->hasRule($attribute, ['Nullable'])) {
+        if ($this->isImplicit($rule)) {
+            return true;
+        }
+
+        if (isset($this->compiledPlans[$attribute])) {
+            return ! $this->compiledPlans[$attribute]->nullable
+                || ! is_null(Arr::get($this->data, $attribute, 0));
+        }
+
+        if (! $this->hasRule($attribute, ['Nullable'])) {
             return true;
         }
 
@@ -1690,6 +1729,8 @@ class Validator implements ValidatorContract
             $this->implicitAttributes,
             $response->implicitAttributes
         );
+
+        $this->implicitAttributeMap = null;
     }
 
     /**
@@ -1710,6 +1751,8 @@ class Validator implements ValidatorContract
                 }
             }
         }
+
+        $this->implicitAttributeMap = null;
 
         return $this;
     }
