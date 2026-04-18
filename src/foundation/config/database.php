@@ -130,7 +130,7 @@ return [
         'pgsql-pooled' => [
             'driver' => 'pgsql',
             'url' => env('DB_POOLED_URL', env('DB_URL')),
-            'host' => env('DB_POOLED_HOST', 'localhost'),
+            'host' => env('DB_POOLED_HOST', env('DB_HOST', 'localhost')),
             'port' => env('DB_POOLED_PORT', 6432),
             'database' => env('DB_POOLED_DATABASE', env('DB_DATABASE', 'hypervel')),
             'username' => env('DB_POOLED_USERNAME', env('DB_USERNAME', 'root')),
