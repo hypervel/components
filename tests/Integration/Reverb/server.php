@@ -111,6 +111,7 @@ $app = TestbenchApplication::create(
             $app->make('config')->set('reverb.apps.apps.0.webhooks', [
                 'url' => 'https://example.com/webhook',
                 'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
+                'disconnect_smoothing_ms' => 0,
             ]);
 
             Queue::fake([WebhookDeliveryJob::class]);

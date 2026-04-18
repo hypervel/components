@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Reverb;
 
 use Hypervel\Reverb\Application;
-use Hypervel\Reverb\ConfigApplicationProvider;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Support\Collection;
 
@@ -19,9 +18,12 @@ use Hypervel\Support\Collection;
  */
 final class ParallelTestApplicationProvider implements ApplicationProvider
 {
+    private Application $baseApp;
+
     public function __construct(
-        private ConfigApplicationProvider $base,
+        private ApplicationProvider $base,
     ) {
+        $this->baseApp = $base->all()->first();
     }
 
     /**
@@ -58,23 +60,27 @@ final class ParallelTestApplicationProvider implements ApplicationProvider
 
     /**
      * Create a parallel test app for the given worker token.
+     *
+     * Inherits all settings from the first configured app (app 0) and only
+     * overrides the credentials for per-worker isolation.
      */
     private function parallelApp(int $token): Application
     {
+        $base = $this->baseApp;
+
         return new Application(
             id: (string) (200000 + $token),
             key: "reverb-parallel-{$token}",
             secret: "reverb-parallel-secret-{$token}",
-            pingInterval: 60,
-            activityTimeout: 30,
-            allowedOrigins: ['*'],
-            maxMessageSize: 10_000,
-            acceptClientEventsFrom: 'members',
-            webhooks: [
-                'url' => 'https://example.com/webhook',
-                'secret' => 'webhook-secret',
-                'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
-            ],
+            pingInterval: $base->pingInterval(),
+            activityTimeout: $base->activityTimeout(),
+            allowedOrigins: $base->allowedOrigins(),
+            maxMessageSize: $base->maxMessageSize(),
+            maxConnections: $base->maxConnections(),
+            acceptClientEventsFrom: $base->acceptClientEventsFrom(),
+            rateLimiting: $base->rateLimiting(),
+            options: $base->options(),
+            webhooks: $base->webhooks(),
         );
     }
 }
