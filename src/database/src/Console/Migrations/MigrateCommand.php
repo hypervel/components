@@ -111,11 +111,14 @@ class MigrateCommand extends BaseCommand implements Isolatable
             // Finally, if the "seed" option has been given, we will re-run the database
             // seed task to re-populate the database, which is convenient when adding
             // a migration and a seed at the same time, as it is only this command.
+            // Forwards the user-supplied --database so seeders run on the chosen app
+            // connection rather than silently falling back to database.default.
             if ($this->option('seed') && ! $this->option('pretend')) {
-                $this->call('db:seed', [
+                $this->call('db:seed', array_filter([
+                    '--database' => $this->option('database'),
                     '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
                     '--force' => true,
-                ]);
+                ]));
             }
         });
     }

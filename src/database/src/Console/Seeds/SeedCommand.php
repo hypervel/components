@@ -7,6 +7,8 @@ namespace Hypervel\Database\Console\Seeds;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
@@ -47,6 +49,10 @@ class SeedCommand extends Command
 
     /**
      * Execute the console command.
+     *
+     * The seed connection is applied via coroutine Context, mirroring the
+     * pattern used by Migrator and DatabaseManager::usingConnection(). No
+     * worker-global state is mutated; concurrent coroutines are unaffected.
      */
     public function handle(): int
     {
@@ -57,16 +63,20 @@ class SeedCommand extends Command
 
         $this->components->info('Seeding database.');
 
-        $previousConnection = $this->resolver->getDefaultConnection();
+        $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
-            $this->resolver->setDefaultConnection($this->getDatabase());
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $this->getDatabase());
 
             Model::unguarded(function () {
                 $this->getSeeder()->__invoke();
             });
         } finally {
-            $this->resolver->setDefaultConnection($previousConnection);
+            if ($previousContext === null) {
+                CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
+            }
         }
 
         return 0;
@@ -95,12 +105,16 @@ class SeedCommand extends Command
 
     /**
      * Get the name of the database connection to use.
+     *
+     * Reads the current default via the resolver (which respects any active
+     * Context override) rather than going straight to config, so seeding
+     * honors scoped overrides applied by callers like Migrator::usingConnection().
      */
     protected function getDatabase(): string
     {
         $database = $this->input->getOption('database');
 
-        return $database ?: $this->hypervel['config']['database.default'];
+        return $database ?: $this->resolver->getDefaultConnection();
     }
 
     /**
