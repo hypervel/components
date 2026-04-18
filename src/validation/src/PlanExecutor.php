@@ -247,24 +247,24 @@ trait PlanExecutor
     /**
      * Compare a value's size against a threshold.
      *
-     * For String/Array modes with integer thresholds, uses native int comparison
-     * (mb_strlen and count always return int). Falls back to BigNumber for
-     * Numeric/File modes and non-integer thresholds like '3.5'.
+     * For String/Array modes with numeric thresholds, uses native comparison
+     * (mb_strlen and count always return int). Falls back to BigNumber only
+     * for Numeric/File modes.
      */
     private function compareSize(string $attribute, mixed $value, string $target, string $operator, SizeMode $mode): bool
     {
         $target = $this->trim($target);
 
         if (($mode === SizeMode::String || $mode === SizeMode::Array)
-            && $target !== '' && $target === (string) (int) $target
+            && $target !== '' && is_numeric($target)
         ) {
             $size = $this->sizeOf($value, $mode);
-            $intTarget = (int) $target;
+            $numericTarget = (float) $target;
 
             return match ($operator) {
-                '>=' => $size >= $intTarget,
-                '<=' => $size <= $intTarget,
-                '==' => $size === $intTarget,
+                '>=' => $size >= $numericTarget,
+                '<=' => $size <= $numericTarget,
+                '==' => $size == $numericTarget,
                 default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
             };
         }
@@ -282,7 +282,7 @@ trait PlanExecutor
     /**
      * Compare a value's size against a min/max range.
      *
-     * Native int fast path for String/Array modes with integer thresholds.
+     * Native fast path for String/Array modes with numeric thresholds.
      */
     private function compareSizeBetween(string $attribute, mixed $value, string $min, string $max, SizeMode $mode): bool
     {
@@ -290,12 +290,12 @@ trait PlanExecutor
         $max = $this->trim($max);
 
         if (($mode === SizeMode::String || $mode === SizeMode::Array)
-            && $min !== '' && $min === (string) (int) $min
-            && $max !== '' && $max === (string) (int) $max
+            && $min !== '' && is_numeric($min)
+            && $max !== '' && is_numeric($max)
         ) {
             $size = $this->sizeOf($value, $mode);
 
-            return $size >= (int) $min && $size <= (int) $max;
+            return $size >= (float) $min && $size <= (float) $max;
         }
 
         $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
