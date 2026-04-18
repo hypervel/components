@@ -126,6 +126,33 @@ return [
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
             ],
         ],
+
+        'pgsql-pooled' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_POOLED_URL', env('DB_URL')),
+            'host' => env('DB_POOLED_HOST', 'localhost'),
+            'port' => env('DB_POOLED_PORT', 6432),
+            'database' => env('DB_POOLED_DATABASE', env('DB_DATABASE', 'hypervel')),
+            'username' => env('DB_POOLED_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_POOLED_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => env('DB_PREFIX', ''),
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_POOLED_SSLMODE', env('DB_SSLMODE', 'prefer')),
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => true,
+            ],
+            'migrations_connection' => 'pgsql',
+            'pool' => [
+                'min_connections' => (int) env('DB_POOLED_MIN_CONNECTIONS', 1),
+                'max_connections' => (int) env('DB_POOLED_MAX_CONNECTIONS', 20),
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1,
+                'max_idle_time' => (float) env('DB_POOLED_MAX_IDLE_TIME', 60),
+            ],
+        ],
     ],
 
     /*
