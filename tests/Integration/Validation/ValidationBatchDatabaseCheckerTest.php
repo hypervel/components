@@ -287,6 +287,31 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
+    public function testObjectFormExistsWithInferredColumnAndDifferentShapeBlocksBatchingForSameTableColumn()
+    {
+        $rule = (new \Hypervel\Validation\Rules\Exists('batch_test_users'))
+            ->where('status', 'active');
+
+        $validator = $this->makeValidator(
+            [
+                'email' => 'user3@example.com',
+                'items' => [
+                    ['email' => 'user1@example.com'],
+                    ['email' => 'user2@example.com'],
+                ],
+            ],
+            [
+                'email' => ['required', $rule],
+                'items.*.email' => 'required|exists:batch_test_users,email',
+            ],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('email'));
+        $this->assertFalse($validator->errors()->has('items.0.email'));
+        $this->assertFalse($validator->errors()->has('items.1.email'));
+    }
+
     private function makeValidator(array $data, array $rules): Validator
     {
         $translator = new Translator(new ArrayLoader, 'en');
