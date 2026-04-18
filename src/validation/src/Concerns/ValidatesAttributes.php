@@ -1048,7 +1048,7 @@ trait ValidatesAttributes
      */
     public function guessColumnForQuery(string $attribute): string
     {
-        if (in_array($attribute, Arr::collapse($this->implicitAttributes))
+        if (isset($this->getImplicitAttributeMap()[$attribute])
             && ! is_numeric($last = last(explode('.', $attribute)))
         ) {
             return $last;
