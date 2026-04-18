@@ -83,7 +83,10 @@ class DatabaseConnectorTest extends TestCase
     public function testPostgresSearchPathIsBakedIntoDsn($searchPath, $expectedSearchPath)
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'search_path' => $searchPath, 'charset' => 'utf8'];
-        $escaped = str_replace(' ', '\ ', $expectedSearchPath);
+        // Two backslashes land in the DSN; PDO consumes one while parsing the
+        // single-quoted options value, leaving libpq with a single backslash
+        // that escapes the following space.
+        $escaped = str_replace(' ', '\\\ ', $expectedSearchPath);
         $dsn = "pgsql:host=foo;dbname='bar';client_encoding='utf8';options='-c search_path={$escaped}'";
 
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
@@ -168,7 +171,7 @@ class DatabaseConnectorTest extends TestCase
     public function testPostgresSearchPathFallbackToConfigKeySchemaIsBakedIntoDsn()
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'schema' => ['public', '"user"'], 'charset' => 'utf8'];
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\';options=\'-c search_path="public",\ "user"\'';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\';options=\'-c search_path="public",\\\ "user"\'';
 
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
@@ -233,7 +236,7 @@ class DatabaseConnectorTest extends TestCase
 
     public function testPostgresIsolationLevelWithSpaceIsBackslashEscaped()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c default_transaction_isolation=read\ committed\'';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c default_transaction_isolation=read\\\ committed\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'isolation_level' => 'read committed'];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
