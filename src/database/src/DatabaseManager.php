@@ -354,11 +354,19 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * Set the default connection name.
+     * Set the default connection name for the current execution context.
+     *
+     * Writes to coroutine Context so concurrent requests in the same Swoole
+     * worker are not affected. A null value clears the override and
+     * getDefaultConnection() falls back to config('database.default').
      */
     public function setDefaultConnection(?string $name): void
     {
-        $this->app['config']['database.default'] = $name;
+        if ($name === null) {
+            CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+        } else {
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $name);
+        }
     }
 
     /**
