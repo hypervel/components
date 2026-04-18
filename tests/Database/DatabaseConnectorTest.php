@@ -11,7 +11,6 @@ use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
-use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseConnectorTest extends TestCase
@@ -71,30 +70,26 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->zeroOrMoreTimes()->andReturn($statement);
-        $statement->shouldReceive('execute')->zeroOrMoreTimes();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
     }
 
     /**
-     * @param string $searchPath
-     * @param string $expectedSql
+     * @param array|string $searchPath
+     * @param string $expectedSearchPath Quoted search path (output of quoteSearchPath)
      */
     #[DataProvider('provideSearchPaths')]
-    public function testPostgresSearchPathIsSet($searchPath, $expectedSql)
+    public function testPostgresSearchPathIsBakedIntoDsn($searchPath, $expectedSearchPath)
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'search_path' => $searchPath, 'charset' => 'utf8'];
+        $escaped = str_replace(' ', '\ ', $expectedSearchPath);
+        $dsn = "pgsql:host=foo;dbname='bar';client_encoding='utf8';options='-c search_path={$escaped}'";
+
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->once()->with($expectedSql)->andReturn($statement);
-        $statement->shouldReceive('execute')->once();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -105,82 +100,80 @@ class DatabaseConnectorTest extends TestCase
         return [
             'all-lowercase' => [
                 'public',
-                'set search_path to "public"',
+                '"public"',
             ],
             'case-sensitive' => [
                 'Public',
-                'set search_path to "Public"',
+                '"Public"',
             ],
             'special characters' => [
                 '¡foo_bar-Baz!.Áüõß',
-                'set search_path to "¡foo_bar-Baz!.Áüõß"',
+                '"¡foo_bar-Baz!.Áüõß"',
             ],
             'single-quoted' => [
                 "'public'",
-                'set search_path to "public"',
+                '"public"',
             ],
             'double-quoted' => [
                 '"public"',
-                'set search_path to "public"',
+                '"public"',
             ],
             'variable' => [
                 '$user',
-                'set search_path to "$user"',
+                '"$user"',
             ],
             'delimit space' => [
                 'public user',
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'delimit newline' => [
                 "public\nuser\r\n\ttest",
-                'set search_path to "public", "user", "test"',
+                '"public", "user", "test"',
             ],
             'delimit comma' => [
                 'public,user',
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'delimit comma and space' => [
                 'public, user',
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'single-quoted many' => [
                 "'public', 'user'",
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'double-quoted many' => [
                 '"public", "user"',
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'quoted space is unsupported in string' => [
                 '"public user"',
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'array' => [
                 ['public', 'user'],
-                'set search_path to "public", "user"',
+                '"public", "user"',
             ],
             'array with variable' => [
                 ['public', '$user'],
-                'set search_path to "public", "$user"',
+                '"public", "$user"',
             ],
             'array with delimiter characters' => [
                 ['public', '"user"', "'test'", 'spaced schema'],
-                'set search_path to "public", "user", "test", "spaced schema"',
+                '"public", "user", "test", "spaced schema"',
             ],
         ];
     }
 
-    public function testPostgresSearchPathFallbackToConfigKeySchema()
+    public function testPostgresSearchPathFallbackToConfigKeySchemaIsBakedIntoDsn()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'schema' => ['public', '"user"'], 'charset' => 'utf8'];
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\';options=\'-c search_path="public",\ "user"\'';
+
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->once()->with('set search_path to "public", "user"')->andReturn($statement);
-        $statement->shouldReceive('execute')->once();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -194,9 +187,6 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->zeroOrMoreTimes()->andReturn($statement);
-        $statement->shouldReceive('execute')->zeroOrMoreTimes();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -210,9 +200,6 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->zeroOrMoreTimes()->andReturn($statement);
-        $statement->shouldReceive('execute')->zeroOrMoreTimes();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -226,26 +213,91 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->zeroOrMoreTimes()->andReturn($statement);
-        $statement->shouldReceive('execute')->zeroOrMoreTimes();
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresConnectorReadsIsolationLevelFromConfig()
+    public function testPostgresIsolationLevelIsBakedIntoDsn()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111;options=\'-c default_transaction_isolation=SERIALIZABLE\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'isolation_level' => 'SERIALIZABLE'];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $statement = m::mock(PDOStatement::class);
-        $connection->shouldReceive('prepare')->once()->with('set session characteristics as transaction isolation level SERIALIZABLE')->andReturn($statement);
-        $statement->shouldReceive('execute')->zeroOrMoreTimes();
-        $connection->shouldReceive('exec')->zeroOrMoreTimes();
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresIsolationLevelWithSpaceIsBackslashEscaped()
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c default_transaction_isolation=read\ committed\'';
+        $config = ['host' => 'foo', 'database' => 'bar', 'isolation_level' => 'read committed'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresTimezoneIsBakedIntoDsn()
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c TimeZone=UTC\'';
+        $config = ['host' => 'foo', 'database' => 'bar', 'timezone' => 'UTC'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresSynchronousCommitIsBakedIntoDsn()
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c synchronous_commit=off\'';
+        $config = ['host' => 'foo', 'database' => 'bar', 'synchronous_commit' => 'off'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresCombinesMultipleStartupParamsInDsn()
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c synchronous_commit=on\'';
+        $config = [
+            'host' => 'foo',
+            'database' => 'bar',
+            'search_path' => 'public',
+            'timezone' => 'UTC',
+            'isolation_level' => 'SERIALIZABLE',
+            'synchronous_commit' => 'on',
+        ];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresNoStartupParamsOmitsOptionsFromDsn()
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\'';
+        $config = ['host' => 'foo', 'database' => 'bar'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
