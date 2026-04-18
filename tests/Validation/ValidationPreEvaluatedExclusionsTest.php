@@ -165,6 +165,55 @@ class ValidationPreEvaluatedExclusionsTest extends TestCase
         $this->assertArrayNotHasKey('field_b', $validated);
     }
 
+    public function testPreExcludedWildcardAttributesRemovedFromValidatedOutput()
+    {
+        $items = [];
+        for ($i = 0; $i < 50; ++$i) {
+            $items[] = ['type' => $i % 5 === 0 ? 'chapter' : 'section', 'detail' => 'value'];
+        }
+
+        $v = $this->makeValidator(
+            ['items' => $items],
+            [
+                'items.*.type' => 'required|string',
+                'items.*.detail' => 'exclude_unless:items.*.type,chapter|required|string',
+            ],
+        );
+
+        $this->assertTrue($v->passes());
+        $validated = $v->validated();
+
+        // Chapter items (indices 0, 5, 10, ...) should have 'detail'
+        $this->assertArrayHasKey('detail', $validated['items'][0]);
+        $this->assertArrayHasKey('detail', $validated['items'][5]);
+
+        // Section items should NOT have 'detail'
+        $this->assertArrayNotHasKey('detail', $validated['items'][1]);
+        $this->assertArrayNotHasKey('detail', $validated['items'][2]);
+    }
+
+    public function testPreExcludedParentExcludesDescendantAttributes()
+    {
+        $v = $this->makeValidator(
+            [
+                'type' => 'section',
+                'appointments' => [
+                    ['date' => 'not-a-date', 'name' => 123],
+                ],
+            ],
+            [
+                'type' => 'required|string',
+                'appointments' => 'exclude_unless:type,chapter|required|array',
+                'appointments.*.date' => 'required|date',
+                'appointments.*.name' => 'required|string',
+            ],
+        );
+
+        $this->assertTrue($v->passes());
+        $validated = $v->validated();
+        $this->assertArrayNotHasKey('appointments', $validated);
+    }
+
     private function makeValidator(array $data, array $rules): Validator
     {
         return new Validator(

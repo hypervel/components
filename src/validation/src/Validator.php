@@ -434,6 +434,14 @@ class Validator implements ValidatorContract
 
         if ($canPreEvaluateExcludes) {
             $this->preEvaluateExclusions();
+
+            if ($this->preExcludedAttributes !== []) {
+                $this->compiledPlans = array_filter(
+                    $this->compiledPlans,
+                    fn (string $attribute): bool => ! $this->isPreExcludedOrDescendant($attribute),
+                    ARRAY_FILTER_USE_KEY,
+                );
+            }
         }
 
         // Batching is safe when: base validator class, no custom extensions,
@@ -454,7 +462,7 @@ class Validator implements ValidatorContract
 
             foreach ($this->rules as $attribute => $rules) {
                 $attribute = (string) $attribute;
-                if ($this->shouldBeExcluded($attribute)) {
+                if ($this->isPreExcludedOrDescendant($attribute) || $this->shouldBeExcluded($attribute)) {
                     $this->removeAttribute($attribute);
                 }
             }
@@ -1019,6 +1027,30 @@ class Validator implements ValidatorContract
             ) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the attribute or any of its ancestors was pre-excluded.
+     *
+     * Walks up the dot-separated segments checking each prefix against
+     * $preExcludedAttributes. O(depth) where depth is typically 2-4.
+     */
+    private function isPreExcludedOrDescendant(string $attribute): bool
+    {
+        if (isset($this->preExcludedAttributes[$attribute])) {
+            return true;
+        }
+
+        $position = 0;
+
+        while (($position = strpos($attribute, '.', $position)) !== false) {
+            if (isset($this->preExcludedAttributes[substr($attribute, 0, $position)])) {
+                return true;
+            }
+            ++$position;
         }
 
         return false;
