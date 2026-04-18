@@ -129,10 +129,17 @@ class PostgresConnector extends Connector implements ConnectorInterface
      * belong to a single value (like the space in "read committed") must be
      * backslash-escaped to stay part of that value rather than being treated
      * as a token separator.
+     *
+     * The replacement emits two backslashes before each space. PDO's DSN
+     * parser consumes one level of backslash-escaping when it extracts the
+     * single-quoted options value, so a single backslash in the DSN source
+     * is stripped before libpq sees it — leaving libpq to split on the
+     * unescaped space. Doubling the backslash survives PDO's unescape and
+     * arrives at libpq as a single `\ ` (escaped space).
      */
     protected function escapeStartupOptionValue(string $value): string
     {
-        return str_replace(' ', '\ ', $value);
+        return str_replace(' ', '\\\ ', $value);
     }
 
     /**
