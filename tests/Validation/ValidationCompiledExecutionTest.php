@@ -402,6 +402,42 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertTrue($v->errors()->has('name'));
     }
 
+    public function testSometimesWithAbsentAttributeSkipsDelegatedRulesInCompiledPath()
+    {
+        $v = $this->makeValidator(
+            ['items' => [['name' => 'valid']]],
+            [
+                'items.*.name' => 'sometimes|required|string',
+                'items.*.code' => 'sometimes|required|string',
+            ],
+        );
+
+        $this->assertTrue($v->passes());
+
+        $validated = $v->validated();
+        $this->assertArrayHasKey('name', $validated['items'][0]);
+        $this->assertArrayNotHasKey('code', $validated['items'][0]);
+    }
+
+    public function testImplicitAttributeMapInvalidatedAfterSometimes()
+    {
+        $v = $this->makeValidator(
+            [
+                'items' => [['name' => 'a']],
+                'extra' => [['code' => 'x']],
+            ],
+            ['items.*.name' => 'required|string'],
+        );
+
+        $v->sometimes('extra.*.code', 'required|string', fn () => true);
+
+        $this->assertTrue($v->passes());
+
+        $validated = $v->validated();
+        $this->assertSame('a', $validated['items'][0]['name']);
+        $this->assertSame('x', $validated['extra'][0]['code']);
+    }
+
     private function makeValidator(array $data, array $rules, array $messages = []): Validator
     {
         return new Validator(
