@@ -23,30 +23,21 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Establish a database connection.
+     *
+     * Startup parameters (search_path, timezone, isolation level, synchronous
+     * commit) are baked into the DSN via libpq's "options" parameter rather
+     * than issued as post-connect SET statements. This keeps them intact on
+     * pooled connections (PgBouncer transaction pooling, pgdog, etc.) where
+     * a SET applied to one backend is lost when the pooler hands the next
+     * query to a different backend.
      */
     public function connect(array $config): PDO
     {
-        // First we'll create the basic DSN and connection instance connecting to the
-        // using the configuration option specified by the developer. We will also
-        // set the default character set on the connections to UTF-8 by default.
-        $connection = $this->createConnection(
+        return $this->createConnection(
             $this->getDsn($config),
             $config,
             $this->getOptions($config)
         );
-
-        $this->configureIsolationLevel($connection, $config);
-
-        // Next, we will check to see if a timezone has been specified in this config
-        // and if it has we will issue a statement to modify the timezone with the
-        // database. Setting this DB timezone is an optional configuration item.
-        $this->configureTimezone($connection, $config);
-
-        $this->configureSearchPath($connection, $config);
-
-        $this->configureSynchronousCommit($connection, $config);
-
-        return $connection;
     }
 
     /**
@@ -87,7 +78,61 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $dsn .= ";application_name='" . str_replace("'", "\\'", $application_name) . "'";
         }
 
+        $startupOptions = $this->buildStartupOptions($config);
+
+        if ($startupOptions !== null) {
+            $dsn .= ";options='{$startupOptions}'";
+        }
+
         return $this->addSslOptions($dsn, $config);
+    }
+
+    /**
+     * Build the libpq "options" parameter value from startup settings.
+     *
+     * Returns null when no startup settings are configured. Each setting is
+     * expressed as a "-c key=value" flag, space-separated. Values containing
+     * spaces (e.g. "read committed") are backslash-escaped so libpq preserves
+     * them as a single token when it splits the options string on whitespace.
+     */
+    protected function buildStartupOptions(array $config): ?string
+    {
+        $parts = [];
+
+        if (isset($config['search_path']) || isset($config['schema'])) {
+            $searchPath = $this->quoteSearchPath(
+                $this->parseSearchPath($config['search_path'] ?? $config['schema'])
+            );
+
+            $parts[] = '-c search_path=' . $this->escapeStartupOptionValue($searchPath);
+        }
+
+        if (isset($config['timezone'])) {
+            $parts[] = '-c TimeZone=' . $this->escapeStartupOptionValue((string) $config['timezone']);
+        }
+
+        if (isset($config['isolation_level'])) {
+            $parts[] = '-c default_transaction_isolation=' . $this->escapeStartupOptionValue((string) $config['isolation_level']);
+        }
+
+        if (isset($config['synchronous_commit'])) {
+            $parts[] = '-c synchronous_commit=' . $this->escapeStartupOptionValue((string) $config['synchronous_commit']);
+        }
+
+        return $parts !== [] ? implode(' ', $parts) : null;
+    }
+
+    /**
+     * Escape a startup option value for use inside libpq's options parameter.
+     *
+     * libpq splits the options string on unescaped whitespace, so spaces that
+     * belong to a single value (like the space in "read committed") must be
+     * backslash-escaped to stay part of that value rather than being treated
+     * as a token separator.
+     */
+    protected function escapeStartupOptionValue(string $value): string
+    {
+        return str_replace(' ', '\ ', $value);
     }
 
     /**
@@ -105,56 +150,10 @@ class PostgresConnector extends Connector implements ConnectorInterface
     }
 
     /**
-     * Set the connection transaction isolation level.
-     */
-    protected function configureIsolationLevel(PDO $connection, array $config): void
-    {
-        if (isset($config['isolation_level'])) {
-            $connection->prepare("set session characteristics as transaction isolation level {$config['isolation_level']}")->execute();
-        }
-    }
-
-    /**
-     * Set the timezone on the connection.
-     */
-    protected function configureTimezone(PDO $connection, array $config): void
-    {
-        if (isset($config['timezone'])) {
-            $timezone = $config['timezone'];
-
-            $connection->prepare("set time zone '{$timezone}'")->execute();
-        }
-    }
-
-    /**
-     * Set the "search_path" on the database connection.
-     */
-    protected function configureSearchPath(PDO $connection, array $config): void
-    {
-        if (isset($config['search_path']) || isset($config['schema'])) {
-            $searchPath = $this->quoteSearchPath(
-                $this->parseSearchPath($config['search_path'] ?? $config['schema'])
-            );
-
-            $connection->prepare("set search_path to {$searchPath}")->execute();
-        }
-    }
-
-    /**
-     * Format the search path for the DSN.
+     * Format the search path as a quoted identifier list.
      */
     protected function quoteSearchPath(array $searchPath): string
     {
         return count($searchPath) === 1 ? '"' . $searchPath[0] . '"' : '"' . implode('", "', $searchPath) . '"';
-    }
-
-    /**
-     * Configure the synchronous_commit setting.
-     */
-    protected function configureSynchronousCommit(PDO $connection, array $config): void
-    {
-        if (isset($config['synchronous_commit'])) {
-            $connection->prepare("set synchronous_commit to '{$config['synchronous_commit']}'")->execute();
-        }
     }
 }
