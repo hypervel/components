@@ -226,7 +226,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($arrayMin, [1], 'field'));
     }
 
-    public function testSizeComparisonWithDecimalThresholdFallsBackToBigNumber()
+    public function testSizeComparisonWithDecimalThresholdUsesNativeComparison()
     {
         $validator = $this->makeValidator();
 
@@ -254,7 +254,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 'helloo', 'field'));
     }
 
-    public function testSizeBetweenWithDecimalThresholdFallsBack()
+    public function testSizeBetweenWithDecimalThresholdUsesNativeComparison()
     {
         $validator = $this->makeValidator();
 
