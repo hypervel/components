@@ -9,10 +9,6 @@ use Hypervel\Routing\Controllers\Middleware;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasMiddlewareTest extends RoutingTestCase
 {
     public function testHasMiddlewareIsRespected()

@@ -16,10 +16,6 @@ use Mockery as m;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('cache')]
 class DatabaseLockTest extends DatabaseTestCase
 {

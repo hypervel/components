@@ -28,10 +28,6 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRepositoryTest extends TestCase
 {
     protected function setUp(): void
@@ -592,9 +588,9 @@ class CacheRepositoryTest extends TestCase
     {
         $cache = (new Repository(new ArrayStore))->tags('test-tag');
 
-        $cache->put(TestCacheKey::FOO, 5);
-        $this->assertSame(6, $cache->increment(TestCacheKey::FOO));
-        $this->assertSame(5, $cache->decrement(TestCacheKey::FOO));
+        $cache->put(TestCacheKey::Foo, 5);
+        $this->assertSame(6, $cache->increment(TestCacheKey::Foo));
+        $this->assertSame(5, $cache->decrement(TestCacheKey::Foo));
     }
 
     public function testPutManyHandlesIntegerArrayKeys()
@@ -922,5 +918,5 @@ class CacheRepositoryTest extends TestCase
 
 enum TestCacheKey: string
 {
-    case FOO = 'foo';
+    case Foo = 'foo';
 }

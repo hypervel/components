@@ -15,9 +15,6 @@ use Hypervel\Contracts\Redis\Factory as Redis;
  *
  * Tests that cache operations work correctly with various cache prefixes
  * and that different prefixes provide proper isolation.
- *
- * @internal
- * @coversNothing
  */
 class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 {

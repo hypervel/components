@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Get operation.
- *
- * @internal
- * @coversNothing
  */
 class GetTest extends RedisCacheTestCase
 {

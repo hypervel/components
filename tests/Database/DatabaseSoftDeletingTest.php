@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSoftDeletingTest extends TestCase
 {
     public function testDeletedAtIsAddedToCastsAsDefaultType()

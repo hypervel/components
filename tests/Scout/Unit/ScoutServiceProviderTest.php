@@ -13,10 +13,6 @@ use Psr\Http\Client\ClientInterface;
 use ReflectionProperty;
 use Typesense\Client as TypesenseClient;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScoutServiceProviderTest extends TestCase
 {
     protected function getPackageProviders(Application $app): array

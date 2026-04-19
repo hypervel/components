@@ -8,10 +8,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventsControllerTest extends ReverbTestCase
 {
     public function testCanReceiveAnEventTrigger()

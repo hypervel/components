@@ -8,10 +8,6 @@ use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
     /**
@@ -553,8 +549,6 @@ PHP;
 /**
  * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
  * record calls without actually running Composer.
- *
- * @internal
  */
 class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
 {

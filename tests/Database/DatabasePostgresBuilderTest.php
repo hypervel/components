@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabasePostgresBuilderTest extends TestCase
 {
     public function testCreateDatabase()

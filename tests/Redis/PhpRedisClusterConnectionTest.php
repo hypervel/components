@@ -16,10 +16,6 @@ use Mockery as m;
 use Redis;
 use RedisCluster;
 
-/**
- * @internal
- * @coversNothing
- */
 class PhpRedisClusterConnectionTest extends TestCase
 {
     public function testIsClusterReturnsTrue()

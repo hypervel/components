@@ -446,24 +446,21 @@ class Migrator
     /**
      * Run a migration method on the given connection.
      *
-     * Sets both the resolver default and the coroutine Context key so that
-     * Schema/DB facade calls inside the migration body resolve to the correct
-     * connection. This handles both the migrator's --database override and
-     * per-migration $connection properties.
+     * Sets the coroutine Context key so Schema/DB facade calls inside the
+     * migration body resolve to the correct connection. This handles both
+     * the migrator's --database override and per-migration $connection
+     * properties. Context is the single source of truth for the scoped
+     * default — no worker-global state is mutated.
      */
     protected function runMethod(Connection $connection, object $migration, string $method): void
     {
-        $previousConnection = $this->resolver->getDefaultConnection();
         $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
-            $this->resolver->setDefaultConnection($connection->getName());
             CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
 
             $migration->{$method}();
         } finally {
-            $this->resolver->setDefaultConnection($previousConnection);
-
             if ($previousContext === null) {
                 CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
             } else {
@@ -585,28 +582,97 @@ class Migrator
     }
 
     /**
+     * Resolve a connection name through the "migrations_connection" config key.
+     *
+     * Allows pooled connections (PgBouncer, pgdog, Neon, Supabase, etc.) to declare
+     * an unpooled sibling that migration operations should route through. Session
+     * state required by migrations — advisory locks, LOCK TABLE, temp tables — is
+     * incompatible with transaction-pooling mode.
+     *
+     * When $name is null, falls back to the "effective default connection" —
+     * the current coroutine's Context override first, then the configured
+     * default (database.default). This mirrors DatabaseManager::getDefaultConnection()
+     * so programmatic flows that wrap migrations in DB::usingConnection() or
+     * DatabaseManager::setDefaultConnection() route through the scoped default.
+     *
+     * Defensively passes the name through when the container has no "config"
+     * binding so unit tests that construct Migrator without a booted framework
+     * still work.
+     */
+    public static function resolveMigrationConnectionName(?string $name): ?string
+    {
+        $container = Container::getInstance();
+
+        if (! $container->bound('config')) {
+            return $name;
+        }
+
+        $config = $container->make('config');
+
+        if ($name === null) {
+            $name = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
+                ?? $config->get('database.default');
+
+            if ($name === null) {
+                return null;
+            }
+        }
+
+        return $config->get(
+            "database.connections.{$name}.migrations_connection",
+            $name,
+        );
+    }
+
+    /**
      * Execute the given callback using the given connection as the default connection.
+     *
+     * Snapshots the prior coroutine Context value and the stored migrator
+     * connection on entry, then restores them directly in finally without
+     * routing back through setConnection() — otherwise the restoration would
+     * apply migrations_connection to the saved alias and leave the wrong
+     * default in place.
      */
     public function usingConnection(?string $name, callable $callback): mixed
     {
-        $previousConnection = $this->resolver->getDefaultConnection();
+        $previousStored = $this->connection;
+        $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         $this->setConnection($name);
 
         try {
             return $callback();
         } finally {
-            $this->setConnection($previousConnection);
+            $this->connection = $previousStored;
+            $this->repository->setSource($previousStored);
+
+            if ($previousContext === null) {
+                CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
+            }
         }
     }
 
     /**
      * Set the default connection name.
+     *
+     * Honors the target connection's "migrations_connection" config key. The
+     * swapped name is propagated via coroutine Context (so Schema/DB facade
+     * calls during migration resolve correctly), via the repository source
+     * (so the migrations table lands on the same target), and via the stored
+     * connection (so subsequent resolveConnection() calls use it). Uses
+     * CoroutineContext rather than $this->resolver->setDefaultConnection() so
+     * no worker-global state is mutated — concurrent coroutines are unaffected.
      */
     public function setConnection(?string $name): void
     {
-        if (! is_null($name)) {
-            $this->resolver->setDefaultConnection($name);
+        $name = static::resolveMigrationConnectionName($name);
+
+        if ($name === null) {
+            CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+        } else {
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $name);
         }
 
         $this->repository->setSource($name);
@@ -616,18 +682,26 @@ class Migrator
 
     /**
      * Resolve the database connection instance.
+     *
+     * Applies the "migrations_connection" swap so per-migration connection
+     * overrides (via Migration::getConnection()) are also routed to the
+     * unpooled sibling when the named connection opts in.
      */
     public function resolveConnection(?string $connection): Connection
     {
+        $connection = static::resolveMigrationConnectionName(
+            $connection ?: $this->connection
+        );
+
         if (static::$connectionResolverCallback) {
             return call_user_func(
                 static::$connectionResolverCallback,
                 $this->resolver,
-                $connection ?: $this->connection
+                $connection
             );
         }
         // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
-        return $this->resolver->connection($connection ?: $this->connection);
+        return $this->resolver->connection($connection);
     }
 
     /**

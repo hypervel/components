@@ -10,10 +10,6 @@ use Hypervel\Testbench\PHPUnit\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class HandlesDatabaseConnectionsTest extends TestCase
 {
     use HandlesDatabaseConnections;

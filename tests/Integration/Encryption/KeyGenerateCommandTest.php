@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Encryption;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class KeyGenerateCommandTest extends TestCase
 {
     private string $envDir;

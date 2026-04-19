@@ -25,10 +25,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheEventsTest extends TestCase
 {
     public function testHasTriggersEvents()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\NamespacedItemResolver;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportNamespacedItemResolverTest extends TestCase
 {
     public function testResolution()

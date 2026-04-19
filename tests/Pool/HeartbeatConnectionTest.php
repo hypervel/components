@@ -13,10 +13,6 @@ use Hypervel\Tests\Pool\Fixtures\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class HeartbeatConnectionTest extends TestCase
 {
     protected function tearDown(): void

@@ -12,10 +12,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSqsJobTest extends TestCase
 {
     protected $key;

@@ -41,7 +41,7 @@ class JobWatcher extends Watcher
     public function register(Application $app): void
     {
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
-            return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];
+            return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid]; // @phpstan-ignore property.notFound (optional() __get proxy)
         });
 
         $app->make(Dispatcher::class)

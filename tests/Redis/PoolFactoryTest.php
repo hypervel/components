@@ -13,10 +13,6 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class PoolFactoryTest extends TestCase
 {
     public function testGetPoolReturnsSameInstance()
@@ -136,9 +132,6 @@ class PoolFactoryTest extends TestCase
     }
 }
 
-/**
- * @internal
- */
 class PoolFactoryTestPool extends RedisPool
 {
     protected function createConnection(): ConnectionInterface
@@ -147,9 +140,6 @@ class PoolFactoryTestPool extends RedisPool
     }
 }
 
-/**
- * @internal
- */
 class PoolFactoryTestConnection extends Connection
 {
     public function close(): bool

@@ -13,10 +13,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Table;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheSwooleStoreTest extends TestCase
 {
     public function testCanRetrieveItemsFromStore()

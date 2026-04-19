@@ -13,10 +13,6 @@ use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LoadEnvironmentVariablesTest extends TestCase
 {
     private string|false $originalAppEnvPutenv;

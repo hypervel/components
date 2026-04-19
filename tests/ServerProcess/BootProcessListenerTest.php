@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 class BootProcessListenerTest extends TestCase
 {
     public function testBootsProcessesFromConfig()

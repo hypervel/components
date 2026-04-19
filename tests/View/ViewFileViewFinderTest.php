@@ -11,10 +11,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewFileViewFinderTest extends TestCase
 {
     protected function tearDown(): void

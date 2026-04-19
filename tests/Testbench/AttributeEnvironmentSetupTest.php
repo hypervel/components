@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[Define('env', 'classConfig')]
 class AttributeEnvironmentSetupTest extends TestCase
 {

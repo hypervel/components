@@ -9,10 +9,6 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventsSubscriberTest extends TestCase
 {
     public function testEventSubscribers()

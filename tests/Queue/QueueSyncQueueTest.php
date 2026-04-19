@@ -24,10 +24,6 @@ use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSyncQueueTest extends TestCase
 {
     protected function tearDown(): void

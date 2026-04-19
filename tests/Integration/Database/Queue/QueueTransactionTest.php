@@ -16,10 +16,6 @@ use Throwable;
 
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresPhpExtension('pcntl')]
 #[WithMigration('hypervel', 'queue')]
 #[WithConfig('queue.default', 'database')]

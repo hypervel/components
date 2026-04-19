@@ -10,10 +10,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use Hypervel\View\Engines\EngineResolver;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewEngineDecoratorTest extends SentryTestCase
 {
     public function testViewEngineIsDecorated(): void

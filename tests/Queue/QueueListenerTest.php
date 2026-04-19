@@ -10,10 +10,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueListenerTest extends TestCase
 {
     public function testRunProcessCallsProcess()

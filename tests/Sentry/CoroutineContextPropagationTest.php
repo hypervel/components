@@ -10,10 +10,6 @@ use Hypervel\Http\Request;
 use Hypervel\Sentry\Hub;
 use Sentry\State\Scope;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineContextPropagationTest extends SentryTestCase
 {
     public function testChildCoroutineInheritsSentryStackFromParent()

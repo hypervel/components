@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class FlushWebhookBatchJobTest extends ReverbTestCase
 {
     protected function setUp(): void

@@ -16,10 +16,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('hypervel', 'notifications')]
 class DatabaseNotificationTest extends TestCase
 {

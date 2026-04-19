@@ -17,10 +17,6 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestViewsTest extends TestCase
 {
     private mixed $originalParallelTesting;

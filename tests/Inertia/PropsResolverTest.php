@@ -15,10 +15,6 @@ use Hypervel\Inertia\RenderContext;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ScrollProp;
 
-/**
- * @internal
- * @coversNothing
- */
 class PropsResolverTest extends TestCase
 {
     public function testNestedClosureIsResolved(): void

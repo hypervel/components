@@ -9,10 +9,6 @@ use Hypervel\Inertia\Ssr\HasHealthCheck;
 use Hypervel\Tests\Inertia\TestCase;
 use Mockery;
 
-/**
- * @internal
- * @coversNothing
- */
 class CheckSsrTest extends TestCase
 {
     public function testSuccessOnHealthySsrServer(): void

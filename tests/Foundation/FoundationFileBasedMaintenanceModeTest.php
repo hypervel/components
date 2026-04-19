@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Foundation\FileBasedMaintenanceMode;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationFileBasedMaintenanceModeTest extends TestCase
 {
     protected function tearDown(): void

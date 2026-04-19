@@ -15,10 +15,6 @@ use Throwable;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class SocketTest extends TestCase
 {
     public function testSocketConnectFailed()

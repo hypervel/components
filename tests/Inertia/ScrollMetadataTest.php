@@ -12,10 +12,6 @@ use Hypervel\Tests\Inertia\Fixtures\UserResource;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScrollMetadataTest extends TestCase
 {
     use InteractsWithUserModels;

@@ -9,10 +9,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'base64:IUHRqAQ99pZ0A1MPjbuv1D6ff3jxv0GIvS2qIW4JNU4=')]
 class EncryptionTest extends TestCase
 {

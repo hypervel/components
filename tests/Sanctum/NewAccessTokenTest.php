@@ -8,10 +8,6 @@ use Hypervel\Sanctum\NewAccessToken;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NewAccessTokenTest extends TestCase
 {
     /**

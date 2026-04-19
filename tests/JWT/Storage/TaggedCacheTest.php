@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class TaggedCacheTest extends TestCase
 {
     /**

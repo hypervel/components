@@ -583,7 +583,7 @@ class Router implements BindingRegistrar, RegistrarContract
     {
         $currentRequest = $this->getCurrentRequest();
 
-        $route = tap($this->routes->getByName($name))->bind($currentRequest);
+        $route = tap($this->routes->getByName($name))->bind($currentRequest); // @phpstan-ignore method.notFound (tap proxy __call)
 
         return $this->runRoute($currentRequest, $route);
     }

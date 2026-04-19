@@ -10,10 +10,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentTimestampsTest extends TestCase
 {
     protected function setUp(): void

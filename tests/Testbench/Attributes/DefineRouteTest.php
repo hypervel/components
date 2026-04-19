@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DefineRouteTest extends TestCase
 {
     #[Test]

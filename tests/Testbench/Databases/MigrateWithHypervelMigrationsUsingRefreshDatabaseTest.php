@@ -13,10 +13,6 @@ use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class MigrateWithHypervelMigrationsUsingRefreshDatabaseTest extends TestCase
 {

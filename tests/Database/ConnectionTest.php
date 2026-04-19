@@ -11,9 +11,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests for database Connection behavior.
- *
- * @internal
- * @coversNothing
  */
 class ConnectionTest extends TestCase
 {

@@ -15,12 +15,6 @@ use Hypervel\Testbench\TestCase;
  * These verify that OPT_PREFIX handling works correctly end-to-end:
  * - SafeScan prepends OPT_PREFIX to patterns and strips it from results
  * - FlushByPattern uses SafeScan + UNLINK to delete matching keys
- *
- * @group integration
- * @group redis-integration
- *
- * @internal
- * @coversNothing
  */
 class SafeScanIntegrationTest extends TestCase
 {

@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventFacadeTest extends TestCase
 {
     public function testFakeReturnsEventFake()

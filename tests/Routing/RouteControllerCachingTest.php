@@ -18,10 +18,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteControllerCachingTest extends RoutingTestCase
 {
     public function testUnboundControllerIsCachedOnRouteProperty()

@@ -12,10 +12,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryDurationThresholdTest extends TestCase
 {
     /**

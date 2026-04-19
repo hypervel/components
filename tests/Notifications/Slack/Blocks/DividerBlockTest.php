@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DividerBlockTest extends TestCase
 {
     public function testArrayable(): void

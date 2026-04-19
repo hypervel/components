@@ -26,10 +26,6 @@ enum ContextKeyUnitEnum
     case Theme;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextEnumTest extends TestCase
 {
     public function testSetAndGetWithBackedEnum()

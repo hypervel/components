@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextCoroutineTest extends TestCase
 {
     public function testContextIsIsolatedBetweenCoroutines()

@@ -9,10 +9,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
 {
     protected function afterRefreshingDatabase(): void

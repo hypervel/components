@@ -10,10 +10,6 @@ use Hypervel\Support\Composer;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClassMapManagerTest extends TestCase
 {
     public function testHasEntriesReturnsFalseWhenEmpty()

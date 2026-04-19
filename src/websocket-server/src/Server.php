@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
+use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnCloseInterface;
 use Hypervel\Contracts\Server\OnHandShakeInterface;
 use Hypervel\Contracts\Server\OnMessageInterface;
@@ -23,8 +23,6 @@ use Hypervel\Http\Request as HttpRequest;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
-use Hypervel\Server\Option;
-use Hypervel\Server\ServerFactory;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
@@ -41,19 +39,17 @@ use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
+class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
 {
     protected ?KernelContract $kernel = null;
 
-    protected CoreMiddleware $coreMiddleware;
+    protected HandshakeHandler $handshakeHandler;
 
     protected ?EventDispatcherContract $event = null;
 
     protected StdoutLoggerInterface $logger;
 
     protected string $serverName = 'websocket';
-
-    protected ?Option $option = null;
 
     public function __construct(
         protected Container $container,
@@ -74,7 +70,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
      * in WS-only setups where HttpServer\Server may not be present.
      * The hasBeenBootstrapped() guard makes this idempotent.
      */
-    public function initCoreMiddleware(string $serverName): void
+    public function bootstrapForServer(string $serverName): void
     {
         $this->serverName = $serverName;
 
@@ -86,9 +82,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
         // Idempotent if HTTP server already ran.
         $this->container->make('router')->compileAndWarm();
 
-        $this->coreMiddleware = new CoreMiddleware($this->container);
-
-        $this->initOption();
+        $this->handshakeHandler = new HandshakeHandler($this->container);
     }
 
     /**
@@ -127,7 +121,7 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
             // but calls our handshake handler instead of the route's controller.
             $httpResponse = $this->getRouter()->dispatchToCallback(
                 $httpRequest,
-                fn (HttpRequest $req) => $this->coreMiddleware->handleHandshake($req)
+                fn (HttpRequest $req) => $this->handshakeHandler->handleHandshake($req)
             );
 
             // If middleware rejected (non-101 response), don't register the fd
@@ -308,24 +302,5 @@ class Server implements MiddlewareInitializerInterface, OnHandShakeInterface, On
                 }
             }
         });
-    }
-
-    /**
-     * Initialize the server option from the server config.
-     */
-    protected function initOption(): void
-    {
-        $ports = $this->container->make(ServerFactory::class)->getConfig()?->getServers();
-        if (! $ports) {
-            return;
-        }
-
-        foreach ($ports as $port) {
-            if ($port->getName() === $this->serverName) {
-                $this->option = $port->getOptions();
-            }
-        }
-
-        $this->option ??= Option::make([]);
     }
 }

@@ -13,10 +13,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ForgetCommandTest extends TestCase
 {
     public function testForgetKeyFromDefaultStore()

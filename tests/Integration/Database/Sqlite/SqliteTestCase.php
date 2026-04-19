@@ -9,10 +9,6 @@ use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresDatabase('sqlite')]
 abstract class SqliteTestCase extends DatabaseTestCase
 {

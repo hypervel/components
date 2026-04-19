@@ -7,10 +7,6 @@ namespace Hypervel\Tests\JsonSchema;
 use Hypervel\JsonSchema\Types\StringType;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class StringTypeTest extends TestCase
 {
     public function testItSetsMinLength()

@@ -8,9 +8,6 @@ use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 
 /**
  * Integration tests for Scout console commands with Typesense.
- *
- * @internal
- * @coversNothing
  */
 class TypesenseCommandsIntegrationTest extends TypesenseScoutIntegrationTestCase
 {

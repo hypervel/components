@@ -32,10 +32,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use UnitEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentIntegrationTest extends TestCase
 {
     /**

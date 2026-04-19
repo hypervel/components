@@ -13,10 +13,6 @@ use ReflectionProperty;
 
 use function Hypervel\Prompts\task;
 
-/**
- * @internal
- * @coversNothing
- */
 class TaskTest extends TestCase
 {
     public function testRendersTaskAndReturnsValue()

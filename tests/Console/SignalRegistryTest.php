@@ -9,10 +9,6 @@ use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SignalRegistryTest extends TestCase
 {
     public function testRegisterSingleSignalPushesHandler()

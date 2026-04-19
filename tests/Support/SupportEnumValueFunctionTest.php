@@ -11,10 +11,6 @@ use function Hypervel\Support\enum_value;
 
 include_once __DIR__ . '/Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportEnumValueFunctionTest extends TestCase
 {
     #[DataProvider('scalarDataProvider')]

@@ -6,6 +6,7 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\Command;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
+use Hypervel\Database\Migrations\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -42,7 +43,9 @@ class InstallCommand extends Command
      */
     public function handle(): void
     {
-        $this->repository->setSource($this->input->getOption('database'));
+        $this->repository->setSource(
+            Migrator::resolveMigrationConnectionName($this->input->getOption('database'))
+        );
 
         if (! $this->repository->repositoryExists()) {
             $this->repository->createRepository();

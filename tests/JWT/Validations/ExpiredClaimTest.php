@@ -9,10 +9,6 @@ use Hypervel\JWT\Exceptions\TokenExpiredException;
 use Hypervel\JWT\Validations\ExpiredClaim;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExpiredClaimTest extends TestCase
 {
     public function testValid()

@@ -19,10 +19,6 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class ModelInspectorTest extends DatabaseTestCase
 {
     protected function setUp(): void

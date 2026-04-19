@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReverbRouterTest extends ReverbTestCase
 {
     public function testReverbRouterIsSeparateFromGlobalRouter()

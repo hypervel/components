@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
-/**
- * @internal
- * @coversNothing
- */
 class ValidatePathEncodingTest extends TestCase
 {
     #[TestWith(['/'])]

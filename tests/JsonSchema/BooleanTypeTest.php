@@ -7,10 +7,6 @@ namespace Hypervel\Tests\JsonSchema;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class BooleanTypeTest extends TestCase
 {
     public function testSerializesAsBooleanWithMetadata()

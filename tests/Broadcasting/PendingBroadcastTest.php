@@ -32,10 +32,6 @@ enum PendingBroadcastTestConnectionUnitEnum
     case ably;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class PendingBroadcastTest extends TestCase
 {
     public function testViaAcceptsStringBackedEnum(): void

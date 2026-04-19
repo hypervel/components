@@ -12,10 +12,6 @@ use Hypervel\Foundation\Bus\PendingDispatch;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueDelayTest extends TestCase
 {
     public function testQueueDelay()

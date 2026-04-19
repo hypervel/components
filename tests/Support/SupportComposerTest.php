@@ -13,10 +13,6 @@ use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\php_binary;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportComposerTest extends TestCase
 {
     public function testGetLoader()

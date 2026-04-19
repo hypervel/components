@@ -9,10 +9,6 @@ use Hypervel\Mail\Attachment;
 use Hypervel\Notifications\Messages\MailMessage;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationMailMessageTest extends TestCase
 {
     public function testTemplate()

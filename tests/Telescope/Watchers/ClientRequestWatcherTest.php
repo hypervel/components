@@ -21,10 +21,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Http\Message\RequestInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     ClientRequestWatcher::class => true,
 ])]

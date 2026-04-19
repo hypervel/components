@@ -16,12 +16,6 @@ use Hypervel\Testbench\TestCase;
  * - Script SHA caching (evalSha success on subsequent calls)
  * - NOSCRIPT fallback (eval on first call when script not cached)
  * - Error handling for invalid scripts
- *
- * @group integration
- * @group redis-integration
- *
- * @internal
- * @coversNothing
  */
 class EvalWithShaCacheIntegrationTest extends TestCase
 {

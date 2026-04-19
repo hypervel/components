@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Queue\Fixtures;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Queue\Queueable;
 
-/**
- * @internal
- * @coversNothing
- */
 class FakeSqsJobWithMessageGroup implements ShouldQueue
 {
     use Queueable;

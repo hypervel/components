@@ -17,10 +17,6 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 {
     protected function setUp(): void

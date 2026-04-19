@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentWithCastsTest extends TestCase
 {
     protected function setUp(): void

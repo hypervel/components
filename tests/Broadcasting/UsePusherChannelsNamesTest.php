@@ -10,10 +10,6 @@ use Hypervel\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class UsePusherChannelsNamesTest extends TestCase
 {
     #[DataProvider('channelsProvider')]

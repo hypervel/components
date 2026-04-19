@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\Pipeline;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class PipelineTransactionTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void
@@ -74,7 +70,7 @@ class PipelineTransactionTest extends TestCase
     public static function transactionConnectionDataProvider(): array
     {
         return [
-            'unit enum' => [EnumForPipelineTransactionTest::DEFAULT, 'testing'],
+            'unit enum' => [EnumForPipelineTransactionTest::Default, 'testing'],
             'string' => ['testing', 'testing'],
             'null' => [null, 'testing2'],
         ];
@@ -109,5 +105,5 @@ class PipelineTransactionTest extends TestCase
 
 enum EnumForPipelineTransactionTest: string
 {
-    case DEFAULT = 'testing';
+    case Default = 'testing';
 }

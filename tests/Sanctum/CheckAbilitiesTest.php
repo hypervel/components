@@ -13,10 +13,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class CheckAbilitiesTest extends TestCase
 {
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken()

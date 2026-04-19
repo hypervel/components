@@ -11,9 +11,6 @@ use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**
  * Tests for RemoveableScoutCollection.
- *
- * @internal
- * @coversNothing
  */
 class RemoveableScoutCollectionTest extends ScoutTestCase
 {

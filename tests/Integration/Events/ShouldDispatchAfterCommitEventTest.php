@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ShouldDispatchAfterCommitEventTest extends TestCase
 {
     protected function tearDown(): void

@@ -14,10 +14,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Log\LoggerInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('logging.default', 'null')]
 #[WithConfig('telescope.watchers', [
     LogWatcher::class => true,

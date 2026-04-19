@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequestMakeCommandTest extends TestCase
 {
     protected $files = [

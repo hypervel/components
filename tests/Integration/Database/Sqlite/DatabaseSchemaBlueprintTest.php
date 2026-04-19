@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void

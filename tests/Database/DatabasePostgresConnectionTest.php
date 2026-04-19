@@ -9,10 +9,6 @@ use Hypervel\Database\PostgresConnection;
 use Hypervel\Tests\TestCase;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabasePostgresConnectionTest extends TestCase
 {
     public function testPrepareBindingsConvertsBooleansToPostgresLiteralsWhenEmulatedPreparesAreEnabled()

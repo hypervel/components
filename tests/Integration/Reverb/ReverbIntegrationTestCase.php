@@ -16,9 +16,6 @@ use Swoole\WebSocket\Frame;
  * Start it with: php tests/Integration/Reverb/server.php
  *
  * Tests auto-skip when the server is not available.
- *
- * @internal
- * @coversNothing
  */
 abstract class ReverbIntegrationTestCase extends TestCase
 {

@@ -8,10 +8,6 @@ use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ServeFileTest extends TestCase
 {

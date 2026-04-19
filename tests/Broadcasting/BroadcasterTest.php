@@ -17,10 +17,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BroadcasterTest extends TestCase
 {
     protected Container $container;

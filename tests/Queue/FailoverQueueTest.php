@@ -13,10 +13,6 @@ use Hypervel\Queue\SyncQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FailoverQueueTest extends TestCase
 {
     public function testPushFailsOverOnException()

@@ -16,10 +16,6 @@ use Hypervel\Tests\Integration\Queue\QueueTestCase;
 #[WithMigration]
 #[WithMigration('cache')]
 #[WithMigration('queue')]
-/**
- * @internal
- * @coversNothing
- */
 class UniqueUntilProcessingJobTest extends QueueTestCase
 {
     protected function defineEnvironment($app): void

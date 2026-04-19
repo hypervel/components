@@ -8,9 +8,6 @@ use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
 
 /**
  * Basic connectivity test for Typesense.
- *
- * @internal
- * @coversNothing
  */
 class TypesenseConnectionTest extends TypesenseIntegrationTestCase
 {

@@ -8,10 +8,6 @@ use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CollectionEngineTest extends ScoutTestCase
 {
     public function testSearchReturnsMatchingModels()

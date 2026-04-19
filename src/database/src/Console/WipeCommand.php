@@ -7,6 +7,7 @@ namespace Hypervel\Database\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
+use Hypervel\Database\Migrations\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -36,7 +37,9 @@ class WipeCommand extends Command
             return Command::FAILURE;
         }
 
-        $database = $this->input->getOption('database');
+        $database = Migrator::resolveMigrationConnectionName(
+            $this->input->getOption('database')
+        );
 
         if ($this->option('drop-views')) {
             $this->dropAllViews($database);

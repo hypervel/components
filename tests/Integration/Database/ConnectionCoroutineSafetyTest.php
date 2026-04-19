@@ -23,9 +23,6 @@ use function Hypervel\Coroutine\go;
  *
  * These tests verify that Model::unguarded(), DatabaseManager::usingConnection(),
  * and Connection::beforeExecuting() properly isolate state between coroutines.
- *
- * @internal
- * @coversNothing
  */
 class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 {

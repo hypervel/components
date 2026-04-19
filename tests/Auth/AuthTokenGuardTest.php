@@ -12,10 +12,6 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthTokenGuardTest extends TestCase
 {
     /**

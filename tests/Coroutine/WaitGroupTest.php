@@ -8,10 +8,6 @@ use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine;
 
-/**
- * @internal
- * @coversNothing
- */
 class WaitGroupTest extends TestCase
 {
     public function testWaitAgain()

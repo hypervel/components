@@ -11,10 +11,6 @@ use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     DumpWatcher::class => true,
 ])]

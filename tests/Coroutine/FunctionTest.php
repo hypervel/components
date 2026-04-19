@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class FunctionTest extends TestCase
 {
     public function testReturnOfGo()

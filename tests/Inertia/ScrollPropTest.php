@@ -14,10 +14,6 @@ use Hypervel\Inertia\ScrollProp;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Tests\Inertia\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScrollPropTest extends TestCase
 {
     use InteractsWithUserModels;

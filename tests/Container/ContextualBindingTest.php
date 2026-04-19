@@ -8,10 +8,6 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextualBindingTest extends TestCase
 {
     public function testContainerCanInjectDifferentImplementationsDependingOnContext()

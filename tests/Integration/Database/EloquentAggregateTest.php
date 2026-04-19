@@ -8,10 +8,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentAggregateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -91,10 +87,6 @@ class EloquentAggregateTest extends DatabaseTestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class UserAggregateTest extends Model
 {
     protected ?string $table = 'users';

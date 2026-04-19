@@ -8,10 +8,6 @@ use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResolvingCallbackTest extends TestCase
 {
     public function testResolvingCallbacksAreCalledForSpecificAbstracts()
@@ -540,6 +536,48 @@ class ResolvingCallbackTest extends TestCase
         // Then resolving anything increases the counter by one.
         $container->make(ResolvingImplementationStub::class);
         $this->assertEquals(1, $callCounter);
+    }
+
+    public function testCallbacksFireInDeterministicOrderAcrossBuckets()
+    {
+        $container = new Container;
+        $order = [];
+
+        $container->resolving(function () use (&$order) {
+            $order[] = 'global.resolving';
+        });
+
+        $container->resolving(stdClass::class, function () use (&$order) {
+            $order[] = 'type.resolving';
+        });
+
+        $container->resolving('foo', function () use (&$order) {
+            $order[] = 'concrete.resolving';
+        });
+
+        $container->afterResolving(function () use (&$order) {
+            $order[] = 'global.after';
+        });
+
+        $container->afterResolving(stdClass::class, function () use (&$order) {
+            $order[] = 'type.after';
+        });
+
+        $container->afterResolving('foo', function () use (&$order) {
+            $order[] = 'concrete.after';
+        });
+
+        $container->bind('foo', fn () => new stdClass);
+        $container->make('foo');
+
+        $this->assertSame([
+            'global.resolving',
+            'type.resolving',
+            'concrete.resolving',
+            'global.after',
+            'type.after',
+            'concrete.after',
+        ], $order);
     }
 }
 

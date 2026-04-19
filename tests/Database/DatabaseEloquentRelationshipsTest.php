@@ -23,10 +23,6 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentRelationshipsTest extends TestCase
 {
     public function testStandardRelationships()

@@ -13,10 +13,6 @@ use Mockery as m;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextTest extends TestCase
 {
     protected Repository $context;

@@ -9,10 +9,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class AfterQueryTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

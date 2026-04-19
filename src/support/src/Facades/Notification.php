@@ -31,6 +31,12 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static \Hypervel\Notifications\ChannelManager removePoolable(string $driver)
  * @method static array getPoolables()
  * @method static \Hypervel\Notifications\ChannelManager setPoolables(array $poolables)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static void assertSentOnDemand(\Closure|string $notification, callable|null $callback = null)
  * @method static void assertSentTo(mixed $notifiable, \Closure|string $notification, callable|string|int|null $callback = null)
  * @method static void assertSentOnDemandTimes(string $notification, int $times = 1)
@@ -42,14 +48,8 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static void assertCount(int $expectedCount)
  * @method static \Hypervel\Support\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
  * @method static bool hasSent(mixed $notifiable, string $notification)
- * @method static array sentNotifications()
- * @method static void macro(string $name, callable|object $macro)
- * @method static void mixin(object $mixin, bool $replace = true)
- * @method static bool hasMacro(string $name)
- * @method static void flushMacros()
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
- * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Support\Testing\Fakes\NotificationFake serializeAndRestore(bool $serializeAndRestore = true)
+ * @method static array sentNotifications()
  *
  * @see \Hypervel\Notifications\ChannelManager
  * @see \Hypervel\Support\Testing\Fakes\NotificationFake

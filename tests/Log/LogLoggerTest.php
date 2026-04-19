@@ -18,10 +18,6 @@ use Monolog\Level;
 use Monolog\Logger as Monolog;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogLoggerTest extends TestCase
 {
     public function testMethodsPassErrorAdditionsToMonolog()

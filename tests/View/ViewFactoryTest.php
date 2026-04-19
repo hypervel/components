@@ -28,10 +28,6 @@ use PHPUnit\Framework\TestCase;
 use ReflectionFunction;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewFactoryTest extends TestCase
 {
     protected function tearDown(): void

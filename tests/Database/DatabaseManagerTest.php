@@ -10,10 +10,6 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use PDO;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseManagerTest extends TestCase
 {
     protected DB $db;

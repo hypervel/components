@@ -21,9 +21,6 @@ use function Hypervel\Coroutine\go;
  * withoutTouching() use Context (per-coroutine storage) rather than
  * static properties (process-global), ensuring concurrent requests
  * don't interfere with each other.
- *
- * @internal
- * @coversNothing
  */
 class ModelCoroutineSafetyTest extends DatabaseTestCase
 {

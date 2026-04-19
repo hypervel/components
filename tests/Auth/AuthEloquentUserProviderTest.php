@@ -12,10 +12,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthEloquentUserProviderTest extends TestCase
 {
     public function testRetrieveByIDReturnsUser()

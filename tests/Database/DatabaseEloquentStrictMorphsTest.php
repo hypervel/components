@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentStrictMorphsTest extends TestCase
 {
     protected function setUp(): void

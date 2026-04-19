@@ -10,10 +10,6 @@ use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CursorPaginatorLoadMorphTest extends TestCase
 {
     public function testCollectionLoadMorphCanChainOnThePaginator()

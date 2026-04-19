@@ -33,7 +33,8 @@ Testbench and workbench:
 | Path | Description |
 |------|-------------|
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
-| `src/testbench/workbench/` | Workbench app used by testbench for integration tests. Contains `app/`, `database/factories/`, `database/seeders/`. |
+| `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
+| `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
 
 ## Porting Packages
 
@@ -95,6 +96,9 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **One file at a time** — never work on multiple files simultaneously.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write → delete.
+- **`cp` THEN read** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
+- **Preserve source method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the Laravel/Hyperf source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
 - **No class docblocks unless warranted** — only add a class docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added.
 - **Preserve existing comments — do not remove them.** Only remove:
   - Source package boilerplate (e.g., the Hyperf license header block)
@@ -108,12 +112,14 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
 - **Stop on any source code bug** — if phpstan or tests expose a bug in Hypervel source code (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval. Also stop and report bugs found in the **upstream** Laravel/Hyperf source being ported (resource leaks, logic errors, missing cleanup, etc.) — explain the issue and recommend whether to port as-is for 1:1 parity or fix during porting.
 - **Do not work around incorrect existing code to avoid churn** — if porting exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over minimizing blast radius. For any non-trivial fix, stop and explain the root cause and recommended change before proceeding.
+- **Never weaken or drop tests to work around source issues** — if a ported test exposes source-side problems (wrong types, broken logic, missing classes/methods, signatures that diverge from Laravel, missing API parity, etc.), STOP and report the issue with a recommendation for the most correct fix. Never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed.
 - **Never dismiss issues as "out of scope" or "pre-existing"** — When porting exposes any issue (bugs, divergences, missing API parity, incorrect visibility, type inconsistencies, naming mismatches, etc.), always stop and report it. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify not reporting something. You are not permitted to decide what is or isn't worth addressing — only the user makes that call.
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
 - **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
 - **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
+- **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
 ### Container Usage (Hyperf → Hypervel)
 
@@ -514,13 +520,17 @@ These apply to all test porting, regardless of whether the source is Hyperf or L
 | Class | Use When |
 |-------|----------|
 | `Hypervel\Tests\TestCase` | Unit tests, mocks only, no container needed |
-| `Hypervel\Testbench\TestCase` | Integration tests, needs container (facades, config, DB, etc.) |
+| `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that writes files to disk** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
 
 Always call `parent::setUp()` in your setUp method.
 
 #### Test Support Files
 
 All test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file.
+
+#### Temp Directories for File I/O
+
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the directory table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, create in `setUp`, delete via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
 
 #### Coroutine Support
 
@@ -567,12 +577,23 @@ A per-package base class is only justified when there is shared setUp logic — 
 #### Docblocks and Types
 
 - Add `declare(strict_types=1);` at the top of every file
-- Add `@internal` and `@coversNothing` docblock to every test class
 - Do **not** add `: void` return type to test methods — existing tests don't use them, stay consistent
+- **Use PHPUnit attributes instead of docblock annotations** — prefer `#[DataProvider('...')]`, `#[Depends('...')]`, etc. over their `@dataProvider`/`@depends` docblock equivalents. Do **not** add `@internal`/`@coversNothing` docblocks or `#[CoversNothing]`/`#[CoversClass(…)]` attributes — Hyperf uses both forms but Laravel doesn't, and they serve no purpose outside strict coverage modes
 
 #### phpstan
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
+
+**When fixing phpstan errors:**
+
+1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
+2. **Native types vs docblocks determine what's dead code.** If a native return type makes a guard unreachable, the guard is dead code — remove it. If only a docblock suggests always-true, the guard is legitimate runtime defense — leave it.
+3. **Don't change contract/concrete boundaries to fix phpstan.** Swapping a contract for a concrete (or vice versa) to satisfy a type check diverges from Laravel's API. Only do this when Laravel's typing is genuinely incorrect.
+4. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
+5. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
+6. **Type decisions must be evidence-based.** Check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
+7. **Don't add `assert()` to narrow types for phpstan.** Fix the underlying type signature or docblock instead. When that isn't possible, use `@var` to narrow to the correct runtime type. Use `@phpstan-ignore` only when the error can't be resolved by fixing types or narrowing with `@var` (e.g., magic `__call`/`__get` forwarding).
+8. **Don't add patterns to `phpstan.neon.dist`.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). New phpstan errors should be fixed at the source, never masked with new neon rules.
 
 #### Handling Failing Tests
 
@@ -632,7 +653,7 @@ When both Hyperf and Laravel have tests covering the same class, merge them into
 #### Boilerplate Removal
 
 - Remove the Hyperf license header block (`@link`, `@document`, `@contact`, `@license`)
-- Remove PHPUnit attributes: `#[CoversNothing]`, `#[CoversClass(…)]`, `#[Group(…)]` — use PHPDoc annotations only
+- Remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes entirely — we don't use them (see "Docblocks and Types" above)
 
 #### Container Mocking
 
@@ -681,15 +702,14 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 1. Update namespace from `HyperfTest\{Package}` to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Hyperf\` imports to `Hypervel\`
-4. Remove Hyperf license header and PHPUnit attributes
+4. Remove Hyperf license header; remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes
 5. Extend `Hypervel\Tests\TestCase` (not `PHPUnit\Framework\TestCase`)
-6. Add `@internal` and `@coversNothing` docblock
-7. Do **not** add `: void` return types to test methods
-8. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
-9. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
-10. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
-11. Ensure `parent::setUp()` is called
-12. Run tests and fix any remaining type errors
+6. Do **not** add `: void` return types to test methods
+7. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
+8. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
+9. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
+10. Ensure `parent::setUp()` is called
+11. Run tests and fix any remaining type errors
 
 ### Porting Laravel Tests
 
@@ -856,16 +876,15 @@ This list is exhaustive. Any other missing functionality is "not yet ported" and
 1. Update namespace to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
-4. Add `@internal` and `@coversNothing` docblock to test classes
-5. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
-6. Ensure `parent::setUp()` is called
-7. Do **not** add `: void` return types to test methods
-8. Add type declarations to model properties
-9. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
-10. Add `->andReturnSelf()` to chained method mocks
-11. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
-12. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
-13. Run tests and fix any remaining type errors
+4. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
+5. Ensure `parent::setUp()` is called
+6. Do **not** add `: void` return types to test methods
+7. Add type declarations to model properties
+8. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
+9. Add `->andReturnSelf()` to chained method mocks
+10. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
+11. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
+12. Run tests and fix any remaining type errors
 
 ### Integration Tests
 

@@ -8,10 +8,6 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationServiceProviderTest extends TestCase
 {
     public function testRequestHasValidSignatureMacroIsRegistered()

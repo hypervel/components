@@ -19,10 +19,6 @@ use Override;
 
 #[WithMigration]
 #[WithMigration('queue')]
-/**
- * @internal
- * @coversNothing
- */
 class JobEncryptionTest extends QueueTestCase
 {
     protected function defineEnvironment($app): void

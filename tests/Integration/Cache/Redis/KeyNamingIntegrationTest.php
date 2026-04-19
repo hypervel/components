@@ -17,9 +17,6 @@ use Redis;
  * - Any mode: {prefix}_any:tag:{name}:entries (HASH), {prefix}{key}:_any:tags (SET), {prefix}_any:tag:registry (ZSET)
  *
  * Also verifies collision prevention when tags have special names.
- *
- * @internal
- * @coversNothing
  */
 class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
 {

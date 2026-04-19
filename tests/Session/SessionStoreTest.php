@@ -16,10 +16,6 @@ use Mockery as m;
 use RuntimeException;
 use SessionHandlerInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class SessionStoreTest extends TestCase
 {
     public function testSessionIsLoadedFromHandler()

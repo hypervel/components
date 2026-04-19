@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
-/**
- * @internal
- * @covers \Hypervel\ApiClient\ApiResource
- */
 class ApiResourceTest extends TestCase
 {
     /**

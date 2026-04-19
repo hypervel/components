@@ -8,10 +8,6 @@ use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportNumberTest extends TestCase
 {
     public function testDefaultLocale()

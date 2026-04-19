@@ -6,14 +6,12 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
+use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JsonException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventHandlerTest extends ReverbTestCase
 {
     protected FakeConnection $connection;
@@ -152,5 +150,110 @@ class EventHandlerTest extends ReverbTestCase
 
         // NAN is not representable in JSON
         $this->pusher->formatPayload('foo', ['value' => NAN]);
+    }
+
+    // ── Cache miss webhook ────────────────────────────────────────────
+
+    public function testCacheMissFiresWebhook()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['cache_miss'],
+        ]);
+
+        $this->pusher->subscribe($this->connection, 'cache-test-channel');
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'cache_miss'
+                && $event['channel'] === 'cache-test-channel';
+        });
+    }
+
+    public function testCacheHitDoesNotFireWebhook()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['cache_miss'],
+        ]);
+
+        // Subscribe first to create the channel, then broadcast to populate cache
+        $this->pusher->subscribe($this->connection, 'cache-test-channel');
+
+        // Reset queue to clear the cache_miss from the first subscribe
+        Queue::fake();
+
+        $channels = $this->app->make(ChannelManager::class)->for($this->connection->app());
+        $channel = $channels->find('cache-test-channel');
+        $channel->broadcast(['event' => 'test', 'data' => 'payload', 'channel' => 'cache-test-channel']);
+
+        // Subscribe a new connection — cache is populated, so no cache_miss
+        $secondConnection = new FakeConnection;
+        $this->pusher->subscribe($secondConnection, 'cache-test-channel');
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'cache_miss';
+        });
+    }
+
+    public function testCacheMissWebhookIsDeduplicated()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['cache_miss'],
+        ]);
+
+        // Two connections subscribe to the same empty cache channel
+        $this->pusher->subscribe($this->connection, 'cache-test-channel');
+        $secondConnection = new FakeConnection;
+        $this->pusher->subscribe($secondConnection, 'cache-test-channel');
+
+        // Only one cache_miss webhook should fire (deduplicated by lock)
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'cache_miss';
+        });
+
+        $count = Queue::pushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'cache_miss';
+        })->count();
+
+        $this->assertSame(1, $count);
+    }
+
+    public function testCacheMissWebhookRespectsEventFilter()
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'], // cache_miss NOT in the list
+        ]);
+
+        $this->pusher->subscribe($this->connection, 'cache-test-channel');
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'cache_miss';
+        });
+    }
+
+    public function testCacheMissWithNoWebhooksDoesNotTouchLock()
+    {
+        // Default config — no webhook URL configured
+        $sharedState = $this->app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
+
+        $this->pusher->subscribe($this->connection, 'cache-test-channel');
+
+        // The lock should NOT have been acquired since hasWebhooks() is false.
+        // Verify by acquiring it now — if it was already held, this would fail.
+        $this->assertTrue(
+            $sharedState->tryCacheMissLock($this->connection->app()->id(), 'cache-test-channel')
+        );
     }
 }

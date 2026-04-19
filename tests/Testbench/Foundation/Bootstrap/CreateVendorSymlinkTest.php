@@ -17,10 +17,6 @@ use function Hypervel\Testbench\default_skeleton_path;
 use function Hypervel\Testbench\hypervel_vendor_exists;
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class CreateVendorSymlinkTest extends TestCase
 {
     private ?ApplicationContract $application = null;

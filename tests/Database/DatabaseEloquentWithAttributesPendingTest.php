@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentWithAttributesPendingTest extends TestCase
 {
     protected function setUp(): void
@@ -71,7 +67,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
                 'is_admin' => 1,
                 'first_name' => 'FIRST',
                 'last_name' => 'LAST',
-                'type' => PendingAttributesEnum::internal,
+                'type' => PendingAttributesEnum::Internal,
             ], asConditions: false);
 
         $model = $query->make();
@@ -79,7 +75,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
         $this->assertSame(true, $model->is_admin);
         $this->assertSame('First', $model->first_name);
         $this->assertSame('Last', $model->last_name);
-        $this->assertSame(PendingAttributesEnum::internal, $model->type);
+        $this->assertSame(PendingAttributesEnum::Internal, $model->type);
 
         $this->assertEqualsCanonicalizing([
             'is_admin' => 1,
@@ -98,7 +94,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
                 'is_admin' => 1,
                 'first_name' => 'FIRST',
                 'last_name' => 'LAST',
-                'type' => PendingAttributesEnum::internal,
+                'type' => PendingAttributesEnum::Internal,
             ], asConditions: false);
 
         $query->create();
@@ -108,7 +104,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
         $this->assertSame(true, $model->is_admin);
         $this->assertSame('First', $model->first_name);
         $this->assertSame('Last', $model->last_name);
-        $this->assertSame(PendingAttributesEnum::internal, $model->type);
+        $this->assertSame(PendingAttributesEnum::Internal, $model->type);
     }
 
     protected function bootTable(): void
@@ -159,5 +155,5 @@ class PendingAttributesModel extends Model
 
 enum PendingAttributesEnum: string
 {
-    case internal = 'int';
+    case Internal = 'int';
 }

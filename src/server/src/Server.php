@@ -6,7 +6,7 @@ namespace Hypervel\Server;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Server\MiddlewareInitializerInterface;
+use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Core\Bootstrap;
 use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerStart;
@@ -175,8 +175,8 @@ class Server implements ServerInterface
                     // Override the server name.
                     $class->setServerName($serverName);
                 }
-                if ($class instanceof MiddlewareInitializerInterface) {
-                    $class->initCoreMiddleware($serverName);
+                if ($class instanceof BootstrapsForServer) {
+                    $class->bootstrapForServer($serverName);
                 }
                 $callback = [$class, $method];
             }

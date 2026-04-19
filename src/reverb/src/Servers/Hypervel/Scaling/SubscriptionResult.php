@@ -14,6 +14,7 @@ final readonly class SubscriptionResult
         public bool $channelVacated,
         public bool $memberAdded,
         public bool $memberRemoved,
+        public int $subscriptionCount,
     ) {
     }
 }

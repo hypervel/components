@@ -9,10 +9,6 @@ use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
     public function testCreateDatabase()

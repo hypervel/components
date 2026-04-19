@@ -117,7 +117,7 @@ trait InteractsWithExceptionHandling
                     throw new NotFoundHttpException(
                         "{$request->method()} {$request->url()}",
                         $e,
-                        is_int($e->getCode()) ? $e->getCode() : 0
+                        $e->getCode()
                     );
                 }
 
@@ -156,9 +156,12 @@ trait InteractsWithExceptionHandling
      */
     protected function assertThrows(Closure $test, string|Closure $expectedClass = Throwable::class, ?string $expectedMessage = null): static
     {
-        [$expectedClass, $expectedClassCallback] = $expectedClass instanceof Closure
-            ? [$this->firstClosureParameterType($expectedClass), $expectedClass]
-            : [$expectedClass, null];
+        if ($expectedClass instanceof Closure) {
+            $expectedClassCallback = $expectedClass;
+            $expectedClass = $this->firstClosureParameterType($expectedClass);
+        } else {
+            $expectedClassCallback = null;
+        }
 
         try {
             $test();

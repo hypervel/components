@@ -13,10 +13,6 @@ use Hypervel\Tests\Support\Fixtures\StringBackedEnum;
 use Hypervel\Tests\TestCase;
 use JsonSerializable;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportJsTest extends TestCase
 {
     public function testScalars()
@@ -198,7 +194,7 @@ class SupportJsTest extends TestCase
 
     public function testBackedEnums()
     {
-        $this->assertSame('2', (string) Js::from(IntBackedEnum::TWO));
-        $this->assertSame("'Hello world'", (string) Js::from(StringBackedEnum::HELLO_WORLD));
+        $this->assertSame('2', (string) Js::from(IntBackedEnum::Two));
+        $this->assertSame("'Hello world'", (string) Js::from(StringBackedEnum::HelloWorld));
     }
 }

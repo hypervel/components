@@ -18,10 +18,6 @@ class PendingDispatchWithoutDestructor extends PendingDispatch
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class BusPendingDispatchTest extends TestCase
 {
     protected $job;

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithConfig;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.connections.second', ['driver' => 'sqlite', 'database' => ':memory:', 'foreign_key_constraints' => false])]
 class EloquentTransactionWithAfterCommitUsingRefreshDatabaseOnMultipleConnectionsTest extends EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest
 {

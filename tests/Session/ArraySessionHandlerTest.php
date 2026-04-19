@@ -9,10 +9,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use SessionHandlerInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ArraySessionHandlerTest extends TestCase
 {
     public function testIsSessionHandlerInterface()

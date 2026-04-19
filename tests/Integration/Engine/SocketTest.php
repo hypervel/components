@@ -11,9 +11,6 @@ use Hypervel\Engine\Socket;
  *
  * These tests require a TCP server running on the configured host/port
  * that responds to length-prefixed packets.
- *
- * @internal
- * @coversNothing
  */
 class SocketTest extends EngineIntegrationTestCase
 {

@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Console\Attribute\AsCommand;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleApplicationTest extends TestCase
 {
     protected function setUp(): void

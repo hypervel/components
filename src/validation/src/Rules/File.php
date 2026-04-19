@@ -340,6 +340,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      */
     public static function flushState(): void
     {
+        static::$defaultCallback = null;
         static::flushMacros();
     }
 }

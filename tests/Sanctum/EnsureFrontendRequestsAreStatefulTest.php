@@ -8,10 +8,6 @@ use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnsureFrontendRequestsAreStatefulTest extends TestCase
 {
     protected function setUp(): void

@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Inertia;
 
 use Hypervel\Inertia\Ssr\BundleDetector;
 
-/**
- * @internal
- * @coversNothing
- */
 class BundleDetectorTest extends TestCase
 {
     public function testDetectCachesResultForWorkerLifetime()

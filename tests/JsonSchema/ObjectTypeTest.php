@@ -8,10 +8,6 @@ use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ObjectTypeTest extends TestCase
 {
     public function testItMayNotHaveProperties()

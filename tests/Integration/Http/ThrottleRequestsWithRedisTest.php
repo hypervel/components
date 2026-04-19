@@ -11,13 +11,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 
-/**
- * @group integration
- * @group redis-integration
- *
- * @internal
- * @coversNothing
- */
 class ThrottleRequestsWithRedisTest extends TestCase
 {
     use InteractsWithRedis;

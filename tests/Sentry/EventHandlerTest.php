@@ -8,10 +8,6 @@ use Hypervel\Sentry\EventHandler;
 use ReflectionClass;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventHandlerTest extends SentryTestCase
 {
     public function testMissingEventHandlerThrowsException(): void

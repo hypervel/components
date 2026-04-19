@@ -10,10 +10,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use Psr\SimpleCache\CacheInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class PsrCacheTest extends TestCase
 {
     /**

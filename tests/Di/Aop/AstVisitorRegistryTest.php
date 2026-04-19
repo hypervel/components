@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Di\Aop;
 use Hypervel\Di\Aop\AstVisitorRegistry;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AstVisitorRegistryTest extends TestCase
 {
     public function testInsertAndExists()

@@ -10,10 +10,6 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportCapsuleManagerTraitTest extends TestCase
 {
     use CapsuleManagerTrait;

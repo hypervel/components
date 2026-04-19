@@ -13,10 +13,6 @@ use Hypervel\Contracts\Cache\Store;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheEventMutexTest extends TestCase
 {
     protected ?CacheEventMutex $cacheMutex = null;

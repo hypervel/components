@@ -12,10 +12,6 @@ use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends TestCase
 {
     public function testWillExecuted()

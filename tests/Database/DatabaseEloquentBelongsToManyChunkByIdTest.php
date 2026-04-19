@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 {
     protected function setUp(): void

@@ -11,10 +11,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 #[WithConfig('database.default', 'testing')]
 class WithMigrationAttributeTest extends TestCase

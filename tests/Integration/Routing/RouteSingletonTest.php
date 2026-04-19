@@ -9,10 +9,6 @@ use Hypervel\Tests\Integration\Routing\Fixtures\CreatableSingletonTestController
 use Hypervel\Tests\Integration\Routing\Fixtures\NestedSingletonTestController;
 use Hypervel\Tests\Integration\Routing\Fixtures\SingletonTestController;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteSingletonTest extends RoutingTestCase
 {
     public function testSingletonDefaults()

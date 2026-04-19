@@ -19,10 +19,6 @@ use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\workbench_path;
 use function Hypervel\Testbench\workbench_relative_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class ActionsTest extends TestCase
 {
     /**

@@ -14,9 +14,6 @@ use RuntimeException;
  * Tests the single-connection optimization that performs GET and conditional
  * tagged PUT (ZADD + SETEX) in a single pool checkout using pipeline or
  * sequential commands for cluster mode.
- *
- * @internal
- * @coversNothing
  */
 class RememberTest extends RedisCacheTestCase
 {

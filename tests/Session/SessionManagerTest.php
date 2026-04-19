@@ -18,10 +18,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class SessionManagerTest extends TestCase
 {
     public function testDatabaseDriverLeavesConnectionUnsetByDefault(): void

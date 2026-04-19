@@ -19,10 +19,6 @@ use Hypervel\Support\Facades\Config;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 #[WithMigration('queue')]
 class JobDispatchingTest extends QueueTestCase

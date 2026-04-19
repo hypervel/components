@@ -26,10 +26,6 @@ use Hypervel\Testbench\TestCase;
 use LogicException;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 class ModelSerializationTest extends TestCase
 {
     use RefreshDatabase;

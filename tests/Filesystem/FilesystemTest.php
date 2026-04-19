@@ -16,10 +16,6 @@ use SplFileInfo;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class FilesystemTest extends TestCase
 {
     private string $tempDir;

@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisLockTest extends TestCase
 {
     public function testAcquireWithExpirationUsesSETWithNXAndEX(): void

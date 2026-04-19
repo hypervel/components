@@ -17,10 +17,6 @@ use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\transform_realpath_to_relative;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 class VendorPublishCommandTest extends TestCase
 {

@@ -14,10 +14,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\default_skeleton_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class ApplicationTest extends TestCase
 {
     #[Override]

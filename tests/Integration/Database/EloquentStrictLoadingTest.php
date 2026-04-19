@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentStrictLoadingTest extends DatabaseTestCase
 {
     protected function setUp(): void

@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConnectionsControllerTest extends ReverbTestCase
 {
     public function testCanReturnAConnectionCount()

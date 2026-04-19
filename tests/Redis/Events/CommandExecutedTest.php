@@ -11,10 +11,6 @@ use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandExecutedTest extends TestCase
 {
     public function testCommandExecutedConstructor()

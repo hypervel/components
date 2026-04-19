@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportConditionableTest extends TestCase
 {
     public function testWhenConditionCallback()

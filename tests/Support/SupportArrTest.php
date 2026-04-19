@@ -20,10 +20,6 @@ use WeakMap;
 include_once 'Common.php';
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportArrTest extends TestCase
 {
     public function testAccessible(): void

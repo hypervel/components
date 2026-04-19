@@ -13,10 +13,6 @@ use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 #[UsesVendor]
 class ArtisanTest extends TestCase
 {
@@ -39,7 +35,6 @@ class ArtisanTest extends TestCase
     {
         foreach ([
             package_path('src', 'testbench', 'hypervel', 'artisan'),
-            package_path('src', 'testbench', 'workbench', 'artisan'),
         ] as $artisanPath) {
             $process = new Process(
                 command: [php_binary(), $artisanPath, '--version', '--no-ansi'],

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Sanctum;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CurrentApplicationUrlWithPortTest extends TestCase
 {
     public function testCurrentApplicationUrlWithPort(): void

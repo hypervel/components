@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class ErrorPageTest extends TestCase
 {

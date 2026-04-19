@@ -11,10 +11,6 @@ use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class LoadConfigurationTest extends TestCase
 {
     public function testLoadsBaseConfiguration()

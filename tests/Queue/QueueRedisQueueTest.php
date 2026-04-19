@@ -16,10 +16,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueRedisQueueTest extends TestCase
 {
     public function testPushProperlyPushesJobOntoRedis()

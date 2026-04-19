@@ -32,6 +32,15 @@ abstract class Connection
     protected bool $connectionSlotAcquired = false;
 
     /**
+     * Whether this connection is being cleaned up after a transport disconnect.
+     *
+     * Used by disconnect smoothing to distinguish transport-level disconnects
+     * (where reconnect flaps should be absorbed) from explicit pusher:unsubscribe
+     * messages (which fire webhooks immediately).
+     */
+    protected bool $disconnecting = false;
+
+    /**
      * Create a new connection instance.
      */
     public function __construct(
@@ -200,5 +209,21 @@ abstract class Connection
     public function clearConnectionSlotAcquired(): void
     {
         $this->connectionSlotAcquired = false;
+    }
+
+    /**
+     * Mark the connection as disconnecting (transport closed).
+     */
+    public function markDisconnecting(): void
+    {
+        $this->disconnecting = true;
+    }
+
+    /**
+     * Determine whether the connection is disconnecting.
+     */
+    public function isDisconnecting(): bool
+    {
+        return $this->disconnecting;
     }
 }

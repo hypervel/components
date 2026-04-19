@@ -29,10 +29,6 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandTest extends TestCase
 {
     public function testHookFlags()

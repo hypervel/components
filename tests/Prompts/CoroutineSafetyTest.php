@@ -16,10 +16,6 @@ use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineSafetyTest extends TestCase
 {
     /**

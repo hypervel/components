@@ -13,10 +13,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class BroadcastEventTest extends TestCase
 {
     public function testBasicEventBroadcastParameterFormatting()

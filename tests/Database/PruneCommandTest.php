@@ -20,10 +20,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class PruneCommandTest extends TestCase
 {
     protected function setUp(): void

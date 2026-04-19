@@ -8,10 +8,6 @@ use Hypervel\Contracts\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Attributes\Scope;
 use Hypervel\Database\Eloquent\Model;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelScopeTest extends DatabaseTestCase
 {
     public function testModelHasScope()

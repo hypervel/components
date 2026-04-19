@@ -13,10 +13,6 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 
-/**
- * @internal
- * @coversNothing
- */
 class OptionTest extends TestCase
 {
     protected string $tempDir;

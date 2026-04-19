@@ -13,9 +13,6 @@ use Mockery as m;
 
 /**
  * Tests for RemoveFromSearch job.
- *
- * @internal
- * @coversNothing
  */
 class RemoveFromSearchTest extends ScoutTestCase
 {

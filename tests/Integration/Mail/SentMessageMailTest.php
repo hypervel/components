@@ -15,10 +15,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SentMessageMailTest extends TestCase
 {
     use LazilyRefreshDatabase;

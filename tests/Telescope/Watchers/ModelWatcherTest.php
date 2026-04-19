@@ -12,10 +12,6 @@ use Hypervel\Telescope\Watchers\ModelWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     ModelWatcher::class => [
         'enabled' => true,

@@ -11,9 +11,6 @@ use Symfony\Component\Process\Process;
 
 /**
  * Tests for cross-process file locking behavior.
- *
- * @internal
- * @coversNothing
  */
 class FilesystemNonCoroutineTest extends TestCase
 {

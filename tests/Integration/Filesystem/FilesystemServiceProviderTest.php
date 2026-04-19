@@ -8,10 +8,6 @@ use Hypervel\Filesystem\FilesystemServiceProvider;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class FilesystemServiceProviderTest extends TestCase
 {
     public function testItThrowsWhenServedDisksHaveConflictingUris(): void

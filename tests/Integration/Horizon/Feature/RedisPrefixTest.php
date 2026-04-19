@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisPrefixTest extends IntegrationTestCase
 {
     public function testPrefixCanBeConfigured()

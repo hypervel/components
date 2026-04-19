@@ -25,6 +25,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
+use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
@@ -481,19 +482,31 @@ trait ValidatesAttributes
      */
     public function validateDate(string $attribute, mixed $value): bool
     {
+        return $this->isValidDate($value);
+    }
+
+    /**
+     * Determine if a value is a valid date.
+     *
+     * Accepts DateTimeInterface instances, numeric timestamps, and string
+     * date representations. Validates via strtotime() and date_parse() +
+     * checkdate() to reject dates like February 30th.
+     */
+    protected function isValidDate(mixed $value): bool
+    {
         if ($value instanceof DateTimeInterface) {
             return true;
         }
 
         try {
-            if ((! is_string($value) && ! is_numeric($value)) || strtotime($value) === false) {
+            if ((! is_string($value) && ! is_numeric($value)) || strtotime((string) $value) === false) {
                 return false;
             }
         } catch (Exception) {
             return false;
         }
 
-        $date = date_parse($value);
+        $date = date_parse((string) $value);
 
         return checkdate((int) $date['month'], (int) $date['day'], (int) $date['year']);
     }
@@ -512,18 +525,33 @@ trait ValidatesAttributes
         }
 
         foreach ($parameters as $format) {
-            try {
-                $date = DateTime::createFromFormat('!' . $format, $value, new DateTimeZone('UTC'));
-
-                if ($date && $date->format($format) == $value) {
-                    return true;
-                }
-            } catch (ValueError) {
-                return false;
+            if ($this->matchesDateFormat($value, (string) $format)) {
+                return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Determine if a value matches a specific date format.
+     *
+     * Creates a DateTime from the format and verifies round-trip formatting
+     * produces the same string. Catches ValueError for invalid format strings.
+     */
+    protected function matchesDateFormat(mixed $value, string $format): bool
+    {
+        if (! is_string($value) && ! is_numeric($value)) {
+            return false;
+        }
+
+        try {
+            $date = DateTime::createFromFormat('!' . $format, (string) $value, new DateTimeZone('UTC'));
+
+            return $date !== false && $date->format($format) == $value;
+        } catch (ValueError) {
+            return false;
+        }
     }
 
     /**
@@ -807,6 +835,20 @@ trait ValidatesAttributes
     }
 
     /**
+     * Determine if a value is a valid email address using basic RFC validation.
+     *
+     * Used by the inline check for the bare `email` rule token. The
+     * parameterized form (email:rfc,dns,spoof,filter,...) stays in
+     * validateEmail() and flows through the delegated path.
+     */
+    protected function isValidEmail(string $value): bool
+    {
+        $emailValidator = Container::getInstance()->make(EmailValidator::class);
+
+        return $emailValidator->isValid($value, new MultipleValidationWithAnd([new RFCValidation]));
+    }
+
+    /**
      * Validate that a value has a specific character encoding.
      */
     public function validateEncoding(string $attribute, mixed $value, array $parameters): bool
@@ -1006,7 +1048,7 @@ trait ValidatesAttributes
      */
     public function guessColumnForQuery(string $attribute): string
     {
-        if (in_array($attribute, Arr::collapse($this->implicitAttributes))
+        if (isset($this->getImplicitAttributeMap()[$attribute])
             && ! is_numeric($last = last(explode('.', $attribute)))
         ) {
             return $last;
@@ -1342,6 +1384,30 @@ trait ValidatesAttributes
     }
 
     /**
+     * Determine if a value is a valid IP address (any version).
+     */
+    protected function isValidIp(string $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_IP) !== false;
+    }
+
+    /**
+     * Determine if a value is a valid IPv4 address.
+     */
+    protected function isValidIpv4(string $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+    }
+
+    /**
+     * Determine if a value is a valid IPv6 address.
+     */
+    protected function isValidIpv6(string $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+    }
+
+    /**
      * Validate that an attribute is a valid MAC address.
      */
     public function validateMacAddress(string $attribute, mixed $value): bool
@@ -1586,13 +1652,27 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'multiple_of');
 
-        if (! $this->validateNumeric($attribute, $value) || ! $this->validateNumeric($attribute, $parameters[0])) {
+        return $this->isMultipleOf($value, $parameters[0]);
+    }
+
+    /**
+     * Determine if a value is an exact multiple of a divisor.
+     *
+     * Uses BigDecimal remainder for arbitrary-precision comparison. Both
+     * value and divisor must be numeric; the exception translation wrapping
+     * stays in the caller (validateMultipleOf) for non-numeric cases, but
+     * the BigDecimal exception is thrown from here since that's where the
+     * math operation lives.
+     */
+    protected function isMultipleOf(mixed $value, mixed $divisor): bool
+    {
+        if (! is_numeric($value) || ! is_numeric($divisor)) {
             return false;
         }
 
         try {
             $numerator = BigDecimal::of((string) $this->trim($value));
-            $denominator = BigDecimal::of((string) $this->trim($parameters[0]));
+            $denominator = BigDecimal::of((string) $this->trim($divisor));
 
             if ($numerator->isZero() && $denominator->isZero()) {
                 return false;
@@ -2230,6 +2310,14 @@ trait ValidatesAttributes
     }
 
     /**
+     * Determine if a value is a valid ULID.
+     */
+    protected function isValidUlid(string $value): bool
+    {
+        return Str::isUlid($value);
+    }
+
+    /**
      * Validate that an attribute is a valid UUID.
      *
      * @param array<int, 'max'|int<0, 8>> $parameters
@@ -2250,6 +2338,18 @@ trait ValidatesAttributes
     }
 
     /**
+     * Determine if a value is a valid UUID (any version).
+     *
+     * Used by the inline check for the bare `uuid` rule token. The
+     * parameterized form (uuid:4, uuid:max) stays in validateUuid()
+     * and flows through the delegated path.
+     */
+    protected function isValidUuid(string $value): bool
+    {
+        return Str::isUuid($value);
+    }
+
+    /**
      * Get the size of an attribute.
      */
     protected function getSize(string $attribute, mixed $value): float|int|string
@@ -2266,6 +2366,36 @@ trait ValidatesAttributes
         if (is_array($value)) {
             return count($value);
         }
+        if ($value instanceof SplFileInfo) {
+            return $value->getSize() / 1024;
+        }
+
+        return mb_strlen((string) $value);
+    }
+
+    /**
+     * Compute a value's "size" given a pre-resolved mode.
+     *
+     * Mirrors getSize() but takes an explicit SizeMode instead of scanning
+     * sibling rules at runtime. Uses value-first dispatch: when mode is
+     * Numeric AND the value is numeric, returns the trimmed numeric value;
+     * otherwise falls through to array count / file size / string length.
+     *
+     * This ordering is load-bearing: a mode-first version would throw
+     * NumberFormatException when a `min:X|numeric` rule runs before the
+     * numeric type check with a non-numeric value (e.g., 'abc'). getSize()
+     * falls back to string length in that situation; this helper must match.
+     */
+    protected function sizeOf(mixed $value, SizeMode $mode): float|int|string
+    {
+        if ($mode === SizeMode::Numeric && is_numeric($value)) {
+            return $this->trim($value);
+        }
+
+        if (is_array($value)) {
+            return count($value);
+        }
+
         if ($value instanceof SplFileInfo) {
             return $value->getSize() / 1024;
         }

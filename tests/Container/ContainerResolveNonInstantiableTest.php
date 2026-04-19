@@ -8,10 +8,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerResolveNonInstantiableTest extends TestCase
 {
     public function testResolvingNonInstantiableWithDefaultRemovesWiths()

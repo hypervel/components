@@ -12,10 +12,6 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Foundation\Auth\Access\AuthorizesRequests;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationAuthorizesRequestsTraitTest extends TestCase
 {
     public function testBasicGateCheck()
@@ -48,7 +44,7 @@ class FoundationAuthorizesRequestsTraitTest extends TestCase
             return true;
         });
 
-        $response = (new AuthorizeTraitClass)->authorize(Ability::BAZ);
+        $response = (new AuthorizeTraitClass)->authorize(Ability::Baz);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($_SERVER['_test.authorizes.trait.enum']);
@@ -184,5 +180,5 @@ class AuthorizeTraitClass
 
 enum Ability: string
 {
-    case BAZ = 'baz';
+    case Baz = 'baz';
 }

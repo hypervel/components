@@ -9,10 +9,6 @@ use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\JWT\Validations\IssuedAtClaim;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class IssuedAtClaimTest extends TestCase
 {
     public function testValid()

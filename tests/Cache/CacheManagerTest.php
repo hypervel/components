@@ -24,10 +24,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use Redis;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheManagerTest extends TestCase
 {
     public function testCustomDriverClosureBoundObjectIsCacheManager()

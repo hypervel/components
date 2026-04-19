@@ -14,10 +14,6 @@ use InvalidArgumentException;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionHandlerFakeTest extends TestCase
 {
     public function testFakeReturnsExceptionHandlerFake(): void

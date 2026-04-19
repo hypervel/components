@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithAopTest extends TestCase
 {
     use InteractsWithAop;

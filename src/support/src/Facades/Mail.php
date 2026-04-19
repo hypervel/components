@@ -31,6 +31,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static \Hypervel\Mail\SentMessage|null send(\Hypervel\Contracts\Mail\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
  * @method static \Hypervel\Mail\SentMessage|null sendNow(\Hypervel\Contracts\Mail\Mailable|array|string $mailable, array $data = [], \Closure|string|null $callback = null)
  * @method static void assertSent(\Closure|string $mailable, callable|array|string|int|null $callback = null)
+ * @method static void assertSentTimes(string $mailable, int $times = 1)
  * @method static void assertNotOutgoing(\Closure|string $mailable, callable|null $callback = null)
  * @method static void assertNotSent(\Closure|string $mailable, callable|array|string|null $callback = null)
  * @method static void assertNothingOutgoing()

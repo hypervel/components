@@ -9,10 +9,6 @@ use Hypervel\Support\HigherOrderCollectionProxy;
 use Hypervel\Support\HigherOrderTapProxy;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HigherOrderProxyTest extends TestCase
 {
     public function testGetProxiesPropertyAccessToItems()

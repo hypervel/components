@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\TestingServiceProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestWithoutDatabaseParallelTest extends TestCase
 {
     protected function getPackageProviders(ApplicationContract $app): array

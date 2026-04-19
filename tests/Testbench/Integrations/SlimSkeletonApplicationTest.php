@@ -12,10 +12,6 @@ use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class SlimSkeletonApplicationTest extends TestCase
 {

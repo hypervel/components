@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\clear;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClearPromptTest extends TestCase
 {
     public function testPromptClear()

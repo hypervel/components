@@ -18,10 +18,6 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerStartCommandTest extends TestCase
 {
     protected function tearDown(): void

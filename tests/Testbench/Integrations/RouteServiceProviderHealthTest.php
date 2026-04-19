@@ -12,10 +12,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Filesystem\join_paths;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class RouteServiceProviderHealthTest extends TestCase
 {

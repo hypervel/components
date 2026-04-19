@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\TestComponent;
 use Hypervel\View\Component;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithViewsTest extends TestCase
 {
     use InteractsWithViews;

@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ActionsBlockTest extends TestCase
 {
     public function testArrayable(): void

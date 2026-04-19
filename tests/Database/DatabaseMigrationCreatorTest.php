@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationCreatorTest extends TestCase
 {
     public function testBasicCreateMethodStoresMigrationFile()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Notifications\Slack\Composites;
 use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfirmObjectTest extends TestCase
 {
     public function testArrayable(): void

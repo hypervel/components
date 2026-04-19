@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequiresHypervelTest extends TestCase
 {
     #[Test]

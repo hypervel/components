@@ -19,10 +19,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallQueuedHandlerTest extends TestCase
 {
     public function testJobCanBeDispatched()

@@ -13,10 +13,6 @@ use Hypervel\View\ComponentSlot;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewComponentTest extends TestCase
 {
     public function testDataExposure()

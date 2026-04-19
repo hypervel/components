@@ -19,10 +19,6 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration]
 class InteractsWithAuthenticationTest extends TestCase
 {

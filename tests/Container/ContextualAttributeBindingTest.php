@@ -38,10 +38,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextualAttributeBindingTest extends TestCase
 {
     public function testDependencyCanBeResolvedFromAttributeBinding()

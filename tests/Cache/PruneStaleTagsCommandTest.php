@@ -15,10 +15,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class PruneStaleTagsCommandTest extends TestCase
 {
     public function testPruneCallsFlushStaleTagsOnStore()

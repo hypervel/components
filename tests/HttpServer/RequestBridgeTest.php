@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Http\Request as SwooleRequest;
 
-/**
- * @internal
- * @coversNothing
- */
 class RequestBridgeTest extends TestCase
 {
     public function testCreateFromSwooleWithGetRequest()

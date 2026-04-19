@@ -25,10 +25,6 @@ use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AttributesTest extends TestCase
 {
     public function testDefineEnvironmentImplementsActionable(): void

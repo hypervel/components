@@ -11,10 +11,6 @@ use Sentry\Tracing\Span;
 
 use function Sentry\configureScope;
 
-/**
- * @internal
- * @coversNothing
- */
 class IntegrationMetaTagTest extends SentryTestCase
 {
     private const DANGEROUS_PAYLOAD = '</meta><script>alert("owned")</script>';

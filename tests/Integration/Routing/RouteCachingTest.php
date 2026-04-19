@@ -13,10 +13,6 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteCachingTest extends RoutingTestCase
 {
     public function testWildcardCatchAllRoutes()

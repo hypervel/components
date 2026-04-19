@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class ImportCommandTest extends TestCase
 {
     public function testThrowsExceptionWhenModelClassNotFound(): void

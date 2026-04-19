@@ -10,10 +10,6 @@ use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithScheduleTest extends TestCase
 {
     protected function setUp(): void

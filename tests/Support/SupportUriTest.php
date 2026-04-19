@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\Uri;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportUriTest extends TestCase
 {
     public function testBasicUriInteractions(): void

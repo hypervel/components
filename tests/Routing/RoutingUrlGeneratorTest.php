@@ -20,10 +20,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingUrlGeneratorTest extends RoutingTestCase
 {
     public function testBasicGeneration()

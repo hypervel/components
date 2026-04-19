@@ -12,10 +12,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteListCommandTest extends TestCase
 {
     protected Application $consoleApp;

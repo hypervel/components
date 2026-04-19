@@ -26,10 +26,6 @@ use RedisException;
 use RuntimeException;
 use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisConnectionTest extends TestCase
 {
     public function testShouldTransform(): void

@@ -30,10 +30,6 @@ enum InteractsWithBroadcastingTestConnectionUnitEnum
     case ably;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithBroadcastingTest extends TestCase
 {
     protected function tearDown(): void

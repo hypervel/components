@@ -12,9 +12,6 @@ use Hypervel\Support\Facades\Cache;
  * Verifies that withPinnedConnection() reuses the same pool connection
  * for multiple Redis operations, and that remember/rememberForever
  * benefit from pinning transparently.
- *
- * @internal
- * @coversNothing
  */
 class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
 {

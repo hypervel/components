@@ -12,10 +12,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Client;
 use Sentry\State\HubInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class AboutCommandIntegrationTest extends SentryTestCase
 {
     public function testAboutCommandContainsExpectedData(): void

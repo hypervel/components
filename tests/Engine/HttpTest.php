@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Engine;
 use Hypervel\Engine\Http\Http;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpTest extends TestCase
 {
     public function testHttpPackRequest()

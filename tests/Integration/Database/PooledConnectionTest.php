@@ -21,9 +21,6 @@ use ReflectionProperty;
  * for use with Hypervel's connection pool infrastructure.
  *
  * Uses in-memory SQLite via the pool to avoid requiring an external database.
- *
- * @internal
- * @coversNothing
  */
 class PooledConnectionTest extends DatabaseTestCase
 {

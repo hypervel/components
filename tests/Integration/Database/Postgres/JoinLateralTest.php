@@ -11,10 +11,6 @@ use Hypervel\Support\Str;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresPhpExtension('pdo_pgsql')]
 #[RequiresOperatingSystem('Linux|Darwin')]
 class JoinLateralTest extends PostgresTestCase

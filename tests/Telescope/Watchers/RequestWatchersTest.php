@@ -15,10 +15,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     RequestWatcher::class => true,
 ])]

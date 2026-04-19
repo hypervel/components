@@ -10,10 +10,6 @@ use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServiceProviderWithoutDsnTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

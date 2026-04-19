@@ -25,10 +25,6 @@ enum JsTestIntEnum: int
     case Two = 2;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class JsTest extends TestCase
 {
     public function testFromWithStringBackedEnum(): void

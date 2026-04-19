@@ -15,10 +15,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [

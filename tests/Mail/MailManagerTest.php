@@ -14,10 +14,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailManagerTest extends TestCase
 {
     protected function setUp(): void

@@ -11,10 +11,6 @@ use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     CacheWatcher::class => [
         'enabled' => true,

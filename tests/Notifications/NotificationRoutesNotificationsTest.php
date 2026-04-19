@@ -13,10 +13,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationRoutesNotificationsTest extends TestCase
 {
     public function testNotificationCanBeDispatched()

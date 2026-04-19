@@ -10,10 +10,6 @@ use Hypervel\Testbench\Attributes\ResolvesHypervel;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResolvesHypervelTest extends TestCase
 {
     #[Test]

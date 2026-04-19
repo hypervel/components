@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Relations\Pivot as EloquentPivot;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 {
     protected function setUp(): void

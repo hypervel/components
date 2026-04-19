@@ -10,10 +10,6 @@ use Hypervel\Tests\Pagination\Fixtures\Models\PaginatorResourceTestModel;
 use Hypervel\Tests\TestCase;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class PaginatorResourceTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()

@@ -9,9 +9,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests routing when only defineRoutes() is overridden (not defineWebRoutes()).
- *
- * @internal
- * @coversNothing
  */
 class HandlesRoutesWithoutWebRoutesTest extends TestCase
 {

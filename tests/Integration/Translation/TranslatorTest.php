@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rules\File;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class TranslatorTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

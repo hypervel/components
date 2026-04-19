@@ -11,9 +11,6 @@ use Hypervel\Support\Json;
  * Integration tests for the HTTP Server.
  *
  * These tests require an HTTP server running on the configured host/port.
- *
- * @internal
- * @coversNothing
  */
 class HttpServerTest extends EngineIntegrationTestCase
 {

@@ -45,7 +45,7 @@ class ScheduleTestCommand extends Command
         }
 
         if (empty($commandNames)) {
-            return $this->info('No scheduled commands have been defined.');
+            return $this->info('No scheduled commands have been defined.'); // @phpstan-ignore method.void
         }
 
         if (! empty($name = $this->option('name'))) {

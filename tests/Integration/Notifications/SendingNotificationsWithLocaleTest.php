@@ -21,10 +21,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingNotificationsWithLocaleTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

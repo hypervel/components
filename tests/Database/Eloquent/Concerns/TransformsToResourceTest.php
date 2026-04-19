@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Eloquent\Models\TransformsToResourceTestModelInModelsNamespace;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class TransformsToResourceTest extends TestCase
 {
     public function testToResourceWithExplicitClass(): void

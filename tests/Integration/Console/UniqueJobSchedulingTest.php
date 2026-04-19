@@ -13,10 +13,6 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class UniqueJobSchedulingTest extends TestCase
 {
     public function testJobsPushedToQueue(): void

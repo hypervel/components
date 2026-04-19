@@ -8,10 +8,6 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LengthAwarePaginatorTest extends TestCase
 {
     private LengthAwarePaginator $p;

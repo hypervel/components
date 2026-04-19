@@ -21,10 +21,6 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueDatabaseQueueUnitTest extends TestCase
 {
     #[DataProvider('pushJobsDataProvider')]

@@ -7,13 +7,9 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\CompiledRouteCollection;
-use ReflectionClass;
-use Workbench\App\Exceptions\ExceptionHandler;
 
-/**
- * @internal
- * @coversNothing
- */
+use function Hypervel\Testbench\workbench_path;
+
 class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
 {
     protected Filesystem $files;
@@ -35,7 +31,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->files = new Filesystem;
         $this->providersPath = $this->app->getBootstrapProvidersPath();
-        $this->sourceWorkbenchAppPath = dirname((new ReflectionClass(ExceptionHandler::class))->getFileName(), 2);
+        $this->sourceWorkbenchAppPath = workbench_path('app');
         $this->originalProvidersContents = file_exists($this->providersPath)
             ? file_get_contents($this->providersPath)
             : null;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\View\Components;
 
+use Hypervel\Console\OutputStyle;
+
 class Confirm extends Component
 {
     /**
@@ -11,8 +13,11 @@ class Confirm extends Component
      */
     public function render(string $question, bool $default = false): bool
     {
+        /** @var OutputStyle $output */
+        $output = $this->output;
+
         return $this->usingQuestionHelper(
-            fn () => $this->output->confirm($question, $default),
+            fn () => $output->confirm($question, $default),
         );
     }
 }

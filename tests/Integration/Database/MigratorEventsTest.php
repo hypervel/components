@@ -14,10 +14,6 @@ use Hypervel\Database\Migrations\Migration;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MigratorEventsTest extends TestCase
 {
     protected function migrateOptions()

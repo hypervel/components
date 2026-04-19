@@ -44,7 +44,7 @@ trait PromptsForMissingInput
                     ?? 'What is ' . lcfirst($argument->getDescription() ?: ('the ' . $argument->getName())) . '?';
 
                 if ($label instanceof Closure) {
-                    return $input->setArgument($argument->getName(), $argument->isArray() ? Arr::wrap($label()) : $label());
+                    return $input->setArgument($argument->getName(), $argument->isArray() ? Arr::wrap($label()) : $label()); // @phpstan-ignore method.void
                 }
 
                 if (is_array($label)) {

@@ -13,9 +13,6 @@ use function Hypervel\Coroutine\go;
 
 /**
  * Integration tests for RedisSharedState against a real Redis server.
- *
- * @internal
- * @coversNothing
  */
 class RedisSharedStateTest extends TestCase
 {
@@ -216,5 +213,134 @@ class RedisSharedStateTest extends TestCase
         $this->assertTrue($this->state->acquireConnectionSlot('app1', 2));
         $this->assertTrue($this->state->acquireConnectionSlot('app1', 2));
         $this->assertFalse($this->state->acquireConnectionSlot('app1', 2));
+    }
+
+    // ── Subscription count ────────────────────────────────────────────
+
+    public function testSubscribeReturnsCorrectSubscriptionCount()
+    {
+        $result1 = $this->state->subscribe('app1', 'test-channel');
+        $this->assertSame(1, $result1->subscriptionCount);
+
+        $result2 = $this->state->subscribe('app1', 'test-channel');
+        $this->assertSame(2, $result2->subscriptionCount);
+    }
+
+    public function testUnsubscribeReturnsCorrectSubscriptionCount()
+    {
+        $this->state->subscribe('app1', 'test-channel');
+        $this->state->subscribe('app1', 'test-channel');
+
+        $result = $this->state->unsubscribe('app1', 'test-channel');
+        $this->assertSame(1, $result->subscriptionCount);
+
+        $result = $this->state->unsubscribe('app1', 'test-channel');
+        $this->assertSame(0, $result->subscriptionCount);
+    }
+
+    public function testGetSubscriptionCountReturnsZeroForUnknown()
+    {
+        $this->assertSame(0, $this->state->getSubscriptionCount('app1', 'nonexistent'));
+    }
+
+    public function testGetSubscriptionCountReturnsCurrentCount()
+    {
+        $this->state->subscribe('app1', 'test-channel');
+        $this->state->subscribe('app1', 'test-channel');
+
+        $this->assertSame(2, $this->state->getSubscriptionCount('app1', 'test-channel'));
+    }
+
+    // ── User subscription count ───────────────────────────────────────
+
+    public function testGetUserSubscriptionCountReturnsZeroForUnknown()
+    {
+        $this->assertSame(0, $this->state->getUserSubscriptionCount('app1', 'presence-channel', 'unknown'));
+    }
+
+    public function testGetUserSubscriptionCountReturnsCurrentCount()
+    {
+        $this->state->subscribe('app1', 'presence-channel', 'user-1');
+        $this->state->subscribe('app1', 'presence-channel', 'user-1');
+
+        $this->assertSame(2, $this->state->getUserSubscriptionCount('app1', 'presence-channel', 'user-1'));
+    }
+
+    // ── Subscription count lock ───────────────────────────────────────
+
+    public function testTrySubscriptionCountLockAcquiresOnFirstCall()
+    {
+        $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
+    }
+
+    public function testTrySubscriptionCountLockFailsWithinTtl()
+    {
+        $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
+        $this->assertFalse($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
+    }
+
+    public function testClearSubscriptionCountLockAllowsReacquire()
+    {
+        $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
+
+        $this->state->clearSubscriptionCountLock('app1', 'test-channel');
+
+        $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
+    }
+
+    // ── Cache miss lock ───────────────────────────────────────────────
+
+    public function testTryCacheMissLockAcquiresOnFirstCall()
+    {
+        $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
+    }
+
+    public function testTryCacheMissLockFailsWithinTtl()
+    {
+        $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
+        $this->assertFalse($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
+    }
+
+    public function testClearCacheMissLockAllowsReacquire()
+    {
+        $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
+
+        $this->state->clearCacheMissLock('app1', 'cache-channel');
+
+        $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
+    }
+
+    // ── Smoothing markers ─────────────────────────────────────────────
+
+    public function testSetAndClearSmoothingPendingReturnsTrue()
+    {
+        $this->state->setSmoothingPending('app1', 'test-channel', 5000);
+
+        $this->assertTrue($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
+    }
+
+    public function testClearSmoothingPendingReturnsFalseWhenNoMarker()
+    {
+        $this->assertFalse($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
+    }
+
+    public function testClearSmoothingPendingConsumesMarkerOnlyOnce()
+    {
+        $this->state->setSmoothingPending('app1', 'test-channel', 5000);
+
+        $this->assertTrue($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
+        $this->assertFalse($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
+    }
+
+    public function testSetAndClearMemberSmoothingPendingReturnsTrue()
+    {
+        $this->state->setMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000);
+
+        $this->assertTrue($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
+    }
+
+    public function testClearMemberSmoothingPendingReturnsFalseWhenNoMarker()
+    {
+        $this->assertFalse($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
     }
 }

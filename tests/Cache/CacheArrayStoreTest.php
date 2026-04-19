@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheArrayStoreTest extends TestCase
 {
     public function testItemsCanBeSetAndRetrieved()

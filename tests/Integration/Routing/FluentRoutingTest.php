@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Routing\FluentRoutingTest;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FluentRoutingTest extends RoutingTestCase
 {
     public static string $value = '';

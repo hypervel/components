@@ -9,10 +9,6 @@ use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnvTest extends TestCase
 {
     protected function setUp(): void

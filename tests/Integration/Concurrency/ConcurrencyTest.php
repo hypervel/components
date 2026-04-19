@@ -18,10 +18,6 @@ use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConcurrencyTest extends TestCase
 {
     private CoroutineDriver $coroutineDriver;

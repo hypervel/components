@@ -12,10 +12,6 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RegisterProvidersTest extends TestCase
 {
     public function testRegisterProviders()

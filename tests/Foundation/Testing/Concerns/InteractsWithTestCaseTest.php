@@ -14,10 +14,6 @@ use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('testing.class_level', 'class_value')]
 class InteractsWithTestCaseTest extends TestCase
 {
@@ -131,9 +127,6 @@ class InteractsWithTestCaseTest extends TestCase
 
 /**
  * Test fixture for Define meta-attribute parsing.
- *
- * @internal
- * @coversNothing
  */
 class DefineMetaAttributeTestCase extends TestCase
 {

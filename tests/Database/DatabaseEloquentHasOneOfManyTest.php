@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasOneOfManyTest extends TestCase
 {
     protected function setUp(): void

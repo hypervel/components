@@ -9,10 +9,6 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleInterruptCommandTest extends TestCase
 {
     public function testInterruptCommandBroadcastsSignal()

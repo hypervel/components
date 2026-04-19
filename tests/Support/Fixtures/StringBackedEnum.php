@@ -6,6 +6,6 @@ namespace Hypervel\Tests\Support\Fixtures;
 
 enum StringBackedEnum: string
 {
-    case ADMIN_LABEL = 'I am \'admin\'';
-    case HELLO_WORLD = 'Hello world';
+    case AdminLabel = 'I am \'admin\'';
+    case HelloWorld = 'Hello world';
 }

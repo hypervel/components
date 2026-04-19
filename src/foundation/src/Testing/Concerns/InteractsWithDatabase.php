@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Seeder;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testing\Constraints\CountInDatabase;
@@ -255,6 +256,8 @@ trait InteractsWithDatabase
      *
      * @param mixed $model
      * @return bool
+     *
+     * @phpstan-assert-if-true Model $model
      */
     protected function isSoftDeletableModel($model)
     {
@@ -354,7 +357,7 @@ trait InteractsWithDatabase
     /**
      * Seed a given database connection.
      *
-     * @param array<int, class-string>|class-string $class
+     * @param class-string<Seeder>|list<string>|string $class
      */
     public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static
     {

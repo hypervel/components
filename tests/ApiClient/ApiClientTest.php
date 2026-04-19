@@ -11,10 +11,6 @@ use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @covers \Hypervel\ApiClient\ApiClient
- */
 class ApiClientTest extends TestCase
 {
     public function testSendRequest(): void

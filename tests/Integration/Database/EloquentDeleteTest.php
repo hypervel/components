@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\Fixtures\Post;
 use Hypervel\Tests\Integration\Database\Fixtures\PostStringyKey;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentDeleteTest extends DatabaseTestCase
 {
     /**

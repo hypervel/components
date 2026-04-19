@@ -9,10 +9,6 @@ use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SimpleObjectPoolTest extends TestCase
 {
     public function testCreateObject()

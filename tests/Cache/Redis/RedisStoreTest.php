@@ -16,9 +16,6 @@ use Mockery as m;
  *
  * Operation-specific tests have been moved to the Operations/ directory.
  * This file contains only store-level tests (prefix, connection, tags, locks).
- *
- * @internal
- * @coversNothing
  */
 class RedisStoreTest extends RedisCacheTestCase
 {

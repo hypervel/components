@@ -26,10 +26,6 @@ function fail()
     throw new Exception('This code should not be reached.');
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class PrecognitionTest extends RoutingTestCase
 {
     public function testItDoesntInvokeControllerMethodByDefault()

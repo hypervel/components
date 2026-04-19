@@ -9,10 +9,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationInteractsWithTimeTest extends TestCase
 {
     use InteractsWithTime;

@@ -14,9 +14,6 @@ use Mockery as m;
 
 /**
  * Tests for the Scout utility class.
- *
- * @internal
- * @coversNothing
  */
 class ScoutTest extends ScoutTestCase
 {

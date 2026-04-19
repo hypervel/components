@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Schema;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryingWithEnumsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -34,9 +30,9 @@ class QueryingWithEnumsTest extends DatabaseTestCase
             'non_backed_status' => 'pending',
         ]);
 
-        $record = DB::table('enum_casts')->where('string_status', StringStatus::pending)->first();
-        $record2 = DB::table('enum_casts')->where('integer_status', IntegerStatus::pending)->first();
-        $record3 = DB::table('enum_casts')->whereIn('integer_status', [IntegerStatus::pending])->first();
+        $record = DB::table('enum_casts')->where('string_status', StringStatus::Pending)->first();
+        $record2 = DB::table('enum_casts')->where('integer_status', IntegerStatus::Pending)->first();
+        $record3 = DB::table('enum_casts')->whereIn('integer_status', [IntegerStatus::Pending])->first();
         $record4 = DB::table('enum_casts')->where('non_backed_status', NonBackedStatus::pending)->first();
 
         $this->assertNotNull($record);
@@ -51,12 +47,12 @@ class QueryingWithEnumsTest extends DatabaseTestCase
     public function testCanInsertWithEnums()
     {
         DB::table('enum_casts')->insert([
-            'string_status' => StringStatus::pending,
-            'integer_status' => IntegerStatus::pending,
+            'string_status' => StringStatus::Pending,
+            'integer_status' => IntegerStatus::Pending,
             'non_backed_status' => NonBackedStatus::pending,
         ]);
 
-        $record = DB::table('enum_casts')->where('string_status', StringStatus::pending)->first();
+        $record = DB::table('enum_casts')->where('string_status', StringStatus::Pending)->first();
 
         $this->assertNotNull($record);
         $this->assertSame('pending', $record->string_status);

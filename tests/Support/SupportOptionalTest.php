@@ -8,10 +8,6 @@ use Hypervel\Support\Optional;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportOptionalTest extends TestCase
 {
     public function testGetExistItemOnObject()

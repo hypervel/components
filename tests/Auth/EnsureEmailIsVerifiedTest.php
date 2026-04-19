@@ -13,10 +13,6 @@ use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EnsureEmailIsVerifiedTest extends TestCase
 {
     public function testItCanGenerateDefinitionViaStaticMethod()

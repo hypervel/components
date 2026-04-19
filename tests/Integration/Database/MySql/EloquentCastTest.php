@@ -10,10 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentCastTest extends MySqlTestCase
 {
     protected string $driver = 'mysql';

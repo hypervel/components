@@ -8,10 +8,6 @@ use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandTest extends TestCase
 {
     use WithWorkbench;

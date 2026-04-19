@@ -17,10 +17,6 @@ use Hypervel\Queue\QueuePoolProxy;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueManagerTest extends TestCase
 {
     public function testDefaultConnectionCanBeResolved()

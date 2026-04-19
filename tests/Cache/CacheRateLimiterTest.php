@@ -10,10 +10,6 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRateLimiterTest extends TestCase
 {
     public function testTooManyAttemptsReturnTrueIfAlreadyLockedOut()

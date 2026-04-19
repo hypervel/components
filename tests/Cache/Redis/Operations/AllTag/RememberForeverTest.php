@@ -16,9 +16,6 @@ use RuntimeException;
  *
  * Key difference from Remember: uses score -1 for forever items (prevents
  * cleanup by ZREMRANGEBYSCORE) and SET without TTL instead of SETEX.
- *
- * @internal
- * @coversNothing
  */
 class RememberForeverTest extends RedisCacheTestCase
 {

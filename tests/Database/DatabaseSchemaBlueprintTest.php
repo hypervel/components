@@ -13,10 +13,6 @@ use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSchemaBlueprintTest extends TestCase
 {
     protected function tearDown(): void

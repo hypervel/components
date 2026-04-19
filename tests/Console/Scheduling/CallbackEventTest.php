@@ -13,10 +13,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallbackEventTest extends TestCase
 {
     protected EventMutex&MockInterface $mutex;

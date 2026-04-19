@@ -11,10 +11,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.debug', false)]
 class LatestResponseExceptionTest extends TestCase
 {

@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelJsonCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

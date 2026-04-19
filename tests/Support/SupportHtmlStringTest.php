@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\HtmlString;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportHtmlStringTest extends TestCase
 {
     public function testToHtml(): void

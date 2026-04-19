@@ -15,10 +15,6 @@ use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Schema;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentPrunableTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

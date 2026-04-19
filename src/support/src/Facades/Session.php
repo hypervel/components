@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static \Hypervel\Contracts\Session\Session store(string|null $name = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()
@@ -52,6 +51,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool regenerate(bool $destroy = false)
  * @method static bool migrate(bool $destroy = false)
  * @method static bool isStarted()
+ * @method static void flushState()
  * @method static string getName()
  * @method static void setName(string $name)
  * @method static string|null id()
@@ -70,9 +70,12 @@ namespace Hypervel\Support\Facades;
  * @method static void passwordConfirmed()
  * @method static \SessionHandlerInterface getHandler()
  * @method static \SessionHandlerInterface setHandler(\SessionHandlerInterface $handler)
+ * @method static bool handlerNeedsRequest()
+ * @method static void setRequestOnHandler(\Hypervel\Http\Request $request)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
  *
  * @see \Hypervel\Session\SessionManager
  */

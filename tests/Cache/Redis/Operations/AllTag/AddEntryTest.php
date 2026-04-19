@@ -9,9 +9,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the AddEntry operation.
- *
- * @internal
- * @coversNothing
  */
 class AddEntryTest extends RedisCacheTestCase
 {

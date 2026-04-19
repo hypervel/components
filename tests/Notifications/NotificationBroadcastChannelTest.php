@@ -13,10 +13,6 @@ use Hypervel\Notifications\Notification;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationBroadcastChannelTest extends TestCase
 {
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData()

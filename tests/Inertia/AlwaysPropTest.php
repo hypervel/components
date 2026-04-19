@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Inertia;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\AlwaysProp;
 
-/**
- * @internal
- * @coversNothing
- */
 class AlwaysPropTest extends TestCase
 {
     public function testCanInvoke(): void

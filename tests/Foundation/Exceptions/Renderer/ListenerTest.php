@@ -10,10 +10,6 @@ use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ListenerTest extends TestCase
 {
     public function testQueriesReturnsExpectedShapeAfterQueryExecuted()

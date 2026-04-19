@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DefineEnvironmentTest extends TestCase
 {
     protected bool $defineEnvironmentCalled = false;

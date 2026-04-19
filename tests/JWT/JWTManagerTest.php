@@ -19,10 +19,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class JWTManagerTest extends TestCase
 {
     /**

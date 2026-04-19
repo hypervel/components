@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Container;
 
+use ArrayAccess;
 use Closure;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Container\ContainerInterface;
 
-interface Container extends ContainerInterface
+interface Container extends ArrayAccess, ContainerInterface
 {
     /**
      * @template TClass of object
@@ -92,6 +93,11 @@ interface Container extends ContainerInterface
      * @return TInstance
      */
     public function instance(string $abstract, mixed $instance): mixed;
+
+    /**
+     * Remove a resolved instance from the instance cache.
+     */
+    public function forgetInstance(string $abstract): void;
 
     /**
      * Add a contextual binding to the container.

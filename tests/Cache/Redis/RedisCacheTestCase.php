@@ -47,9 +47,6 @@ use RedisCluster;
  * $clusterClient->shouldNotReceive('pipeline');
  * $clusterClient->shouldReceive('set')->once()->andReturn(true);
  * ```
- *
- * @internal
- * @coversNothing
  */
 abstract class RedisCacheTestCase extends TestCase
 {

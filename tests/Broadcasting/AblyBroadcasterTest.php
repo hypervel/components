@@ -13,10 +13,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class AblyBroadcasterTest extends TestCase
 {
     protected AblyBroadcaster $broadcaster;

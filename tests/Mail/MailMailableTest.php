@@ -19,10 +19,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailableTest extends TestCase
 {
     public function testMailableSetsRecipientsCorrectly()

@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\RoundRobinTransport;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailRoundRobinTransportTest extends TestCase
 {
     protected function setUp(): void

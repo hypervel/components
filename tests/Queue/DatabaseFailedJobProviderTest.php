@@ -14,10 +14,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;

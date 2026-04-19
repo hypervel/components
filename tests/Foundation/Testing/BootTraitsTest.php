@@ -10,10 +10,6 @@ use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class BootTraitsTest extends TestCase
 {
     public function testSetUpAndTearDownTraits()
@@ -64,10 +60,6 @@ class BootTraitsTest extends TestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCaseWithTrait extends FoundationTestCase
 {
     use TestTrait;
@@ -83,10 +75,6 @@ class TestCaseWithTrait extends FoundationTestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCaseWithAttributeTrait extends FoundationTestCase
 {
     use TestTraitWithAttributes;
@@ -96,10 +84,6 @@ class TestCaseWithAttributeTrait extends FoundationTestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCaseWithBothTraits extends FoundationTestCase
 {
     use TestTrait;

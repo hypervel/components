@@ -12,10 +12,6 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMariaDbSchemaStateTest extends TestCase
 {
     #[DataProvider('provider')]

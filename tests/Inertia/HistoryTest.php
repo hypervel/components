@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
 
-/**
- * @internal
- * @coversNothing
- */
 class HistoryTest extends TestCase
 {
     public function testTheHistoryIsNotEncryptedOrClearedByDefault(): void

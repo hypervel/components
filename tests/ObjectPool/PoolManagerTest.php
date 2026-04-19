@@ -13,10 +13,6 @@ use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class PoolManagerTest extends TestCase
 {
     protected ContainerContract $container;

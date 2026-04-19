@@ -14,10 +14,6 @@ use Mockery as m;
 use PDO;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConnectionFactoryTest extends TestCase
 {
     protected $db;

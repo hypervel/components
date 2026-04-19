@@ -28,10 +28,6 @@ enum TaggedCacheTestKeyUnitEnum
     case misses;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheTaggedCacheTest extends TestCase
 {
     public function testCacheCanBeSavedWithMultipleTags()

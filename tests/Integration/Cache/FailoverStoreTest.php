@@ -16,10 +16,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('cache.default', 'failover')]
 #[WithConfig('cache.stores.array.serialize', false)]
 class FailoverStoreTest extends TestCase

@@ -250,8 +250,10 @@ class BoundMethod
                 throw new BindingResolutionException($message);
             }
 
-            foreach ($pendingDependencies as $dependency) {
-                $container->fireAfterResolvingAttributeCallbacks($recipe->attributes, $dependency);
+            if ($recipe->attributes !== []) {
+                foreach ($pendingDependencies as $dependency) {
+                    $container->fireAfterResolvingAttributeCallbacks($recipe->attributes, $dependency);
+                }
             }
 
             $dependencies = array_merge($dependencies, $pendingDependencies);
@@ -358,8 +360,14 @@ class BoundMethod
             throw new BindingResolutionException($message);
         }
 
-        foreach ($pendingDependencies as $dependency) {
-            $container->fireAfterResolvingAttributeCallbacks($parameter->getAttributes(), $dependency);
+        if ($pendingDependencies !== []) {
+            $attributes = $parameter->getAttributes();
+
+            if ($attributes !== []) {
+                foreach ($pendingDependencies as $dependency) {
+                    $container->fireAfterResolvingAttributeCallbacks($attributes, $dependency);
+                }
+            }
         }
 
         $dependencies = array_merge($dependencies, $pendingDependencies);

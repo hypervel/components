@@ -12,9 +12,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests that pivot model events fire when using a custom pivot class via ->using().
- *
- * @internal
- * @coversNothing
  */
 class BelongsToManyPivotEventsTest extends TestCase
 {

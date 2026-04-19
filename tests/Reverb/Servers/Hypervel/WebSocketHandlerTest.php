@@ -21,10 +21,6 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
 
-/**
- * @internal
- * @coversNothing
- */
 class WebSocketHandlerTest extends ReverbTestCase
 {
     protected PusherServer $pusherServer;

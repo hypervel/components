@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Foundation;
 use Exception;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationHelpersTest extends TestCase
 {
     public function testRescue()

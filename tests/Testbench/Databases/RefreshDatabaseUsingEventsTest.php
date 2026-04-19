@@ -12,10 +12,6 @@ use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[ResetRefreshDatabaseState]
 #[WithConfig('database.default', 'testing')]
 class RefreshDatabaseUsingEventsTest extends TestCase

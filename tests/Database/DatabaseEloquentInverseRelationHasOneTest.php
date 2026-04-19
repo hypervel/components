@@ -13,10 +13,6 @@ use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 {
     /**

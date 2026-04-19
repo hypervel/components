@@ -8,10 +8,6 @@ use Hypervel\Database\Connection;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConnectionResolverTest extends TestCase
 {
     public function testFlushDisconnectsCachedConnection()

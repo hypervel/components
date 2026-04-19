@@ -9,10 +9,6 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelStringCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

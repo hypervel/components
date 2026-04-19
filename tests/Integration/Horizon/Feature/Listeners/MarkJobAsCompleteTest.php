@@ -13,10 +13,6 @@ use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MarkJobAsCompleteTest extends IntegrationTestCase
 {
     public function testHandle(): void

@@ -9,10 +9,6 @@ use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportReflectsClosuresTest extends TestCase
 {
     public function testReflectsClosures()

@@ -18,10 +18,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthenticateMiddlewareTest extends TestCase
 {
     protected AuthManager $auth;

@@ -9,10 +9,6 @@ use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DefineCacheRoutesTest extends TestCase
 {
     public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes()

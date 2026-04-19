@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextBlockTest extends TestCase
 {
     public function testArrayable(): void

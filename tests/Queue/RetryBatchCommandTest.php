@@ -14,10 +14,6 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class RetryBatchCommandTest extends TestCase
 {
     public function testItDoesNotFallThroughWhenBatchCannotBeFound()

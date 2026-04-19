@@ -13,10 +13,6 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentMorphToManyTest extends TestCase
 {
     public function testEagerConstraintsAreProperlyAdded(): void

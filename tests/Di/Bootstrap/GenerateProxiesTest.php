@@ -14,10 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class GenerateProxiesTest extends TestCase
 {
     private ?ClassLoader $originalLoader = null;

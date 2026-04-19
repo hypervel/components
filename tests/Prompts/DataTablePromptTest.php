@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\datatable;
 
-/**
- * @internal
- * @coversNothing
- */
 class DataTablePromptTest extends TestCase
 {
     public function testRendersTableWithHeadersAndSearchLine()

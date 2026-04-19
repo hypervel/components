@@ -48,10 +48,6 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use UnexpectedValueException;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingRouteTest extends RoutingTestCase
 {
     protected function tearDown(): void

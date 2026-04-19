@@ -9,10 +9,6 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class WorkerCachedMaintenanceModeTest extends TestCase
 {
     public function testActiveCallsDriverOnlyOnceAndCachesResult()

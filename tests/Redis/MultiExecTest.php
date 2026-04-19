@@ -15,10 +15,6 @@ use Mockery as m;
 use Redis as PhpRedis;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class MultiExecTest extends TestCase
 {
     protected function tearDown(): void

@@ -24,10 +24,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Swoole\Coroutine\Channel;
 
-/**
- * @internal
- * @coversNothing
- */
 class OAuthTwoTest extends TestCase
 {
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()

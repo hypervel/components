@@ -9,10 +9,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\Integration\Generators\TestCase;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigCacheCommandTest extends TestCase
 {
     protected $files = [

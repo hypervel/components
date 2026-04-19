@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FailedJobTest extends IntegrationTestCase
 {
     public function testFailedJobsArePlacedInTheFailedJobTable()

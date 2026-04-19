@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the GetTagItems operation (union tags).
- *
- * @internal
- * @coversNothing
  */
 class GetTagItemsTest extends RedisCacheTestCase
 {

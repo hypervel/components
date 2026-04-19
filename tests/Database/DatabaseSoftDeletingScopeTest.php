@@ -15,10 +15,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSoftDeletingScopeTest extends TestCase
 {
     public function testApplyingScopeToABuilder()

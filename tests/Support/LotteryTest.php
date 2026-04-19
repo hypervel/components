@@ -8,10 +8,6 @@ use Hypervel\Support\Lottery;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class LotteryTest extends TestCase
 {
     public function testItCanWin()

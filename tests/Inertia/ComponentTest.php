@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
 
-/**
- * @internal
- * @coversNothing
- */
 class ComponentTest extends TestCase
 {
     protected function setUp(): void

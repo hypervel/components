@@ -10,10 +10,6 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerCommandLoaderTest extends TestCase
 {
     public function testGetReturnsCommandFromContainer(): void

@@ -18,10 +18,6 @@ use Hypervel\Testing\Concerns\AssertsPolicyQueryConsistency;
 use PHPUnit\Framework\AssertionFailedError;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AssertsPolicyQueryConsistencyTest extends TestCase
 {
     use AssertsPolicyQueryConsistency;

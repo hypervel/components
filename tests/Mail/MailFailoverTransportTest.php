@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Mailer\Transport\FailoverTransport;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailFailoverTransportTest extends TestCase
 {
     protected function setUp(): void

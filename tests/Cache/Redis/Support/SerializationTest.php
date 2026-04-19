@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Redis;
 
-/**
- * @internal
- * @coversNothing
- */
 class SerializationTest extends TestCase
 {
     private Serialization $serialization;

@@ -50,10 +50,6 @@ use Throwable;
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpClientTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;

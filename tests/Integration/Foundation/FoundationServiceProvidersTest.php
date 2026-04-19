@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Foundation;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationServiceProvidersTest extends TestCase
 {
     protected function getPackageProviders($app): array

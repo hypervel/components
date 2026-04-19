@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingQueuedMailTest extends TestCase
 {
     protected function defineEnvironment($app): void

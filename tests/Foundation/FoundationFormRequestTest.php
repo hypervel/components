@@ -23,10 +23,6 @@ use Hypervel\Validation\ValidationException;
 use Mockery as m;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationFormRequestTest extends TestCase
 {
     protected array $mocks = [];

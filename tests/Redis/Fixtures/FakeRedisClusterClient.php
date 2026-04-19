@@ -12,8 +12,6 @@ use RedisCluster;
  *
  * Extends RedisCluster to satisfy type hints while providing controlled
  * test behavior. Does NOT connect to any real Redis Cluster.
- *
- * @internal For testing only - does not connect to Redis
  */
 class FakeRedisClusterClient extends RedisCluster
 {

@@ -9,10 +9,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use ReflectionClass;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventHandlerTest extends SentryTestCase
 {
     public function testMissingEventHandlerThrowsException(): void

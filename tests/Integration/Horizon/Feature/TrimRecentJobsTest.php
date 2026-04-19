@@ -12,10 +12,6 @@ use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class TrimRecentJobsTest extends IntegrationTestCase
 {
     public function testTrimmerHasACooldownPeriod()

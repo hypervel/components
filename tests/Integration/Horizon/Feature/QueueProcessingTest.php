@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueProcessingTest extends IntegrationTestCase
 {
     public function testLegacyJobsCanBeProcessedWithoutErrors()

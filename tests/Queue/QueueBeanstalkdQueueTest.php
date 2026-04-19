@@ -20,10 +20,6 @@ use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueBeanstalkdQueueTest extends TestCase
 {
     /**

@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class VendorPublishCommandTest extends TestCase
 {
     protected string $sourceDir;

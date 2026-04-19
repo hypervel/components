@@ -14,10 +14,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     ScheduleWatcher::class => true,
 ])]

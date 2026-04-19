@@ -23,10 +23,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSqsQueueTest extends TestCase
 {
     protected $sqs;

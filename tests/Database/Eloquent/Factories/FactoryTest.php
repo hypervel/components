@@ -20,10 +20,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentFactoryTest extends TestCase
 {
     use RefreshDatabase;

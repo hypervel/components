@@ -19,10 +19,6 @@ use function Hypervel\Prompts\suggest;
 use function Hypervel\Prompts\text;
 use function Hypervel\Prompts\textarea;
 
-/**
- * @internal
- * @coversNothing
- */
 class PromptsAssertionTest extends TestCase
 {
     public function testAssertionForTextPrompt(): void

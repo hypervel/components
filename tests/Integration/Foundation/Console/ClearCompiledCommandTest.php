@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClearCompiledCommandTest extends TestCase
 {
     public function testDeletesCachedPackagesFile()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseTransactionsManagerTest extends TestCase
 {
     public function testItExecutesCallbacksImmediatelyIfThereIsOnlyOneTransaction()

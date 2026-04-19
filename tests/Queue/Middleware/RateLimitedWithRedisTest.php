@@ -17,9 +17,6 @@ use ReflectionMethod;
  * Verifies the middleware resolves the Factory contract (not concrete RedisFactory),
  * calls ->connection() with the configured connection name, and passes the resolved
  * RedisProxy to DurationLimiter.
- *
- * @internal
- * @coversNothing
  */
 class RateLimitedWithRedisTest extends TestCase
 {

@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class FacebookProviderTest extends TestCase
 {
     public function testMapUserToObjectWithAccessTokenResponse()

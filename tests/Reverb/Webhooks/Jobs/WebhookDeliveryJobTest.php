@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class WebhookDeliveryJobTest extends ReverbTestCase
 {
     public function testSendsHttpRequestWithCorrectPayload()

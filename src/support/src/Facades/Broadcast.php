@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 
 /**
- * @method static void routes(array $attributes = [])
+ * @method static void routes(array|null $attributes = null)
  * @method static void userRoutes(array|null $attributes = null)
  * @method static void channelRoutes(array|null $attributes = null)
  * @method static string|null socket(\Hypervel\Http\Request|null $request = null)
@@ -33,6 +33,8 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static \Hypervel\Broadcasting\BroadcastManager removePoolable(string $driver)
  * @method static array getPoolables()
  * @method static \Hypervel\Broadcasting\BroadcastManager setPoolables(array $poolables)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static array|null resolveAuthenticatedUser(\Hypervel\Http\Request $request)
  * @method static void resolveAuthenticatedUserUsing(\Closure $callback)
  * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Contracts\Broadcasting\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])

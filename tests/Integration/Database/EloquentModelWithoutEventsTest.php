@@ -8,10 +8,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelWithoutEventsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

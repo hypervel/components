@@ -18,10 +18,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandSchedulingTest extends TestCase
 {
     protected function setUp(): void

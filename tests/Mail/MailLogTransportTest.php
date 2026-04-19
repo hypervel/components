@@ -15,10 +15,6 @@ use Psr\Log\NullLogger;
 use Stringable;
 use Symfony\Component\Mime\Email;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailLogTransportTest extends TestCase
 {
     protected function setUp(): void

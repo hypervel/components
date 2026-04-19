@@ -31,10 +31,6 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationChannelManagerTest extends TestCase
 {
     protected function tearDown(): void

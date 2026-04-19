@@ -10,10 +10,6 @@ use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 class SchemaStateTest extends SqliteTestCase
 {
     use InteractsWithPublishedFiles;

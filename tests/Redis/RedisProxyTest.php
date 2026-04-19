@@ -32,9 +32,6 @@ use function Hypervel\Coroutine\go;
  *
  * We mock RedisConnection entirely and verify the proxy properly
  * manages connections, context storage, and command proxying.
- *
- * @internal
- * @coversNothing
  */
 class RedisProxyTest extends TestCase
 {

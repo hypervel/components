@@ -8,10 +8,6 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 
-/**
- * @internal
- * @coversNothing
- */
 class WatchPathTest extends TestCase
 {
     public function testDirectoryWatchPath()

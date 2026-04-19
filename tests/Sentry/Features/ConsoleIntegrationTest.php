@@ -9,10 +9,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleIntegrationTest extends SentryTestCase
 {
     public function testCommandBreadcrumbIsRecordedWhenEnabled(): void

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Di\Aop;
 use Hypervel\Di\Aop\AspectManager;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AspectManagerTest extends TestCase
 {
     public function testHasReturnsFalseForUnsetEntry()

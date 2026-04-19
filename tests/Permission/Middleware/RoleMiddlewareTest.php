@@ -18,10 +18,6 @@ use Hypervel\Tests\Permission\PermissionTestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoleMiddlewareTest extends PermissionTestCase
 {
     protected RoleMiddleware $middleware;
@@ -144,7 +140,7 @@ class RoleMiddlewareTest extends PermissionTestCase
     {
         $result = RoleMiddleware::parseRolesToString([
             'admin',
-            RoleEnum::VIEWER,
+            RoleEnum::Viewer,
             'manager',
         ]);
 

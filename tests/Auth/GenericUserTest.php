@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class GenericUserTest extends TestCase
 {
     public function testGetAuthIdentifierNameReturnsId()

@@ -15,10 +15,6 @@ use Hypervel\Queue\Middleware\SkipIfBatchCancelled;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SkipIfBatchCancelledTest extends TestCase
 {
     public function testJobsAreSkippedOnceBatchIsCancelled()

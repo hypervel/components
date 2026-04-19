@@ -12,9 +12,6 @@ use Mockery as m;
 
 /**
  * Tests for the Flush operation.
- *
- * @internal
- * @coversNothing
  */
 class FlushTest extends RedisCacheTestCase
 {

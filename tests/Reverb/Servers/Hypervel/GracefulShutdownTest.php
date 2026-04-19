@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
+use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
+use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
+use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
@@ -20,10 +23,6 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class GracefulShutdownTest extends ReverbTestCase
 {
     protected function tearDown(): void
@@ -183,6 +182,47 @@ class GracefulShutdownTest extends ReverbTestCase
         $second = WebSocketHandler::takeConnection(42);
 
         $this->assertNull($second);
+    }
+
+    // ── Deferred webhook preservation ──────────────────────────────────
+
+    public function testShutdownDoesNotLosePreExistingDeferredWebhooks()
+    {
+        Queue::fake();
+
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('getSubscriptionCount')
+            ->with('test-app', 'test-channel')
+            ->andReturn(0);
+        $this->app->instance(SharedState::class, $sharedState);
+
+        $app = new Application(
+            'test-app',
+            'test-key',
+            'test-secret',
+            60,
+            30,
+            ['*'],
+            10_000,
+            webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_vacated']],
+        );
+
+        $manager = $this->app->make(DeferredWebhookManager::class);
+
+        // Defer a webhook with a short delay
+        $manager->deferChannelVacated($app, 'test-channel', 0.05, 5000);
+
+        // Simulate shutdown — setDraining should NOT cancel the pending timer
+        $manager->setDraining(true);
+
+        // Wait for the deferred timer to fire
+        usleep(80_000);
+
+        // The pre-existing deferred webhook should have fired
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'channel_vacated'
+                && $job->payload->events[0]['channel'] === 'test-channel';
+        });
     }
 
     // ── Scaling subscriber ────────────────────────────────────────────

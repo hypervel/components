@@ -12,10 +12,6 @@ use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeleteAllIndexesCommandTest extends TestCase
 {
     public function testDeletesAllIndexesSuccessfully(): void

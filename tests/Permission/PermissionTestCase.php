@@ -8,10 +8,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PermissionTestCase extends TestCase
 {
     use RefreshDatabase;

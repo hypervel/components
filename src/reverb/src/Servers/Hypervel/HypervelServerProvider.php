@@ -53,7 +53,12 @@ class HypervelServerProvider extends ServerProvider
             $table->column('count', Table::TYPE_INT);
             $table->create();
 
-            $this->app->instance(SharedState::class, new SwooleTableSharedState($table));
+            $lockRows = (int) ($this->config['swoole_shared_state']['lock_rows'] ?? 8192);
+            $lockTable = new Table($lockRows);
+            $lockTable->column('locked_at', Table::TYPE_FLOAT);
+            $lockTable->create();
+
+            $this->app->instance(SharedState::class, new SwooleTableSharedState($table, $lockTable));
         }
 
         $this->app->singleton(

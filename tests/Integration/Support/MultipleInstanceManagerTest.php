@@ -8,10 +8,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\MultipleInstanceManager;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class MultipleInstanceManagerTest extends TestCase
 {
     public function testConfigurableInstancesCanBeResolved()

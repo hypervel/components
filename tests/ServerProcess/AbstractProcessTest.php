@@ -17,10 +17,6 @@ use ReflectionClass;
 use RuntimeException;
 use Swoole\Server;
 
-/**
- * @internal
- * @coversNothing
- */
 class AbstractProcessTest extends TestCase
 {
     // SwooleProcess creation fails with "unable to create Swoole\Process with async-io

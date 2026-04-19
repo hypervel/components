@@ -10,10 +10,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FileFailedJobProviderTest extends TestCase
 {
     protected $path;

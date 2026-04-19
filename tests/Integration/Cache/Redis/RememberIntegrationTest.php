@@ -17,9 +17,6 @@ use RuntimeException;
  * - Multiple tags
  * - Exception propagation
  * - Edge case return values (null, false, empty string, zero)
- *
- * @internal
- * @coversNothing
  */
 class RememberIntegrationTest extends RedisCacheIntegrationTestCase
 {

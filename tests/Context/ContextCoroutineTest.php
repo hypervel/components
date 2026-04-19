@@ -19,10 +19,6 @@ use stdClass;
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextCoroutineTest extends TestCase
 {
     public function testCopy()

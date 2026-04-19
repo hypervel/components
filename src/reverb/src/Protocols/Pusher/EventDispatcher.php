@@ -6,11 +6,13 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
+use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Arr;
 use Swoole\Server;
 
@@ -64,6 +66,10 @@ class EventDispatcher
             $payload['channel'] = $channel->name();
 
             $channel->broadcast($payload, $connection);
+
+            if ($channel instanceof CacheChannel) {
+                app(SharedState::class)->clearCacheMissLock($app->id(), $channel->name());
+            }
         }
 
         if (! $fanOut) {

@@ -13,9 +13,6 @@ use Hypervel\Testbench\TestCase;
  * __routing.original_parameters, __routing.controller.*, etc.). Without coroutine
  * isolation, tests that trigger route matching or dispatch pollute the static
  * $nonCoroutineContext, causing cross-test contamination when the suite runs together.
- *
- * @internal
- * @coversNothing
  */
 abstract class RoutingTestCase extends TestCase
 {

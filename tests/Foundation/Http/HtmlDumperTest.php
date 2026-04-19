@@ -14,10 +14,6 @@ use stdClass;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
-/**
- * @internal
- * @coversNothing
- */
 class HtmlDumperTest extends TestCase
 {
     protected $config;

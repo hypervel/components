@@ -11,10 +11,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleTestCommandTest extends TestCase
 {
     public Schedule $schedule;

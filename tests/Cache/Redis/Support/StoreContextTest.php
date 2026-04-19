@@ -14,10 +14,6 @@ use Mockery as m;
 use Redis;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class StoreContextTest extends TestCase
 {
     public function testPrefixReturnsConfiguredPrefix(): void

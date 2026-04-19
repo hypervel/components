@@ -15,10 +15,6 @@ use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class LinkedInOpenIdProviderTest extends TestCase
 {
     public function testResponse()

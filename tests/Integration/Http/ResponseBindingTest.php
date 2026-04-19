@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResponseBindingTest extends TestCase
 {
     public function testContainerResolvesResponseFromContext()

@@ -6,6 +6,6 @@ namespace Hypervel\Tests\Support\Fixtures;
 
 enum IntBackedEnum: int
 {
-    case ROLE_ADMIN = 1;
-    case TWO = 2;
+    case RoleAdmin = 1;
+    case Two = 2;
 }

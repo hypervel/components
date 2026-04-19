@@ -8,10 +8,6 @@ use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\HandlesAuthorization;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthHandlesAuthorizationTest extends TestCase
 {
     use HandlesAuthorization;

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Sanctum;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MissingAbilityExceptionTest extends TestCase
 {
     public function testAbilitiesMethodReturnsTheAbilities()

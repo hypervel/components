@@ -18,9 +18,6 @@ use Hypervel\Support\Facades\Cache;
  * - Deduplication of items with multiple tags
  * - Chunking for large datasets
  * - Handling of expired/missing keys
- *
- * @internal
- * @coversNothing
  */
 class TagQueryIntegrationTest extends RedisCacheIntegrationTestCase
 {

@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Override;
 
-/**
- * @internal
- * @coversNothing
- */
 class EmailVerificationRequestTest extends TestCase
 {
     #[Override]

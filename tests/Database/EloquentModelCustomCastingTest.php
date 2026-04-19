@@ -17,15 +17,9 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
-#[Group('integration')]
 class EloquentModelCustomCastingTest extends TestCase
 {
     protected function setUp(): void

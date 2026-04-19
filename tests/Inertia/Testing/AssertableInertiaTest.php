@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
-/**
- * @internal
- * @coversNothing
- */
 class AssertableInertiaTest extends TestCase
 {
     public function testTheViewIsServedByInertia(): void

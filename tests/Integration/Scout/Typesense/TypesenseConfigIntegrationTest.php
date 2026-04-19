@@ -11,9 +11,6 @@ use Throwable;
 
 /**
  * Integration tests for Typesense configuration options.
- *
- * @internal
- * @coversNothing
  */
 class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
 {

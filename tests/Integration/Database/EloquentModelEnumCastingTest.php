@@ -14,10 +14,6 @@ use ValueError;
 
 include_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelEnumCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -53,12 +49,12 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
         $model = EloquentModelEnumCastingTestModel::first();
 
-        $this->assertEquals(StringStatus::pending, $model->string_status);
-        $this->assertEquals([StringStatus::pending, StringStatus::done], $model->string_status_collection->all());
-        $this->assertEquals([StringStatus::pending, StringStatus::done], $model->string_status_array->toArray());
-        $this->assertEquals(IntegerStatus::pending, $model->integer_status);
-        $this->assertEquals([IntegerStatus::pending, IntegerStatus::done], $model->integer_status_collection->all());
-        $this->assertEquals([IntegerStatus::pending, IntegerStatus::done], $model->integer_status_array->toArray());
+        $this->assertEquals(StringStatus::Pending, $model->string_status);
+        $this->assertEquals([StringStatus::Pending, StringStatus::Done], $model->string_status_collection->all());
+        $this->assertEquals([StringStatus::Pending, StringStatus::Done], $model->string_status_array->toArray());
+        $this->assertEquals(IntegerStatus::Pending, $model->integer_status);
+        $this->assertEquals([IntegerStatus::Pending, IntegerStatus::Done], $model->integer_status_collection->all());
+        $this->assertEquals([IntegerStatus::Pending, IntegerStatus::Done], $model->integer_status_array->toArray());
         $this->assertEquals(ArrayableStatus::pending, $model->arrayable_status);
     }
 
@@ -88,12 +84,12 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
     public function testEnumsAreCastableToArray()
     {
         $model = new EloquentModelEnumCastingTestModel([
-            'string_status' => StringStatus::pending,
-            'string_status_collection' => [StringStatus::pending, StringStatus::done],
-            'string_status_array' => [StringStatus::pending, StringStatus::done],
-            'integer_status' => IntegerStatus::pending,
-            'integer_status_collection' => [IntegerStatus::pending, IntegerStatus::done],
-            'integer_status_array' => [IntegerStatus::pending, IntegerStatus::done],
+            'string_status' => StringStatus::Pending,
+            'string_status_collection' => [StringStatus::Pending, StringStatus::Done],
+            'string_status_array' => [StringStatus::Pending, StringStatus::Done],
+            'integer_status' => IntegerStatus::Pending,
+            'integer_status_collection' => [IntegerStatus::Pending, IntegerStatus::Done],
+            'integer_status_array' => [IntegerStatus::Pending, IntegerStatus::Done],
             'arrayable_status' => ArrayableStatus::pending,
         ]);
 
@@ -138,12 +134,12 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
     public function testEnumsAreConvertedOnSave()
     {
         $model = new EloquentModelEnumCastingTestModel([
-            'string_status' => StringStatus::pending,
-            'string_status_collection' => [StringStatus::pending, StringStatus::done],
-            'string_status_array' => [StringStatus::pending, StringStatus::done],
-            'integer_status' => IntegerStatus::pending,
-            'integer_status_collection' => [IntegerStatus::pending, IntegerStatus::done],
-            'integer_status_array' => [IntegerStatus::pending, IntegerStatus::done],
+            'string_status' => StringStatus::Pending,
+            'string_status_collection' => [StringStatus::Pending, StringStatus::Done],
+            'string_status_array' => [StringStatus::Pending, StringStatus::Done],
+            'integer_status' => IntegerStatus::Pending,
+            'integer_status_collection' => [IntegerStatus::Pending, IntegerStatus::Done],
+            'integer_status_array' => [IntegerStatus::Pending, IntegerStatus::Done],
             'arrayable_status' => ArrayableStatus::pending,
         ]);
 
@@ -229,8 +225,8 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
         $model = EloquentModelEnumCastingTestModel::first();
 
-        $this->assertEquals(StringStatus::pending, $model->string_status);
-        $this->assertEquals(IntegerStatus::pending, $model->integer_status);
+        $this->assertEquals(StringStatus::Pending, $model->string_status);
+        $this->assertEquals(IntegerStatus::Pending, $model->integer_status);
         $this->assertEquals(ArrayableStatus::pending, $model->arrayable_status);
     }
 
@@ -243,11 +239,11 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
         ]);
 
         $model = EloquentModelEnumCastingTestModel::firstOrNew([
-            'string_status' => StringStatus::pending,
+            'string_status' => StringStatus::Pending,
         ]);
 
         $model2 = EloquentModelEnumCastingTestModel::firstOrNew([
-            'string_status' => StringStatus::done,
+            'string_status' => StringStatus::Done,
         ]);
 
         $this->assertTrue($model->exists);
@@ -255,7 +251,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
         $model2->save();
 
-        $this->assertEquals(StringStatus::done, $model2->string_status);
+        $this->assertEquals(StringStatus::Done, $model2->string_status);
     }
 
     public function testFirstOrCreate()
@@ -266,15 +262,15 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
         ]);
 
         $model = EloquentModelEnumCastingTestModel::firstOrCreate([
-            'string_status' => StringStatus::pending,
+            'string_status' => StringStatus::Pending,
         ]);
 
         $model2 = EloquentModelEnumCastingTestModel::firstOrCreate([
-            'string_status' => StringStatus::done,
+            'string_status' => StringStatus::Done,
         ]);
 
-        $this->assertEquals(StringStatus::pending, $model->string_status);
-        $this->assertEquals(StringStatus::done, $model2->string_status);
+        $this->assertEquals(StringStatus::Pending, $model->string_status);
+        $this->assertEquals(StringStatus::Done, $model2->string_status);
     }
 
     public function testAttributeCastToAnEnumCanNotBeSetToAnotherEnum(): void
@@ -305,29 +301,29 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
     {
         $model = new EloquentModelEnumCastingTestModel;
 
-        $model->non_enum_status = StringStatus::pending;
+        $model->non_enum_status = StringStatus::Pending;
 
-        $this->assertEquals(StringStatus::pending, $model->non_enum_status);
+        $this->assertEquals(StringStatus::Pending, $model->non_enum_status);
     }
 
     public function testCreateOrFirst()
     {
         $model1 = EloquentModelEnumCastingUniqueTestModel::createOrFirst([
-            'string_status' => StringStatus::pending,
+            'string_status' => StringStatus::Pending,
         ]);
 
         $model2 = EloquentModelEnumCastingUniqueTestModel::createOrFirst([
-            'string_status' => StringStatus::pending,
+            'string_status' => StringStatus::Pending,
         ]);
 
         $model3 = EloquentModelEnumCastingUniqueTestModel::createOrFirst([
-            'string_status' => StringStatus::done,
+            'string_status' => StringStatus::Done,
         ]);
 
-        $this->assertEquals(StringStatus::pending, $model1->string_status);
-        $this->assertEquals(StringStatus::pending, $model2->string_status);
+        $this->assertEquals(StringStatus::Pending, $model1->string_status);
+        $this->assertEquals(StringStatus::Pending, $model2->string_status);
         $this->assertTrue($model1->is($model2));
-        $this->assertEquals(StringStatus::done, $model3->string_status);
+        $this->assertEquals(StringStatus::Done, $model3->string_status);
     }
 }
 

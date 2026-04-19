@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentHasManyThroughTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

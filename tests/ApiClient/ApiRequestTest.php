@@ -6,12 +6,8 @@ namespace Hypervel\Tests\ApiClient;
 
 use GuzzleHttp\Psr7\Request as Psr7Request;
 use Hypervel\ApiClient\ApiRequest;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @covers \Hypervel\ApiClient\ApiRequest
- */
 class ApiRequestTest extends TestCase
 {
     private ApiRequest $request;

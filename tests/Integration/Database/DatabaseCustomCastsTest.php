@@ -15,10 +15,6 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseCustomCastsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

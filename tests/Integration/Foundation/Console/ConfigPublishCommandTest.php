@@ -10,10 +10,6 @@ use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
 {
     use InteractsWithPublishedFiles;

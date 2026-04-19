@@ -6,10 +6,6 @@ namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\View\ComponentAttributeBag;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladePropsTest extends AbstractBladeTestCase
 {
     public function testPropsAreCompiled()

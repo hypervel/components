@@ -20,10 +20,6 @@ use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationMigrateCommandTest extends TestCase
 {
     public function testBasicMigrationsCallMigratorWithProperArguments()
@@ -183,6 +179,86 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         ]);
 
         $this->runCommand($command, ['--seed' => true, '--seeder' => 'Database\Seeders\CustomSeeder']);
+    }
+
+    public function testSeedOptionForwardsDatabaseToSeedCommand(): void
+    {
+        // migrate --database=X --seed must forward --database=X to db:seed
+        // so the seeder runs on the user's chosen connection rather than
+        // silently falling back to database.default.
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $command = $this->getMockBuilder(MigrateCommand::class)
+            ->onlyMethods(['call'])
+            ->setConstructorArgs([$migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class)])
+            ->getMock();
+        $command->setHypervel($app);
+        $migrator->shouldReceive('paths')->once()->andReturn([]);
+        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
+        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+            return $callback();
+        });
+        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
+        $migrator->shouldReceive('run')->once();
+        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $command->expects($this->once())->method('call')->with('db:seed', [
+            '--database' => 'pgsql-pooled',
+            '--class' => 'Database\Seeders\DatabaseSeeder',
+            '--force' => true,
+        ]);
+
+        $this->runCommand($command, ['--database' => 'pgsql-pooled', '--seed' => true]);
+    }
+
+    public function testMigrateWithSeedDoesNotLeakConnectionStateOrMutateConfig(): void
+    {
+        // Regression guard: after migrate --database=X --seed completes, the
+        // worker-global config('database.default') must be untouched and the
+        // coroutine Context must not retain any connection-default override.
+        // This catches regressions where MigrateCommand itself starts
+        // mutating config or Context in a way that escapes the command boundary.
+        $config = new \Hypervel\Config\Repository(['database' => ['default' => 'pgsql']]);
+
+        $app = new ApplicationDatabaseMigrationStub([
+            'path.database' => __DIR__,
+            'config' => $config,
+        ]);
+        $app->useDatabasePath(__DIR__);
+
+        $command = $this->getMockBuilder(MigrateCommand::class)
+            ->onlyMethods(['call'])
+            ->setConstructorArgs([$migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class)])
+            ->getMock();
+        $command->setHypervel($app);
+        $migrator->shouldReceive('paths')->once()->andReturn([]);
+        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
+        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+            return $callback();
+        });
+        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
+        $migrator->shouldReceive('run')->once();
+        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $command->expects($this->once())->method('call');
+
+        $contextBefore = \Hypervel\Context\CoroutineContext::get(
+            \Hypervel\Database\ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
+        );
+
+        $this->runCommand($command, ['--database' => 'pgsql-pooled', '--seed' => true]);
+
+        $this->assertSame(
+            'pgsql',
+            $config->get('database.default'),
+            'config("database.default") must not be mutated by migrate --seed',
+        );
+
+        $this->assertSame(
+            $contextBefore,
+            \Hypervel\Context\CoroutineContext::get(
+                \Hypervel\Database\ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
+            ),
+            'Context key must be in the same state as before the command ran',
+        );
     }
 
     public function testCreateMissingSqliteDatabaseWithForceOption(): void

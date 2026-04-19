@@ -18,10 +18,6 @@ use Pheanstalk\Pheanstalk;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueBeanstalkdJobTest extends TestCase
 {
     public function testFireProperlyCallsTheJobHandler()

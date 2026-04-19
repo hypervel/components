@@ -11,9 +11,6 @@ use Mockery as m;
 
 /**
  * Tests for the GetEntries operation.
- *
- * @internal
- * @coversNothing
  */
 class GetEntriesTest extends RedisCacheTestCase
 {

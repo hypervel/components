@@ -13,10 +13,6 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionsTest extends TestCase
 {
     public function testStopIgnoring()

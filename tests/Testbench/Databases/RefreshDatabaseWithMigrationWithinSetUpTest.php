@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class RefreshDatabaseWithMigrationWithinSetUpTest extends TestCase
 {

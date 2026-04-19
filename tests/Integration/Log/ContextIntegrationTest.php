@@ -21,10 +21,6 @@ class User extends Model
     protected array $fillable = ['name', 'email', 'password'];
 }
 
-/**
- * @internal
- * @coversNothing
- */
 #[ResetRefreshDatabaseState]
 #[WithMigration]
 class ContextIntegrationTest extends TestCase

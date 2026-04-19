@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentModelAttributeCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

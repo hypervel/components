@@ -26,10 +26,6 @@ class TestDepsSeeder extends Seeder
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseSeederTest extends TestCase
 {
     public function testCallResolveTheClassAndCallsRun()

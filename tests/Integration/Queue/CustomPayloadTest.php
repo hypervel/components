@@ -12,10 +12,6 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class CustomPayloadTest extends TestCase
 {
     protected function getPackageProviders(ApplicationContract $app): array

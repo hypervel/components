@@ -19,7 +19,10 @@ trait InteractsWithViews
      */
     protected function view(string $view, Arrayable|array $data = []): TestView
     {
-        return new TestView(view($view, $data));
+        /** @var View $rendered */
+        $rendered = view($view, $data);
+
+        return new TestView($rendered);
     }
 
     /**
@@ -46,7 +49,10 @@ trait InteractsWithViews
             @unlink($tempFile);
         });
 
-        return new TestView(view($tempFileInfo['filename'], $data));
+        /** @var View $rendered */
+        $rendered = view($tempFileInfo['filename'], $data);
+
+        return new TestView($rendered);
     }
 
     /**
@@ -58,6 +64,7 @@ trait InteractsWithViews
 
         $view = value($component->resolveView(), $data);
 
+        /** @var View $view */
         $view = $view instanceof View
             ? $view->with($component->data())
             : view($view, $component->data());

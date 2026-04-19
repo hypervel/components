@@ -9,10 +9,6 @@ use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PruneExpiredTest extends TestCase
 {
     use RefreshDatabase;

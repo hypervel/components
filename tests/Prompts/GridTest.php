@@ -9,10 +9,6 @@ use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class GridTest extends TestCase
 {
     #[DataProvider('multipleItemsProvider')]

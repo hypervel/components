@@ -10,10 +10,6 @@ use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 abstract class MailableTestCase extends TestCase
 {
     protected function defineEnvironment($app): void

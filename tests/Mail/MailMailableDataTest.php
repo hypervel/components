@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Mail\Mailable;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailableDataTest extends TestCase
 {
     public function testMailableDataIsNotLost()

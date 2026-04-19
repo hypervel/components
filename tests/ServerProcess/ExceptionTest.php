@@ -9,10 +9,6 @@ use Hypervel\ServerProcess\Exceptions\SocketAcceptException;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExceptionTest extends TestCase
 {
     public function testServerInvalidExceptionExtendsRuntimeException()

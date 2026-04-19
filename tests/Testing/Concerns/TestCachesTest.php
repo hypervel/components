@@ -17,10 +17,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCachesTest extends TestCase
 {
     private mixed $originalParallelTesting;

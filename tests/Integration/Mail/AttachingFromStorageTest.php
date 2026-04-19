@@ -10,10 +10,6 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AttachingFromStorageTest extends TestCase
 {
     public function testItCanAttachFromStorage()

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation\Console;
 use Hypervel\Foundation\Console\ConfigShowCommand;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
 {
     protected string|false $previousColumns = false;

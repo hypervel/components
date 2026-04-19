@@ -8,10 +8,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentHasOneOfManyTest extends DatabaseTestCase
 {
     public int $retrievedLogins;

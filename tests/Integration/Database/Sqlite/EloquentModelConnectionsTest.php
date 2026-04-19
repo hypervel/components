@@ -13,10 +13,6 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\Sqlite\SqliteTestCase;
 use UnitEnum;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelConnectionsTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void

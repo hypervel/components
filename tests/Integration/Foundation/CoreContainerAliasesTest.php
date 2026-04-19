@@ -9,10 +9,6 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoreContainerAliasesTest extends TestCase
 {
     public function testConnectionResolverInterfaceResolvesToDatabaseManager()

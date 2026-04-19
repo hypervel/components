@@ -18,10 +18,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentInverseRelationTest extends TestCase
 {
     public function testBuilderCallbackIsNotAppliedWhenInverseRelationIsNotSet()

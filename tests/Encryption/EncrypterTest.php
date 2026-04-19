@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EncrypterTest extends TestCase
 {
     public function testEncryption()

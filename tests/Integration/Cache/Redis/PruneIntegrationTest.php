@@ -15,9 +15,6 @@ use Hypervel\Support\Facades\Cache;
  * - Prune command removes orphaned entries
  * - Prune preserves valid entries
  * - Prune deletes empty tag structures
- *
- * @internal
- * @coversNothing
  */
 class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 {

@@ -16,10 +16,6 @@ use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentMorphToTest extends TestCase
 {
     protected $builder;
@@ -42,14 +38,14 @@ class DatabaseEloquentMorphToTest extends TestCase
     {
         $relation = $this->getRelation();
         $relation->addEagerConstraints([
-            $one = (object) ['morph_type' => 'morph_type_2', 'foreign_key' => TestEnum::test],
+            $one = (object) ['morph_type' => 'morph_type_2', 'foreign_key' => TestEnum::Test],
         ]);
         $dictionary = $relation->getDictionary();
         $relation->getDictionary();
-        $enumKey = TestEnum::test;
+        $enumKey = TestEnum::Test;
         if (isset($enumKey->value)) {
             $value = $dictionary['morph_type_2'][$enumKey->value][0]->foreign_key;
-            $this->assertEquals(TestEnum::test, $value);
+            $this->assertEquals(TestEnum::Test, $value);
         } else {
             $this->fail('An enum should contain value property');
         }

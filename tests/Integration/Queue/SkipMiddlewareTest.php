@@ -14,10 +14,6 @@ use Hypervel\Testbench\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SkipMiddlewareTest extends TestCase
 {
     public function testJobIsSkippedWhenConditionIsTrue()

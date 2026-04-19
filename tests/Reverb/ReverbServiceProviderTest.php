@@ -8,10 +8,6 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReverbServiceProviderTest extends ReverbTestCase
 {
     public function testWebhookBatchBufferDefaultsToReverbRedisConnection()

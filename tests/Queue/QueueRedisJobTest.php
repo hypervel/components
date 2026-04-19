@@ -11,10 +11,6 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueRedisJobTest extends TestCase
 {
     public function testFireProperlyCallsTheJobHandler()

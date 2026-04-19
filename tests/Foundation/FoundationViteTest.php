@@ -4,30 +4,36 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Vite;
 use Hypervel\Foundation\ViteException;
 use Hypervel\Support\Facades\Vite as ViteFacade;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationViteTest extends TestCase
 {
+    protected string $tempDir;
+
+    protected Filesystem $filesystem;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->filesystem = new Filesystem;
+        $this->tempDir = ParallelTesting::tempDir('FoundationViteTest');
+        mkdir($this->tempDir, 0777, true);
+
+        app()->usePublicPath($this->tempDir);
         app('config')->set('app.url', 'https://example.com');
     }
 
     protected function tearDown(): void
     {
-        $this->cleanViteManifest();
-        $this->cleanViteHotFile();
+        $this->filesystem->deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -221,8 +227,6 @@ class FoundationViteTest extends TestCase
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" integrity="expected-app.js-integrity"></script>',
             $result->toHtml()
         );
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanInjectIntegrityWhenPresentInManifestForCss()
@@ -257,8 +261,6 @@ class FoundationViteTest extends TestCase
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" integrity="expected-app.js-integrity"></script>',
             $result->toHtml()
         );
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanInjectIntegrityWhenPresentInManifestForImportedCss()
@@ -293,8 +295,6 @@ class FoundationViteTest extends TestCase
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" integrity="expected-app.js-integrity"></script>',
             $result->toHtml()
         );
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanSpecifyIntegrityKey()
@@ -321,8 +321,6 @@ class FoundationViteTest extends TestCase
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" integrity="expected-app.js-integrity"></script>',
             $result->toHtml()
         );
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanSpecifyArbitraryAttributesForScriptTagsWhenBuilt()
@@ -600,8 +598,6 @@ class FoundationViteTest extends TestCase
         $this->makeViteHotFile();
 
         $this->assertNull(ViteFacade::manifestHash());
-
-        $this->cleanViteHotFile();
     }
 
     public function testItGetsHashInBuildMode()
@@ -609,8 +605,6 @@ class FoundationViteTest extends TestCase
         $this->makeViteManifest(['a.js' => ['src' => 'a.js']]);
 
         $this->assertSame('98ca5a789544599b562c9978f3147a0f', ViteFacade::manifestHash());
-
-        $this->cleanViteManifest();
     }
 
     public function testItGetsDifferentHashesForDifferentManifestsInBuildMode()
@@ -620,9 +614,6 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame('98ca5a789544599b562c9978f3147a0f', ViteFacade::manifestHash());
         $this->assertSame('928a60835978bae84e5381fbb08a38b2', ViteFacade::manifestHash('admin'));
-
-        $this->cleanViteManifest();
-        $this->cleanViteManifest('admin');
     }
 
     public function testViteCanSetEntryPointsWithFluentBuilder()
@@ -653,25 +644,22 @@ class FoundationViteTest extends TestCase
             '<script type="module" src="https://example.com/custom-build/assets/app.versioned.js"></script>',
             $vite->toHtml()
         );
-
-        $this->cleanViteManifest('custom-build');
     }
 
     public function testViteCanOverrideHotFilePath()
     {
-        $this->makeViteHotFile('cold');
+        $coldPath = $this->tempDir . '/cold';
+        $this->makeViteHotFile($coldPath);
 
         $vite = app(Vite::class);
 
-        $vite->withEntryPoints(['resources/js/app.js'])->useHotFile('cold');
+        $vite->withEntryPoints(['resources/js/app.js'])->useHotFile($coldPath);
 
         $this->assertSame(
             '<script type="module" src="http://localhost:3000/@vite/client"></script>'
             . '<script type="module" src="http://localhost:3000/resources/js/app.js"></script>',
             $vite->toHtml()
         );
-
-        $this->cleanViteHotFile('cold');
     }
 
     public function testViteCanAssetPath()
@@ -697,8 +685,6 @@ class FoundationViteTest extends TestCase
         // restore default behaviour...
         $vite->createAssetPathsUsing(null);
         $this->assertSame("https://cdn.app.com/{$buildDir}/assets/profile.versioned.png", $vite->asset('resources/images/profile.png'));
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testViteIsMacroable()
@@ -716,8 +702,6 @@ class FoundationViteTest extends TestCase
         $path = ViteFacade::image('profile.png', $buildDir);
 
         $this->assertSame("https://example.com/{$buildDir}/assets/profile.versioned.png", $path);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItGeneratesPreloadDirectivesForJsAndCssImports()
@@ -776,8 +760,6 @@ class FoundationViteTest extends TestCase
                 'rel="modulepreload"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanSpecifyAttributesForPreloadedAssets()
@@ -907,8 +889,6 @@ class FoundationViteTest extends TestCase
                 'zero="0"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanSuppressPreloadTagGeneration()
@@ -1059,8 +1039,6 @@ class FoundationViteTest extends TestCase
                 'rel="modulepreload"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testPreloadAssetsGetAssetNonce()
@@ -1102,8 +1080,6 @@ class FoundationViteTest extends TestCase
                 'nonce="expected-nonce"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testCrossoriginAttributeIsInheritedByPreloadTags()
@@ -1150,14 +1126,11 @@ class FoundationViteTest extends TestCase
                 'crossorigin="script-crossorigin"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanConfigureTheManifestFilename()
     {
         $buildDir = Str::random();
-        app()->setBasePath(__DIR__);
         if (! file_exists(public_path($buildDir))) {
             mkdir(public_path($buildDir), recursive: true);
         }
@@ -1178,9 +1151,6 @@ class FoundationViteTest extends TestCase
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app-from-custom-manifest.versioned.js"></script>',
             $result->toHtml()
         );
-
-        unlink(public_path("{$buildDir}/custom-manifest.json"));
-        rmdir(public_path($buildDir));
     }
 
     public function testItOnlyOutputsUniquePreloadTags()
@@ -1231,8 +1201,6 @@ class FoundationViteTest extends TestCase
                 'rel="modulepreload"',
             ],
         ], ViteFacade::preloadedAssets());
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItRetrievesAssetContent()
@@ -1244,10 +1212,6 @@ class FoundationViteTest extends TestCase
         $content = ViteFacade::content('resources/js/app.js');
 
         $this->assertSame('some content', $content);
-
-        $this->cleanAsset('/app.versioned.js');
-
-        $this->cleanViteManifest();
     }
 
     public function testItThrowsWhenUnableToFindFileToRetrieveContent()
@@ -1331,8 +1295,6 @@ class FoundationViteTest extends TestCase
             }))
         </script>
         HTML, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItHandlesSpecifyingPageWithAppJs()
@@ -1360,8 +1322,6 @@ class FoundationViteTest extends TestCase
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 3)
             JAVASCRIPT, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanSpecifyWaterfallChunks()
@@ -1395,8 +1355,6 @@ class FoundationViteTest extends TestCase
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 10)
             JAVASCRIPT, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanPrefetchAggressively()
@@ -1448,8 +1406,6 @@ class FoundationViteTest extends TestCase
              }))
         </script>
         HTML, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testAddsAttributesToPrefetchTags()
@@ -1483,8 +1439,6 @@ class FoundationViteTest extends TestCase
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 3)
         JAVASCRIPT, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItNormalisesAttributes()
@@ -1525,8 +1479,6 @@ class FoundationViteTest extends TestCase
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 3)
         JAVASCRIPT, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItPrefetchesCss()
@@ -1603,8 +1555,6 @@ class FoundationViteTest extends TestCase
             }))
         </script>
         HTML, $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testSupportCspNonceInPrefetchScript()
@@ -1626,8 +1576,6 @@ class FoundationViteTest extends TestCase
             ->prefetch(concurrency: 3)
             ->toHtml();
         $this->assertStringContainsString('<script nonce="abc123">', $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanConfigureThePrefetchTriggerEvent()
@@ -1642,8 +1590,6 @@ class FoundationViteTest extends TestCase
             ->toHtml();
         $this->assertStringNotContainsString("window.addEventListener('load', ", $html);
         $this->assertStringContainsString("window.addEventListener('vite:prefetch', ", $html);
-
-        $this->cleanViteManifest($buildDir);
     }
 
     public function testItCanFlushState()
@@ -1666,8 +1612,6 @@ class FoundationViteTest extends TestCase
 
     protected function makeViteManifest($contents = null, $path = 'build')
     {
-        app()->setBasePath(__DIR__);
-
         if (! file_exists(public_path($path))) {
             mkdir(public_path($path), 0777, true);
         }
@@ -1714,21 +1658,8 @@ class FoundationViteTest extends TestCase
         file_put_contents(public_path("{$path}/manifest.json"), $manifest);
     }
 
-    protected function cleanViteManifest($path = 'build')
-    {
-        if (file_exists(public_path("{$path}/manifest.json"))) {
-            unlink(public_path("{$path}/manifest.json"));
-        }
-
-        if (file_exists(public_path($path))) {
-            rmdir(public_path($path));
-        }
-    }
-
     protected function makeAsset($asset, $content)
     {
-        app()->setBasePath(__DIR__);
-
         $path = public_path('build/assets');
 
         if (! file_exists($path)) {
@@ -1738,34 +1669,10 @@ class FoundationViteTest extends TestCase
         file_put_contents($path . '/' . $asset, $content);
     }
 
-    protected function cleanAsset($asset)
-    {
-        $path = public_path('build/assets');
-
-        unlink($path . $asset);
-
-        rmdir($path);
-    }
-
     protected function makeViteHotFile($path = null)
     {
-        app()->setBasePath(__DIR__);
-
-        if (! file_exists(public_path())) {
-            mkdir(public_path(), recursive: true);
-        }
-
         $path ??= public_path('hot');
 
         file_put_contents($path, 'http://localhost:3000');
-    }
-
-    protected function cleanViteHotFile($path = null)
-    {
-        $path ??= public_path('hot');
-
-        if (file_exists($path)) {
-            unlink($path);
-        }
     }
 }

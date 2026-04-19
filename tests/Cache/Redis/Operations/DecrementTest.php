@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Decrement operation.
- *
- * @internal
- * @coversNothing
  */
 class DecrementTest extends RedisCacheTestCase
 {

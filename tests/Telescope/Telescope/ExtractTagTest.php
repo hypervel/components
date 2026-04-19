@@ -10,10 +10,6 @@ use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExtractTagTest extends FeatureTestCase
 {
     public function testExtractTagFromArrayContainingFlatCollection()

@@ -19,10 +19,6 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleApplicationResolveTest extends TestCase
 {
     private function createApp(?Application $container = null): ConsoleApplication

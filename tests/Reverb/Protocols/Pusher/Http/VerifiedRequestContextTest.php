@@ -8,10 +8,6 @@ use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\Controller;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class VerifiedRequestContextTest extends ReverbTestCase
 {
     public function testControllerHasNoMutableRequestState()

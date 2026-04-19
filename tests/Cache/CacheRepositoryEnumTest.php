@@ -43,10 +43,6 @@ enum CacheRepositoryEnumTestTagUnitEnum
     case Exports;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRepositoryEnumTest extends TestCase
 {
     public function testGetWithBackedEnum(): void

@@ -9,10 +9,6 @@ use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class SearchableModelTest extends ScoutTestCase
 {
     public function testSearchReturnsBuilder()

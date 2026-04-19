@@ -11,10 +11,6 @@ use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineSafetyTest extends TestCase
 {
     public function testScopedInstancesAreIsolatedPerCoroutine(): void

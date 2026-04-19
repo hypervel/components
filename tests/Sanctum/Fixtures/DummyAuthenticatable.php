@@ -9,8 +9,6 @@ use Hypervel\Contracts\Auth\Authenticatable;
 /**
  * Minimal Authenticatable stub for tests that need a user object
  * but don't exercise authentication behavior.
- *
- * @internal
  */
 class DummyAuthenticatable implements Authenticatable
 {

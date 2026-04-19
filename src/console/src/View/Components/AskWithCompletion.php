@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\View\Components;
 
+use Hypervel\Console\OutputStyle;
 use Symfony\Component\Console\Question\Question;
 
 class AskWithCompletion extends Component
@@ -19,8 +20,11 @@ class AskWithCompletion extends Component
             ? $question->setAutocompleterCallback($choices)
             : $question->setAutocompleterValues($choices);
 
+        /** @var OutputStyle $output */
+        $output = $this->output;
+
         return $this->usingQuestionHelper(
-            fn () => $this->output->askQuestion($question)
+            fn () => $output->askQuestion($question)
         );
     }
 }

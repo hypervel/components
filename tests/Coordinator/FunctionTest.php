@@ -11,10 +11,6 @@ use function Hypervel\Coordinator\block;
 use function Hypervel\Coordinator\resume;
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class FunctionTest extends TestCase
 {
     public function testBlock()

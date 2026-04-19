@@ -8,10 +8,6 @@ use Hypervel\Support\Base62;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class Base62Test extends TestCase
 {
     public function testEncode()

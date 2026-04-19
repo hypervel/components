@@ -9,10 +9,6 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Foundation\Support\Providers\AuthServiceProvider;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthServiceProviderTest extends TestCase
 {
     public function testPoliciesReturnsEmptyArrayByDefault()

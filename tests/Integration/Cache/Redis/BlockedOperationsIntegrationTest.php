@@ -21,9 +21,6 @@ use Hypervel\Support\Facades\Cache;
  * - has() via tags
  * - pull() via tags
  * - forget() via tags
- *
- * @internal
- * @coversNothing
  */
 class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {

@@ -12,9 +12,6 @@ use Swoole\WebSocket\Frame as SwooleFrame;
 
 /**
  * Unit tests for WebSocket components.
- *
- * @internal
- * @coversNothing
  */
 class WebSocketTest extends TestCase
 {

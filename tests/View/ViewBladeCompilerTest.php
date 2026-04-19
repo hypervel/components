@@ -10,10 +10,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ViewBladeCompilerTest extends TestCase
 {
     protected function tearDown(): void

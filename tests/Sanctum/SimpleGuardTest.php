@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 
-/**
- * @internal
- * @coversNothing
- */
 class SimpleGuardTest extends TestCase
 {
     use RefreshDatabase;

@@ -12,10 +12,6 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Jobs\CustomPayloadJob;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestbenchTest extends TestCase
 {
     #[Test]

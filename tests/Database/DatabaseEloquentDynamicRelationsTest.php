@@ -12,10 +12,6 @@ use Hypervel\Database\Query\Builder as Query;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\DynamicRelationModel2 as Related;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentDynamicRelationsTest extends TestCase
 {
     public function testBasicDynamicRelations()

@@ -13,10 +13,6 @@ use ReflectionClass;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentAsBinaryCastTest extends TestCase
 {
     protected function tearDown(): void

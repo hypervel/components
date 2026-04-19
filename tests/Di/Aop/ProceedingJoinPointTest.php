@@ -8,10 +8,6 @@ use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProceedingJoinPointTest extends TestCase
 {
     public function testProcessOriginalMethod()

@@ -17,12 +17,6 @@ use Throwable;
  * Integration tests for ConcurrencyLimiter with real Redis.
  *
  * Ported from Laravel's tests/Redis/ConcurrentLimiterTest.php.
- *
- * @group integration
- * @group redis-integration
- *
- * @internal
- * @coversNothing
  */
 class ConcurrencyLimiterIntegrationTest extends TestCase
 {

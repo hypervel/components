@@ -19,10 +19,6 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthAccessGateTest extends TestCase
 {
     public function testBasicClosuresCanBeDefined()

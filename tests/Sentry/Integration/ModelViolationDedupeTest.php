@@ -14,9 +14,6 @@ use Swoole\Coroutine\Channel;
 /**
  * Verify that model violation dedupe is per-request (coroutine-scoped),
  * not per-worker (instance property on a long-lived object).
- *
- * @internal
- * @coversNothing
  */
 class ModelViolationDedupeTest extends SentryTestCase
 {

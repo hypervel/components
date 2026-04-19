@@ -10,10 +10,6 @@ use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabasePostgresQueryGrammarTest extends TestCase
 {
     public function testToRawSql()

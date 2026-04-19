@@ -22,10 +22,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthManagerTest extends TestCase
 {
     public function testGetDefaultDriverFromConfig()

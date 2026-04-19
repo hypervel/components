@@ -11,10 +11,6 @@ use Hypervel\Foundation\PackageManifest;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RegisterFacadesTest extends TestCase
 {
     public function testRegisterAliases()

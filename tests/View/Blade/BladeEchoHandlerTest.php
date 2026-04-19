@@ -11,10 +11,6 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeEchoHandlerTest extends AbstractBladeTestCase
 {
     protected function setUp(): void

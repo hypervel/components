@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Engine;
 use Hypervel\Engine\Extension;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExtensionTest extends TestCase
 {
     public function testExtensionLoaded()

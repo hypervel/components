@@ -16,10 +16,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrontendRequestsAreStatefulTest extends TestCase
 {
     use RefreshDatabase;
@@ -64,7 +60,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
         $webMiddleware = [
             StartSession::class,
             PreventRequestForgery::class,
-            Authenticate::class . ':session',
+            Authenticate::class . ':web',
         ];
         $apiMiddleware = [
             EnsureFrontendRequestsAreStateful::class,
@@ -109,7 +105,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
     {
         $user = $this->createUser();
 
-        $this->actingAs($user, 'session');
+        $this->actingAs($user, 'web');
 
         $this->getJson('/web/user', [
             'origin' => config('app.url'),

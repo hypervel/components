@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParallelTestingTest extends TestCase
 {
     private mixed $originalParallelTesting;

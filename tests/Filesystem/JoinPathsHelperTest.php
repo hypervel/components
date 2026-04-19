@@ -11,10 +11,6 @@ use Stringable;
 
 use function Hypervel\Filesystem\join_paths;
 
-/**
- * @internal
- * @coversNothing
- */
 class JoinPathsHelperTest extends TestCase
 {
     #[RequiresOperatingSystem('Linux|Darwin')]

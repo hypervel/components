@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\multisearch;
 
-/**
- * @internal
- * @coversNothing
- */
 class MultiSearchPromptTest extends TestCase
 {
     public function testSupportsDefaultResults()

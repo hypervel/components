@@ -9,10 +9,6 @@ use Error;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ForwardsCallsTest extends TestCase
 {
     public function testForwardsCalls()

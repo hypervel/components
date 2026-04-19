@@ -13,10 +13,6 @@ use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Inertia\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestResponseMacrosTest extends TestCase
 {
     public function testItCanMakeInertiaAssertions(): void

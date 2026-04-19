@@ -18,10 +18,6 @@ use Hypervel\Support\DataObject;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
 
-/**
- * @internal
- * @coversNothing
- */
 class CustomCastingTest extends TestCase
 {
     /**

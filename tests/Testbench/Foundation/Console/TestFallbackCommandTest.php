@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestFallbackCommandTest extends TestCase
 {
     #[Test]

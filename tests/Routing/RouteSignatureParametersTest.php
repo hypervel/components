@@ -14,10 +14,6 @@ use ReflectionParameter;
 use ReflectionProperty;
 use WeakMap;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteSignatureParametersTest extends RoutingTestCase
 {
     protected function tearDown(): void

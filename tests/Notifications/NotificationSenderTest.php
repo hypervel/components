@@ -22,10 +22,6 @@ use Symfony\Component\Mailer\Exception\HttpTransportException;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationSenderTest extends TestCase
 {
     public function testItCanSendNotificationsWithAStringVia()

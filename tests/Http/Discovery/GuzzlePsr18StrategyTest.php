@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class GuzzlePsr18StrategyTest extends TestCase
 {
     public function testReturnsGuzzleForPsr18ClientInterface()

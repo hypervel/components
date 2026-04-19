@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Query\Processors\PostgresProcessor;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabasePostgresProcessorTest extends TestCase
 {
     public function testProcessColumns()

@@ -11,9 +11,6 @@ use RuntimeException;
  *
  * These tests verify the high-level API behavior of tagged cache operations.
  * For detailed operation tests, see tests/Cache/Redis/Operations/AllTag/.
- *
- * @internal
- * @coversNothing
  */
 class AllTaggedCacheTest extends RedisCacheTestCase
 {

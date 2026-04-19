@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\NullStore;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheNullStoreTest extends TestCase
 {
     public function testItemsCanNotBeCached()

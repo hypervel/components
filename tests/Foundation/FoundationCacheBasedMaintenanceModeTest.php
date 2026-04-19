@@ -10,10 +10,6 @@ use Hypervel\Foundation\CacheBasedMaintenanceMode;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationCacheBasedMaintenanceModeTest extends TestCase
 {
     public function testItDeterminesWhetherMaintenanceModeIsActive()

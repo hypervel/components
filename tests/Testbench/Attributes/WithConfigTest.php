@@ -8,10 +8,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithConfigTest extends TestCase
 {
     #[Test]

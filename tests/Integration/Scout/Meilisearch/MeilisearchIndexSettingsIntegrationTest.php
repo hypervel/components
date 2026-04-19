@@ -8,9 +8,6 @@ use Hypervel\Tests\Scout\Models\SearchableModel;
 
 /**
  * Integration tests for Meilisearch index settings configuration.
- *
- * @internal
- * @coversNothing
  */
 class MeilisearchIndexSettingsIntegrationTest extends MeilisearchScoutIntegrationTestCase
 {

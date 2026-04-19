@@ -6,6 +6,6 @@ namespace Hypervel\Tests\Permission\Enums;
 
 enum Role: string
 {
-    case ADMIN = 'admin';
-    case VIEWER = 'viewer';
+    case Admin = 'admin';
+    case Viewer = 'viewer';
 }

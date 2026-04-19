@@ -18,10 +18,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ThrottlesExceptionsTest extends TestCase
 {
     public function testCircuitIsOpenedForJobErrors()

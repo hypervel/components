@@ -13,10 +13,6 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentHasOneOrManyDeprecationTest extends TestCase
 {
     public function testHasManyMatchWithNullLocalKey(): void

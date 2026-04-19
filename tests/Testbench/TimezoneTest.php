@@ -10,10 +10,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class TimezoneTest extends TestCase
 {
     #[Override]

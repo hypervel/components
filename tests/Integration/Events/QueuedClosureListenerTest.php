@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueuedClosureListenerTest extends TestCase
 {
     public function testAnonymousQueuedListenerIsQueued()

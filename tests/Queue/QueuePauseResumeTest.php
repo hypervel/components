@@ -17,10 +17,6 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueuePauseResumeTest extends TestCase
 {
     protected QueueManager $manager;

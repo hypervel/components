@@ -10,10 +10,6 @@ use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeSupervisorFactory;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupervisorCommandTest extends IntegrationTestCase
 {
     public const OPTIONS = [

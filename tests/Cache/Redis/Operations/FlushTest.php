@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Flush operation.
- *
- * @internal
- * @coversNothing
  */
 class FlushTest extends RedisCacheTestCase
 {

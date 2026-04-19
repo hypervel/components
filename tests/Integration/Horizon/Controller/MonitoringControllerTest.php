@@ -10,10 +10,6 @@ use Hypervel\Horizon\JobPayload;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MonitoringControllerTest extends ControllerTestCase
 {
     public function testMonitoredTagsAndJobCountsAreReturned()

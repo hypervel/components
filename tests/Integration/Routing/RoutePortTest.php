@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Support\Facades\Route;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutePortTest extends RoutingTestCase
 {
     public function testPortScopedRouteMatchesCorrectPort()

@@ -23,10 +23,6 @@ use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('queue')]
-/**
- * @internal
- * @coversNothing
- */
 class WorkCommandTest extends QueueTestCase
 {
     use DatabaseMigrations;

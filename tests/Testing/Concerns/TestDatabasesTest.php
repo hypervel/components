@@ -14,10 +14,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestDatabasesTest extends TestCase
 {
     private mixed $originalParallelTesting;

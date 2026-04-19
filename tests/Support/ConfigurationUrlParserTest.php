@@ -8,10 +8,6 @@ use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfigurationUrlParserTest extends TestCase
 {
     #[DataProvider('databaseUrls')]

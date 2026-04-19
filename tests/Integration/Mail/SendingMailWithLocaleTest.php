@@ -14,10 +14,6 @@ use Hypervel\Support\Facades\Mail;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingMailWithLocaleTest extends TestCase
 {
     protected function defineEnvironment($app): void

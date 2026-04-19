@@ -10,10 +10,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\artisan;
 
-/**
- * @internal
- * @coversNothing
- */
 class ArtisanTest extends TestCase
 {
     #[Test]

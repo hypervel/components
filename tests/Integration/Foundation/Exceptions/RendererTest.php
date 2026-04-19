@@ -16,10 +16,6 @@ use Mockery as m;
 use RuntimeException;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class RendererTest extends TestCase
 {
     protected function defineRoutes(Router $router): void

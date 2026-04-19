@@ -12,10 +12,6 @@ use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('mail.driver', 'array')]
 #[WithConfig('telescope.watchers', [
     NotificationWatcher::class => true,

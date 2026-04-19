@@ -9,10 +9,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class StrictTraceContinuationIntegrationTest extends SentryTestCase
 {
     private const INCOMING_TRACE_ID = '566e3688a61d4bc888951642d6f14a19';

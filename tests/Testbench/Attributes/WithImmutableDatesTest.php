@@ -12,10 +12,6 @@ use Hypervel\Testbench\Attributes\WithImmutableDates;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithImmutableDatesTest extends TestCase
 {
     #[Test]

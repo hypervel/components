@@ -10,10 +10,6 @@ use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProcessPendingUpdatesTest extends FeatureTestCase
 {
     public function testPendingUpdates()

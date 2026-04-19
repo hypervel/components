@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Routing;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\View;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteViewTest extends RoutingTestCase
 {
     public function testRouteView()

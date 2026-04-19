@@ -15,10 +15,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerTest extends ReverbTestCase
 {
     protected Server $server;
@@ -678,6 +674,25 @@ class ServerTest extends ReverbTestCase
         // It should NOT try to terminate/disconnect the connection again —
         // the fd is already gone.
         $this->assertFalse($connection->wasTerminated);
+    }
+
+    public function testCloseSetsDisconnectingFlag()
+    {
+        $scopedManager = m::spy(ScopedChannelManager::class);
+
+        $channelManager = m::mock(ChannelManager::class);
+        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+
+        $this->app->singleton(ChannelManager::class, fn () => $channelManager);
+        $this->app->forgetInstance(Server::class);
+        $server = $this->app->make(Server::class);
+
+        $connection = new FakeConnection;
+        $this->assertFalse($connection->isDisconnecting());
+
+        $server->close($connection);
+
+        $this->assertTrue($connection->isDisconnecting());
     }
 
     public function testConnectionEstablishedEventIsDispatched()

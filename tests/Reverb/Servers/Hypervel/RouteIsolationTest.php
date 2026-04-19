@@ -9,10 +9,6 @@ use Hypervel\Reverb\Servers\Hypervel\WebSocketServer;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteIsolationTest extends ReverbTestCase
 {
     public function testReverbRouterRejectsNonReverbPaths()

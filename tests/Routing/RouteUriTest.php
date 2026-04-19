@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Routing;
 use Hypervel\Routing\RouteUri;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteUriTest extends RoutingTestCase
 {
     #[DataProvider('uriProvider')]

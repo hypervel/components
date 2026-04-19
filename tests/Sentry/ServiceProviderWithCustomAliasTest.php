@@ -10,10 +10,6 @@ use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Sentry\State\HubInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServiceProviderWithCustomAliasTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void

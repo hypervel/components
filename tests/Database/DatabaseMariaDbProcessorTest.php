@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Query\Processors\MariaDbProcessor;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMariaDbProcessorTest extends TestCase
 {
     public function testProcessColumns()

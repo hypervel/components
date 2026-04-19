@@ -15,10 +15,6 @@ use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentPivotSerializationTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

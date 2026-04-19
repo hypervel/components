@@ -13,9 +13,6 @@ namespace Hypervel\Tests\Integration\Reverb;
  * Requires two running Redis-enabled servers:
  *   REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
  *   REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
- *
- * @internal
- * @coversNothing
  */
 class CrossServerTest extends CrossServerTestCase
 {

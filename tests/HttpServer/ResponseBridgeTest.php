@@ -15,10 +15,6 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResponseBridgeTest extends TestCase
 {
     public function testSendPlainResponse()

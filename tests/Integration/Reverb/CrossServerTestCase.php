@@ -17,9 +17,6 @@ use Swoole\WebSocket\Frame;
  * Start both servers:
  *   REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
  *   REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
- *
- * @internal
- * @coversNothing
  */
 abstract class CrossServerTestCase extends ReverbIntegrationTestCase
 {

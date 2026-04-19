@@ -20,10 +20,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentRelationTest extends TestCase
 {
     public function testSetRelationFail()

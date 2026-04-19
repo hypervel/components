@@ -10,10 +10,6 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class OptimizeCommandTest extends TestCase
 {
     use InteractsWithPublishedFiles;

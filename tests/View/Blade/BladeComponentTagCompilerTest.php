@@ -20,10 +20,6 @@ use InvalidArgumentException;
 use Mockery as m;
 use Stringable;
 
-/**
- * @internal
- * @coversNothing
- */
 class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 {
     public function testSlotsCanBeCompiled()

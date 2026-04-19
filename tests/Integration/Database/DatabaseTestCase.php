@@ -15,9 +15,6 @@ use Hypervel\Testbench\TestCase;
  * standard DB_* environment variables (DB_CONNECTION, DB_HOST, etc.).
  *
  * Each test should define its schema in afterRefreshingDatabase().
- *
- * @internal
- * @coversNothing
  */
 abstract class DatabaseTestCase extends TestCase
 {

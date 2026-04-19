@@ -8,10 +8,6 @@ use Attribute;
 use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AfterResolvingAttributeCallbackTest extends TestCase
 {
     public function testCallbackIsCalledAfterDependencyResolutionWithAttribute()
@@ -77,6 +73,66 @@ class AfterResolvingAttributeCallbackTest extends TestCase
         });
 
         $this->assertEquals(Tenant::TenantA, $tenant);
+    }
+
+    public function testCallbackDoesNotFireWhenNoAttributesOnBuildPath()
+    {
+        $container = new Container;
+        $callCount = 0;
+
+        $container->afterResolvingAttribute(
+            ContainerTestOnTenant::class,
+            function () use (&$callCount) {
+                ++$callCount;
+            }
+        );
+
+        // HasTenantImpl has no attribute on itself or its constructor params.
+        $container->make(HasTenantImpl::class);
+
+        $this->assertSame(0, $callCount);
+    }
+
+    public function testCallbackDoesNotFireWhenNoAttributesOnCallPath()
+    {
+        $container = new Container;
+        $callCount = 0;
+
+        $container->afterResolvingAttribute(
+            ContainerTestOnTenant::class,
+            function () use (&$callCount) {
+                ++$callCount;
+            }
+        );
+
+        $container->call(function (HasTenantImpl $property) {
+            return $property;
+        });
+
+        $this->assertSame(0, $callCount);
+    }
+
+    public function testCallbackFiresForAnnotatedParameterButNotUnannotatedInSameCall()
+    {
+        $container = new Container;
+        $invocations = [];
+
+        $container->afterResolvingAttribute(
+            ContainerTestOnTenant::class,
+            function (ContainerTestOnTenant $attribute) use (&$invocations) {
+                $invocations[] = $attribute->tenant;
+            }
+        );
+
+        $container->call(function (
+            #[ContainerTestOnTenant(Tenant::TenantA)]
+            HasTenantImpl $annotated,
+            HasTenantImpl $plain,
+        ) {
+            return [$annotated, $plain];
+        });
+
+        $this->assertSame([Tenant::TenantA], $invocations);
     }
 }
 

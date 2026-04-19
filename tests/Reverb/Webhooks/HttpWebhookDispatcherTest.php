@@ -13,10 +13,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class HttpWebhookDispatcherTest extends ReverbTestCase
 {
     public function testDispatchesJobForAllowedEvent()
@@ -166,6 +162,112 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
+    public function testChannelEndsWithFilterSkipsNonMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => '-chat'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelEndsWithFilterAllowsMatchingChannel()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => '-chat'],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testChannelEndsWithFilterDisabledWhenNull()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => ['channel_name_ends_with' => null],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
+
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersAppliedAsAnd()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+
+        // Matches both — should pass
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
+        Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersRejectWhenOnlyPrefixMatches()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testBothFiltersRejectWhenOnlySuffixMatches()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'filter' => [
+                'channel_name_starts_with' => 'tenant-1-',
+                'channel_name_ends_with' => '-chat',
+            ],
+        ]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
+
+        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    }
+
     public function testCustomHeadersPassedToJob()
     {
         Queue::fake();
@@ -251,6 +353,46 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
+    }
+
+    public function testSubscriptionCountEventIncludesCountInPayload()
+    {
+        Queue::fake();
+
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'subscription_count', [
+            'channel' => 'test-channel',
+            'subscription_count' => 42,
+        ]);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'subscription_count'
+                && $event['channel'] === 'test-channel'
+                && $event['subscription_count'] === 42;
+        });
+    }
+
+    public function testSubscriptionCountBypassesEventsAllowlist()
+    {
+        Queue::fake();
+
+        // Events list only has channel_occupied — subscription_count is NOT listed
+        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+
+        $dispatcher = new HttpWebhookDispatcher;
+        $dispatcher->dispatch($app, 'subscription_count', [
+            'channel' => 'test-channel',
+            'subscription_count' => 5,
+        ]);
+
+        // Should still be dispatched — subscription_count bypasses the events filter
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            return $job->payload->events[0]['name'] === 'subscription_count';
+        });
     }
 
     /**

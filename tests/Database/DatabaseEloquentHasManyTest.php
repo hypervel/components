@@ -14,10 +14,6 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentHasManyTest extends TestCase
 {
     public function testMakeMethodDoesNotSaveNewModel()

@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LoggingIntegrationTest extends TestCase
 {
     public function testLoggingCanBeRunWithoutEncounteringExceptions()

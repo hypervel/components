@@ -24,10 +24,6 @@ use ReflectionMethod;
 use ReflectionProperty;
 use Swoole\Coroutine;
 
-/**
- * @internal
- * @coversNothing
- */
 class ScheduleRunContextPropagationTest extends TestCase
 {
     protected Dispatcher $dispatcher;

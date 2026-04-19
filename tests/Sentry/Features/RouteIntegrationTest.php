@@ -8,10 +8,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\SentryTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteIntegrationTest extends SentryTestCase
 {
     protected function defineRoutes(Router $router): void

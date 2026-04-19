@@ -12,10 +12,6 @@ use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class HypervelServerProviderTest extends ReverbTestCase
 {
     public function testBindsSwooleTableSharedStateByDefault()

@@ -15,10 +15,6 @@ use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SignalManagerTest extends TestCase
 {
     protected function tearDown(): void

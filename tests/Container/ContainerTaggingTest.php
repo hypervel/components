@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Container;
 use Hypervel\Container\Container;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContainerTaggingTest extends TestCase
 {
     public function testContainerTags()

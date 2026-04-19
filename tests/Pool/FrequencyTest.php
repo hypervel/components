@@ -13,10 +13,6 @@ use Hypervel\Tests\Pool\Fixtures\FrequencyStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrequencyTest extends TestCase
 {
     public function testFrequencyHit()

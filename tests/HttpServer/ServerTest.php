@@ -18,7 +18,6 @@ use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Server;
 use Hypervel\Routing\Router;
-use Hypervel\Server\ServerFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
@@ -27,10 +26,6 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class ServerTest extends TestCase
 {
     protected function tearDown(): void
@@ -39,7 +34,7 @@ class ServerTest extends TestCase
         CoordinatorManager::clear(Constants::WORKER_START);
     }
 
-    public function testInitCoreMiddlewareResolvesKernelAndBootstraps()
+    public function testBootstrapForServerResolvesKernelAndBootstraps()
     {
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('bootstrap')->once();
@@ -47,17 +42,13 @@ class ServerTest extends TestCase
         $router = m::mock(Router::class);
         $router->shouldReceive('compileAndWarm')->once();
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('getConfig')->andReturn(null);
-
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(false);
         $container->shouldReceive('make')->with(KernelContract::class)->andReturn($kernel);
         $container->shouldReceive('make')->with('router')->andReturn($router);
-        $container->shouldReceive('make')->with(ServerFactory::class)->andReturn($serverFactory);
 
         $server = new Server($container);
-        $server->initCoreMiddleware('http');
+        $server->bootstrapForServer('http');
 
         $this->assertSame('http', $server->getServerName());
     }

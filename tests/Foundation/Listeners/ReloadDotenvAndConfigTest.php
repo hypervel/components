@@ -15,10 +15,6 @@ use Hypervel\Support\Facades\Config as ConfigFacade;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ReloadDotenvAndConfigTest extends TestCase
 {
     protected ?string $originalAppName = null;

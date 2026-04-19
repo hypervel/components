@@ -12,9 +12,6 @@ use Swoole\WebSocket\Frame as SwooleFrame;
  * Integration tests for WebSocket.
  *
  * These tests require a WebSocket server running on the configured host/port.
- *
- * @internal
- * @coversNothing
  */
 class WebSocketTest extends EngineIntegrationTestCase
 {

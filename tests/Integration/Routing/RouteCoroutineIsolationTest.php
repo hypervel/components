@@ -10,10 +10,6 @@ use Hypervel\Routing\Route;
 
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteCoroutineIsolationTest extends RoutingTestCase
 {
     public function testParametersAreIsolatedBetweenCoroutines()

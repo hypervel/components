@@ -16,10 +16,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class BuilderTest extends TestCase
 {
     public function testBuilderStoresQueryAndModel()

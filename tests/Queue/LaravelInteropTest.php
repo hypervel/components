@@ -22,9 +22,6 @@ use ReflectionProperty;
  *
  * If any of these tests fail, cross-framework queue interoperability is broken.
  * See QueueServiceProvider::registerLaravelInteropAliases() for context.
- *
- * @internal
- * @coversNothing
  */
 class LaravelInteropTest extends TestCase
 {

@@ -13,10 +13,6 @@ use RuntimeException;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineEventsTest extends TestCase
 {
     public function testDeferredEventsAreCoroutineIsolated()

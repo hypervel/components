@@ -15,10 +15,6 @@ use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\List
 use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\UnionListeners\UnionListener;
 use SplFileInfo;
 
-/**
- * @internal
- * @coversNothing
- */
 class DiscoverEventsTest extends TestCase
 {
     public function testEventsCanBeDiscovered()

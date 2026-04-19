@@ -20,10 +20,6 @@ abstract class UsesTestingFeaturesTestBaseTestCase extends TestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('fake.override_attribute', 'child')]
 class UsesTestingFeaturesTest extends UsesTestingFeaturesTestBaseTestCase
 {

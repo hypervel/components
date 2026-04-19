@@ -22,9 +22,6 @@ use function Hypervel\Coroutine\run;
  *
  * These tests use coroutines to verify that different pooled connections can see
  * each other's data - proving they all access the same underlying file.
- *
- * @internal
- * @coversNothing
  */
 class SQLiteFilePoolingTest extends TestCase
 {

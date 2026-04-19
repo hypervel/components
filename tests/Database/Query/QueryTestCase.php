@@ -18,8 +18,6 @@ use Mockery as m;
  * Base test case for Query Builder and Grammar tests.
  *
  * Provides helpers to create builders with mock connections and real grammars.
- *
- * @internal
  */
 abstract class QueryTestCase extends TestCase
 {

@@ -11,10 +11,6 @@ use Hypervel\Testbench\PHPUnit\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class CreatesApplicationTest extends TestCase
 {
     use CreatesApplication;

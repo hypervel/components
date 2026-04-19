@@ -9,10 +9,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\DB;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseTransactionsTest extends DatabaseTestCase
 {
     protected function defineEnvironment(Application $app): void

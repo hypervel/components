@@ -28,6 +28,7 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
  * @method bool hasValidRelativeSignature()
  * @method bool hasValidSignatureWhileIgnoring($ignoreQuery = [], $absolute = true)
  * @method bool hasValidRelativeSignatureWhileIgnoring($ignoreQuery = [])
+ * @method bool inertia() Registered as a macro by Hypervel\Inertia\InertiaServiceProvider.
  */
 class Request extends SymfonyRequest implements Arrayable, ArrayAccess
 {

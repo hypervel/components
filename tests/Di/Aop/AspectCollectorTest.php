@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Di\Aop;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AspectCollectorTest extends TestCase
 {
     public function testHasAspectsReturnsFalseWhenEmpty()

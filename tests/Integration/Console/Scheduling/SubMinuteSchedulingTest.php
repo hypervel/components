@@ -18,10 +18,6 @@ use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class SubMinuteSchedulingTest extends TestCase
 {
     protected Schedule $schedule;

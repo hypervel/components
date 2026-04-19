@@ -8,9 +8,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Forever operation (union tags).
- *
- * @internal
- * @coversNothing
  */
 class ForeverTest extends RedisCacheTestCase
 {

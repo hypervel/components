@@ -9,10 +9,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisCacheLockTest extends TestCase
 {
     use InteractsWithRedis;

@@ -23,9 +23,6 @@ use Swoole\Coroutine\Channel;
  *
  * Verifies that instance properties and static properties used for per-request
  * mutable state are properly isolated between concurrent coroutines.
- *
- * @internal
- * @coversNothing
  */
 class CoroutineSafetyTest extends TestCase
 {

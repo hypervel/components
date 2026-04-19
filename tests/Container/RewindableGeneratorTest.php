@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Container;
 use Hypervel\Container\RewindableGenerator;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RewindableGeneratorTest extends TestCase
 {
     public function testCountUsesProvidedValue()

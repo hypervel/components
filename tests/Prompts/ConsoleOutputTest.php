@@ -9,10 +9,6 @@ use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use Symfony\Component\Console\Output\StreamOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConsoleOutputTest extends TestCase
 {
     public function testCorrectlyCountsTrailingNewlinesWithUnixLineEndings()

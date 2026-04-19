@@ -13,10 +13,6 @@ use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class MetricsHandlerTest extends ReverbTestCase
 {
     protected MetricsHandler $metrics;

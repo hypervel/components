@@ -15,10 +15,6 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('queue.default', 'sqs')]
 #[WithConfig('queue.connections.sqs.after_commit', true)]
 class QueueConnectionTest extends TestCase

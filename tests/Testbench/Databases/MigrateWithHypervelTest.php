@@ -15,10 +15,6 @@ use PHPUnit\Framework\Attributes\Test;
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_migration_path;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class MigrateWithHypervelTest extends TestCase
 {

@@ -11,10 +11,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\remote;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresOperatingSystem('Linux|Darwin')]
 class AboutCommandTest extends TestCase
 {

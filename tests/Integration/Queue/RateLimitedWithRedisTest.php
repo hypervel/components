@@ -19,10 +19,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('redis')]
-/**
- * @internal
- * @coversNothing
- */
 class RateLimitedWithRedisTest extends TestCase
 {
     use InteractsWithRedis;

@@ -22,10 +22,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthorizeMiddlewareTest extends TestCase
 {
     protected $container;

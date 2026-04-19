@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('app.debug', true)]
 class RenderBladeFilesTest extends TestCase
 {

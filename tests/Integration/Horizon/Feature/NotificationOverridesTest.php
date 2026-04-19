@@ -13,10 +13,6 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NotificationOverridesTest extends IntegrationTestCase
 {
     public function testCustomNotificationsAreSentIfSpecified()

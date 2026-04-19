@@ -10,10 +10,6 @@ use Hypervel\Inertia\ResponseFactory;
 
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineIsolationTest extends TestCase
 {
     public function testSharedPropsAreIsolatedBetweenCoroutines()

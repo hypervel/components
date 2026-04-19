@@ -9,10 +9,6 @@ use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RepositoryTest extends TestCase
 {
     protected Repository $repository;

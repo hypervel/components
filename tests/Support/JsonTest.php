@@ -10,10 +10,6 @@ use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use JsonException;
 
-/**
- * @internal
- * @coversNothing
- */
 class JsonTest extends TestCase
 {
     public function testEncodeArray()

@@ -15,10 +15,6 @@ use Hypervel\Tests\Sentry\SentryTestCase;
 use Psr\Http\Message\RequestInterface;
 use Sentry\Tracing\SpanStatus;
 
-/**
- * @internal
- * @coversNothing
- */
 class GuzzleHttpClientAspectTest extends SentryTestCase
 {
     use InteractsWithAop;

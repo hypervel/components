@@ -13,9 +13,6 @@ use RuntimeException;
 
 /**
  * Tests for Model::withoutEvents() coroutine safety.
- *
- * @internal
- * @coversNothing
  */
 class EloquentModelWithoutEventsTest extends TestCase
 {

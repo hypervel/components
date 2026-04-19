@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\Benchmark;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportBenchmarkTest extends TestCase
 {
     public function testMeasure()

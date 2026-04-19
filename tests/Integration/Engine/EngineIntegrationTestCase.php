@@ -9,9 +9,6 @@ use Hypervel\Tests\TestCase;
 
 /**
  * Base test case for engine integration tests that require a test server.
- *
- * @internal
- * @coversNothing
  */
 abstract class EngineIntegrationTestCase extends TestCase
 {

@@ -12,10 +12,6 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationsTest extends TestCase
 {
     use DatabaseMigrations;

@@ -8,10 +8,6 @@ use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DefineCacheRoutesBeforeSetUpTest extends TestCase
 {
     #[Override]

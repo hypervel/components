@@ -7,10 +7,6 @@ namespace Hypervel\Tests\JWT\Providers;
 use Hypervel\Tests\JWT\Fixtures\ProviderStub;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProviderTest extends TestCase
 {
     protected $provider;

@@ -50,4 +50,9 @@ interface ViewFinderInterface
      * Prepend a location to the finder.
      */
     public function prependLocation(string $location): void;
+
+    /**
+     * Get the active view paths.
+     */
+    public function getPaths(): array;
 }

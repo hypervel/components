@@ -31,10 +31,6 @@ enum SessionUnitKey
     case Settings;
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class SessionStoreBackedEnumTest extends TestCase
 {
     // =========================================================================

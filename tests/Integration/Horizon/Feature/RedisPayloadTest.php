@@ -29,10 +29,6 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 use StdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisPayloadTest extends IntegrationTestCase
 {
     public function testTypeIsCorrectlyDetermined()

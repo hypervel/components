@@ -14,10 +14,6 @@ use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class DatabaseMigrationsTest extends TestCase
 {

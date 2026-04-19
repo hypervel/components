@@ -7,8 +7,8 @@ namespace Hypervel\Testing;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\PromptValidationException;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\TestCase;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
@@ -50,13 +50,13 @@ class PendingCommand
      * Create a new pending console command run.
      *
      * @param TestCase $test the test being run
-     * @param Application $app the application instance
+     * @param Container $app the application instance
      * @param string $command the command to run
      * @param array $parameters the parameters to pass to the command
      */
     public function __construct(
         public TestCase $test,
-        protected Application $app,
+        protected Container $app,
         protected string $command,
         protected array $parameters
     ) {

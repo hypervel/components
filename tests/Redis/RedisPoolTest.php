@@ -14,10 +14,6 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RedisPoolTest extends TestCase
 {
     public function testPoolConfigComesFromRedisConfig(): void

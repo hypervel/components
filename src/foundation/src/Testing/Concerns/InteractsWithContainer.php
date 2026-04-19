@@ -154,7 +154,7 @@ trait InteractsWithContainer
                 return [];
             }
 
-            public function reactRefresh(): ?HtmlString
+            public function reactRefresh(): HtmlString
             {
                 return new HtmlString('');
             }

@@ -9,10 +9,6 @@ use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\TimeoutExceededException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueExceptionTest extends TestCase
 {
     public function testItCanCreateTimeoutExceptionForJob()

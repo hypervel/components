@@ -16,9 +16,6 @@ use Hypervel\Support\Facades\Cache;
  * - This reduces the need for aggressive cleanup of expired tag hashes
  *
  * NOTE: These tests require Redis 8.0+ with HSETEX support.
- *
- * @internal
- * @coversNothing
  */
 class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
 {

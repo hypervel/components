@@ -28,10 +28,6 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 use Swoole\Runtime;
 
-/**
- * @internal
- * @coversNothing
- */
 class FilesystemAdapterTest extends TestCase
 {
     private $tempDir;

@@ -31,10 +31,6 @@ use Hypervel\Tests\Inertia\Fixtures\ExampleInertiaPropsProvider;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ResponseFactoryTest extends TestCase
 {
     public function testCanMacro(): void

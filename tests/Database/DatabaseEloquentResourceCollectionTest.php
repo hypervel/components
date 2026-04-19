@@ -16,10 +16,6 @@ use Hypervel\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceC
 use Hypervel\Tests\TestCase;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentResourceCollectionTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()

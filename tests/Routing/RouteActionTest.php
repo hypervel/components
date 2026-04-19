@@ -9,10 +9,6 @@ use Hypervel\Routing\RouteAction;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 
-/**
- * @internal
- * @coversNothing
- */
 class RouteActionTest extends RoutingTestCase
 {
     public function testItCanDetectASerializedClosure()

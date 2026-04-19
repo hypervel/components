@@ -10,10 +10,6 @@ use Hypervel\Session\SessionServiceProvider;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PreviousUrlTest extends RoutingTestCase
 {
     public function testPreviousUrlWithoutSession()

@@ -10,10 +10,6 @@ use Monolog\Handler\FingersCrossedHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\Event;
 
-/**
- * @internal
- * @coversNothing
- */
 class LogChannelTest extends SentryTestCase
 {
     public function testCreatingHandlerWithoutActionLevelConfig(): void

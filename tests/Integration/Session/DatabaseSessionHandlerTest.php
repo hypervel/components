@@ -11,10 +11,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithMigration('session')]
 class DatabaseSessionHandlerTest extends DatabaseTestCase
 {

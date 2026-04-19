@@ -11,10 +11,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\package_path;
 
-/**
- * @internal
- * @coversNothing
- */
 class TestCommandTest extends TestCase
 {
     #[Test]

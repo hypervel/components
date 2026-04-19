@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Database\MariaDb;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[RequiresDatabase('mariadb')]
 abstract class MariaDbTestCase extends DatabaseTestCase
 {

@@ -10,10 +10,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class LockerTest extends TestCase
 {
     public function testLockAndUnlock()

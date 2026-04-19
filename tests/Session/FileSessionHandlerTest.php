@@ -12,10 +12,6 @@ use Mockery as m;
 
 use function Hypervel\Filesystem\join_paths;
 
-/**
- * @internal
- * @coversNothing
- */
 class FileSessionHandlerTest extends TestCase
 {
     protected Filesystem $files;

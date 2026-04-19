@@ -7,10 +7,6 @@ namespace Hypervel\Tests\JsonSchema;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class IntegerTypeTest extends TestCase
 {
     public function testItMaySetMinValue()

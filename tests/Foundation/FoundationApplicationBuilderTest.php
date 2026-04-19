@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationApplicationBuilderTest extends TestCase
 {
     protected function tearDown(): void

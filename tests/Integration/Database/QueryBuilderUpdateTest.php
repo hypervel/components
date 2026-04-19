@@ -12,10 +12,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 require_once 'Enums.php';
 
-/**
- * @internal
- * @coversNothing
- */
 class QueryBuilderUpdateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -57,9 +53,9 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
 
     public static function jsonValuesDataProvider()
     {
-        yield ['payload', ['Laravel', 'Founder'], ['Laravel', 'Founder']];
-        yield ['payload', collect(['Laravel', 'Founder']), ['Laravel', 'Founder']];
-        yield ['status', StringStatus::draft, 'draft'];
+        yield ['payload', ['Hypervel', 'Founder'], ['Hypervel', 'Founder']];
+        yield ['payload', collect(['Hypervel', 'Founder']), ['Hypervel', 'Founder']];
+        yield ['status', StringStatus::Draft, 'draft'];
     }
 
     #[RequiresDatabase(['sqlite', 'mysql', 'mariadb'])]

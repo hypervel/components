@@ -9,9 +9,6 @@ use Hypervel\Tests\Scout\Models\SearchableModel;
 
 /**
  * Integration tests for Meilisearch sorting operations.
- *
- * @internal
- * @coversNothing
  */
 class MeilisearchSortingIntegrationTest extends MeilisearchScoutIntegrationTestCase
 {

@@ -17,10 +17,6 @@ use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 use ValueError;
 
-/**
- * @internal
- * @coversNothing
- */
 class SupportStrTest extends TestCase
 {
     public function testStringCanBeLimitedByWords(): void

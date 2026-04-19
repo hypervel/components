@@ -15,10 +15,6 @@ use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 
-/**
- * @internal
- * @coversNothing
- */
 class FlushLifecycleTest extends TestCase
 {
     public function testFlushReleasesAllTransportsCheckedOutDuringRequest()

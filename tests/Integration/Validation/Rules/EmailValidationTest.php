@@ -9,10 +9,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rules\Email;
 use PHPUnit\Framework\Attributes\TestWith;
 
-/**
- * @internal
- * @coversNothing
- */
 class EmailValidationTest extends TestCase
 {
     #[TestWith(['0'])]

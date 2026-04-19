@@ -8,10 +8,6 @@ use Hypervel\Console\Parser;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ParserTest extends TestCase
 {
     public function testBasicParameterParsing()

@@ -11,10 +11,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConcernsHasAttributesTest extends TestCase
 {
     public function testWithoutConstructor()

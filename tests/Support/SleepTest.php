@@ -14,10 +14,6 @@ use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class SleepTest extends TestCase
 {
     public function testItSleepsForSeconds()

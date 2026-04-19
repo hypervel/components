@@ -55,10 +55,6 @@ use WeakReference;
 
 use const UPLOAD_ERR_NO_FILE;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationExceptionsHandlerTest extends TestCase
 {
     use InteractsWithExceptionHandling;

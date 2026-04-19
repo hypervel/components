@@ -10,10 +10,6 @@ use Hypervel\Watcher\RestartStrategy;
 use InvalidArgumentException;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class ListenCommandTest extends IntegrationTestCase
 {
     public function testListenCommandRequiresWatchConfiguration()

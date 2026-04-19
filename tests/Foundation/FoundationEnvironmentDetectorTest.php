@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Foundation\EnvironmentDetector;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FoundationEnvironmentDetectorTest extends TestCase
 {
     public function testClosureCanBeUsedForCustomEnvironmentDetection()

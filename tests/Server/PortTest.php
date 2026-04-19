@@ -8,10 +8,6 @@ use Hypervel\Server\Port;
 use Hypervel\Server\Server;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PortTest extends TestCase
 {
     public function testSetting()

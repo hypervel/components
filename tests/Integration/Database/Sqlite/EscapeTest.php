@@ -6,10 +6,6 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EscapeTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void

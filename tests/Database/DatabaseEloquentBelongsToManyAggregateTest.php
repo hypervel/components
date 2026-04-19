@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 {
     protected function setUp(): void

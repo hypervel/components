@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\SplPriorityQueue;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SplPriorityQueueTest extends TestCase
 {
     public function testQueueWithPriority()

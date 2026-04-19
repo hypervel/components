@@ -16,10 +16,6 @@ use Throwable;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class CoroutineTest extends TestCase
 {
     public function testCoroutineParentId()

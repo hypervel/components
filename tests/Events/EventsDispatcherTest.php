@@ -13,10 +13,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
 class EventsDispatcherTest extends TestCase
 {
     protected function setUp(): void

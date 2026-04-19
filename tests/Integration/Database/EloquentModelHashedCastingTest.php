@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelHashedCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void

@@ -11,10 +11,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PreventRequestForgeryServerRuntimeTest extends TestCase
 {
     protected function setUp(): void

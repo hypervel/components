@@ -8,10 +8,6 @@ use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Tests\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class DeprecatedExceptionTest extends TestCase
 {
     #[Test]

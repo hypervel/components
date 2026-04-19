@@ -9,10 +9,6 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
 
-/**
- * @internal
- * @coversNothing
- */
 class ControllerTest extends TestCase
 {
     public function testControllerReturnsAnInertiaResponse(): void

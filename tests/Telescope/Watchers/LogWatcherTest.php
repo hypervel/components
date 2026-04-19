@@ -14,10 +14,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('logging.default', 'null')]
 class LogWatcherTest extends FeatureTestCase
 {

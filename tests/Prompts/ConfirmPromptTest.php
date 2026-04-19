@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\confirm;
 
-/**
- * @internal
- * @coversNothing
- */
 class ConfirmPromptTest extends TestCase
 {
     public function testConfirm()

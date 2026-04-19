@@ -9,10 +9,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {
     protected function setUp(): void

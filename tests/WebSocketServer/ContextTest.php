@@ -10,10 +10,6 @@ use Hypervel\WebSocketServer\Context;
 
 use function Hypervel\Coroutine\parallel;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextTest extends TestCase
 {
     public function testHas()

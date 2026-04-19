@@ -14,10 +14,6 @@ use RuntimeException;
 
 use function Hypervel\Coroutine\wait;
 
-/**
- * @internal
- * @coversNothing
- */
 class WaiterTest extends TestCase
 {
     protected function setUp(): void

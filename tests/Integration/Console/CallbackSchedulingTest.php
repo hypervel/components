@@ -19,10 +19,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallbackSchedulingTest extends TestCase
 {
     protected array $log = [];

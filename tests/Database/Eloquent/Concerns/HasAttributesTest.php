@@ -11,10 +11,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasAttributesTest extends TestCase
 {
     public function testGetCastsIncludesCastsMethodForIncrementingModels(): void

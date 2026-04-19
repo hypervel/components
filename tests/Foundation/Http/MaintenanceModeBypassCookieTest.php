@@ -9,10 +9,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\HttpFoundation\Cookie;
 
-/**
- * @internal
- * @coversNothing
- */
 class MaintenanceModeBypassCookieTest extends TestCase
 {
     public function testCreateReturnsCookieInstance()

@@ -16,10 +16,6 @@ use RuntimeException;
 use Stringable;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class StdoutLoggerTest extends TestCase
 {
     public function testLog()

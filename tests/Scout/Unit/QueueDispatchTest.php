@@ -14,9 +14,6 @@ use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**
  * Tests for Scout's queue dispatch behavior, including after_commit support.
- *
- * @internal
- * @coversNothing
  */
 class QueueDispatchTest extends ScoutTestCase
 {

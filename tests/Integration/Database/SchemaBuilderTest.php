@@ -10,10 +10,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SchemaBuilderTest extends DatabaseTestCase
 {
     protected function destroyDatabaseMigrations(): void

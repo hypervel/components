@@ -31,10 +31,6 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
-/**
- * @internal
- * @coversNothing
- */
 class BusBatchTest extends TestCase
 {
     use RefreshDatabase;

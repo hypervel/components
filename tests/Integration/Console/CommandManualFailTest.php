@@ -11,10 +11,6 @@ use Hypervel\Testbench\TestCase;
 use RuntimeException;
 use Throwable;
 
-/**
- * @internal
- * @coversNothing
- */
 class CommandManualFailTest extends TestCase
 {
     protected function setUp(): void

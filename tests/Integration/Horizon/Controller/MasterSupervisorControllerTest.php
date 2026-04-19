@@ -11,10 +11,6 @@ use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MasterSupervisorControllerTest extends ControllerTestCase
 {
     public function testMasterSupervisorListingWithoutSupervisors()

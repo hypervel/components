@@ -14,10 +14,6 @@ use Hypervel\Tests\Testbench\Fixtures\MergeSeedersTestStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class WithWorkbenchTest extends TestCase
 {
     use WithWorkbench;

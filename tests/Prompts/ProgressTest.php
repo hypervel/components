@@ -11,10 +11,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\progress;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProgressTest extends TestCase
 {
     #[DataProvider('progressBarProvider')]

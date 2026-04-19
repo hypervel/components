@@ -11,10 +11,6 @@ use stdClass;
 
 use function Hypervel\Coroutine\go;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallerTest extends TestCase
 {
     public function testCallerWithNull()

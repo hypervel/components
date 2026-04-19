@@ -9,10 +9,6 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Tests\Permission\Enums\Permission as PermissionEnum;
 use Hypervel\Tests\Permission\Models\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class HasPermissionTest extends PermissionTestCase
 {
     protected User $user;
@@ -89,9 +85,9 @@ class HasPermissionTest extends PermissionTestCase
 
     public function testUserCanBeGivenPermissionByEnum()
     {
-        $this->user->givePermissionTo(PermissionEnum::VIEW);
+        $this->user->givePermissionTo(PermissionEnum::View);
 
-        $this->assertTrue($this->user->hasPermission(PermissionEnum::VIEW));
+        $this->assertTrue($this->user->hasPermission(PermissionEnum::View));
         $this->assertTrue($this->user->hasPermission('view'));
         $this->assertTrue($this->user->hasDirectPermission('view'));
         $this->assertCount(1, $this->user->permissions);
@@ -248,13 +244,13 @@ class HasPermissionTest extends PermissionTestCase
         $this->user->syncPermissions([
             'manage',
             $this->deletePermission->id,
-            PermissionEnum::VIEW,
+            PermissionEnum::View,
         ]);
 
         $this->user->refresh();
         $this->assertTrue($this->user->hasDirectPermission('manage'));
         $this->assertTrue($this->user->hasDirectPermission($this->deletePermission->id));
-        $this->assertTrue($this->user->hasDirectPermission(PermissionEnum::VIEW));
+        $this->assertTrue($this->user->hasDirectPermission(PermissionEnum::View));
         $this->assertFalse($this->user->hasDirectPermission('edit'));
         $this->assertCount(3, $this->user->permissions);
     }
@@ -363,13 +359,13 @@ class HasPermissionTest extends PermissionTestCase
         $this->user->givePermissionTo(
             'view', // string
             $this->editPermission->id, // int
-            PermissionEnum::VIEW, // enum
+            PermissionEnum::View, // enum
         );
 
         $this->user->refresh();
         $this->assertTrue($this->user->hasDirectPermission('view'));
         $this->assertTrue($this->user->hasDirectPermission($this->editPermission->id));
-        $this->assertTrue($this->user->hasDirectPermission(PermissionEnum::VIEW));
+        $this->assertTrue($this->user->hasDirectPermission(PermissionEnum::View));
 
         // Should only have 2 unique permissions (view and edit)
         $this->assertCount(2, $this->user->permissions);
@@ -380,7 +376,7 @@ class HasPermissionTest extends PermissionTestCase
         $permissions = [
             'view',
             $this->editPermission->id,
-            PermissionEnum::VIEW,
+            PermissionEnum::View,
         ];
 
         $this->user->givePermissionTo($permissions);
@@ -627,13 +623,13 @@ class HasPermissionTest extends PermissionTestCase
         $this->adminRole->syncPermissions([
             'manage',
             $this->deletePermission->id,
-            PermissionEnum::VIEW,
+            PermissionEnum::View,
         ]);
 
         $this->adminRole->refresh();
         $this->assertTrue($this->adminRole->hasDirectPermission('manage'));
         $this->assertTrue($this->adminRole->hasDirectPermission($this->deletePermission->id));
-        $this->assertTrue($this->adminRole->hasDirectPermission(PermissionEnum::VIEW));
+        $this->assertTrue($this->adminRole->hasDirectPermission(PermissionEnum::View));
         $this->assertFalse($this->adminRole->hasDirectPermission('edit'));
         $this->assertCount(3, $this->adminRole->permissions);
     }

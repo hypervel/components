@@ -17,10 +17,6 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     GateWatcher::class => [
         'enabled' => true,

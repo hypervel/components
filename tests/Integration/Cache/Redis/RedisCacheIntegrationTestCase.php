@@ -25,9 +25,6 @@ use Redis as PhpRedis;
  * - Accessing raw Redis client for verification
  * - Computing tag hash keys for each mode
  * - Common assertions for tag structures
- *
- * @internal
- * @coversNothing
  */
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {

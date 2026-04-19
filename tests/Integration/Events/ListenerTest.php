@@ -9,10 +9,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class ListenerTest extends TestCase
 {
     protected function tearDown(): void

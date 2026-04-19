@@ -12,10 +12,6 @@ use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SendingMarkdownMailTest extends TestCase
 {
     protected function defineEnvironment($app): void

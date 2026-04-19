@@ -13,10 +13,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\select;
 
-/**
- * @internal
- * @coversNothing
- */
 class SelectPromptTest extends TestCase
 {
     public function testAcceptsArrayOfLabels(): void

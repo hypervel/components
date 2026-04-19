@@ -14,10 +14,6 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class SessionPersistenceTest extends TestCase
 {
     public function testSessionIsPersistedEvenIfExceptionIsThrownFromRoute()

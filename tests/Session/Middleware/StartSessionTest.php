@@ -8,10 +8,6 @@ use Hypervel\Session\Middleware\StartSession;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class StartSessionTest extends TestCase
 {
     public function testGetSessionCookieConfigReturnsDefaults(): void

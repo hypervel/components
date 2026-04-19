@@ -8,10 +8,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Log\Context\Repository;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextInstanceTest extends TestCase
 {
     public function testGetInstanceReturnsRepositoryInstance()

@@ -14,10 +14,6 @@ use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
 use function Hypervel\Testbench\phpunit_version_compare;
 
-/**
- * @internal
- * @coversNothing
- */
 class HelpersTest extends TestCase
 {
     #[Test]

@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Testbench\Concerns;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-/**
- * @internal
- * @coversNothing
- */
 class HandlesAssertionsTest extends TestCase
 {
     #[Test]

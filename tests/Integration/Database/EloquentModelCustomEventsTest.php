@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelCustomEventsTest extends DatabaseTestCase
 {
     protected function setUp(): void

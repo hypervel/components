@@ -15,9 +15,6 @@ use Mockery as m;
  *
  * ConcurrencyLimiterBuilder provides a fluent API for configuring and executing
  * a ConcurrencyLimiter via Redis::funnel('key')->limit(10)->then(...).
- *
- * @internal
- * @coversNothing
  */
 class ConcurrencyLimiterBuilderTest extends TestCase
 {

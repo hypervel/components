@@ -8,10 +8,6 @@ use Hypervel\Support\ClearStatCache;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ClearStatCacheTest extends TestCase
 {
     protected function setUp(): void

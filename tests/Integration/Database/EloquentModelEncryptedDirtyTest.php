@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Model;
 
-/**
- * @internal
- * @coversNothing
- */
 class EloquentModelEncryptedDirtyTest extends DatabaseTestCase
 {
     public function testDirtyAttributeBehaviorWithNoPreviousKeys()

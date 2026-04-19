@@ -11,10 +11,6 @@ use Hypervel\JWT\Providers\Lcobucci;
 use Hypervel\JWT\Providers\Provider;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class LcobucciTest extends TestCase
 {
     private int $testNowTimestamp;

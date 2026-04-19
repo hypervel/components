@@ -18,10 +18,6 @@ use Mockery as m;
 
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueDeferredQueueTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;

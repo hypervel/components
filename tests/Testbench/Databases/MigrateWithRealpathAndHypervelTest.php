@@ -13,10 +13,6 @@ use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\workbench_path;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('database.default', 'testing')]
 class MigrateWithRealpathAndHypervelTest extends TestCase
 {

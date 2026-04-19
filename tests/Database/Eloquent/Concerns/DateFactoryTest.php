@@ -21,9 +21,6 @@ use Hypervel\Testbench\TestCase;
  *
  * When Date::use(CarbonImmutable::class) is called, all date-related operations
  * should return CarbonImmutable instances instead of mutable Carbon instances.
- *
- * @internal
- * @coversNothing
  */
 class DateFactoryTest extends TestCase
 {

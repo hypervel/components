@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Mail\Mailables\Headers;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailableHeadersTest extends TestCase
 {
     public function test()

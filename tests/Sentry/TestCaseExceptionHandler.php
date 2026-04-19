@@ -13,8 +13,6 @@ use Throwable;
 
 /**
  * Proxy class that injects Sentry exception capture into the test exception handler.
- *
- * @internal
  */
 class TestCaseExceptionHandler implements ExceptionHandler
 {

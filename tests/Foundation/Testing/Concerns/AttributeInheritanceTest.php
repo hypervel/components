@@ -10,9 +10,6 @@ use Hypervel\Testbench\TestCase;
 
 /**
  * Tests that attributes are inherited from parent TestCase classes.
- *
- * @internal
- * @coversNothing
  */
 #[WithConfig('testing.child_class', 'child_value')]
 class AttributeInheritanceTest extends AbstractParentTestCase
@@ -76,8 +73,6 @@ class AttributeInheritanceTest extends AbstractParentTestCase
 
 /**
  * Abstract parent test case with class-level attributes for inheritance testing.
- *
- * @internal
  */
 #[WithConfig('testing.parent_class', 'parent_value')]
 abstract class AbstractParentTestCase extends TestCase

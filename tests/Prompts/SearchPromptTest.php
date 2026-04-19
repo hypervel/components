@@ -12,10 +12,6 @@ use Hypervel\Tests\TestCase;
 
 use function Hypervel\Prompts\search;
 
-/**
- * @internal
- * @coversNothing
- */
 class SearchPromptTest extends TestCase
 {
     public function testAcceptsCallback(): void

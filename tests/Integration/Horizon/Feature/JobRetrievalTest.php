@@ -11,10 +11,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class JobRetrievalTest extends IntegrationTestCase
 {
     public function testPendingJobsCanBeRetrieved()

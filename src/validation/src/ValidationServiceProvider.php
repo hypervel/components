@@ -18,6 +18,10 @@ class ValidationServiceProvider extends ServiceProvider
         $this->registerPresenceVerifier();
         $this->registerUncompromisedVerifier();
         $this->registerValidationFactory();
+
+        $this->commands([
+            Console\BenchmarkValidationCommand::class,
+        ]);
     }
 
     /**

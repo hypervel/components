@@ -10,10 +10,6 @@ use Hypervel\Http\Discovery\GuzzlePsr18Strategy;
 use Hypervel\Http\HttpServiceProvider;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class Psr18DiscoveryIntegrationTest extends TestCase
 {
     public function testDiscoveryReturnsGuzzleNotSymfony()

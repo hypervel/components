@@ -11,10 +11,6 @@ use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class ObjectPoolTest extends TestCase
 {
     public function testPoolFlush()

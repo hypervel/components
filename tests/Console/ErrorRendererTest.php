@@ -11,10 +11,6 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class ErrorRendererTest extends TestCase
 {
     public function testDefaultVerbosityIsNormal()

@@ -19,10 +19,6 @@ use Telescope\Dummies\DummyInvokableEventListener;
 use Telescope\Dummies\DummyObject;
 use Telescope\Dummies\IgnoredEvent;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('telescope.watchers', [
     EventWatcher::class => [
         'enabled' => true,

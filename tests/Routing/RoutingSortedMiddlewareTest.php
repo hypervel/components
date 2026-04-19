@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Routing\RoutingSortedMiddlewareTest;
 use Hypervel\Routing\SortedMiddleware;
 use Hypervel\Tests\Routing\RoutingTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RoutingSortedMiddlewareTest extends RoutingTestCase
 {
     public function testMiddlewareCanBeSortedByPriority()
