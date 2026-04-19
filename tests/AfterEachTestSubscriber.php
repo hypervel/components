@@ -31,6 +31,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\ApiClient\PendingRequest::flushCache();
         \Hypervel\Auth\Access\Gate::flushState();
         \Hypervel\Auth\AuthenticationException::flushState();
+        \Hypervel\Auth\EloquentUserProvider::flushState();
         \Hypervel\Auth\Middleware\Authenticate::flushState();
         \Hypervel\Auth\Middleware\RedirectIfAuthenticated::flushState();
         \Hypervel\Auth\Notifications\ResetPassword::flushState();
