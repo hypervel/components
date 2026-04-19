@@ -232,6 +232,34 @@ class AuthManager implements FactoryContract
     }
 
     /**
+     * Clear the cached user for the given identifier.
+     *
+     * Uses the specified guard's existing provider instance to avoid
+     * creating throwaway provider objects. If the guard doesn't expose
+     * getProvider() (custom guards that don't use GuardHelpers), or the
+     * provider is not an EloquentUserProvider, or caching is disabled,
+     * this is a no-op.
+     */
+    public function clearUserCache(mixed $identifier, ?string $guard = null): void
+    {
+        $guardInstance = $this->guard($guard);
+
+        // getProvider() lives on the GuardHelpers trait, not the Guard
+        // contract. Custom guards (via extend()/viaRequest()) may not use
+        // the trait — without this check, __call forwarding would throw
+        // BadMethodCallException at runtime.
+        if (! method_exists($guardInstance, 'getProvider')) {
+            return;
+        }
+
+        $provider = $guardInstance->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers trait, not the Guard contract) */
+
+        if ($provider instanceof EloquentUserProvider) {
+            $provider->clearUserCache($identifier);
+        }
+    }
+
+    /**
      * Register a custom driver creator Closure.
      */
     public function extend(string $driver, Closure $callback): static
