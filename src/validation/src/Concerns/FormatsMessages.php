@@ -376,6 +376,11 @@ trait FormatsMessages
      */
     protected function replaceIndexOrPositionPlaceholder(string $message, string $attribute, string $placeholder, ?Closure $modifier = null): string
     {
+        if (! str_contains(strtolower($message), ':' . $placeholder)
+            && ! str_contains(strtolower($message), '-' . $placeholder)) {
+            return $message;
+        }
+
         $segments = explode('.', $attribute);
 
         $modifier ??= fn ($value) => $value;
@@ -426,6 +431,10 @@ trait FormatsMessages
      */
     protected function replaceInputPlaceholder(string $message, string $attribute): string
     {
+        if (! str_contains($message, ':input')) {
+            return $message;
+        }
+
         $actualValue = $this->getValue($attribute);
 
         if (is_scalar($actualValue) || is_null($actualValue)) {
