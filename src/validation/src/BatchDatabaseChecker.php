@@ -141,8 +141,8 @@ final class BatchDatabaseChecker
             }
 
             /** @var array<int, mixed> $chunkResults */
-            $chunkResults = array_values($query->pluck($column)->all());
-            $results = array_merge($results, $chunkResults);
+            $chunkResults = $query->pluck($column)->all();
+            array_push($results, ...$chunkResults);
         }
 
         return $results;
