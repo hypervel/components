@@ -18,11 +18,18 @@ final class RulePlanCache
 {
     private static int $maxSize = 2048;
 
-    /** @var array<string, AttributePlan> */
+    /**
+     * The cached plans, ordered least-recently-used first.
+     *
+     * PHP associative arrays preserve insertion order, so the array itself
+     * doubles as the LRU queue: the oldest entry is always at the head and
+     * the most-recently-used entry is always at the tail. A hit refreshes
+     * recency by unset-then-reinsert (both O(1)), and eviction pops the
+     * head via array_key_first (O(1)).
+     *
+     * @var array<string, AttributePlan>
+     */
     private static array $plans = [];
-
-    /** @var list<string> LRU order — most recently used at end */
-    private static array $order = [];
 
     /**
      * Get a cached plan for the given rule array.
@@ -36,21 +43,17 @@ final class RulePlanCache
     {
         $key = self::cacheKey($rules);
 
-        if ($key === null) {
+        if ($key === null || ! isset(self::$plans[$key])) {
             return null;
         }
 
-        if (isset(self::$plans[$key])) {
-            self::$order = array_values(array_filter(
-                self::$order,
-                static fn (string $k): bool => $k !== $key,
-            ));
-            self::$order[] = $key;
+        // Refresh recency: unset then re-insert moves the entry to the end
+        // (most-recently-used position) in O(1).
+        $plan = self::$plans[$key];
+        unset(self::$plans[$key]);
+        self::$plans[$key] = $plan;
 
-            return self::$plans[$key];
-        }
-
-        return null;
+        return $plan;
     }
 
     /**
@@ -66,13 +69,21 @@ final class RulePlanCache
             return;
         }
 
-        while (count(self::$plans) >= self::$maxSize && self::$order !== []) {
-            $evict = array_shift(self::$order);
-            unset(self::$plans[$evict]);
+        // Remove any existing entry for this key FIRST. Two reasons:
+        //  1. A re-put at capacity must not evict an unrelated entry.
+        //     Without this unset, count() stays at maxSize, the loop below
+        //     evicts array_key_first(), and only THEN does the final
+        //     assignment land — silently displacing an innocent entry.
+        //  2. A re-put must refresh the key to most-recently-used. Just
+        //     overwriting the existing slot would leave it at its current
+        //     (old) insertion position.
+        unset(self::$plans[$key]);
+
+        while (count(self::$plans) >= self::$maxSize) {
+            unset(self::$plans[array_key_first(self::$plans)]);
         }
 
         self::$plans[$key] = $plan;
-        self::$order[] = $key;
     }
 
     /**
@@ -82,7 +93,6 @@ final class RulePlanCache
     {
         self::$maxSize = 2048;
         self::$plans = [];
-        self::$order = [];
     }
 
     /**
