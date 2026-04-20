@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 use Mockery as m;

@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 
 /**

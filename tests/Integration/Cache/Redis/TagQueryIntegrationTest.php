@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Generator;
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
 /**

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Carbon\Carbon;
 use DateInterval;
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
 /**
