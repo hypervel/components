@@ -101,6 +101,11 @@ class Put
             $expiry = time() + $seconds;
 
             // 1. Update Tag Hashes (Cross-slot, must be sequential)
+            //
+            // Hash field names are the logical cache key only — the store
+            // prefix is already on the hash's own Redis key path (via
+            // tagHashKey) and is re-applied by readers (Flush/Prune).
+            // Avoids duplicating the prefix in every field.
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
 
