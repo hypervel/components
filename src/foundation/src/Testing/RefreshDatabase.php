@@ -99,7 +99,6 @@ trait RefreshDatabase
         $migrateRefresh = property_exists($this, 'migrateRefresh') && (bool) $this->migrateRefresh;
         if ($migrateRefresh || ! RefreshDatabaseState::$migrated) {
             $this->command('migrate:fresh', $this->migrateFreshUsing());
-            RefreshDatabaseState::$migrated = true;
             if ($migrateRefresh) {
                 $this->migrateRefresh = false;
             }
@@ -179,6 +178,15 @@ trait RefreshDatabase
                 $connection->setEventDispatcher($dispatcher);
             }
         }
+
+        // Mark the database as migrated only after every connection's PDO
+        // has been cached. Keeping $migrated and $inMemoryConnections in
+        // lockstep means a test that skips between refreshTestDatabase()
+        // and this method (possible under RunTestsInCoroutine, where this
+        // method is deferred to setUpRefreshDatabaseInCoroutine()) leaves
+        // the flag false — so the next test's migrate:fresh runs cleanly
+        // instead of being skipped with no cached PDO to restore.
+        RefreshDatabaseState::$migrated = true;
     }
 
     /**
