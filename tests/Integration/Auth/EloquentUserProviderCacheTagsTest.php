@@ -8,6 +8,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -28,6 +29,7 @@ class EloquentUserProviderCacheTagsTest extends TestCase
 {
     use InteractsWithRedis;
     use RefreshDatabase;
+    use RequiresAnyTagModeRedis;
 
     protected const string DEFAULT_KEY_PREFIX = 'auth_users';
 
@@ -36,31 +38,6 @@ class EloquentUserProviderCacheTagsTest extends TestCase
     protected const string STORE_PREFIX = 'auth_test:';
 
     protected const string PRIMARY_TAG = 'auth_users';
-
-    /**
-     * Minimum phpredis version required for any-mode tag operations.
-     */
-    private const string PHPREDIS_MIN_VERSION = '6.3.0';
-
-    /**
-     * Minimum Redis version required for any-mode tag operations.
-     */
-    private const string REDIS_MIN_VERSION = '8.0.0';
-
-    /**
-     * Minimum Valkey version required for any-mode tag operations.
-     */
-    private const string VALKEY_MIN_VERSION = '9.0.0';
-
-    /**
-     * Cached result of any-mode support check (null = not checked yet).
-     */
-    private static ?bool $anyTagModeSupported = null;
-
-    /**
-     * Cached skip reason when any-mode is not supported.
-     */
-    private static string $anyTagModeSkipReason = '';
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -289,55 +266,5 @@ class EloquentUserProviderCacheTagsTest extends TestCase
     protected function anyModeTagKey(string $tagName): string
     {
         return self::STORE_PREFIX . '_any:tag:' . $tagName . ':entries';
-    }
-
-    /**
-     * Skip the test if any-mode tag support requirements are not met.
-     *
-     * Duplicates the version-gating logic from
-     * RedisCacheIntegrationTestCase::checkAnyTagModeSupport() — any-mode
-     * needs phpredis >= 6.3.0 (HSETEX) and Redis >= 8.0 / Valkey >= 9.0
-     * (HEXPIRE). Cached once per process.
-     */
-    protected function skipIfAnyTagModeUnsupported(): void
-    {
-        if (self::$anyTagModeSupported === null) {
-            self::$anyTagModeSupported = $this->checkAnyTagModeSupport();
-        }
-
-        if (! self::$anyTagModeSupported) {
-            $this->markTestSkipped(self::$anyTagModeSkipReason);
-        }
-    }
-
-    private function checkAnyTagModeSupport(): bool
-    {
-        $phpredisVersion = phpversion('redis') ?: '0';
-        if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
-            self::$anyTagModeSkipReason = 'Any tag mode requires phpredis >= '
-                . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})";
-
-            return false;
-        }
-
-        $info = $this->redisClient()->info('server');
-
-        if (isset($info['valkey_version'])) {
-            if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
-                self::$anyTagModeSkipReason = 'Any tag mode requires Valkey >= '
-                    . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})";
-
-                return false;
-            }
-        } elseif (isset($info['redis_version'])) {
-            if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
-                self::$anyTagModeSkipReason = 'Any tag mode requires Redis >= '
-                    . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})";
-
-                return false;
-            }
-        }
-
-        return true;
     }
 }
