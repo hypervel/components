@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor;
 
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\Redis\Support\TagKeyBuilder;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\TagMode;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -142,9 +143,9 @@ final class DoctorContext
     {
         return [
             // Any mode tag storage: {cachePrefix}_any:tag:{tagNamePrefix}*
-            $this->cachePrefix . TagMode::Any->tagSegment() . $tagNamePrefix . '*',
+            $this->cachePrefix . TagKeyBuilder::tagSegmentFor(TagMode::Any) . $tagNamePrefix . '*',
             // All mode tag storage: {cachePrefix}_all:tag:{tagNamePrefix}*
-            $this->cachePrefix . TagMode::All->tagSegment() . $tagNamePrefix . '*',
+            $this->cachePrefix . TagKeyBuilder::tagSegmentFor(TagMode::All) . $tagNamePrefix . '*',
         ];
     }
 
