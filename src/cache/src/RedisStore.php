@@ -26,7 +26,6 @@ use Hypervel\Cache\Redis\Operations\Remember;
 use Hypervel\Cache\Redis\Operations\RememberForever;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -349,6 +348,9 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     /**
      * Set the tag mode.
+     *
+     * Intended for boot-time configuration only — this mutates state on
+     * a per-worker singleton.
      */
     public function setTagMode(TagMode|string $mode): static
     {
