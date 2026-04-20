@@ -78,6 +78,7 @@ trait CreatesUserProviders
                 $config['cache']['store'] ?? null,
                 (int) ($config['cache']['ttl'] ?? 300),
                 $config['cache']['prefix'] ?? 'auth_users',
+                $config['cache']['tags'] ?? null,
             );
         }
 
