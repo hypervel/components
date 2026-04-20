@@ -110,6 +110,79 @@ If you've registered `EloquentUserProvider::resolveUserCacheKeyUsing(...)`, `cle
 - If the guard's provider is not an `EloquentUserProvider` (e.g. a custom `RequestGuard`), the call is silently ignored.
 - If caching is disabled for the provider, the call is a no-op.
 
+### Bulk invalidation
+
+The auth cache does not include a built-in method for flushing all cached users at once. If you need to invalidate everything - for example after a deploy that changes the User model, or during an incident - there are two supported approaches.
+
+**1. Use a dedicated cache store**
+
+Give the auth cache its own dedicated store, separate from the rest of your application's caching. Any supported driver works:
+
+```php
+// config/cache.php
+'stores' => [
+    'auth' => [
+        'driver' => 'redis',
+        'connection' => 'auth',
+    ],
+    // ...
+],
+```
+
+```env
+AUTH_USERS_CACHE_STORE=auth
+```
+
+Flush the store via the cache API:
+
+```php
+Cache::store('auth')->flush();
+```
+
+This clears everything held in the dedicated store.
+
+**2. Use Redis in any-mode with tags**
+
+Configure a Redis cache store in `any` tag mode and set tags on the auth provider's cache block:
+
+```php
+// config/cache.php
+'stores' => [
+    'auth' => [
+        'driver' => 'redis',
+        'connection' => 'auth',
+        'tag_mode' => 'any',
+    ],
+    // ...
+],
+```
+
+```php
+// config/auth.php
+'providers' => [
+    'users' => [
+        // ...
+        'cache' => [
+            // ...
+            'store' => 'auth',
+            'tags' => ['auth_users'],
+        ],
+    ],
+],
+```
+
+Every cached user is then indexed under the configured tags and can be flushed collectively:
+
+```php
+Cache::store('auth')->tags(['auth_users'])->flush();
+```
+
+Tags are additive — per-user reads, writes, and the automatic invalidation listener keep working as before.
+
+**Tag mode requirement.** The configured store must implement `TaggableStore` and be in `TagMode::Any` — Redis is the only stock driver that supports configurable tag modes, via its `tag_mode` config key. `enableCache()` throws at boot if these conditions aren't met. All-mode is rejected because its tag-namespaced storage keys would force every read and forget to carry tag context, which doesn't fit the auth-cache access pattern.
+
+For per-request tag scoping (e.g. tagging each cached user with their tenant), see **Dynamic tag resolvers** below.
+
 ### TTL guidance
 
 | Scenario | Guidance |
@@ -159,6 +232,36 @@ public function boot(): void
 Produces keys like `auth_users:App\Models\User:5:42` (prefix, FQCN, tenant 5, user 42).
 
 **Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in the config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh on each `retrieveById()`, reading the current coroutine's context.
+
+### Dynamic tag resolvers
+
+Static tags in `config/auth.php` apply provider-wide — every cached user gets the same set. For per-request scoping (e.g. tagging each cached user with their tenant so the app can flush "all users for tenant 5"), register a global resolver alongside the static config:
+
+```php
+use Hypervel\Auth\EloquentUserProvider;
+
+public function boot(): void
+{
+    EloquentUserProvider::resolveUserCacheTagsUsing(
+        fn () => ['tenant:' . tenantId()],
+    );
+}
+```
+
+The resolver returns a list of tag names and runs fresh on every cache write, reading the current coroutine's context. Effective tags applied to each write are the union of the static config tags and the resolver's return value:
+
+```
+static ['auth_users']  +  resolver → ['tenant:5']  =  write tagged ['auth_users', 'tenant:5']
+```
+
+Apps can then flush broadly or narrowly depending on which tag they target:
+
+```php
+Cache::store('auth')->tags(['auth_users'])->flush();  // every cached user
+Cache::store('auth')->tags(['tenant:5'])->flush();    // just tenant 5's users
+```
+
+**Static tags are the feature gate.** If no static tags are configured, the resolver is ignored and writes go through the untagged cache. Apps that want dynamic tagging must also configure at least one static tag (typically a provider-level grouping tag like `['auth_users']`).
 
 ### Gotchas
 
