@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Support;
 
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\TagMode;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
@@ -15,8 +15,8 @@ use Redis;
  *
  * This class encapsulates the dependencies that all cache operations need,
  * providing a clean interface to Redis connection, client, and configuration.
- * It receives TagMode via dependency injection and delegates all key-building
- * to the TagMode enum (single source of truth for mode-specific patterns).
+ * It receives TagMode via dependency injection and delegates mode-specific
+ * key formatting to an internal TagKeyBuilder.
  */
 class StoreContext
 {
@@ -32,11 +32,14 @@ class StoreContext
      */
     public const TAG_FIELD_VALUE = '1';
 
+    private readonly TagKeyBuilder $tagKeyBuilder;
+
     public function __construct(
         private readonly string $connectionName,
         private readonly string $prefix,
         private readonly TagMode $tagMode,
     ) {
+        $this->tagKeyBuilder = new TagKeyBuilder($tagMode, $prefix);
     }
 
     /**
@@ -71,7 +74,7 @@ class StoreContext
      */
     public function tagId(string $tag): string
     {
-        return $this->tagMode->tagId($tag);
+        return $this->tagKeyBuilder->tagId($tag);
     }
 
     /**
@@ -81,7 +84,7 @@ class StoreContext
      */
     public function tagHashKey(string $tag): string
     {
-        return $this->tagMode->tagKey($this->prefix, $tag);
+        return $this->tagKeyBuilder->tagKey($tag);
     }
 
     /**
@@ -99,7 +102,7 @@ class StoreContext
      */
     public function tagScanPattern(): string
     {
-        return $this->prefix . $this->tagMode->tagSegment() . '*:entries';
+        return $this->prefix . $this->tagKeyBuilder->tagSegment() . '*:entries';
     }
 
     /**
@@ -109,7 +112,7 @@ class StoreContext
      */
     public function reverseIndexKey(string $key): string
     {
-        return $this->tagMode->reverseIndexKey($this->prefix, $key);
+        return $this->tagKeyBuilder->reverseIndexKey($key);
     }
 
     /**
@@ -119,7 +122,7 @@ class StoreContext
      */
     public function registryKey(): string
     {
-        return $this->tagMode->registryKey($this->prefix);
+        return $this->tagKeyBuilder->registryKey();
     }
 
     /**
@@ -169,7 +172,7 @@ class StoreContext
      */
     public function fullTagPrefix(): string
     {
-        return $this->optPrefix() . $this->prefix . $this->tagMode->tagSegment();
+        return $this->optPrefix() . $this->prefix . $this->tagKeyBuilder->tagSegment();
     }
 
     /**
@@ -177,7 +180,7 @@ class StoreContext
      */
     public function fullReverseIndexKey(string $key): string
     {
-        return $this->optPrefix() . $this->tagMode->reverseIndexKey($this->prefix, $key);
+        return $this->optPrefix() . $this->tagKeyBuilder->reverseIndexKey($key);
     }
 
     /**
@@ -185,6 +188,6 @@ class StoreContext
      */
     public function fullRegistryKey(): string
     {
-        return $this->optPrefix() . $this->tagMode->registryKey($this->prefix);
+        return $this->optPrefix() . $this->tagKeyBuilder->registryKey();
     }
 }
