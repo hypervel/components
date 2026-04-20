@@ -10,6 +10,8 @@ use Hypervel\Cache\FileStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\TaggableStore;
+use Hypervel\Cache\TagMode;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -61,6 +63,17 @@ class EloquentUserProvider implements UserProvider
     protected static ?Closure $cacheKeyResolver = null;
 
     /**
+     * Global resolver returning additional per-request tags to union with
+     * the static config tags at every cache write.
+     *
+     * Set once in a service provider's boot() method. Evaluated fresh on
+     * each cache put so it can read per-request context.
+     *
+     * @var null|(Closure(): list<string>)
+     */
+    protected static ?Closure $cacheTagsResolver = null;
+
+    /**
      * Registry of cache descriptors per model class.
      *
      * Each entry is keyed by a deterministic descriptor hash, holding
@@ -110,6 +123,14 @@ class EloquentUserProvider implements UserProvider
     protected string $cachePrefix = 'auth_users';
 
     /**
+     * Static tags applied to every cache write (unioned with whatever the
+     * tag resolver returns). Null = no tags configured.
+     *
+     * @var null|list<string>
+     */
+    protected ?array $cacheTags = null;
+
+    /**
      * Memoized model key segment (the fully qualified class name).
      *
      * Computed once in enableCache() and reused on every retrieveById()
@@ -150,7 +171,7 @@ class EloquentUserProvider implements UserProvider
 
         $user = $this->fetchUserById($identifier);
 
-        $this->cache->put($key, $user ?? self::NULL_SENTINEL, $this->cacheTtl);
+        $this->resolveWriteCache()->put($key, $user ?? self::NULL_SENTINEL, $this->cacheTtl);
 
         return $user;
     }
@@ -291,12 +312,25 @@ class EloquentUserProvider implements UserProvider
      * in its prior (uncached) state and does not register a descriptor or
      * model event listeners.
      *
+     * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires a TaggableStore in TagMode::Any
+     *
      * @throws InvalidArgumentException when the resolved store is not supported
      */
-    public function enableCache(?string $storeName, int $ttl = 300, ?string $prefix = 'auth_users'): static
-    {
+    public function enableCache(
+        ?string $storeName,
+        int $ttl = 300,
+        ?string $prefix = 'auth_users',
+        ?array $tags = null,
+    ): static {
         $cache = Container::getInstance()->make('cache')->store($storeName);
         $this->ensureSupportedAuthCacheStore($cache);
+
+        if ($tags !== null && $tags !== []) {
+            $this->ensureTaggableAnyModeStore($cache);
+            $this->cacheTags = array_values($tags);
+        } else {
+            $this->cacheTags = null;
+        }
 
         $this->cache = $cache;
         $this->cacheStoreName = $storeName;
@@ -348,11 +382,30 @@ class EloquentUserProvider implements UserProvider
     }
 
     /**
+     * Set the cache tags resolver for all cached Eloquent user providers.
+     *
+     * The callback receives no arguments and should return a list of tag
+     * names for the current request context. Called fresh on each cache
+     * put so it can read per-request state.
+     *
+     * Effective tags applied to each write = static config tags
+     * (per-provider, from auth.providers.*.cache.tags) unioned with the
+     * resolver's return value.
+     *
+     * @param Closure(): list<string> $callback
+     */
+    public static function resolveUserCacheTagsUsing(Closure $callback): void
+    {
+        static::$cacheTagsResolver = $callback;
+    }
+
+    /**
      * Flush static state for test isolation.
      */
     public static function flushState(): void
     {
         static::$cacheKeyResolver = null;
+        static::$cacheTagsResolver = null;
         static::$cachedProviders = [];
         static::$cacheEventsRegistered = [];
     }
@@ -385,6 +438,37 @@ class EloquentUserProvider implements UserProvider
     }
 
     /**
+     * Ensure the resolved cache store supports tags and is in any-mode.
+     *
+     * Auth caching only supports tag-based bulk flush via any-mode because:
+     *  - any-mode keys are independent of tags, so reads and per-user
+     *    forgets stay on the plain repo (no mode branching in the hot path);
+     *  - the dynamic tag resolver can't cause cross-context invalidation
+     *    bugs since the auto-invalidation listener never touches tags.
+     *
+     * @throws InvalidArgumentException when the store can't support tags in any-mode
+     */
+    protected function ensureTaggableAnyModeStore(CacheRepository $cache): void
+    {
+        $store = $cache->getStore();
+
+        if (! $store instanceof TaggableStore) {
+            throw new InvalidArgumentException(sprintf(
+                'Auth user caching tags require a TaggableStore; got [%s]. See the auth cache documentation for supported stores.',
+                $store::class,
+            ));
+        }
+
+        if ($store->getTagMode() !== TagMode::Any) {
+            throw new InvalidArgumentException(sprintf(
+                'Auth user caching tags require a store configured in TagMode::Any; got [%s] in mode [%s]. Configure a separate Redis store with tag_mode=any for auth caching.',
+                $store::class,
+                $store->getTagMode()->value,
+            ));
+        }
+    }
+
+    /**
      * Build the cache key for a user identifier.
      *
      * Always includes the fully qualified model class name (memoized in
@@ -399,6 +483,55 @@ class EloquentUserProvider implements UserProvider
             : (string) $identifier;
 
         return $this->cachePrefix . ':' . $this->modelSegment . ':' . $identifierSegment;
+    }
+
+    /**
+     * Resolve the cache repository to use for puts.
+     *
+     * If static tags are configured (opt-in gate), returns a tagged
+     * repository with the union of static and dynamic tags. Otherwise
+     * returns the plain repo. Computed per-write because dynamic tags
+     * can change per request.
+     *
+     * Uses Repository::tags() rather than reaching into the raw store
+     * via getStore()->tags() so the tagged cache inherits the
+     * repository's config and event dispatcher wiring (CachePut events
+     * etc. fire correctly on tagged writes).
+     */
+    protected function resolveWriteCache(): CacheRepository
+    {
+        $effectiveTags = $this->effectiveCacheTags();
+
+        if ($effectiveTags === []) {
+            return $this->cache; /* @phpstan-ignore return.type */
+        }
+
+        return $this->cache->tags($effectiveTags); /* @phpstan-ignore method.notFound (tags() is on Repository concrete, not the Repository contract) */
+    }
+
+    /**
+     * Compute the effective tag set: static config tags ∪ dynamic resolver output.
+     *
+     * The static tag config is the feature gate: if no static tags are
+     * configured, returns an empty array and the dynamic resolver is
+     * ignored. This matches where enableCache() performs the store
+     * validation — without static tags, the store was never checked for
+     * TaggableStore + any-mode support, so there's no safe way to apply
+     * dynamic tags either.
+     *
+     * @return list<string>
+     */
+    protected function effectiveCacheTags(): array
+    {
+        if ($this->cacheTags === null || $this->cacheTags === []) {
+            return [];
+        }
+
+        $dynamic = static::$cacheTagsResolver !== null
+            ? (static::$cacheTagsResolver)()
+            : [];
+
+        return [...$this->cacheTags, ...$dynamic];
     }
 
     /**
