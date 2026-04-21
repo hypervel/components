@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use Hypervel\Cache\NullSentinel;
+use Mockery as m;
 use RuntimeException;
 
 /**
@@ -418,6 +420,95 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(0, $callCount, 'Callback should not be called on cache hit');
     }
 
+    public function testRememberNullableStoresAndReturnsNonNullValue(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+        $expectedScore = now()->timestamp + 60;
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 60, serialize('computed'))->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->rememberNullable('profile', 60, fn () => 'computed');
+
+        $this->assertSame('computed', $result);
+    }
+
+    public function testRememberNullableStoresSentinelWhenCallbackReturnsNull(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+        $expectedScore = now()->timestamp + 60;
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with(
+                "prefix:{$key}",
+                60,
+                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+            )
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->rememberNullable('profile', 60, fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testRememberNullableReturnsNullOnSentinelHitWithoutInvokingCallback(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+
+        $invoked = false;
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->rememberNullable('profile', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    /**
+     * Proves tags()->remember() (plain, non-nullable) unwraps the sentinel on return
+     * — the sentinel never leaks through the public non-nullable tagged-cache API.
+     */
+    public function testPlainRememberUnwrapsSentinelOnCachedNullHit(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+
+        $invoked = false;
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->remember('profile', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
     /**
      * @test
      */
@@ -463,6 +554,76 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $result = $store->tags(['config'])->rememberForever('settings', fn () => 'computed_settings');
 
         $this->assertSame('computed_settings', $result);
+    }
+
+    public function testRememberForeverNullableStoresSentinelWhenCallbackReturnsNull(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:config:entries') . ':settings';
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:config:entries', -1, $key)->andReturn($connection);
+        $connection->shouldReceive('set')
+            ->once()
+            ->with(
+                "prefix:{$key}",
+                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+            )
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['config'])->rememberForeverNullable('settings', fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testSearNullableDelegatesToRememberForeverNullable(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:config:entries') . ':settings';
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:config:entries', -1, $key)->andReturn($connection);
+        $connection->shouldReceive('set')
+            ->once()
+            ->with(
+                "prefix:{$key}",
+                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+            )
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['config'])->searNullable('settings', fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    /**
+     * Same unwrap behavior on the forever variant.
+     */
+    public function testPlainRememberForeverUnwrapsSentinelOnCachedNullHit(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:config:entries') . ':settings';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+
+        $invoked = false;
+        $store = $this->createStore($connection);
+        $result = $store->tags(['config'])->rememberForever('settings', function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
     }
 
     /**
@@ -538,5 +699,30 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $result = $store->tags(['users', 'posts'])->remember('activity', 120, fn () => 'activity_data');
 
         $this->assertSame('activity_data', $result);
+    }
+
+    public function testFlexibleNullableReturnsNullOnFreshSentinelHit(): void
+    {
+        $connection = $this->mockConnection();
+        $valueKey = sha1('_all:tag:posts:entries') . ':digest';
+        $markerKey = sha1('_all:tag:posts:entries') . ':hypervel:cache:flexible:created:digest';
+        $now = now()->timestamp;
+
+        // flexible() reads both keys via a single manyRaw() → store->many() → MGET.
+        // phpredis's mget() returns a numeric array in input order.
+        $connection->shouldReceive('mget')
+            ->once()
+            ->with(["prefix:{$valueKey}", "prefix:{$markerKey}"])
+            ->andReturn([serialize(NullSentinel::VALUE), serialize($now)]);
+
+        $invoked = false;
+        $store = $this->createStore($connection);
+        $result = $store->tags(['posts'])->flexibleNullable('digest', [60, 120], function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
     }
 }
