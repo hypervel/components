@@ -14,6 +14,7 @@ use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
@@ -70,6 +71,17 @@ class AnyTaggedCache extends TaggedCache
     }
 
     /**
+     * @throws BadMethodCallException Always - tags are for writing/flushing only
+     */
+    public function getRaw(UnitEnum|string $key): mixed
+    {
+        throw new BadMethodCallException(
+            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::get() directly with the full key.'
+        );
+    }
+
+    /**
      * Retrieve multiple items from the cache by key.
      *
      * @throws BadMethodCallException Always - tags are for writing/flushing only
@@ -79,6 +91,17 @@ class AnyTaggedCache extends TaggedCache
         throw new BadMethodCallException(
             'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
             . 'Use Cache::many() directly with the full keys.'
+        );
+    }
+
+    /**
+     * @throws BadMethodCallException Always - tags are for writing/flushing only
+     */
+    public function manyRaw(array $keys): array
+    {
+        throw new BadMethodCallException(
+            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::get() directly.'
         );
     }
 
@@ -295,7 +318,7 @@ class AnyTaggedCache extends TaggedCache
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**
@@ -324,7 +347,7 @@ class AnyTaggedCache extends TaggedCache
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**
