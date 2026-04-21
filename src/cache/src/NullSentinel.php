@@ -25,8 +25,7 @@ namespace Hypervel\Cache;
  * is safe because PHP's array equality compares keys and values recursively.
  * Collision risk is effectively zero: a caller would have to independently
  * cache a value whose structure is exactly
- * ['__hypervel_cache_null_sentinel' => true]. The same approach is used by
- * EloquentUserProvider::NULL_SENTINEL for the same reason.
+ * ['__hypervel_cache_null_sentinel' => true].
  */
 final class NullSentinel
 {
