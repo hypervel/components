@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache;
 
 use Exception;
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Events\CacheFailedOver;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\FailoverStore;
+use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Cache;
@@ -62,14 +68,17 @@ class FailoverStoreTest extends TestCase
             ->twice()
             ->with(m::on(fn (object $event) => $event instanceof CacheFailedOver && $event->storeName === 'failing'));
 
+        // FailoverStore::get() now delegates to getRaw() internally (for sentinel-aware
+        // reads via RawReadable). The mocks target getRaw() accordingly — the contract
+        // is the same, just routed through the raw-read path.
         $failingRepository = m::mock(CacheRepository::class);
-        $failingRepository->shouldReceive('get')
+        $failingRepository->shouldReceive('getRaw')
             ->twice()
             ->with(m::type('string'))
             ->andThrow(new Exception('The primary store failed.'));
 
         $fallbackRepository = m::mock(CacheRepository::class);
-        $fallbackRepository->shouldReceive('get')
+        $fallbackRepository->shouldReceive('getRaw')
             ->twice()
             ->with(m::type('string'))
             ->andReturn('fallback-a', 'fallback-b');
@@ -89,6 +98,123 @@ class FailoverStoreTest extends TestCase
 
         $this->assertSame('fallback-a', $storeA->get('test-a'));
         $this->assertSame('fallback-b', $storeB->get('test-b'));
+    }
+
+    public function testNullSentinelRoundTripsThroughFailoverStorePrimary()
+    {
+        $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
+        $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
+
+        $outerRepo = $this->buildFailoverRepository($primaryRepo, $fallbackRepo);
+
+        $count = 0;
+        $result1 = $outerRepo->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $result2 = $outerRepo->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertNull($result1);
+        $this->assertNull($result2);
+        $this->assertSame(1, $count, 'Sentinel round-trips through the primary without re-running the callback');
+
+        // Primary's inner store holds the raw sentinel; fallback untouched.
+        $this->assertSame(NullSentinel::VALUE, $primaryRepo->getStore()->get('k'));
+        $this->assertNull($fallbackRepo->getStore()->get('k'));
+    }
+
+    public function testPlainRememberTreatsCachedSentinelAsHitThroughFailoverStack()
+    {
+        $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
+        $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
+
+        $outerRepo = $this->buildFailoverRepository($primaryRepo, $fallbackRepo);
+
+        $outerRepo->rememberNullable('k', 60, fn () => null);
+
+        // Plain remember on the sentinel-stored key. Without RawReadable on FailoverStore,
+        // the inner Repository would unwrap the sentinel and remember() would re-run the
+        // callback on every call.
+        $invoked = false;
+        $result = $outerRepo->remember('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughFailoverStack()
+    {
+        $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
+        $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
+
+        $outerRepo = $this->buildFailoverRepository($primaryRepo, $fallbackRepo);
+
+        $outerRepo->flexibleNullable('k', [60, 120], fn () => null);
+
+        // Regression test for manyRaw() across FailoverStore. Plain flexible()'s batched
+        // read must see the sentinel as a hit via FailoverStore::manyRaw(), not re-run
+        // the callback or trigger a background refresh.
+        $invoked = false;
+        $result = $outerRepo->flexible('k', [60, 120], function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testManyFiresCacheHitNotCacheMissedForSentinelThroughFailoverStack()
+    {
+        $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
+        $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
+
+        $outerRepo = $this->buildFailoverRepository($primaryRepo, $fallbackRepo);
+
+        $outerRepo->rememberNullable('k', 60, fn () => null);
+
+        // Install the capturing dispatcher AFTER the write so we only observe the
+        // many() read-path events.
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+        $outerRepo->setEventDispatcher($events);
+
+        $result = $outerRepo->many(['k']);
+
+        $this->assertSame(['k' => null], $result);
+
+        // Regression: before Repository::many() → manyRaw() refactor, FailoverStore::many()
+        // unwrapped the sentinel before the outer Repository saw it — so many() fired
+        // CacheMissed on a key that was genuinely present. The refactor routes many()
+        // through manyRaw(), which sees the raw sentinel and correctly fires CacheHit.
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(RetrievingManyKeys::class, $captured[0]);
+        $this->assertInstanceOf(CacheHit::class, $captured[1]);
+        $this->assertSame(NullSentinel::VALUE, $captured[1]->value);
+        $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
+    }
+
+    private function buildFailoverRepository(Repository $primary, Repository $fallback): Repository
+    {
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')->with('primary')->andReturn($primary);
+        $cacheManager->shouldReceive('store')->with('fallback')->andReturn($fallback);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->withAnyArgs()->andReturnNull();
+
+        return new Repository(new FailoverStore($cacheManager, $events, ['primary', 'fallback']));
     }
 }
 
