@@ -12,6 +12,7 @@ use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
@@ -248,7 +249,7 @@ class AllTaggedCache extends TaggedCache
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**
@@ -277,7 +278,7 @@ class AllTaggedCache extends TaggedCache
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**
