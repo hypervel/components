@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\SwooleStore;
@@ -92,6 +94,31 @@ class CacheStackStoreTest extends TestCase
         $this->redis->shouldReceive('get')->once()->with($key)->andReturn(null);
 
         $this->assertNull($this->store->get($key));
+    }
+
+    public function testNullSentinelPropagatesThroughStackedStores()
+    {
+        $stack = new StackStore([
+            new ArrayStore(serializesValues: true),
+            new ArrayStore(serializesValues: true),
+        ]);
+        $repo = new Repository($stack);
+
+        $result1 = $repo->rememberNullable('k', 60, fn () => null);
+        $this->assertNull($result1);
+
+        // Stack-level get unwraps the record and returns the stored sentinel.
+        $this->assertSame(NullSentinel::VALUE, $stack->get('k'));
+
+        // Second remember call: callback must not re-run — sentinel recognized as hit.
+        $invoked = false;
+        $result2 = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result2);
+        $this->assertFalse($invoked);
     }
 
     public function testPutItemToStoreStacked()
