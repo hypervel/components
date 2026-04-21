@@ -13,7 +13,7 @@ namespace Hypervel\Cache;
  * "key present with null value" — the cache contract itself can't express
  * that distinction via get() alone.
  *
- * The sentinel is an ARRAY constant, not an object. This is deliberate:
+ * The sentinel is an array constant, not an object. This is deliberate:
  * PHP's unserialize() allowed_classes option (used by stores when the
  * cache.serializable_classes config is set) only restricts object
  * deserialization. Scalars and arrays round-trip unchanged regardless of
