@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use Algolia\AlgoliaSearch\Algolia;
+use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
+use Algolia\AlgoliaSearch\Configuration\SearchConfig as AlgoliaSearchConfig;
+use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
+use Algolia\AlgoliaSearch\Support\AlgoliaAgent;
 use GuzzleHttp\Client as GuzzleClient;
+use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -29,12 +35,47 @@ class ScoutServiceProvider extends ServiceProvider
 
         $this->app->singleton(EngineManager::class, EngineManager::class);
 
+        $this->app->singleton(AlgoliaSearchClient::class, function () {
+            $config = $this->app->make('config');
+
+            // Pin the HTTP client to Guzzle explicitly rather than relying on
+            // Algolia::getHttpClient()'s internal auto-decide heuristic. The
+            // heuristic can change under ^4.0 minor releases (swap to PSR-18
+            // discovery, reorder Guzzle detection, etc.) with no semver signal.
+            // Explicit injection pins the HTTP client choice at our boundary.
+            Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient));
+
+            AlgoliaAgent::addAlgoliaAgent('Hypervel Scout', 'Hypervel Scout', HypervelApplication::VERSION);
+
+            $algoliaConfig = new AlgoliaSearchConfig([
+                'appId' => $config->get('scout.algolia.id'),
+                'apiKey' => $config->get('scout.algolia.secret'),
+            ]);
+
+            if (is_int($connectTimeout = $config->get('scout.algolia.connect_timeout'))) {
+                $algoliaConfig->setConnectTimeout($connectTimeout);
+            }
+            if (is_int($readTimeout = $config->get('scout.algolia.read_timeout'))) {
+                $algoliaConfig->setReadTimeout($readTimeout);
+            }
+            if (is_int($writeTimeout = $config->get('scout.algolia.write_timeout'))) {
+                $algoliaConfig->setWriteTimeout($writeTimeout);
+            }
+
+            return AlgoliaSearchClient::createWithConfig($algoliaConfig);
+        });
+
         $this->app->singleton(MeilisearchClient::class, function () {
             $config = $this->app->make('config');
 
+            // Inject Guzzle explicitly so the Meilisearch client never falls
+            // back to Psr18ClientDiscovery::find(), which may resolve to a
+            // Swoole-unsafe PSR-18 implementation (e.g. Symfony's
+            // CurlHttpClient). Mirrors the Typesense binding's defensive pattern.
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
-                $config->get('scout.meilisearch.key')
+                $config->get('scout.meilisearch.key'),
+                new GuzzleClient,
             );
         });
 
