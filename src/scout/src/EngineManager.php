@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;

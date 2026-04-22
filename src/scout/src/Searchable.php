@@ -11,6 +11,7 @@ use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**

@@ -49,8 +49,8 @@ class ImportCommandTest extends TestCase
         $method->setAccessible(true);
 
         // Test with fully qualified class name
-        $result = $method->invoke($command, \Hypervel\Scout\Engine::class);
-        $this->assertSame(\Hypervel\Scout\Engine::class, $result);
+        $result = $method->invoke($command, \Hypervel\Scout\Engines\Engine::class);
+        $this->assertSame(\Hypervel\Scout\Engines\Engine::class, $result);
     }
 
     public function testThrowsExceptionForNonExistentClass(): void

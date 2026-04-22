@@ -13,7 +13,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
-use Hypervel\Scout\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Support\Collection;

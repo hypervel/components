@@ -28,7 +28,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldReceive('update')
             ->once()
             ->with(m::on(function ($models) {
@@ -44,7 +44,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
@@ -65,7 +65,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldNotReceive('update');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {
@@ -73,7 +73,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
@@ -98,7 +98,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldReceive('update')
             ->once()
             ->with(m::on(function ($models) {
@@ -113,7 +113,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
@@ -135,7 +135,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldNotReceive('update');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {
@@ -143,7 +143,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
@@ -170,7 +170,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$model1, $model2]);
 
         // Mock the engine to verify all models are passed
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldReceive('update')
             ->once()
             ->with(m::on(function ($models) {
@@ -182,7 +182,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }

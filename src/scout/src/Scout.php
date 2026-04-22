@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 
