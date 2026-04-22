@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Traits;
 
+use Carbon\CarbonInterval;
+use Carbon\Unit;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
@@ -116,6 +118,78 @@ class InteractsWithDataTest extends TestCase
         $result = $instance->date('date', null, null);
 
         $this->assertInstanceOf(Carbon::class, $result);
+    }
+
+    public function testIntervalMethod(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'as_null' => null,
+            'as_empty' => '',
+            'as_iso' => 'P1Y2M3DT4H5M6S',
+            'as_human' => '2 hours 30 minutes',
+            'as_seconds' => '90',
+            'as_minutes' => '45',
+        ]);
+
+        $this->assertNull($instance->interval('as_null'));
+        $this->assertNull($instance->interval('as_empty'));
+        $this->assertNull($instance->interval('doesnt_exist'));
+
+        $interval = $instance->interval('as_iso');
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+        $this->assertSame(1, $interval->years);
+        $this->assertSame(2, $interval->months);
+        $this->assertSame(3, $interval->dayz);
+        $this->assertSame(4, $interval->hours);
+        $this->assertSame(5, $interval->minutes);
+        $this->assertSame(6, $interval->seconds);
+
+        $interval = $instance->interval('as_human');
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+        $this->assertSame(2, $interval->hours);
+        $this->assertSame(30, $interval->minutes);
+
+        $interval = $instance->interval('as_seconds', 'second');
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+        $this->assertSame(90, $interval->seconds);
+
+        $this->assertSame(90, $instance->interval('as_seconds', 'minute')->minutes);
+        $this->assertSame(90, $instance->interval('as_seconds', 'hour')->hours);
+        $this->assertSame(90, $instance->interval('as_seconds', 'day')->dayz);
+
+        $this->assertSame(45, $instance->interval('as_minutes', Unit::Minute)->minutes);
+        $this->assertSame(45, $instance->interval('as_minutes', Unit::Second)->seconds);
+    }
+
+    public function testIntervalMethodWithScientificNotationFloats(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'small_float' => '0.000053',
+            'very_small' => '0.000001',
+            'scientific' => '5.3E-5',
+            'normal_float' => '1.5',
+            'integer' => '90',
+        ]);
+
+        // Small floats that PHP would render in scientific notation (e.g. 5.3E-5)
+        $interval = $instance->interval('small_float', Unit::Millisecond);
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+
+        $interval = $instance->interval('very_small', Unit::Second);
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+
+        // Scientific notation string passed directly
+        $interval = $instance->interval('scientific', Unit::Millisecond);
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+
+        // Normal values should still work
+        $interval = $instance->interval('normal_float', Unit::Hour);
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+        $this->assertSame(1, $interval->hours);
+
+        $interval = $instance->interval('integer', Unit::Minute);
+        $this->assertInstanceOf(CarbonInterval::class, $interval);
+        $this->assertSame(90, $interval->minutes);
     }
 }
 
